@@ -30,6 +30,8 @@ public abstract class EprotectSynchedDataMixin {
             if (protect != null && protect.isProtectionActive()) {
                 if (Boolean.TRUE.equals(value) && EprotectHyperlinkCounter.isNovelizedAccessor(key)) {
                     ci.cancel();
+                    com.automatavalkyries.protect.attack.AttackLog.refused(this.entity,
+                            com.automatavalkyries.protect.attack.AttackOp.NOVELIZE + ":data");
                 }
             }
         }

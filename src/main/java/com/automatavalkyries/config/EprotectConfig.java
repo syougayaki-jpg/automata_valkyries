@@ -2,6 +2,8 @@ package com.automatavalkyries.config;
 
 import net.minecraftforge.common.ForgeConfigSpec;
 
+import java.util.List;
+
 /** eprotect の設定（config/automata_valkyries-common.toml） */
 public final class EprotectConfig {
 
@@ -43,9 +45,74 @@ public final class EprotectConfig {
             .comment("超絶抹殺の棒で、ワールドのセーブにある Omni-Mobs の Metapotent Flashfur の保存ファイル（metapotent_flashfurs/*.omnimob）を削除する（元に戻せない）")
             .define("annihilation.deleteOmniMobSaves", true);
 
+    public static final ForgeConfigSpec.BooleanValue ATTACK_LOG_ENABLED = BUILDER
+            .comment("保護対象への攻撃（拒否・修復した操作）を、どの MOD から来たかと一緒に記録する（/eprotect attacks で表示）")
+            .define("attackLog.enabled", true);
+
+    public static final ForgeConfigSpec.BooleanValue ATTACK_LOG_WRITE_FILE = BUILDER
+            .comment("攻撃の記録を logs/automata_valkyries-attacks.log にも書き出す")
+            .define("attackLog.writeFile", true);
+
+    public static final ForgeConfigSpec.IntValue ATTACK_LOG_MAX_ENTRIES = BUILDER
+            .comment("記録を集計して保持する件数（MOD・操作・結果の組み合わせごと）。超えた分は other にまとめる")
+            .defineInRange("attackLog.maxEntries", 256, 16, 4096);
+
+    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> BLACKLIST_MODS = BUILDER
+            .comment("ブラックリストの MOD ID。ここに載った MOD からの即死系の操作（強制移動・次元移動・ダメージ外の HP 減少）も拒否する。通常のダメージは通す")
+            .defineListAllowEmpty("blacklist.mods", List.of(), o -> o instanceof String s && ModIdCheck.isValid(s));
+
+    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> BLACKLIST_NEVER = BUILDER
+            .comment("自動でも手動でもブラックリストに載せない MOD ID（minecraft / forge / このMOD は常に除外）")
+            .defineListAllowEmpty("blacklist.neverBlacklist", List.of(), o -> o instanceof String s && ModIdCheck.isValid(s));
+
+    public static final ForgeConfigSpec.BooleanValue BLACKLIST_AUTO_ENABLED = BUILDER
+            .comment("保護対象への即死攻撃を繰り返す MOD を自動でブラックリストに載せる")
+            .define("blacklist.auto.enabled", true);
+
+    public static final ForgeConfigSpec.IntValue BLACKLIST_AUTO_THRESHOLD = BUILDER
+            .comment("blacklist.auto.windowTicks の間にこの回数（1 Tick に 1 回まで数える）即死攻撃を拒否したら自動で載せる")
+            .defineInRange("blacklist.auto.threshold", 20, 1, 10000);
+
+    public static final ForgeConfigSpec.IntValue BLACKLIST_AUTO_WINDOW_TICKS = BUILDER
+            .comment("自動登録の回数を数える時間窓（Tick）")
+            .defineInRange("blacklist.auto.windowTicks", 1200, 20, 72000);
+
+    public static final ForgeConfigSpec.DoubleValue BLACKLIST_FORCED_RELOCATION_DISTANCE = BUILDER
+            .comment("ブラックリストの MOD による、これより遠くへの移動を強制移動として拒否する（ブロック）")
+            .defineInRange("blacklist.forcedRelocationDistance", 8.0D, 1.0D, 1.0E6D);
+
+    public static final ForgeConfigSpec.BooleanValue BLACKLIST_STRICT_REMOVAL = BUILDER
+            .comment("次元移動・次元移動を装った消去は、直接の呼び出し元でなくても呼び出し経路にブラックリストの MOD があれば拒否する")
+            .define("blacklist.strictRemoval", false);
+
     public static final ForgeConfigSpec SPEC = BUILDER.build();
 
     private EprotectConfig() {}
+
+    /** MOD ID として妥当な文字列か */
+    public static final class ModIdCheck {
+        private ModIdCheck() {}
+
+        public static boolean isValid(String id) {
+            return id.matches("[a-z0-9_.-]{1,64}");
+        }
+    }
+
+    public static double get(ForgeConfigSpec.DoubleValue value) {
+        try {
+            return value.get();
+        } catch (IllegalStateException e) {
+            return value.getDefault();
+        }
+    }
+
+    public static List<? extends String> getList(ForgeConfigSpec.ConfigValue<List<? extends String>> value) {
+        try {
+            return value.get();
+        } catch (IllegalStateException e) {
+            return value.getDefault();
+        }
+    }
 
     /** 設定の読み込み前（GameTest の一部経路など）でも既定値で動くようにする */
     public static boolean get(ForgeConfigSpec.BooleanValue value) {

@@ -6,6 +6,10 @@ import com.automatavalkyries.mixin.EntityAccessor;
 import com.automatavalkyries.mixin.EntityManagerAccessor;
 import com.automatavalkyries.mixin.LivingEntityAccessor;
 import com.automatavalkyries.mixin.ServerLevelTickListAccessor;
+import com.automatavalkyries.protect.attack.AttackLog;
+import com.automatavalkyries.protect.attack.AttackOp;
+import com.automatavalkyries.protect.attack.CallerAttribution;
+import com.automatavalkyries.protect.attack.ModBlacklist;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
@@ -25,6 +29,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * 個体ごとの保護コントローラー（eprotect）。
@@ -71,6 +76,8 @@ public class Eprotect {
     /** 被弾量の時間窓の開始時刻と、その窓で既に引いた量 */
     private long damageWindowStart = -DAMAGE_WINDOW_TICKS;
     private float damageInWindow = 0.0F;
+    /** 入口の判定を通った次元移動の最中か */
+    private boolean dimensionChangeApproved = false;
     /** 最後に本体の Tick が走ったゲーム時刻（Tick 停止の検出用） */
     private long lastTickGameTime = Long.MIN_VALUE;
 
@@ -168,6 +175,7 @@ public class Eprotect {
     /** 毎 Tick（サーバー側）に実行する自己修復 */
     public void tick() {
         hurtDepth = 0; // hurt() 中に例外が出てカウンタが残った場合の保険
+        dimensionChangeApproved = false; // 次元移動の途中で例外が出て許可が残った場合の保険
         if (!isGuardingRemoval()) return;
         // onRemovedFromWorld はチャンクの可視性低下（トラッキング終了）でも呼ばれるが、
         // 再トラッキング時に onAddedToWorld は呼ばれないため、ここで登録を維持する
@@ -190,8 +198,37 @@ public class Eprotect {
      * サーバーから消えた後も画面に残り続ける（クライアントはサーバーの消去通知に必ず従う）。</p>
      */
     public boolean shouldBlockRemoval(Entity.RemovalReason reason) {
-        if (owner.level().isClientSide) return false;
-        return isGuardingRemoval() && isIllegalRemoval(owner, reason);
+        if (owner.level().isClientSide || !isGuardingRemoval()) return false;
+        if (isIllegalRemoval(owner, reason)) {
+            AttackLog.refused(owner, AttackOp.REMOVE + ":" + reason.name().toLowerCase(Locale.ROOT));
+            return true;
+        }
+        // 次元移動を装った消去: 正規の次元移動（{@link #approveDimensionChange} 中）以外で、ブラックリストの MOD が直接呼んだもの
+        return reason == Entity.RemovalReason.CHANGED_DIMENSION && !dimensionChangeApproved
+                && blacklistedCaller(AttackOp.REMOVE + ":changed_dimension", true);
+    }
+
+    /**
+     * ブラックリストの MOD が直接の呼び出し元なら記録して true（即死系の操作の拒否に使う。ブラックリストが空ならスタックを辿らない）。
+     *
+     * @param dimensionOp 次元移動・次元移動を装った消去か（設定 strictRemoval なら、呼び出し経路のどこかに載った MOD がいれば拒否）
+     */
+    public boolean blacklistedCaller(String op, boolean dimensionOp) {
+        if (owner.level().isClientSide || !isProtectionActive() || !ModBlacklist.isActive()) return false;
+        String mod = CallerAttribution.immediateCallerMod(owner);
+        if (!ModBlacklist.contains(mod) && dimensionOp && EprotectConfig.get(EprotectConfig.BLACKLIST_STRICT_REMOVAL)) {
+            CallerAttribution.Attribution a = CallerAttribution.attribute(owner);
+            if (ModBlacklist.contains(a.foreignMod())) mod = a.foreignMod();
+            else if (ModBlacklist.contains(a.otherForeign())) mod = a.otherForeign();
+        }
+        if (!ModBlacklist.contains(mod)) return false;
+        AttackLog.blocked(owner, op, mod);
+        return true;
+    }
+
+    /** 次元移動を許可した（入口の判定を通った）間は、途中の setRemoved(CHANGED_DIMENSION) を止めない（止めると複製が残る） */
+    public void approveDimensionChange(boolean approved) {
+        this.dimensionChangeApproved = approved;
     }
 
     /**
@@ -227,6 +264,11 @@ public class Eprotect {
     public void finishDeath() {
         this.deathFinished = true;
         if (owner.level() instanceof ServerLevel) registry().forget(owner.getUUID());
+    }
+
+    /** die() の直接呼び出し（即死攻撃）を拒否したことを記録する（所有エンティティの die() と Mixin から呼ぶ） */
+    public void noteRefusedDeath() {
+        AttackLog.refused(owner, AttackOp.DIE);
     }
 
     /** hurt() 経由で HP が尽きた場合だけ死亡を許可する（die() の直接呼び出しは拒否） */
@@ -292,21 +334,31 @@ public class Eprotect {
     public float filterHealth(float health) {
         if (owner.level().isClientSide || !isProtectionActive()) return health; // HP の正はサーバー側
         float fallback = lastValidHealth > 0.0F ? lastValidHealth : owner.getMaxHealth();
-        if (!Float.isFinite(health)) return fallback;
+        if (!Float.isFinite(health)) {
+            AttackLog.refused(owner, AttackOp.HEALTH_LOSS + ":nan");
+            return fallback;
+        }
         if (hurtDepth == 0) {
             float current = owner.getHealth();
             float safeCurrent = Float.isFinite(current) && current > 0.0F ? current : fallback;
-            if (health <= 0.0F) return safeCurrent;
-            // hurt() を通らない HP の削り（setHealth(現在値 - x) の連打など）も拒否。
-            // 最大 HP の引き下げに合わせた切り詰めと回復は通す
-            if (EprotectConfig.get(EprotectConfig.REJECT_HEALTH_LOSS_OUTSIDE_DAMAGE)
-                    && health < safeCurrent && health < owner.getMaxHealth()) {
+            if (health <= 0.0F) {
+                AttackLog.refused(owner, AttackOp.HEALTH_LOSS + ":zero");
                 return safeCurrent;
+            }
+            // hurt() を通らない HP の削り（setHealth(現在値 - x) の連打など）も拒否。
+            // 最大 HP の引き下げに合わせた切り詰めと回復は通す。設定で許していても、ブラックリストの MOD からは拒否する
+            if (health < safeCurrent && health < owner.getMaxHealth()) {
+                if (EprotectConfig.get(EprotectConfig.REJECT_HEALTH_LOSS_OUTSIDE_DAMAGE)) {
+                    AttackLog.refused(owner, AttackOp.HEALTH_LOSS);
+                    return safeCurrent;
+                }
+                if (blacklistedCaller(AttackOp.HEALTH_LOSS, false)) return safeCurrent;
             }
         } else {
             // hurt() 実行中であっても、1 撃の最大ダメージ（MAX_HIT_RATIO）を超える不当な HP 0 化を弾く
             float minAllowed = fallback - (owner.getMaxHealth() * MAX_HIT_RATIO + 1.0F);
             if (health <= 0.0F && minAllowed > 0.0F) {
+                AttackLog.refused(owner, AttackOp.HEALTH_LOSS + ":fatal_in_hurt");
                 return minAllowed;
             }
         }
@@ -393,6 +445,7 @@ public class Eprotect {
         if (!(owner.getHealth() <= max)) owner.setHealth(max); // NaN も含めて切り詰める
         AutomataValkyries.LOGGER.warn("[eprotect] Restored tampered max health of {} ({} -> {}, {} foreign modifiers removed)",
                 owner, oldValue, max, removed);
+        AttackLog.repaired(owner, "max_health");
         return true;
     }
 
@@ -415,6 +468,7 @@ public class Eprotect {
         owner.setHealth(restore);
         owner.deathTime = 0;
         lastValidHealth = restore;
+        AttackLog.repaired(owner, "health");
         return true;
     }
 
@@ -424,6 +478,7 @@ public class Eprotect {
         if (!living.automata_valkyries$isDead()) return false;
         living.automata_valkyries$setDead(false);
         AutomataValkyries.LOGGER.warn("[eprotect] Cleared forced death flag on {}", owner);
+        AttackLog.repaired(owner, "dead_flag");
         return true;
     }
 
@@ -438,6 +493,7 @@ public class Eprotect {
         presenceHealthy = issues.isEmpty();
         if (presenceHealthy) return 0;
 
+        AttackLog.repaired(owner, "presence");
         WorldPresence.Outcome outcome = WorldPresence.rejoin(level, owner, lastSafePos);
         switch (outcome) {
             case REJOINED -> {
@@ -488,6 +544,7 @@ public class Eprotect {
                 && EprotectConfig.get(EprotectConfig.RETREAT_WHEN_UNREPAIRABLE)) {
             AutomataValkyries.LOGGER.warn("[eprotect] {} anomalies repaired within {} ticks; retreating {} safely",
                     anomalyCount, window, owner);
+            AttackLog.retreated(owner);
             triggerDespawn();
         }
     }
@@ -532,6 +589,7 @@ public class Eprotect {
             accessor.automata_valkyries$setRemovalReason(null);
             owner.reviveCaps();
             AutomataValkyries.LOGGER.warn("[eprotect] Cleared illegal removal flag on {}", owner);
+            AttackLog.repaired(owner, "removal_flag");
             return true;
         }
         return false;
@@ -552,6 +610,7 @@ public class Eprotect {
         ((ServerLevelTickListAccessor) level).automata_valkyries$getEntityTickList().add(owner);
         lastTickGameTime = level.getGameTime(); // 復帰の Tick が走るまで連続で戻さない
         AutomataValkyries.LOGGER.warn("[eprotect] Restored ticking of {}", owner);
+        AttackLog.repaired(owner, "ticking");
         return true;
     }
 

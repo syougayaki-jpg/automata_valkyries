@@ -21,13 +21,13 @@ public final class TrialMonolithMixins {
     public abstract static class Helper {
         @Inject(method = "setSoulDamageForce(Lnet/minecraft/world/entity/Entity;F)V", at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardSetSoulDamage(Entity entity, float damage, CallbackInfo ci) {
-            if (damage > 0.0F && EprotectCompat.shouldShield(entity)) ci.cancel();
+            if (damage > 0.0F && EprotectCompat.shieldAttack(entity, "trial_monolith:setSoulDamage")) ci.cancel();
         }
 
         @Inject(method = {"onSoulDeath(Lnet/minecraft/world/entity/Entity;)V", "onSoulRemove(Lnet/minecraft/world/entity/Entity;)V"},
                 at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardSoulKill(Entity entity, CallbackInfo ci) {
-            if (EprotectCompat.shouldShield(entity)) ci.cancel();
+            if (EprotectCompat.shieldAttack(entity, "trial_monolith:soulKill")) ci.cancel();
         }
     }
 }

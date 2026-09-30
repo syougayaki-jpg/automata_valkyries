@@ -1,7 +1,11 @@
 package com.automatavalkyries.protect;
 
 import com.automatavalkyries.AutomataValkyries;
+import com.automatavalkyries.config.EprotectConfig;
 import com.automatavalkyries.mixin.ServerLevelTickListAccessor;
+import com.automatavalkyries.protect.attack.AttackLog;
+import com.automatavalkyries.protect.attack.AttackLogFile;
+import com.automatavalkyries.protect.attack.ModBlacklist;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -29,6 +33,8 @@ public class EprotectManager {
     private static final EprotectManager INSTANCE = new EprotectManager();
     /** 監視周期（Tick: 毎Tick監視） */
     private static final int SCAN_INTERVAL = 1;
+    /** 攻撃の記録の増分をまとめて出す間隔（Tick） */
+    private static final int ATTACK_LOG_FLUSH_INTERVAL = 100;
 
     private final Map<UUID, Eprotect> protectedEntities = new HashMap<>();
     private int tickCounter = 0;
@@ -62,6 +68,7 @@ public class EprotectManager {
     public void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
         ++tickCounter;
+        if (tickCounter % ATTACK_LOG_FLUSH_INTERVAL == 0) AttackLog.flush();
         if (tickCounter % REGISTRY_SCAN_INTERVAL == 0 && event.getServer().isRunning()) {
             restoreFromRegistries(event.getServer());
         }
@@ -158,6 +165,7 @@ public class EprotectManager {
     @SubscribeEvent
     public void onServerStarted(ServerStartedEvent event) {
         EprotectWatchdogAgent.getInstance().start(event.getServer());
+        if (EprotectConfig.get(EprotectConfig.ATTACK_LOG_WRITE_FILE)) AttackLogFile.open();
     }
 
     @SubscribeEvent
@@ -169,6 +177,10 @@ public class EprotectManager {
     public void onServerStopped(ServerStoppedEvent event) {
         protectedEntities.clear();
         tickCounter = 0;
+        AttackLog.flush();
+        AttackLog.clear();
+        ModBlacklist.resetAutoCounters();
+        AttackLogFile.close();
     }
 
     /**

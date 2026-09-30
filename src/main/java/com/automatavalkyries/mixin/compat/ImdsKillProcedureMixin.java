@@ -22,32 +22,32 @@ public abstract class ImdsKillProcedureMixin {
     @Inject(method = "execute_all(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/entity/player/Player;Z)V",
             at = @At("HEAD"), cancellable = true, require = 0)
     private static void automata_valkyries$guardExecuteAll(Entity victim, Player source, boolean isDel, CallbackInfo ci) {
-        if (EprotectCompat.shouldShield(victim)) ci.cancel();
+        if (EprotectCompat.shieldAttack(victim, "imds:executeAll")) ci.cancel();
     }
 
     @Inject(method = "execute_cmd(Lnet/minecraft/world/entity/Entity;)V", at = @At("HEAD"), cancellable = true, require = 0)
     private static void automata_valkyries$guardExecuteCmd(Entity victim, CallbackInfo ci) {
-        if (EprotectCompat.shouldShield(victim)) ci.cancel();
+        if (EprotectCompat.shieldAttack(victim, "imds:executeCmd")) ci.cancel();
     }
 
     @Inject(method = "execute_ench(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/entity/LivingEntity;)V",
             at = @At("HEAD"), cancellable = true, require = 0)
     private static void automata_valkyries$guardExecuteEnch(Entity victim, LivingEntity source, CallbackInfo ci) {
-        if (EprotectCompat.shouldShield(victim)) ci.cancel();
+        if (EprotectCompat.shieldAttack(victim, "imds:executeEnch")) ci.cancel();
     }
 
     @Inject(method = "execute_imds(Lnet/minecraft/world/entity/Entity;)V", at = @At("HEAD"), cancellable = true, require = 0)
     private static void automata_valkyries$guardExecuteImds(Entity entity, CallbackInfo ci) {
-        if (EprotectCompat.shouldShield(entity)) ci.cancel();
+        if (EprotectCompat.shieldAttack(entity, "imds:executeImds")) ci.cancel();
     }
 
     @Inject(method = "cleanAI(Lnet/minecraft/world/entity/Entity;)V", at = @At("HEAD"), cancellable = true, require = 0)
     private static void automata_valkyries$guardCleanAI(Entity entity, CallbackInfo ci) {
-        if (EprotectCompat.shouldShield(entity)) ci.cancel();
+        if (EprotectCompat.shieldAttack(entity, "imds:cleanAI")) ci.cancel();
     }
 
     @Inject(method = "remov(Lnet/minecraft/world/entity/Entity;)V", at = @At("HEAD"), cancellable = true, require = 0)
     private static void automata_valkyries$guardRemov(Entity entity, CallbackInfo ci) {
-        if (EprotectCompat.shouldShield(entity)) ci.cancel();
+        if (EprotectCompat.shieldAttack(entity, "imds:remov")) ci.cancel();
     }
 }

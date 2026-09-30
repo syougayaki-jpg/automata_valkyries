@@ -27,18 +27,18 @@ public final class MoreAvaritiaMixins {
         @Inject(method = "killEntity(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/entity/LivingEntity;)V",
                 at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardKill(Entity entity, LivingEntity source, CallbackInfo ci) {
-            if (EprotectCompat.shouldShield(entity)) ci.cancel();
+            if (EprotectCompat.shieldAttack(entity, "more_avaritia:kill")) ci.cancel();
         }
 
         @Inject(method = "superAttack(Lnet/minecraft/world/entity/LivingEntity;)V", at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardSuper(LivingEntity living, CallbackInfo ci) {
-            if (EprotectCompat.shouldShield(living)) ci.cancel();
+            if (EprotectCompat.shieldAttack(living, "more_avaritia:super")) ci.cancel();
         }
 
         @Inject(method = "easyAttack(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/world/entity/player/Player;)V",
                 at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardEasy(LivingEntity living, Player player, CallbackInfo ci) {
-            if (EprotectCompat.shouldShield(living)) ci.cancel();
+            if (EprotectCompat.shieldAttack(living, "more_avaritia:easy")) ci.cancel();
         }
 
         /** 同期データへの HP 直書き（3 引数版もここを通る）。減らす方向だけ拒否する */
@@ -46,14 +46,14 @@ public final class MoreAvaritiaMixins {
                 at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardSetHealth(LivingEntity living, float health, DamageSource source, LivingEntity attacker,
                                                              CallbackInfo ci) {
-            if (EprotectCompat.shouldShield(living) && !(health >= living.getHealth())) ci.cancel();
+            if (!(health >= living.getHealth()) && EprotectCompat.shieldAttack(living, "more_avaritia:setHealth")) ci.cancel();
         }
 
         /** 倒していないのに戦利品だけ落とさせない */
         @Inject(method = "forceDropLoot(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/world/damagesource/DamageSource;Lnet/minecraft/world/entity/LivingEntity;)V",
                 at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardLoot(LivingEntity living, DamageSource source, LivingEntity attacker, CallbackInfo ci) {
-            if (EprotectCompat.shouldShield(living)) ci.cancel();
+            if (EprotectCompat.shieldAttack(living, "more_avaritia:loot")) ci.cancel();
         }
     }
 
@@ -63,7 +63,7 @@ public final class MoreAvaritiaMixins {
     public abstract static class DieList {
         @Inject(method = "addDieEntity(Lnet/minecraft/world/entity/LivingEntity;)V", at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardAdd(LivingEntity living, CallbackInfo ci) {
-            if (EprotectCompat.shouldShield(living)) ci.cancel();
+            if (EprotectCompat.shieldAttack(living, "more_avaritia:add")) ci.cancel();
         }
 
         @Inject(method = "isDieEntity(Lnet/minecraft/world/entity/LivingEntity;)Z", at = @At("HEAD"), cancellable = true, require = 0)

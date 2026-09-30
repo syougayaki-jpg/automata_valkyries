@@ -149,6 +149,7 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
     public void die(DamageSource source) {
         // hurt() を経ない die() の直接呼び出し（即死攻撃）は無視し、健全なHPへの復帰と特権カウンターを適用
         if (!protect.canDie()) {
+            protect.noteRefusedDeath();
             float current = this.getHealth();
             float fallback = Float.isFinite(current) && current > 0.0F ? current : this.getMaxHealth();
             this.setHealth(fallback);

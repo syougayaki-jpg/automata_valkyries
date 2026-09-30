@@ -3,6 +3,8 @@ package com.automatavalkyries.mixin;
 import com.automatavalkyries.protect.Eprotect;
 import com.automatavalkyries.protect.KillModCounters;
 import com.automatavalkyries.protect.IEprotected;
+import com.automatavalkyries.protect.attack.AttackLog;
+import com.automatavalkyries.protect.attack.AttackOp;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.LivingEntity;
@@ -39,6 +41,7 @@ public abstract class EprotectDamageMixin {
             ))) {
                 cir.setReturnValue(false);
                 cir.cancel();
+                com.automatavalkyries.protect.EprotectForgeEvents.recordKillDamage(self, source);
                 return;
             }
         }
@@ -87,6 +90,7 @@ public abstract class EprotectDamageMixin {
 
             if (!protect.canDie()) {
                 ci.cancel();
+                protect.noteRefusedDeath();
                 float current = self.getHealth();
                 float fallback = Float.isFinite(current) && current > 0.0F ? current : self.getMaxHealth();
                 self.setHealth(fallback);
@@ -164,6 +168,7 @@ public abstract class EprotectDamageMixin {
     private void automata_valkyries$guardLivingNovelize(LivingEntity living, CallbackInfo ci) {
         if ((Object) this instanceof IEprotected) {
             ci.cancel();
+            AttackLog.refused((LivingEntity) (Object) this, AttackOp.NOVELIZE);
         }
     }
 }

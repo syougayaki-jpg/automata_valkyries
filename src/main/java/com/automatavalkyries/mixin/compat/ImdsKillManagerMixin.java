@@ -18,16 +18,16 @@ public abstract class ImdsKillManagerMixin {
 
     @Inject(method = "markForDead(Lnet/minecraft/world/entity/LivingEntity;)V", at = @At("HEAD"), cancellable = true, require = 0)
     private static void automata_valkyries$guardMarkForDead(LivingEntity entity, CallbackInfo ci) {
-        if (EprotectCompat.shouldShield(entity)) ci.cancel();
+        if (EprotectCompat.shieldAttack(entity, "imds:markForDead")) ci.cancel();
     }
 
     @Inject(method = "forceRemove(Lnet/minecraft/world/entity/LivingEntity;)V", at = @At("HEAD"), cancellable = true, require = 0)
     private static void automata_valkyries$guardForceRemove(LivingEntity entity, CallbackInfo ci) {
-        if (EprotectCompat.shouldShield(entity)) ci.cancel();
+        if (EprotectCompat.shieldAttack(entity, "imds:forceRemove")) ci.cancel();
     }
 
     @Inject(method = "forceNoAi(Lnet/minecraft/world/entity/LivingEntity;)V", at = @At("HEAD"), cancellable = true, require = 0)
     private static void automata_valkyries$guardForceNoAi(LivingEntity entity, CallbackInfo ci) {
-        if (EprotectCompat.shouldShield(entity)) ci.cancel();
+        if (EprotectCompat.shieldAttack(entity, "imds:forceNoAi")) ci.cancel();
     }
 }

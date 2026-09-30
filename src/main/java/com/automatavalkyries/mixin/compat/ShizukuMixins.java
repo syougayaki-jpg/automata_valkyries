@@ -29,7 +29,7 @@ public final class ShizukuMixins {
         @Inject(method = "remove(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/level/Level;)V",
                 at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardRemove(Entity entity, Level level, CallbackInfo ci) {
-            if (EprotectCompat.shouldShield(entity)) ci.cancel();
+            if (EprotectCompat.shieldAttack(entity, "shizuku:remove")) ci.cancel();
         }
     }
 
@@ -42,18 +42,18 @@ public final class ShizukuMixins {
                 "tickDeath(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/entity/player/Player;)V"},
                 at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardAttack(Entity entity, Player player, CallbackInfo ci) {
-            if (EprotectCompat.shouldShield(entity)) ci.cancel();
+            if (EprotectCompat.shieldAttack(entity, "shizuku:attack")) ci.cancel();
         }
 
         @Inject(method = "kill(Lnet/minecraft/world/entity/Entity;)V", at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardKill(Entity entity, CallbackInfo ci) {
-            if (EprotectCompat.shouldShield(entity)) ci.cancel();
+            if (EprotectCompat.shieldAttack(entity, "shizuku:kill")) ci.cancel();
         }
 
         @Inject(method = "remove(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/entity/player/Player;)Z",
                 at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardRemove(Entity entity, Player player, CallbackInfoReturnable<Boolean> cir) {
-            if (EprotectCompat.shouldShield(entity)) cir.setReturnValue(false);
+            if (EprotectCompat.shieldAttack(entity, "shizuku:remove")) cir.setReturnValue(false);
         }
     }
 
@@ -75,30 +75,30 @@ public final class ShizukuMixins {
                 at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardAnnihilate(LivingEntity entity, net.minecraft.server.level.ServerPlayer caster,
                                                               net.minecraft.server.level.ServerLevel level, CallbackInfoReturnable<Boolean> cir) {
-            if (EprotectCompat.shouldShield(entity)) cir.setReturnValue(false);
+            if (EprotectCompat.shieldAttack(entity, "shizuku:annihilate")) cir.setReturnValue(false);
         }
 
         @Inject(method = "physicallyRemove(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/server/level/ServerLevel;)V",
                 at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardPhysicalRemove(LivingEntity entity, net.minecraft.server.level.ServerLevel level, CallbackInfo ci) {
-            if (EprotectCompat.shouldShield(entity)) ci.cancel();
+            if (EprotectCompat.shieldAttack(entity, "shizuku:physicalRemove")) ci.cancel();
         }
 
         @Inject(method = {"wipeBossHealth(Lnet/minecraft/world/entity/LivingEntity;)V", "stripProtections(Lnet/minecraft/world/entity/LivingEntity;)V"},
                 at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardWipe(LivingEntity entity, CallbackInfo ci) {
-            if (EprotectCompat.shouldShield(entity)) ci.cancel();
+            if (EprotectCompat.shieldAttack(entity, "shizuku:wipe")) ci.cancel();
         }
 
         @Inject(method = "wipeEntityFields(Lnet/minecraft/world/entity/Entity;)V", at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardWipeFields(Entity entity, CallbackInfo ci) {
-            if (EprotectCompat.shouldShield(entity)) ci.cancel();
+            if (EprotectCompat.shieldAttack(entity, "shizuku:wipeFields")) ci.cancel();
         }
 
         @Inject(method = "suppressRespawn(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/server/level/ServerPlayer;)V",
                 at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardSuppress(LivingEntity entity, net.minecraft.server.level.ServerPlayer caster, CallbackInfo ci) {
-            if (EprotectCompat.shouldShield(entity)) ci.cancel();
+            if (EprotectCompat.shieldAttack(entity, "shizuku:suppress")) ci.cancel();
         }
 
         @Inject(method = "isTickSuppressed(Lnet/minecraft/world/entity/LivingEntity;)Z", at = @At("HEAD"), cancellable = true, require = 0)
@@ -118,7 +118,7 @@ public final class ShizukuMixins {
     public abstract static class RemovedMark {
         @Inject(method = "setIsRemoved(Lnet/minecraft/world/entity/Entity;Z)V", at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardMark(Entity entity, boolean removed, CallbackInfo ci) {
-            if (removed && EprotectCompat.shouldShield(entity)) ci.cancel();
+            if (removed && EprotectCompat.shieldAttack(entity, "shizuku:mark")) ci.cancel();
         }
 
         @Inject(method = {"isRemoved(Ljava/lang/Object;)Z", "containsEntity(Ljava/lang/Object;)Z"},
@@ -134,7 +134,7 @@ public final class ShizukuMixins {
     public abstract static class HealthLock {
         @Inject(method = "lockEntityHealth", at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardLock(LivingEntity entity, float health, float max, List<?> fields, CallbackInfo ci) {
-            if (EprotectCompat.shouldShield(entity)) ci.cancel();
+            if (EprotectCompat.shieldAttack(entity, "shizuku:lock")) ci.cancel();
         }
     }
 }

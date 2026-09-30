@@ -30,37 +30,37 @@ public final class EcaMixins {
         @Inject(method = "kill(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/world/damagesource/DamageSource;)V",
                 at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardKill(LivingEntity entity, DamageSource source, CallbackInfo ci) {
-            if (EprotectCompat.shouldShield(entity)) ci.cancel();
+            if (EprotectCompat.shieldAttack(entity, "eca:kill")) ci.cancel();
         }
 
         @Inject(method = "remove(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/entity/Entity$RemovalReason;)V",
                 at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardRemove(Entity entity, Entity.RemovalReason reason, CallbackInfo ci) {
-            if (EprotectCompat.shouldShield(entity)) ci.cancel();
+            if (EprotectCompat.shieldAttack(entity, "eca:remove")) ci.cancel();
         }
 
         @Inject(method = "removeFromServerContainers(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/entity/Entity;)V",
                 at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardContainers(ServerLevel level, Entity entity, CallbackInfo ci) {
-            if (EprotectCompat.shouldShield(entity)) ci.cancel();
+            if (EprotectCompat.shieldAttack(entity, "eca:containers")) ci.cancel();
         }
 
         @Inject(method = {"cleanupAI(Lnet/minecraft/world/entity/Entity;)V", "cleanupBossBar(Lnet/minecraft/world/entity/Entity;)V"},
                 at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardCleanup(Entity entity, CallbackInfo ci) {
-            if (EprotectCompat.shouldShield(entity)) ci.cancel();
+            if (EprotectCompat.shieldAttack(entity, "eca:cleanup")) ci.cancel();
         }
 
         /** HP の多経路書き込み（同期データ直書き・データフロー逆算・外部スキャン）。減らす方向だけ拒否する */
         @Inject(method = "setHealth(Lnet/minecraft/world/entity/LivingEntity;F)Z", at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardSetHealth(LivingEntity entity, float health, CallbackInfoReturnable<Boolean> cir) {
-            if (EprotectCompat.shouldShield(entity) && !(health >= entity.getHealth())) cir.setReturnValue(false);
+            if (!(health >= entity.getHealth()) && EprotectCompat.shieldAttack(entity, "eca:setHealth")) cir.setReturnValue(false);
         }
 
         /** 遠方（102400, -102400, 102400）への強制テレポート */
         @Inject(method = "teleport(Lnet/minecraft/world/entity/Entity;DDD)Z", at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardTeleport(Entity entity, double x, double y, double z, CallbackInfoReturnable<Boolean> cir) {
-            if (EprotectCompat.shouldShield(entity)) cir.setReturnValue(false);
+            if (EprotectCompat.shieldAttack(entity, "eca:teleport")) cir.setReturnValue(false);
         }
     }
 
@@ -74,12 +74,12 @@ public final class EcaMixins {
     public abstract static class Api {
         @Inject(method = "enableAllReturn(Lnet/minecraft/world/entity/Entity;)Z", at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardEnableAllReturn(Entity entity, CallbackInfoReturnable<Boolean> cir) {
-            if (EprotectCompat.shouldShield(entity)) cir.setReturnValue(false);
+            if (EprotectCompat.shieldAttack(entity, "eca:enableAllReturn")) cir.setReturnValue(false);
         }
 
         @Inject(method = "setEntityModAllReturn(Lnet/minecraft/world/entity/Entity;Z)Z", at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardSetAllReturn(Entity entity, boolean enable, CallbackInfoReturnable<Boolean> cir) {
-            if (enable && EprotectCompat.shouldShield(entity)) cir.setReturnValue(false);
+            if (enable && EprotectCompat.shieldAttack(entity, "eca:setAllReturn")) cir.setReturnValue(false);
         }
     }
 
@@ -115,7 +115,7 @@ public final class EcaMixins {
         @Inject(method = "begin(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/entity/Entity;)V",
                 at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardBegin(ServerLevel level, Entity entity, CallbackInfo ci) {
-            if (EprotectCompat.shouldShield(entity)) ci.cancel();
+            if (EprotectCompat.shieldAttack(entity, "eca:begin")) ci.cancel();
         }
 
         @Inject(method = "shouldBlockAdd(Lnet/minecraft/world/entity/Entity;)Z", at = @At("HEAD"), cancellable = true, require = 0)

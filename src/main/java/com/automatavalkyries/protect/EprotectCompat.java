@@ -1,5 +1,6 @@
 package com.automatavalkyries.protect;
 
+import com.automatavalkyries.protect.attack.AttackLog;
 import net.minecraft.world.entity.Entity;
 import net.minecraftforge.entity.PartEntity;
 import org.jetbrains.annotations.Nullable;
@@ -20,5 +21,18 @@ public final class EprotectCompat {
         if (protect == null) return false;
         // 撃破・退場の状態はサーバーにしか無い。クライアントでは常に拒否し、消去はサーバーの通知に任せる
         return entity.level().isClientSide || protect.isGuardingRemoval();
+    }
+
+    /**
+     * 他 MOD の攻撃（キル・消去・HP 書き換え等）の入口で使う: {@link #shouldShield} と同じ判定をし、止めるなら攻撃として記録する。
+     * 判定だけの問い合わせ（「この個体は免除か」「死亡予定か」等）は常に呼ばれるので {@link #shouldShield} を使うこと。
+     *
+     * @param operation 記録に出す操作名（例: "eca:kill"）
+     */
+    public static boolean shieldAttack(@Nullable Entity entity, String operation) {
+        if (!shouldShield(entity)) return false;
+        Entity target = entity instanceof PartEntity<?> part ? part.getParent() : entity;
+        AttackLog.shielded(target, operation);
+        return true;
     }
 }

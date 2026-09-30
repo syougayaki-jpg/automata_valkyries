@@ -2,6 +2,8 @@ package com.automatavalkyries.protect;
 
 import com.automatavalkyries.AutomataValkyries;
 import com.automatavalkyries.item.SuperKillStickItem;
+import com.automatavalkyries.protect.attack.AttackLog;
+import com.automatavalkyries.protect.attack.AttackOp;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.LivingEntity;
@@ -34,8 +36,25 @@ public class EprotectForgeEvents {
             DamageSource source = event.getSource();
             if (isInstantKillSource(source) || isAttackerHoldingKillItem(source)) {
                 event.setCanceled(true);
+                recordKillDamage(target, source);
             }
         }
+    }
+
+    /** 即死ダメージの拒否を記録する。ダメージの種類と、攻撃者の持つアイテムの名前空間（アイテムによる即死ならその MOD の ID）も添える */
+    public static void recordKillDamage(LivingEntity target, DamageSource source) {
+        var typeKey = source.typeHolder().unwrapKey().map(key -> key.location()).orElse(null);
+        String knownMod = typeKey != null && !"minecraft".equals(typeKey.getNamespace()) ? typeKey.getNamespace() : null;
+        String item = "";
+        if (source.getEntity() instanceof LivingEntity attacker && !attacker.getMainHandItem().isEmpty()) {
+            var itemKey = net.minecraftforge.registries.ForgeRegistries.ITEMS.getKey(attacker.getMainHandItem().getItem());
+            if (itemKey != null) {
+                item = ",item=" + itemKey;
+                if (!"minecraft".equals(itemKey.getNamespace())) knownMod = itemKey.getNamespace();
+            }
+        }
+        String type = typeKey != null ? typeKey.toString() : source.getMsgId();
+        AttackLog.refused(target, AttackOp.KILL_DAMAGE + ":" + type + item, knownMod);
     }
 
     @SubscribeEvent(priority = EventPriority.HIGHEST)
@@ -51,6 +70,7 @@ public class EprotectForgeEvents {
             if (isInstantKillSource(source) || isAttackerHoldingKillItem(source)) {
                 event.setCanceled(true);
                 event.setAmount(0.0F);
+                recordKillDamage(target, source);
                 return;
             }
 
@@ -92,6 +112,7 @@ public class EprotectForgeEvents {
         if (protect == null || !protect.isProtectionActive() || SuperKillStickItem.isRefused(event.getEntity())) return;
         event.setCanceled(false);
         AutomataValkyries.LOGGER.warn("[eprotect] Overrode a cancelled world join of {}", event.getEntity());
+        AttackLog.repaired(event.getEntity(), "cancelled_join");
     }
 
     private static boolean isInstantKillSource(DamageSource source) {

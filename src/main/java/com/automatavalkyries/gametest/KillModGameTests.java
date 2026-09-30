@@ -53,6 +53,7 @@ public class KillModGameTests {
         invoke(helper, "net.wzz.more_avaritia.util.InfinityUtils", "killEntity",
                 new Class<?>[]{net.minecraft.world.entity.Entity.class, net.minecraft.world.entity.LivingEntity.class}, elenor, attacker);
         attacker.discard();
+        assertAttackRecorded(helper, "more_avaritia");
         assertSurvivesAfterRepair(helper, elenor);
     }
 
@@ -86,6 +87,7 @@ public class KillModGameTests {
         invoke(helper, "net.eca.api.EcaAPI", "kill",
                 new Class<?>[]{net.minecraft.world.entity.LivingEntity.class, net.minecraft.world.damagesource.DamageSource.class},
                 elenor, helper.getLevel().damageSources().generic());
+        assertAttackRecorded(helper, "eca");
         assertSurvivesAfterRepair(helper, elenor);
     }
 
@@ -323,6 +325,12 @@ public class KillModGameTests {
             // キル処理の途中で他 MOD が例外を出しても、エレノアの状態の検証は続ける
             AutomataValkyries.LOGGER.warn("[eprotect-test] {}.{} threw", className, method, e);
         }
+    }
+
+    /** 攻撃の記録に、その MOD の名前で止めた記録が残っていること（どの MOD の攻撃かを割り出せているか） */
+    private static void assertAttackRecorded(GameTestHelper helper, String modId) {
+        helper.assertTrue(com.automatavalkyries.protect.attack.AttackLog.entries().stream().anyMatch(e -> e.mod.equals(modId)),
+                "No attack from " + modId + " was recorded");
     }
 
     private static void assertSurvivesAfterRepair(GameTestHelper helper, ElenorEntity elenor) {

@@ -28,37 +28,37 @@ public final class NoSugarMixins {
         @Inject(method = "killIfParentFound(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/entity/Entity;D)Z",
                 at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guard1(Entity self, Entity attacker, double radius, CallbackInfoReturnable<Boolean> cir) {
-            if (EprotectCompat.shouldShield(self)) cir.setReturnValue(false);
+            if (EprotectCompat.shieldAttack(self, "nosugar:killIfParentFound")) cir.setReturnValue(false);
         }
 
         @Inject(method = "killIfParentFound(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/entity/Entity;DZ)Z",
                 at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guard2(Entity self, Entity attacker, double radius, boolean skip, CallbackInfoReturnable<Boolean> cir) {
-            if (EprotectCompat.shouldShield(self)) cir.setReturnValue(false);
+            if (EprotectCompat.shieldAttack(self, "nosugar:killIfParentFound")) cir.setReturnValue(false);
         }
 
         @Inject(method = "killIfParentFound(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/entity/Entity;DLnet/minecraft/world/damagesource/DamageSource;)Z",
                 at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guard3(Entity self, Entity attacker, double radius, DamageSource src, CallbackInfoReturnable<Boolean> cir) {
-            if (EprotectCompat.shouldShield(self)) cir.setReturnValue(false);
+            if (EprotectCompat.shieldAttack(self, "nosugar:killIfParentFound")) cir.setReturnValue(false);
         }
 
         @Inject(method = "killIfParentFound(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/world/entity/LivingEntity;Z)Z",
                 at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guard4(LivingEntity self, LivingEntity attacker, boolean skip, CallbackInfoReturnable<Boolean> cir) {
-            if (EprotectCompat.shouldShield(self)) cir.setReturnValue(false);
+            if (EprotectCompat.shieldAttack(self, "nosugar:killIfParentFound")) cir.setReturnValue(false);
         }
 
         @Inject(method = "killIfParentFound(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/world/entity/LivingEntity;)Z",
                 at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guard5(LivingEntity self, LivingEntity attacker, CallbackInfoReturnable<Boolean> cir) {
-            if (EprotectCompat.shouldShield(self)) cir.setReturnValue(false);
+            if (EprotectCompat.shieldAttack(self, "nosugar:killIfParentFound")) cir.setReturnValue(false);
         }
 
         @Inject(method = "killIfParentFound(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/entity/Entity;DZLnet/minecraft/world/damagesource/DamageSource;)Z",
                 at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guard6(Entity self, Entity attacker, double radius, boolean skip, DamageSource src, CallbackInfoReturnable<Boolean> cir) {
-            if (EprotectCompat.shouldShield(self)) cir.setReturnValue(false);
+            if (EprotectCompat.shieldAttack(self, "nosugar:killIfParentFound")) cir.setReturnValue(false);
         }
     }
 
@@ -72,24 +72,24 @@ public final class NoSugarMixins {
         @Inject(method = "instantKill(Lnet/minecraft/world/entity/LivingEntity;ZLnet/minecraft/world/damagesource/DamageSource;)V",
                 at = @At("HEAD"), cancellable = true, remap = false, require = 0)
         private void automata_valkyries$guardInstantKill(LivingEntity attacker, boolean skip, DamageSource src, CallbackInfo ci) {
-            if (EprotectCompat.shouldShield((Entity) (Object) this)) ci.cancel();
+            if (EprotectCompat.shieldAttack((Entity) (Object) this, "nosugar:instantKill")) ci.cancel();
         }
 
         @Inject(method = {"instantKill()V", "instantKill(Lnet/minecraft/world/damagesource/DamageSource;)V", "forceErase()V", "eraseClientEntity()V"},
                 at = @At("HEAD"), cancellable = true, remap = false, require = 0)
         private void automata_valkyries$guardErase(CallbackInfo ci) {
-            if (EprotectCompat.shouldShield((Entity) (Object) this)) ci.cancel();
+            if (EprotectCompat.shieldAttack((Entity) (Object) this, "nosugar:erase")) ci.cancel();
         }
 
         @Inject(method = "setErased(Z)V", at = @At("HEAD"), cancellable = true, remap = false, require = 0)
         private void automata_valkyries$guardSetErased(boolean flag, CallbackInfo ci) {
-            if (flag && EprotectCompat.shouldShield((Entity) (Object) this)) ci.cancel();
+            if (flag && EprotectCompat.shieldAttack((Entity) (Object) this, "nosugar:setErased")) ci.cancel();
         }
 
         @Inject(method = "markErased(Ljava/util/UUID;)V", at = @At("HEAD"), cancellable = true, remap = false, require = 0)
         private void automata_valkyries$guardMarkErased(UUID uuid, CallbackInfo ci) {
             Entity self = (Entity) (Object) this;
-            if (self.getUUID().equals(uuid) && EprotectCompat.shouldShield(self)) ci.cancel();
+            if (self.getUUID().equals(uuid) && EprotectCompat.shieldAttack(self, "nosugar:markErased")) ci.cancel();
         }
     }
 }

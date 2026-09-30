@@ -28,7 +28,7 @@ public final class WitherzillaMixins {
         /** 剣（ultima_blade_god）・範囲攻撃・クライアント側の消去パケットが共通で通る */
         @Inject(method = "forceRemoveEntity(Lnet/minecraft/world/entity/Entity;)V", at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardForceRemove(Entity entity, CallbackInfo ci) {
-            if (EprotectCompat.shouldShield(entity)) ci.cancel();
+            if (EprotectCompat.shieldAttack(entity, "witherzilla:forceRemove")) ci.cancel();
         }
 
         @Inject(method = "safeEntity(Lnet/minecraft/world/entity/Entity;)Z", at = @At("HEAD"), cancellable = true, require = 0)
@@ -76,7 +76,7 @@ public final class WitherzillaMixins {
         @Inject(method = {"addDeathEntity(Lnet/minecraft/world/entity/Entity;)V", "scheduleRemoval(Lnet/minecraft/world/entity/Entity;)V"},
                 at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardSchedule(Entity entity, CallbackInfo ci) {
-            if (EprotectCompat.shouldShield(entity)) ci.cancel();
+            if (EprotectCompat.shieldAttack(entity, "witherzilla:schedule")) ci.cancel();
         }
 
         @Inject(method = {"isDeathEntity(Lnet/minecraft/world/entity/Entity;)Z", "tickAndCheck(Lnet/minecraft/world/entity/Entity;)Z"},

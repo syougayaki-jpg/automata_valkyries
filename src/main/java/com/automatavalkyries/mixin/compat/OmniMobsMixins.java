@@ -50,7 +50,7 @@ public final class OmniMobsMixins {
 
         @Inject(method = "instantKill(Lnet/minecraft/world/entity/LivingEntity;F)V", at = @At("HEAD"), cancellable = true, require = 0)
         private void automata_valkyries$guardInstantKill(LivingEntity target, float amount, CallbackInfo ci) {
-            if (EprotectCompat.shouldShield(target)) {
+            if (EprotectCompat.shieldAttack(target, "omnimobs:instantKill")) {
                 ci.cancel();
                 target.hurt(target.damageSources().generic(), amount);
             }
@@ -58,7 +58,7 @@ public final class OmniMobsMixins {
 
         @Inject(method = "eraseEntity(Lnet/minecraft/world/entity/Entity;)V", at = @At("HEAD"), cancellable = true, require = 0)
         private void automata_valkyries$guardErase(Entity entity, CallbackInfo ci) {
-            if (EprotectCompat.shouldShield(entity)) ci.cancel();
+            if (EprotectCompat.shieldAttack(entity, "omnimobs:erase")) ci.cancel();
         }
     }
 
@@ -71,7 +71,7 @@ public final class OmniMobsMixins {
                 at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardForceHurt(LivingEntity target, LivingEntity attacker,
                                                             @Coerce Object source, CallbackInfo ci) {
-            if (EprotectCompat.shouldShield(target)) {
+            if (EprotectCompat.shieldAttack(target, "omnimobs:forceHurt")) {
                 ci.cancel();
                 target.hurt(attacker != null ? target.damageSources().mobAttack(attacker) : target.damageSources().generic(), Float.MAX_VALUE);
             }
@@ -83,24 +83,24 @@ public final class OmniMobsMixins {
                 "forceSetRemoved(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/entity/Entity$RemovalReason;)V"},
                 at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardRemove(Entity entity, Entity.RemovalReason reason, CallbackInfo ci) {
-            if (EprotectCompat.shouldShield(entity)) ci.cancel();
+            if (EprotectCompat.shieldAttack(entity, "omnimobs:remove")) ci.cancel();
         }
 
         @Inject(method = "forceRemoveNoPacket(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/entity/Entity$RemovalReason;Z)V",
                 at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardRemoveNoPacket(Entity entity, Entity.RemovalReason reason, boolean flag, CallbackInfo ci) {
-            if (EprotectCompat.shouldShield(entity)) ci.cancel();
+            if (EprotectCompat.shieldAttack(entity, "omnimobs:removeNoPacket")) ci.cancel();
         }
 
         @Inject(method = "runRemoveMethods(Lnet/minecraft/world/entity/Entity;)V", at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardRemoveMethods(Entity entity, CallbackInfo ci) {
-            if (EprotectCompat.shouldShield(entity)) ci.cancel();
+            if (EprotectCompat.shieldAttack(entity, "omnimobs:removeMethods")) ci.cancel();
         }
 
         /** 座標の直書き（1.0E9 などワールド外への飛ばし） */
         @Inject(method = "forceSetPos(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/phys/Vec3;)V", at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardSetPos(Entity entity, Vec3 pos, CallbackInfo ci) {
-            if (EprotectCompat.shouldShield(entity)) ci.cancel();
+            if (EprotectCompat.shieldAttack(entity, "omnimobs:setPos")) ci.cancel();
         }
 
         /** HP のフィールド・同期データ・setHealth 系の直書き */
@@ -111,7 +111,7 @@ public final class OmniMobsMixins {
                 "runSetHealthMethods(Lnet/minecraft/world/entity/LivingEntity;F)V"},
                 at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardSetHealth(LivingEntity entity, float health, CallbackInfo ci) {
-            if (EprotectCompat.shouldShield(entity)) ci.cancel();
+            if (EprotectCompat.shieldAttack(entity, "omnimobs:setHealth")) ci.cancel();
         }
     }
 }

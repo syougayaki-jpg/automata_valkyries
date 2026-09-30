@@ -22,12 +22,12 @@ public final class ImdsUtilMixins {
     public abstract static class UtilProcedure {
         @Inject(method = "teleport(Lnet/minecraft/world/entity/Entity;D)V", at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardTeleport(Entity entity, double pos, CallbackInfo ci) {
-            if (EprotectCompat.shouldShield(entity)) ci.cancel();
+            if (EprotectCompat.shieldAttack(entity, "imds:teleport")) ci.cancel();
         }
 
         @Inject(method = "cleanBossBar(Lnet/minecraft/world/entity/Entity;Z)V", at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardCleanBossBar(Entity entity, boolean isDel, CallbackInfo ci) {
-            if (EprotectCompat.shouldShield(entity)) ci.cancel();
+            if (EprotectCompat.shieldAttack(entity, "imds:cleanBossBar")) ci.cancel();
         }
     }
 
@@ -37,7 +37,7 @@ public final class ImdsUtilMixins {
     public abstract static class ForceTeleport {
         @Inject(method = "forceTeleport(Lnet/minecraft/world/entity/Entity;DDD)Z", at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardForceTeleport(Entity target, double x, double y, double z, CallbackInfoReturnable<Boolean> cir) {
-            if (EprotectCompat.shouldShield(target)) cir.setReturnValue(false);
+            if (EprotectCompat.shieldAttack(target, "imds:forceTeleport")) cir.setReturnValue(false);
         }
     }
 
