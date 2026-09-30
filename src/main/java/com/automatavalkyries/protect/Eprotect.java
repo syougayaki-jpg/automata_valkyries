@@ -383,9 +383,17 @@ public class Eprotect {
             lastSafePos = owner.position();
         }
         EntityInLevelCallback callback = ((EntityAccessor) owner).automata_valkyries$getLevelCallback();
-        if (callback != EntityInLevelCallback.NULL) {
+        if (isVanillaCallback(callback)) {
             lastLevelCallback = callback;
         }
+    }
+
+    /**
+     * バニラのエンティティ管理が渡す接続か。NULL は除外する。
+     * MoreAvaritia のように「何もしない独自の実装」へ差し替えてくる MOD があるので、NULL かどうかだけでは判定しない。
+     */
+    private static boolean isVanillaCallback(EntityInLevelCallback callback) {
+        return callback != EntityInLevelCallback.NULL && callback.getClass().getName().startsWith("net.minecraft.");
     }
 
     /** 座標フィールドの直書き（IMDS の -Infinity 奈落落とし等）で壊れた座標を、最後の正常な座標へ戻す */
@@ -398,13 +406,13 @@ public class Eprotect {
     }
 
     /**
-     * ワールドとの接続（levelCallback）を NULL に直書きされていたら戻す。
+     * ワールドとの接続（levelCallback）を NULL やバニラ以外の実装に直書きされていたら戻す。
      * NULL のままだと移動・保存・消去がワールドに伝わらず、区画に残った古いデータが壊れた座標で保存される。
      * 正規の消去（removalReason あり）の後は触らない。
      */
     private boolean restoreLevelCallback() {
         EntityAccessor accessor = (EntityAccessor) owner;
-        if (accessor.automata_valkyries$getLevelCallback() != EntityInLevelCallback.NULL
+        if (isVanillaCallback(accessor.automata_valkyries$getLevelCallback())
                 || lastLevelCallback == null || accessor.automata_valkyries$getRemovalReason() != null) {
             return false;
         }

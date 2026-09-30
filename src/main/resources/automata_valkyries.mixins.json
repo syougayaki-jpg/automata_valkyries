@@ -27,6 +27,8 @@
     "compat.EcaMixins$Util",
     "compat.EcaMixins$Api",
     "compat.EcaMixins$Quarantine",
+    "compat.MoreAvaritiaMixins$Utils",
+    "compat.MoreAvaritiaMixins$DieList",
     "compat.ShizukuMixins$Remover",
     "compat.ShizukuMixins$Killer",
     "compat.ShizukuMixins$Ymsa",
