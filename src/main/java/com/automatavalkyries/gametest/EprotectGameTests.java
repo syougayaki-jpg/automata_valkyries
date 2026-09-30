@@ -97,6 +97,50 @@ public class EprotectGameTests {
         });
     }
 
+    /**
+     * 同じ Tick に無敵時間を消して hurt() を連打しても、{@link Eprotect#DAMAGE_WINDOW_TICKS} の間に減る HP は
+     * 1 撃の上限（最大 HP の {@link Eprotect#MAX_HIT_RATIO}）まで。上限ごとの連打で 1 Tick のうちに正規撃破されないこと
+     */
+    @GameTest(template = TEMPLATE)
+    public static void rapidHitsShareOneDamageBudget(GameTestHelper helper) {
+        ElenorEntity elenor = spawnElenor(helper);
+        float max = elenor.getMaxHealth();
+        for (int i = 0; i < 30; i++) {
+            elenor.invulnerableTime = 0;
+            elenor.hurt(generic(helper), 1000.0F);
+        }
+        float hp = elenor.getHealth();
+        helper.assertTrue(hp >= max * (1 - Eprotect.MAX_HIT_RATIO) - 0.01F, "Rapid hits exceeded the damage budget: " + hp);
+        helper.assertFalse(elenor.getEprotect().isDefeated(), "Rapid hits defeated Elenor");
+        helper.runAfterDelay(1, () -> {
+            assertProtectedAndAlive(helper, elenor);
+            despawnAndSucceed(helper, elenor);
+        });
+    }
+
+    /**
+     * チャンクのアンロードを装った消去（UNLOADED_TO_CHUNK / UNLOADED_WITH_PLAYER）。
+     * 正規のアンロードは区画が HIDDEN になってからしか起きないので、見えているチャンクでは拒否・修復される
+     */
+    @GameTest(template = TEMPLATE)
+    public static void fakeUnloadIsRejected(GameTestHelper helper) {
+        ElenorEntity elenor = spawnElenor(helper);
+        elenor.remove(Entity.RemovalReason.UNLOADED_TO_CHUNK);
+        elenor.setRemoved(Entity.RemovalReason.UNLOADED_WITH_PLAYER);
+        helper.runAfterDelay(3, () -> {
+            assertProtectedAndAlive(helper, elenor);
+            helper.assertTrue(EprotectManager.getInstance().isRegistered(elenor.getEprotect()), "Fake unload stopped the watch");
+            // Mixin を経ないフィールド直書きも修復される
+            ((EntityAccessor) elenor).automata_valkyries$setRemovalReason(Entity.RemovalReason.UNLOADED_TO_CHUNK);
+            helper.runAfterDelay(4, () -> {
+                helper.assertTrue(((EntityAccessor) elenor).automata_valkyries$getRemovalReason() == null,
+                        "Fake unload flag was not cleared: " + elenor.getRemovalReason());
+                assertProtectedAndAlive(helper, elenor);
+                despawnAndSucceed(helper, elenor);
+            });
+        });
+    }
+
     @GameTest(template = TEMPLATE)
     public static void directDeathIsRepaired(GameTestHelper helper) {
         ElenorEntity elenor = spawnElenor(helper);
@@ -128,6 +172,7 @@ public class EprotectGameTests {
         ElenorEntity elenor = spawnElenor(helper);
         for (int i = 0; i < 100 && !elenor.isDeadOrDying(); i++) {
             elenor.invulnerableTime = 0;
+            elenor.getEprotect().resetDamageWindow(); // 10 秒おきの被弾を 1 Tick に縮めて再現
             elenor.hurt(generic(helper), 1000.0F);
         }
         helper.assertTrue(elenor.getEprotect().isDefeated(), "Elenor was not defeated by legitimate damage");
@@ -176,9 +221,11 @@ public class EprotectGameTests {
         ElenorEntity elenor = spawnElenor(helper);
         for (int i = 0; i < 100 && elenor.getHealth() > elenor.getMaxHealth() * Eprotect.MAX_HIT_RATIO; i++) {
             elenor.invulnerableTime = 0;
+            elenor.getEprotect().resetDamageWindow(); // 10 秒おきの被弾を 1 Tick に縮めて再現
             elenor.hurt(generic(helper), 1000.0F);
         }
         // 最後の一撃ごと、抹殺の棒（最大ダメージ → kill → 強制デスフラグ → Tick 停止）
+        elenor.getEprotect().resetDamageWindow();
         DebugKillStickItem.annihilate(helper.getLevel(), helper.makeMockPlayer(), elenor);
         helper.assertTrue(elenor.getEprotect().isDying(), "Elenor is not in the death animation");
 

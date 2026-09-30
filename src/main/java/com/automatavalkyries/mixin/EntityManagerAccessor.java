@@ -1,9 +1,11 @@
 package com.automatavalkyries.mixin;
 
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import net.minecraft.world.level.entity.EntityAccess;
 import net.minecraft.world.level.entity.EntityLookup;
 import net.minecraft.world.level.entity.EntitySectionStorage;
 import net.minecraft.world.level.entity.PersistentEntitySectionManager;
+import net.minecraft.world.level.entity.Visibility;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
@@ -24,4 +26,8 @@ public interface EntityManagerAccessor<T extends EntityAccess> {
 
     @Accessor("sectionStorage")
     EntitySectionStorage<T> automata_valkyries$getSectionStorage();
+
+    /** チャンクごとの可視性。正規のアンロード（UNLOADED_TO_CHUNK）は HIDDEN になったチャンクでしか起きない */
+    @Accessor("chunkVisibility")
+    Long2ObjectMap<Visibility> automata_valkyries$getChunkVisibility();
 }

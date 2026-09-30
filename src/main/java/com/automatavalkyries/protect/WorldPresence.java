@@ -52,7 +52,7 @@ public final class WorldPresence {
         EnumSet<Issue> issues = EnumSet.noneOf(Issue.class);
         EntityAccessor fields = (EntityAccessor) entity;
         Entity.RemovalReason reason = fields.automata_valkyries$getRemovalReason();
-        if (reason != null && reason.shouldDestroy()) issues.add(Issue.REMOVAL_FLAG);
+        if (Eprotect.isIllegalRemoval(entity, reason)) issues.add(Issue.REMOVAL_FLAG);
         if (!Eprotect.isSafePosition(entity, entity.getX(), entity.getY(), entity.getZ())) issues.add(Issue.UNSAFE_POSITION);
         if (!isVanillaCallback(fields.automata_valkyries$getLevelCallback())) issues.add(Issue.FOREIGN_CALLBACK);
 

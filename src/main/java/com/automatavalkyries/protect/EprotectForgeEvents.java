@@ -1,10 +1,12 @@
 package com.automatavalkyries.protect;
 
 import com.automatavalkyries.AutomataValkyries;
+import com.automatavalkyries.item.SuperKillStickItem;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
+import net.minecraftforge.event.entity.EntityJoinLevelEvent;
 import net.minecraftforge.event.entity.living.LivingAttackEvent;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
 import net.minecraftforge.event.entity.living.LivingHurtEvent;
@@ -74,6 +76,22 @@ public class EprotectForgeEvents {
                 target.deathTime = 0;
             }
         }
+    }
+
+    /**
+     * 他 MOD による参加拒否（EntityJoinLevelEvent のキャンセル）を最後に打ち消す。
+     * 拒否されると入り直しも差し替えも失敗し、修復のたびに異常が積まれて数秒で退避に追い込まれる。
+     * 優先度の高い購読者から先に呼ばれるので、他 MOD のキャンセルを覆すには最後（LOWEST）に回る必要がある。
+     * 超抹殺の棒（差し替えの検証用のデバッグ道具）の拒否だけは通す。
+     */
+    @SubscribeEvent(priority = EventPriority.LOWEST, receiveCanceled = true)
+    public static void onEntityJoinLevel(EntityJoinLevelEvent event) {
+        if (!event.isCanceled() || event.getLevel().isClientSide()) return;
+        if (!(event.getEntity() instanceof IEprotected provider)) return;
+        Eprotect protect = provider.getEprotect();
+        if (protect == null || !protect.isProtectionActive() || SuperKillStickItem.isRefused(event.getEntity())) return;
+        event.setCanceled(false);
+        AutomataValkyries.LOGGER.warn("[eprotect] Overrode a cancelled world join of {}", event.getEntity());
     }
 
     private static boolean isInstantKillSource(DamageSource source) {

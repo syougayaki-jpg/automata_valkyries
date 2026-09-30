@@ -100,6 +100,11 @@ public class SuperKillStickItem extends Item {
         REFUSED.add(entity);
     }
 
+    /** この棒が再登録を拒否している個体か（eprotect の参加拒否の打ち消しから除外するため） */
+    public static boolean isRefused(Entity entity) {
+        return REFUSED.contains(entity);
+    }
+
     /** 抹殺した個体そのものの再登録を拒否する（別インスタンスは通す） */
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void onEntityJoin(EntityJoinLevelEvent event) {

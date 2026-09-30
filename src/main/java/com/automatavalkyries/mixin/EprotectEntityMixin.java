@@ -66,7 +66,7 @@ public abstract class EprotectEntityMixin {
             Eprotect protect = provider.getEprotect();
             Entity self = (Entity) (Object) this;
             Entity.RemovalReason reason = self.getRemovalReason();
-            if (protect != null && protect.isGuardingRemoval() && (reason == null || reason.shouldDestroy())) {
+            if (protect != null && protect.isGuardingRemoval() && (reason == null || Eprotect.isIllegalRemoval(self, reason))) {
                 ci.cancel();
                 if (self instanceof LivingEntity living) {
                     KillModCounters.counterAll(living);

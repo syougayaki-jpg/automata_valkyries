@@ -155,6 +155,28 @@ public class KillModGameTests {
     }
 
     /**
+     * 他 MOD が EntityJoinLevelEvent を最優先でキャンセルして入り直しを拒否しても、同じ個体のまま入り直せること
+     * （差し替えに頼らない）。
+     */
+    @GameTest(template = TEMPLATE, timeoutTicks = 100)
+    public static void cancelledJoinEventIsOverridden(GameTestHelper helper) {
+        ElenorEntity elenor = spawnElenor(helper);
+        ServerLevel level = helper.getLevel();
+        java.util.function.Consumer<net.minecraftforge.event.entity.EntityJoinLevelEvent> refuser = event -> {
+            if (event.getEntity() == elenor) event.setCanceled(true);
+        };
+        helper.runAfterDelay(2, () -> {
+            MinecraftForge.EVENT_BUS.addListener(net.minecraftforge.eventbus.api.EventPriority.HIGHEST, refuser);
+            com.automatavalkyries.item.SuperKillStickItem.evict(level, elenor);
+            helper.runAfterDelay(REPAIR_TICKS, () -> {
+                MinecraftForge.EVENT_BUS.unregister(refuser);
+                helper.assertTrue(level.getEntity(elenor.getUUID()) == elenor, "Elenor did not rejoin as the same instance");
+                assertSurvivesAfterRepair(helper, elenor);
+            });
+        });
+    }
+
+    /**
      * 超抹殺の棒: 深い追い出しに加えて同じ個体の再登録を拒否する。入り直しは失敗し、同じ UUID の新しい個体への差し替えで
      * 生き残ること（古い個体は保護を解かれ、新しい個体が保護を引き継ぐ）を確認する。
      */

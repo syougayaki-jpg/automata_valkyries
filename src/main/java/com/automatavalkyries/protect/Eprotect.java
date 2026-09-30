@@ -3,6 +3,7 @@ package com.automatavalkyries.protect;
 import com.automatavalkyries.AutomataValkyries;
 import com.automatavalkyries.config.EprotectConfig;
 import com.automatavalkyries.mixin.EntityAccessor;
+import com.automatavalkyries.mixin.EntityManagerAccessor;
 import com.automatavalkyries.mixin.LivingEntityAccessor;
 import com.automatavalkyries.mixin.ServerLevelTickListAccessor;
 import net.minecraft.network.chat.Component;
@@ -12,6 +13,7 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.entity.Visibility;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.common.world.ForgeChunkManager;
 import org.jetbrains.annotations.Nullable;
@@ -42,6 +44,11 @@ public class Eprotect {
     public static final float HUGE_DAMAGE_CLAMP = 100.0F;
     /** 実際に HP から引かれる 1 撃のダメージ上限（最大 HP に対する割合） */
     public static final float MAX_HIT_RATIO = 0.10F;
+    /**
+     * 被弾量を数える時間窓（Tick）。この間に HP から引かれるのは合計で 1 撃の上限（{@link #MAX_HIT_RATIO}）まで。
+     * 無敵時間を消して hurt() を連打すると、1 撃ごとの上限だけでは 1 Tick のうちに正規撃破まで削られる
+     */
+    public static final int DAMAGE_WINDOW_TICKS = 200;
     /** 本体の Tick がこの Tick 数より長く止まっていたら Tick 停止とみなす */
     private static final long TICK_STALL_THRESHOLD = 3;
 
@@ -55,6 +62,9 @@ public class Eprotect {
     /** hurt() の実行中か。この間の die() だけを正規の死亡として扱う */
     private int hurtDepth = 0;
     private float lastValidHealth = -1.0F;
+    /** 被弾量の時間窓の開始時刻と、その窓で既に引いた量 */
+    private long damageWindowStart = -DAMAGE_WINDOW_TICKS;
+    private float damageInWindow = 0.0F;
     /** 最後に本体の Tick が走ったゲーム時刻（Tick 停止の検出用） */
     private long lastTickGameTime = Long.MIN_VALUE;
 
@@ -142,7 +152,7 @@ public class Eprotect {
         if (!(owner.level() instanceof ServerLevel)) return;
         Entity.RemovalReason reason = owner.getRemovalReason();
         // Mixin をすり抜けた不正消去: マネージャーが復元できるよう登録とチャンクロックを維持する
-        if (isGuardingRemoval() && reason != null && reason.shouldDestroy()) return;
+        if (isGuardingRemoval() && isIllegalRemoval(owner, reason)) return;
         // 次元移動: 移動先で同じ UUID の個体が改めて登録されるので、元の次元の記録は消す（残すと元の次元で復元されて複製になる）
         if (reason == Entity.RemovalReason.CHANGED_DIMENSION) registry().forget(owner.getUUID());
         releaseForcedChunk();
@@ -175,7 +185,36 @@ public class Eprotect {
      */
     public boolean shouldBlockRemoval(Entity.RemovalReason reason) {
         if (owner.level().isClientSide) return false;
-        return isGuardingRemoval() && reason.shouldDestroy();
+        return isGuardingRemoval() && isIllegalRemoval(owner, reason);
+    }
+
+    /**
+     * 保護対象にとって不正な消去理由か（サーバー側）。
+     * <ul>
+     *   <li>消去を伴う理由（KILLED / DISCARDED）</li>
+     *   <li>UNLOADED_TO_CHUNK: 正規のアンロードは区画が HIDDEN になったチャンクでしか起きない
+     *       （{@code PersistentEntitySectionManager.processChunkUnload}）。見えているチャンクでのアンロードは偽装。
+     *       アンロード扱いのまま区画から外れると保存されず、UUID の登録だけが残って登録簿からの復元も止まる</li>
+     *   <li>UNLOADED_WITH_PLAYER: プレイヤーの退出で一緒に外れるのは、乗り物か乗客になっている個体だけ</li>
+     * </ul>
+     * CHANGED_DIMENSION は次元移動として通す。
+     */
+    public static boolean isIllegalRemoval(Entity entity, @Nullable Entity.RemovalReason reason) {
+        if (reason == null) return false;
+        if (reason.shouldDestroy()) return true;
+        if (!(entity.level() instanceof ServerLevel level)) return false;
+        return switch (reason) {
+            case UNLOADED_TO_CHUNK -> chunkVisibility(level, entity) != Visibility.HIDDEN;
+            case UNLOADED_WITH_PLAYER -> !entity.isPassenger() && !entity.isVehicle();
+            default -> false;
+        };
+    }
+
+    private static Visibility chunkVisibility(ServerLevel level, Entity entity) {
+        @SuppressWarnings("unchecked")
+        EntityManagerAccessor<Entity> manager = (EntityManagerAccessor<Entity>) (Object)
+                ((ServerLevelTickListAccessor) level).automata_valkyries$getEntityManager();
+        return manager.automata_valkyries$getChunkVisibility().get(entity.chunkPosition().toLong());
     }
 
     /** 撃破演出の終わりに所有エンティティが呼ぶ。以後の消去を許可する */
@@ -219,12 +258,28 @@ public class Eprotect {
         return amount;
     }
 
-    /** HP に反映される直前: 1 撃を最大 HP の {@link #MAX_HIT_RATIO} までに制限する */
+    /**
+     * HP に反映される直前: {@link #DAMAGE_WINDOW_TICKS} の間に引く量を、合計で最大 HP の {@link #MAX_HIT_RATIO} までに制限する。
+     * 窓は最初の被弾から数え始める（上限いっぱいの 1 撃を受けたら、次に削られるのは窓が明けてから）
+     */
     public float capFinalDamage(float amount) {
         if (!isProtectionActive()) return amount;
         float cap = Math.max(1.0F, owner.getMaxHealth() * MAX_HIT_RATIO);
-        if (!Float.isFinite(amount)) return cap;
-        return Math.min(amount, cap);
+        if (!Float.isFinite(amount)) amount = cap;
+        long now = owner.level().getGameTime();
+        if (now - damageWindowStart >= DAMAGE_WINDOW_TICKS) {
+            damageWindowStart = now;
+            damageInWindow = 0.0F;
+        }
+        float allowed = Math.max(0.0F, Math.min(amount, cap - damageInWindow));
+        damageInWindow += allowed;
+        return allowed;
+    }
+
+    /** 被弾量の時間窓を数え直す（GameTest や、演出として正規に続けて大ダメージを与えたい場合に使う） */
+    public void resetDamageWindow() {
+        damageWindowStart = -DAMAGE_WINDOW_TICKS;
+        damageInWindow = 0.0F;
     }
 
     /** setHealth() の入口: 正規の被弾以外での HP 0 化と、NaN / 無限大を拒否する */
@@ -426,10 +481,10 @@ public class Eprotect {
         }
     }
 
-    /** 撃破演出中に Mixin を経ずに直書きされた消去フラグ（KILLED / DISCARDED）を消す（演出中は入り直しをしない） */
+    /** 撃破演出中に Mixin を経ずに直書きされた不正な消去フラグ（{@link #isIllegalRemoval}）を消す（演出中は入り直しをしない） */
     private boolean clearIllegalRemovalFlag() {
         EntityAccessor accessor = (EntityAccessor) owner;
-        if (accessor.automata_valkyries$getRemovalReason() != null && accessor.automata_valkyries$getRemovalReason().shouldDestroy()) {
+        if (isIllegalRemoval(owner, accessor.automata_valkyries$getRemovalReason())) {
             accessor.automata_valkyries$setRemovalReason(null);
             owner.reviveCaps();
             AutomataValkyries.LOGGER.warn("[eprotect] Cleared illegal removal flag on {}", owner);
