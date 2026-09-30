@@ -1,6 +1,12 @@
 package com.automatavalkyries.protect;
 
 import com.automatavalkyries.AutomataValkyries;
+import com.automatavalkyries.mixin.ServerLevelTickListAccessor;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraftforge.common.world.ForgeChunkManager;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.living.LivingDamageEvent;
@@ -53,8 +59,11 @@ public class EprotectManager {
     @SubscribeEvent
     public void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
-        if (++tickCounter % SCAN_INTERVAL != 0) return;
-        if (protectedEntities.isEmpty()) return;
+        ++tickCounter;
+        if (tickCounter % REGISTRY_SCAN_INTERVAL == 0 && event.getServer().isRunning()) {
+            restoreFromRegistries(event.getServer());
+        }
+        if (tickCounter % SCAN_INTERVAL != 0 || protectedEntities.isEmpty()) return;
 
         // repair() が addFreshEntity 経由で register() を呼んでも壊れないようコピーを回す
         for (Eprotect protect : protectedEntities.values().toArray(new Eprotect[0])) {
@@ -64,6 +73,70 @@ public class EprotectManager {
             }
             protect.repair();
         }
+    }
+
+    // ---- ワールドデータの登録簿からの復元 ----------------------------------------
+
+    /** 登録簿を見回る間隔（Tick） */
+    private static final int REGISTRY_SCAN_INTERVAL = 20;
+    /** 1 体を立て続けに作り直す上限（この Tick 数の間に） */
+    private static final int RESTORE_WINDOW = 1200;
+    private static final int MAX_RESTORES_IN_WINDOW = 10;
+
+    /**
+     * 最後の砦: エンティティのオブジェクトごと失われ（どの Eprotect も見張っていない）、ワールドのどこにも居ない個体を、
+     * ワールドデータの登録簿の写しから作り直す。
+     * <ul>
+     *   <li>まだ見張っている Eprotect がある個体は、そちらの入り直し・差し替えに任せる</li>
+     *   <li>全ディメンションのどこかに同じ UUID があれば作らない（複製防止。次元移動・読み込み途中を含む）</li>
+     *   <li>写しの座標のチャンクのエンティティ読み込みが済むまで待つ（ディスクから普通に読み込まれる途中なら作らない）</li>
+     * </ul>
+     */
+    private void restoreFromRegistries(MinecraftServer server) {
+        for (ServerLevel level : server.getAllLevels()) {
+            EprotectRegistry registry = EprotectRegistry.get(level);
+            for (EprotectRegistry.Entry entry : registry.entries().toArray(new EprotectRegistry.Entry[0])) {
+                if (entry.state() != EprotectRegistry.State.ACTIVE) continue;
+                Eprotect watcher = protectedEntities.get(entry.uuid());
+                if (watcher != null && watcher.isGuardingRemoval()) continue;
+                if (existsAnywhere(server, entry.uuid())) continue;
+                long chunk = ChunkPos.asLong(BlockPos.containing(entry.safePos()));
+                if (!level.areEntitiesLoaded(chunk)) continue;
+                if (!allowRestore(level, entry)) continue;
+
+                Entity restored = EprotectRegistry.recreate(level, entry);
+                if (restored != null && level.addFreshEntity(restored)) {
+                    AutomataValkyries.LOGGER.warn("[eprotect] Restored {} from the world registry", restored);
+                } else {
+                    AutomataValkyries.LOGGER.error("[eprotect] Could not restore {} from the world registry", entry.uuid());
+                }
+            }
+        }
+    }
+
+    private static boolean existsAnywhere(MinecraftServer server, UUID uuid) {
+        for (ServerLevel level : server.getAllLevels()) {
+            if (level.getEntity(uuid) != null) return true;
+            if (((ServerLevelTickListAccessor) level).automata_valkyries$getEntityManager().isLoaded(uuid)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 作り直しの連発を抑える。何かが作り直すたびに消し続けているなら、それ以上は追わない */
+    private static boolean allowRestore(ServerLevel level, EprotectRegistry.Entry entry) {
+        long now = level.getGameTime();
+        if (now - entry.restoreWindowStart > RESTORE_WINDOW) {
+            entry.restoreWindowStart = now;
+            entry.restoresInWindow = 0;
+        }
+        if (entry.restoresInWindow >= MAX_RESTORES_IN_WINDOW) return false;
+        entry.restoresInWindow++;
+        if (entry.restoresInWindow == MAX_RESTORES_IN_WINDOW) {
+            AutomataValkyries.LOGGER.error("[eprotect] {} keeps disappearing; giving up restoring it for now", entry.uuid());
+        }
+        return true;
     }
 
     /**

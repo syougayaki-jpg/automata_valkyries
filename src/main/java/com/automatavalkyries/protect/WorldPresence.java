@@ -131,11 +131,20 @@ public final class WorldPresence {
         if (level.getEntity(entity.getUUID()) != null || manager(level).automata_valkyries$getKnownUuids().contains(entity.getUUID())) {
             return false;
         }
-        CompoundTag tag = new CompoundTag();
-        if (!entity.saveAsPassenger(tag)) return false;
-        Optional<Entity> created = EntityType.create(tag, level);
-        if (created.isEmpty()) return false;
-        Entity clone = created.get();
+        // 写しの元: ワールドデータの登録簿にある「最後に正常だった写し」を優先する。
+        // 古い個体のデータ自体が壊されていることがあるので、生きている個体から取るのは登録簿に無い時だけ
+        Entity clone = null;
+        EprotectRegistry.Entry entry = EprotectRegistry.get(level).find(entity.getUUID());
+        if (entry != null && entry.state() == EprotectRegistry.State.ACTIVE) {
+            clone = EprotectRegistry.recreate(level, entry);
+        }
+        if (clone == null) {
+            CompoundTag tag = new CompoundTag();
+            if (!entity.saveAsPassenger(tag)) return false;
+            Optional<Entity> created = EntityType.create(tag, level);
+            if (created.isEmpty()) return false;
+            clone = created.get();
+        }
         try {
             if (!level.addFreshEntity(clone)) return false;
         } catch (RuntimeException e) {

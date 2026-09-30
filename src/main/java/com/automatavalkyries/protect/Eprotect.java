@@ -143,6 +143,8 @@ public class Eprotect {
         Entity.RemovalReason reason = owner.getRemovalReason();
         // Mixin をすり抜けた不正消去: マネージャーが復元できるよう登録とチャンクロックを維持する
         if (isGuardingRemoval() && reason != null && reason.shouldDestroy()) return;
+        // 次元移動: 移動先で同じ UUID の個体が改めて登録されるので、元の次元の記録は消す（残すと元の次元で復元されて複製になる）
+        if (reason == Entity.RemovalReason.CHANGED_DIMENSION) registry().forget(owner.getUUID());
         releaseForcedChunk();
         EprotectManager.getInstance().unregister(this);
     }
@@ -158,6 +160,7 @@ public class Eprotect {
         repair();
         if (isProtectionActive()) {
             rememberHealthyState();
+            recordToRegistryIfDue();
             updateForcedChunk();
         }
     }
@@ -178,6 +181,7 @@ public class Eprotect {
     /** 撃破演出の終わりに所有エンティティが呼ぶ。以後の消去を許可する */
     public void finishDeath() {
         this.deathFinished = true;
+        if (owner.level() instanceof ServerLevel) registry().forget(owner.getUUID());
     }
 
     /** hurt() 経由で HP が尽きた場合だけ死亡を許可する（die() の直接呼び出しは拒否） */
@@ -190,6 +194,7 @@ public class Eprotect {
 
     public void markDefeated() {
         this.defeated = true;
+        if (owner.level() instanceof ServerLevel) registry().markDefeated(owner.getUUID());
     }
 
     public void beginHurt() {
@@ -331,7 +336,8 @@ public class Eprotect {
     private int restorePresence() {
         if (!(owner.level() instanceof ServerLevel level) || !level.getServer().isRunning()) return 0;
         EnumSet<WorldPresence.Issue> issues = WorldPresence.inspect(level, owner);
-        if (issues.isEmpty()) return 0;
+        presenceHealthy = issues.isEmpty();
+        if (presenceHealthy) return 0;
 
         WorldPresence.Outcome outcome = WorldPresence.rejoin(level, owner, lastSafePos);
         switch (outcome) {
@@ -354,7 +360,7 @@ public class Eprotect {
      * 入り直しを拒否されて同じ UUID の新しい個体に差し替えたあと、古い個体（ワールドのどこにも載っていない）の保護を解く。
      * 以後の保護は新しい個体の Eprotect が担う。
      */
-    void retireReplaced() {
+    public void retireReplaced() {
         despawning = true; // 保護を解く（セリフ・効果音は出さない）
         if (owner instanceof IEprotected protectedOwner) protectedOwner.onRetired();
         releaseForcedChunk();
@@ -385,6 +391,32 @@ public class Eprotect {
                     anomalyCount, window, owner);
             triggerDespawn();
         }
+    }
+
+    // ---- ワールドデータの登録簿 ------------------------------------------------
+
+    /** 登録簿へ写しを取る間隔（Tick） */
+    private static final int RECORD_INTERVAL = 20;
+    /** 直近の点検でワールドに正しく載っていたか。壊れた状態を写しとして残さないため */
+    private boolean presenceHealthy = false;
+    private long lastRecordTick = Long.MIN_VALUE;
+
+    private EprotectRegistry registry() {
+        return EprotectRegistry.get((ServerLevel) owner.level());
+    }
+
+    /**
+     * 正常な状態を一定間隔で登録簿へ写す。エンティティごと失われても、この写しから作り直せる。
+     * HP が正常で、ワールドに正しく載っていた Tick だけ写す（壊されかけの状態を正本にしない）。
+     */
+    private void recordToRegistryIfDue() {
+        if (!(owner.level() instanceof ServerLevel level) || !presenceHealthy) return;
+        long now = level.getGameTime();
+        if (lastRecordTick != Long.MIN_VALUE && now - lastRecordTick < RECORD_INTERVAL) return;
+        float hp = owner.getHealth();
+        if (!Float.isFinite(hp) || hp <= 0.0F) return;
+        lastRecordTick = now;
+        registry().record(owner, lastSafePos != null ? lastSafePos : owner.position());
     }
 
     /** 正常な座標を控えておく。入り直しで座標が壊れていたときに戻す先になる */
@@ -453,6 +485,7 @@ public class Eprotect {
     public void triggerDespawn() {
         if (despawning || owner.level().isClientSide) return;
         despawning = true;
+        registry().forget(owner.getUUID());
 
         releaseForcedChunk();
 

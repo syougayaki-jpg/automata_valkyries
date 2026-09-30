@@ -146,6 +146,53 @@ public class KillModGameTests {
         });
     }
 
+    /**
+     * 最後の砦: 見張っている Eprotect ごと失われ、ワールドのどこにも居ない個体が、ワールドデータの登録簿の写しから作り直されること。
+     */
+    @GameTest(template = TEMPLATE, timeoutTicks = 200)
+    public static void lostEntityIsRestoredFromRegistry(GameTestHelper helper) {
+        ElenorEntity elenor = spawnElenor(helper);
+        ServerLevel level = helper.getLevel();
+        java.util.UUID uuid = elenor.getUUID();
+        // 登録簿へ写しが取られるまで待つ（記録は 20 Tick ごと）
+        helper.runAfterDelay(30, () -> {
+            var entry = com.automatavalkyries.protect.EprotectRegistry.get(level).find(uuid);
+            helper.assertTrue(entry != null, "Elenor was never recorded in the world registry");
+            // 丸ごと喪失: 一覧から追い出し、同じ個体の再登録を拒否し、見張り（Eprotect）も外す
+            com.automatavalkyries.item.SuperKillStickItem.evict(level, elenor);
+            com.automatavalkyries.item.SuperKillStickItem.refuseRejoin(elenor);
+            elenor.getEprotect().retireReplaced();
+            helper.assertTrue(level.getEntity(uuid) == null, "Elenor is still in the level after the total loss");
+            helper.runAfterDelay(60, () -> {
+                net.minecraft.world.entity.Entity restored = level.getEntity(uuid);
+                helper.assertTrue(restored instanceof ElenorEntity && restored != elenor,
+                        "Elenor was not restored from the registry: " + restored);
+                ElenorEntity copy = (ElenorEntity) restored;
+                helper.assertTrue(copy.getEprotect().isProtectionActive(), "The restored copy is not protected");
+                copy.getEprotect().triggerDespawn();
+                helper.succeed();
+            });
+        });
+    }
+
+    /** 登録簿の記録を書き換えるとチェックサムで弾かれ、書き換えていない記録は読めること */
+    @GameTest(template = TEMPLATE, timeoutTicks = 100)
+    public static void tamperedRegistryEntryIsRejected(GameTestHelper helper) {
+        ElenorEntity elenor = spawnElenor(helper);
+        ServerLevel level = helper.getLevel();
+        helper.runAfterDelay(30, () -> {
+            var entry = com.automatavalkyries.protect.EprotectRegistry.get(level).find(elenor.getUUID());
+            helper.assertTrue(entry != null, "Elenor was never recorded in the world registry");
+            net.minecraft.nbt.CompoundTag intact = com.automatavalkyries.protect.EprotectRegistry.encode(entry);
+            helper.assertTrue(com.automatavalkyries.protect.EprotectRegistry.decode(intact.copy()) != null, "An intact entry was rejected");
+            net.minecraft.nbt.CompoundTag tampered = intact.copy();
+            tampered.putFloat("Health", 0.0F); // 他 MOD・外部ツールによる HP の書き換えを想定
+            helper.assertTrue(com.automatavalkyries.protect.EprotectRegistry.decode(tampered) == null, "A tampered entry was accepted");
+            elenor.getEprotect().triggerDespawn();
+            helper.succeed();
+        });
+    }
+
     // ---- 共通 ----------------------------------------------------------------
 
     private static ElenorEntity spawnElenor(GameTestHelper helper) {
