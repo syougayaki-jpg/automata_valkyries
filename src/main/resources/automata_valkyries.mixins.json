@@ -36,6 +36,7 @@
     "compat.EcaMixins$Util",
     "compat.EcaMixins$Api",
     "compat.EcaMixins$Quarantine",
+    "compat.EcaMixins$SpawnBan",
     "compat.MoreAvaritiaMixins$Utils",
     "compat.MoreAvaritiaMixins$DieList",
     "compat.ShizukuMixins$Remover",

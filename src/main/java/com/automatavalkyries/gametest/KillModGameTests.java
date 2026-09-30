@@ -105,6 +105,20 @@ public class KillModGameTests {
     }
 
     /**
+     * Epic Core API: The Last Sword You Never Forgot の撃破処理（theLastEndSetDead）が kill の直前に掛ける種類単位の出現禁止。
+     * 禁止中の種類は検索表から隠され、あらゆる追加経路を拒否されるので、入り直せずに退避へ追い込まれていた。
+     */
+    @GameTest(template = TEMPLATE, timeoutTicks = 100)
+    public static void ecaSpawnBanIsCountered(GameTestHelper helper) {
+        if (!loaded(helper, "eca")) return;
+        ElenorEntity elenor = spawnElenor(helper);
+        // 禁止は時間切れ（600 Tick）まで残したまま検証する（検索表から隠されていないこと・入り直せることを含む）
+        invoke(helper, "net.eca.api.EcaAPI", "banSpawn",
+                new Class<?>[]{ServerLevel.class, EntityType.class, int.class}, helper.getLevel(), elenor.getType(), 600);
+        assertSurvivesAfterRepair(helper, elenor);
+    }
+
+    /**
      * 他 MOD に頼らず「深い追い出し」を再現する: ワールドの各一覧（UUID 登録・検索表・区画・Tick 一覧・追跡）から直接外し、
      * 接続を何もしない独自実装へ差し替え、消去フラグを直書きする（MoreAvaritia / annihilationblade / ECA 型）。
      * 入り直しで点検項目がすべて正常に戻ることを確認する。

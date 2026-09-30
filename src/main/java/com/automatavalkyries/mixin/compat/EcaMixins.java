@@ -1,10 +1,12 @@
 package com.automatavalkyries.mixin.compat;
 
 import com.automatavalkyries.protect.EprotectCompat;
+import com.automatavalkyries.protect.IEprotected;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.level.Level;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Pseudo;
 import org.spongepowered.asm.mixin.injection.At;
@@ -78,6 +80,31 @@ public final class EcaMixins {
         @Inject(method = "setEntityModAllReturn(Lnet/minecraft/world/entity/Entity;Z)Z", at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardSetAllReturn(Entity entity, boolean enable, CallbackInfoReturnable<Boolean> cir) {
             if (enable && EprotectCompat.shouldShield(entity)) cir.setReturnValue(false);
+        }
+    }
+
+    /**
+     * 種類単位の出現禁止（{@code EcaAPI.banSpawn}）。The Last Sword You Never Forgot が撃破時に kill の直前に掛ける。
+     * 禁止中の種類は ECA の Mixin で検索表・区画の問い合わせから隠され、追加（入り直しを含む）もすべて拒否されるので、
+     * kill を止めても兵姫はワールドから見えなくなり、戻せずに退避していた。兵姫は禁止の対象外にする（他の種類の禁止はそのまま効く）。
+     */
+    @Pseudo
+    @Mixin(targets = "net.eca.util.spawn_ban.SpawnBanHook", remap = false)
+    public abstract static class SpawnBan {
+        // shouldShield ではなく種類で判定する: 禁止はワールドへの追加も止めるので、まだ保護が始まっていない
+        // （ワールドに入る前の）個体まで対象になる。消去の許可（撃破・退場）とは関係しない
+
+        /** 検索表・区画・Tick 一覧・追跡からの隠蔽と追加拒否（ECA の各 Mixin が使う） */
+        @Inject(method = "shouldBlockSpawn(Ljava/lang/Object;)Z", at = @At("HEAD"), cancellable = true, require = 0)
+        private static void automata_valkyries$exempt(Object entity, CallbackInfoReturnable<Boolean> cir) {
+            if (entity instanceof IEprotected) cir.setReturnValue(false);
+        }
+
+        /** ServerLevel.addFreshEntity / addEntity の拒否（入り直し・差し替えもここを通る） */
+        @Inject(method = "shouldBlockSpawn(Lnet/minecraft/world/level/Level;Lnet/minecraft/world/entity/Entity;)Z",
+                at = @At("HEAD"), cancellable = true, require = 0)
+        private static void automata_valkyries$exemptAdd(Level level, Entity entity, CallbackInfoReturnable<Boolean> cir) {
+            if (entity instanceof IEprotected) cir.setReturnValue(false);
         }
     }
 
