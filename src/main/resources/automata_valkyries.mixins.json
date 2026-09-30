@@ -9,7 +9,18 @@
     "LivingEntityAccessor",
     "ServerLevelTickListAccessor",
     "EprotectDamageMixin",
-    "EprotectEntityMixin"
+    "EprotectEntityMixin",
+    "EprotectSynchedDataMixin",
+    "EprotectSectionCallbackMixin",
+    "compat.ImdsKillProcedureMixin",
+    "compat.ImdsKillManagerMixin",
+    "compat.ImdsUtilMixins$UtilProcedure",
+    "compat.ImdsUtilMixins$ForceTeleport",
+    "compat.ImdsUtilMixins$AutoSC",
+    "compat.ImdsUtilMixins$AutoMoveCancel",
+    "compat.NoSugarMixins$EraserUtils",
+    "compat.NoSugarMixins$Living",
+    "compat.TrialMonolithMixins$Helper"
   ],
   "injectors": {
     "defaultRequire": 1

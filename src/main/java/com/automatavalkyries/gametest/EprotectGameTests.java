@@ -114,9 +114,9 @@ public class EprotectGameTests {
     public static void illegalRemovalFlagIsCleared(GameTestHelper helper) {
         ElenorEntity elenor = spawnElenor(helper);
         // Mixin を経由しないフィールド直書き（リフレクション等）を再現
-        ((EntityAccessor) elenor).setRemovalReason(Entity.RemovalReason.KILLED);
+        ((EntityAccessor) elenor).automata_valkyries$setRemovalReason(Entity.RemovalReason.KILLED);
         helper.runAfterDelay(4, () -> {
-            helper.assertTrue(((EntityAccessor) elenor).getRemovalReason() == null, "Removal flag was not cleared");
+            helper.assertTrue(((EntityAccessor) elenor).automata_valkyries$getRemovalReason() == null, "Removal flag was not cleared");
             assertProtectedAndAlive(helper, elenor);
             despawnAndSucceed(helper, elenor);
         });
@@ -213,12 +213,56 @@ public class EprotectGameTests {
         ElenorEntity elenor = spawnElenor(helper);
         helper.onEachTick(() -> {
             if (!elenor.getEprotect().isDespawning()) {
-                ((EntityAccessor) elenor).setRemovalReason(Entity.RemovalReason.KILLED);
+                ((EntityAccessor) elenor).automata_valkyries$setRemovalReason(Entity.RemovalReason.KILLED);
             }
         });
         helper.succeedWhen(() -> {
             helper.assertTrue(elenor.getEprotect().isDespawning(), "Elenor has not retreated yet");
             helper.assertTrue(elenor.isRemoved(), "Retreated Elenor is still in the world");
+        });
+    }
+
+    /** IMDS-Reborn の即死手順（無敵剥奪、die()、forceDead、リスト登録、AI全消去）を無力化できるか検証 */
+    @GameTest(template = TEMPLATE)
+    public static void imdsKillProcedureIsCountered(GameTestHelper helper) {
+        ElenorEntity elenor = spawnElenor(helper);
+        float max = elenor.getMaxHealth();
+
+        // 1. IMDS の手順をシミュレート
+        elenor.getEprotect().beginHurt(); // hurt 中を装う
+        elenor.setHealth(0.0F);
+        elenor.die(generic(helper));
+        elenor.getEprotect().endHurt();
+
+        // AI 消去
+        elenor.goalSelector.getAvailableGoals().clear();
+        helper.assertTrue(elenor.goalSelector.getAvailableGoals().isEmpty(), "Goals were not cleared");
+
+        // 2. 数 Tick 後に修復され、AI も復元されて生きているか
+        helper.runAfterDelay(4, () -> {
+            assertProtectedAndAlive(helper, elenor);
+            helper.assertTrue(elenor.getHealth() >= max * (1 - Eprotect.MAX_HIT_RATIO) - 1.0F,
+                    "Health dropped below single-hit cap: " + elenor.getHealth());
+            helper.assertFalse(elenor.goalSelector.getAvailableGoals().isEmpty(), "AI was not restored after IMDS cleanAI");
+            despawnAndSucceed(helper, elenor);
+        });
+    }
+
+    /** Hyperlink のノベル化（即死・消去・Tick停止）を無力化できるか検証 */
+    @GameTest(template = TEMPLATE)
+    public static void hyperlinkNovelizeIsCountered(GameTestHelper helper) {
+        ElenorEntity elenor = spawnElenor(helper);
+        float max = elenor.getMaxHealth();
+
+        // ノベル化・直接消去のシミュレート
+        ((EntityAccessor) elenor).automata_valkyries$setRemovalReason(Entity.RemovalReason.KILLED);
+        elenor.deathTime = 15;
+
+        helper.runAfterDelay(4, () -> {
+            assertProtectedAndAlive(helper, elenor);
+            helper.assertTrue(elenor.getHealth() == max, "Health not restored after Hyperlink simulation");
+            helper.assertTrue(elenor.deathTime == 0, "Death animation was not reset");
+            despawnAndSucceed(helper, elenor);
         });
     }
 }

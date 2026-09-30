@@ -19,8 +19,8 @@ import java.util.UUID;
 public class EprotectManager {
 
     private static final EprotectManager INSTANCE = new EprotectManager();
-    /** 監視周期（Tick） */
-    private static final int SCAN_INTERVAL = 2;
+    /** 監視周期（Tick: 毎Tick監視） */
+    private static final int SCAN_INTERVAL = 1;
 
     private final Map<UUID, Eprotect> protectedEntities = new HashMap<>();
     private int tickCounter = 0;
@@ -72,7 +72,7 @@ public class EprotectManager {
      */
     @SubscribeEvent(priority = EventPriority.LOWEST)
     public void onLivingDamage(LivingDamageEvent event) {
-        if (event.getEntity() instanceof IProviderWithSpeech provider) {
+        if (event.getEntity() instanceof IEprotected provider) {
             Eprotect protect = provider.getEprotect();
             if (protect != null) {
                 event.setAmount(protect.capFinalDamage(event.getAmount()));

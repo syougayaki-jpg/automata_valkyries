@@ -12,6 +12,8 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.entity.EntityInLevelCallback;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.common.world.ForgeChunkManager;
 import org.jetbrains.annotations.Nullable;
 
@@ -27,7 +29,7 @@ import org.jetbrains.annotations.Nullable;
  *   <li>正規退場（{@link #triggerDespawn()}）</li>
  * </ul>
  *
- * 所有エンティティは {@link IProviderWithSpeech} を実装し、以下を委譲すること:
+ * 所有エンティティは {@link IEprotected}（セリフが要るなら {@link IProviderWithSpeech}）を実装し、以下を委譲すること:
  * {@code onAddedToWorld} / {@code onRemovedFromWorld} / {@code baseTick}（サーバー側）/
  * {@code remove}（{@link #shouldBlockRemoval} で拒否）/ {@code die}（{@link #canDie} で拒否、許可時は {@link #markDefeated}）。
  */
@@ -55,6 +57,13 @@ public class Eprotect {
     /** 最後に本体の Tick が走ったゲーム時刻（Tick 停止の検出用） */
     private long lastTickGameTime = Long.MIN_VALUE;
 
+    /** 最後に確認した正常な座標（IMDS の -Infinity 直書きからの復帰用） */
+    @Nullable
+    private Vec3 lastSafePos;
+    /** 最後に確認したワールドとの接続（NULL に差し替えられたときの復帰用） */
+    @Nullable
+    private EntityInLevelCallback lastLevelCallback;
+
     @Nullable
     private ServerLevel forcedLevel;
     @Nullable
@@ -62,6 +71,12 @@ public class Eprotect {
 
     public Eprotect(LivingEntity owner) {
         this.owner = owner;
+    }
+
+    /** 座標として正常か（NaN / 無限大 / ワールド境界の遥か外 / 奈落の底を弾く） */
+    public static boolean isSafePosition(double x, double y, double z) {
+        if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)) return false;
+        return Math.abs(x) <= 3.0E7D && Math.abs(z) <= 3.0E7D && y >= -1000.0D && y <= 2.0E7D;
     }
 
     public LivingEntity getOwner() {
@@ -91,14 +106,33 @@ public class Eprotect {
         return defeated;
     }
 
+    public float getLastValidHealth() {
+        return lastValidHealth > 0.0F ? lastValidHealth : owner.getMaxHealth();
+    }
+
+    public int getHurtDepth() {
+        return hurtDepth;
+    }
+
+    /**
+     * 現在、正規のダメージ処理中であり、かつ被弾前の体力が1撃で倒せる残量（最大HPの10%）以下かどうか
+     */
+    public boolean isLegitimateFatalBlow() {
+        float maxSingleHit = owner.getMaxHealth() * MAX_HIT_RATIO + 1.0F;
+        return hurtDepth > 0 && lastValidHealth <= maxSingleHit;
+    }
+
     // ---- ライフサイクル ----------------------------------------------------
 
-    /** 保護スタート（マネージャー登録 ＆ チャンクロック） */
+    /**
+     * 保護スタート（マネージャー登録）。
+     * チャンクロックはここでは取らず、最初の {@link #tick()} に任せる。forceChunk はチャンクを同期ロードするため、
+     * エンティティの読み込み処理の最中（特にサーバー終了時の saveAll）に呼ぶとサーバースレッドが自分を待ち続けて固まる。
+     */
     public void onAddedToWorld() {
         if (!(owner.level() instanceof ServerLevel)) return;
         EprotectManager.getInstance().register(this);
         lastTickGameTime = owner.level().getGameTime(); // 追加直後に Tick 停止されても検出できるよう、ここを起点にする
-        updateForcedChunk();
     }
 
     public void onRemovedFromWorld() {
@@ -119,7 +153,10 @@ public class Eprotect {
         EprotectManager.getInstance().register(this);
         lastTickGameTime = owner.level().getGameTime();
         repair();
-        if (isProtectionActive()) updateForcedChunk();
+        if (isProtectionActive()) {
+            rememberHealthyState();
+            updateForcedChunk();
+        }
     }
 
     // ---- 消去・死亡の判定 ----------------------------------------------------
@@ -142,7 +179,10 @@ public class Eprotect {
 
     /** hurt() 経由で HP が尽きた場合だけ死亡を許可する（die() の直接呼び出しは拒否） */
     public boolean canDie() {
-        return !isProtectionActive() || (hurtDepth > 0 && owner.getHealth() <= 0.0F);
+        if (!isProtectionActive()) return true;
+        // 正規の hurt 処理中であり、被弾前の体力が1撃で倒せる残量（最大HPの10%）以下で、
+        // かつ現在のHPが本当に 0 以下になった場合のみ許可する
+        return isLegitimateFatalBlow() && owner.getHealth() <= 0.0F;
     }
 
     public void markDefeated() {
@@ -194,6 +234,12 @@ public class Eprotect {
                     && health < safeCurrent && health < owner.getMaxHealth()) {
                 return safeCurrent;
             }
+        } else {
+            // hurt() 実行中であっても、1 撃の最大ダメージ（MAX_HIT_RATIO）を超える不当な HP 0 化を弾く
+            float minAllowed = fallback - (owner.getMaxHealth() * MAX_HIT_RATIO + 1.0F);
+            if (health <= 0.0F && minAllowed > 0.0F) {
+                return minAllowed;
+            }
         }
         return health;
     }
@@ -207,10 +253,21 @@ public class Eprotect {
 
     // ---- 修復 ----------------------------------------------------------------
 
-    /** HP 異常・死亡フラグ・消去フラグを修復する。ワールドや Tick 対象から外されていれば戻す */
+    /**
+     * HP 異常・死亡フラグ・消去フラグを修復する。ワールドや Tick 対象から外されていれば戻す。
+     * <p>
+     * 各修復ステップはどの即死 MOD が相手でも同じ形で効く（MOD 固有の処理は {@link KillModCounters} に分ける）。
+     * 修復した件数は {@link #noteAnomalies} に積み、追いつかなければ退避する。
+     * 他 MOD の ASM は getHealth / isRemoved 等の呼び出し箇所の戻り値を書き換えうるので、MOD 固有のフラグ解除を必ず最初に行う。
+     * </p>
+     */
     void repair() {
-        // IMDS-Reborn等の即死・抹消フラグを中和し、神無敵を逆奪取する
-        EprotectImdsCounter.counter(owner);
+        boolean neutralized = KillModCounters.counterAll(owner);
+
+        // AI が外部MOD（IMDS cleanAI 等）によって全消去されていれば復元
+        if (owner instanceof IEprotected protectedOwner) {
+            protectedOwner.restoreGoalsIfEmpty();
+        }
 
         if (isDying()) {
             // 撃破演出中は HP・死亡フラグは正規の状態なので触らず、演出を最後まで走らせることだけ守る
@@ -220,43 +277,66 @@ public class Eprotect {
         }
         if (!isProtectionActive()) return;
 
-        int anomalies = 0;
-        float hp = owner.getHealth();
-        if (!Float.isFinite(hp) || hp <= 0.0F) {
-            // hurt() を経ない即死（setHealth(0) など）や NaN 化は直前の正常値へ戻す
-            float restore = lastValidHealth > 0.0F ? lastValidHealth : owner.getMaxHealth();
-            owner.setHealth(restore);
+        // サーバー側でも生存中に死亡演出カウンタが残っていれば即座にリセット（Hyperlink/IMDS の Tick 進行キルを阻止）
+        if (owner.deathTime > 0) {
             owner.deathTime = 0;
-            anomalies++;
-        } else {
-            lastValidHealth = hp;
         }
 
-        // 強制デスフラグ（dead = true）が残ると以後の死亡処理・ドロップが壊れるので戻す
-        LivingEntityAccessor living = (LivingEntityAccessor) owner;
-        if (living.automata_valkyries$isDead()) {
-            living.automata_valkyries$setDead(false);
-            AutomataValkyries.LOGGER.warn("[eprotect] Cleared forced death flag on {}", owner);
+        int anomalies = 0;
+        if (neutralized) {
+            AutomataValkyries.LOGGER.warn("[eprotect] Neutralized kill-mod flags on {}", owner);
             anomalies++;
         }
-
+        if (restorePosition()) anomalies++;
+        if (restoreHealth()) anomalies++;
+        if (clearDeadFlag()) anomalies++;
         if (clearIllegalRemovalFlag()) anomalies++;
-
-        if (owner.level() instanceof ServerLevel level && level.getEntity(owner.getUUID()) == null
-                // 保存・終了中は戻さない。UUID がまだ登録済み（見えない区画にいる等）なら戻すと複製になる
-                && level.getServer().isRunning()
-                && !((ServerLevelTickListAccessor) level).automata_valkyries$getEntityManager().isLoaded(owner.getUUID())) {
-            if (level.addFreshEntity(owner)) {
-                AutomataValkyries.LOGGER.warn("[eprotect] Restored {} after it was removed from the world", owner);
-                anomalies++;
-            } else {
-                anomalies += 5; // ワールドへ戻せない（修復が効かない）
-            }
-        }
-
+        if (restoreLevelCallback()) anomalies++;
+        anomalies += restoreToWorld();
         if (restoreTickingIfStopped()) anomalies++;
 
         if (anomalies > 0) noteAnomalies(anomalies);
+    }
+
+    /** hurt() を経ない即死（setHealth(0) など）や NaN 化は直前の正常値へ戻す */
+    private boolean restoreHealth() {
+        float hp = owner.getHealth();
+        if (Float.isFinite(hp) && hp > 0.0F) {
+            lastValidHealth = hp;
+            return false;
+        }
+        float restore = lastValidHealth > 0.0F ? lastValidHealth : owner.getMaxHealth();
+        owner.setHealth(restore);
+        owner.deathTime = 0;
+        lastValidHealth = restore;
+        return true;
+    }
+
+    /** 強制デスフラグ（dead = true）が残ると以後の死亡処理・ドロップが壊れるので戻す */
+    private boolean clearDeadFlag() {
+        LivingEntityAccessor living = (LivingEntityAccessor) owner;
+        if (!living.automata_valkyries$isDead()) return false;
+        living.automata_valkyries$setDead(false);
+        AutomataValkyries.LOGGER.warn("[eprotect] Cleared forced death flag on {}", owner);
+        return true;
+    }
+
+    /**
+     * ワールドから外されていれば戻す。戻せなければ修復が効いていないので重く数える。
+     * @return 異常の件数（0: 異常なし / 1: 戻した / 5: 戻せない）
+     */
+    private int restoreToWorld() {
+        if (!(owner.level() instanceof ServerLevel level) || level.getEntity(owner.getUUID()) != null) return 0;
+        // 保存・終了中は戻さない。UUID がまだ登録済み（見えない区画にいる等）なら戻すと複製になる
+        if (!level.getServer().isRunning()
+                || ((ServerLevelTickListAccessor) level).automata_valkyries$getEntityManager().isLoaded(owner.getUUID())) {
+            return 0;
+        }
+        if (level.addFreshEntity(owner)) {
+            AutomataValkyries.LOGGER.warn("[eprotect] Restored {} after it was removed from the world", owner);
+            return 1;
+        }
+        return 5;
     }
 
     // ---- 退避（修復が追いつかないとき） --------------------------------------
@@ -284,11 +364,49 @@ public class Eprotect {
         }
     }
 
+    /** 正常な状態（座標・ワールドとの接続）を控えておく。修復で戻す先になる */
+    private void rememberHealthyState() {
+        if (isSafePosition(owner.getX(), owner.getY(), owner.getZ())) {
+            lastSafePos = owner.position();
+        }
+        EntityInLevelCallback callback = ((EntityAccessor) owner).automata_valkyries$getLevelCallback();
+        if (callback != EntityInLevelCallback.NULL) {
+            lastLevelCallback = callback;
+        }
+    }
+
+    /** 座標フィールドの直書き（IMDS の -Infinity 奈落落とし等）で壊れた座標を、最後の正常な座標へ戻す */
+    private boolean restorePosition() {
+        if (isSafePosition(owner.getX(), owner.getY(), owner.getZ()) || lastSafePos == null) return false;
+        owner.setPos(lastSafePos.x, lastSafePos.y, lastSafePos.z);
+        owner.setDeltaMovement(Vec3.ZERO);
+        AutomataValkyries.LOGGER.warn("[eprotect] Restored position of {}", owner);
+        return true;
+    }
+
+    /**
+     * ワールドとの接続（levelCallback）を NULL に直書きされていたら戻す。
+     * NULL のままだと移動・保存・消去がワールドに伝わらず、区画に残った古いデータが壊れた座標で保存される。
+     * 正規の消去（removalReason あり）の後は触らない。
+     */
+    private boolean restoreLevelCallback() {
+        EntityAccessor accessor = (EntityAccessor) owner;
+        if (accessor.automata_valkyries$getLevelCallback() != EntityInLevelCallback.NULL
+                || lastLevelCallback == null || accessor.automata_valkyries$getRemovalReason() != null) {
+            return false;
+        }
+        accessor.automata_valkyries$setLevelCallback(lastLevelCallback);
+        accessor.automata_valkyries$setAddedToWorld(true);
+        lastLevelCallback.onMove(); // 区画の登録を現在の座標に合わせ直す
+        AutomataValkyries.LOGGER.warn("[eprotect] Restored level callback of {}", owner);
+        return true;
+    }
+
     /** Mixin を経ずに直書きされた消去フラグ（KILLED / DISCARDED）を消す */
     private boolean clearIllegalRemovalFlag() {
         EntityAccessor accessor = (EntityAccessor) owner;
-        if (accessor.getRemovalReason() != null && accessor.getRemovalReason().shouldDestroy()) {
-            accessor.setRemovalReason(null);
+        if (accessor.automata_valkyries$getRemovalReason() != null && accessor.automata_valkyries$getRemovalReason().shouldDestroy()) {
+            accessor.automata_valkyries$setRemovalReason(null);
             owner.reviveCaps();
             AutomataValkyries.LOGGER.warn("[eprotect] Cleared illegal removal flag on {}", owner);
             return true;
@@ -301,7 +419,9 @@ public class Eprotect {
      * （{@link #tick()} が走らない状態なので、マネージャーの周期処理から呼ばれる）
      */
     private boolean restoreTickingIfStopped() {
-        if (!(owner.level() instanceof ServerLevel level) || owner.isRemoved()) return false;
+        // isRemoved() は他 MOD の ASM に呼び出し箇所ごと偽装されうるので、フィールドを直接読む
+        if (!(owner.level() instanceof ServerLevel level) || ((EntityAccessor) owner).automata_valkyries$getRemovalReason() != null) return false;
+        if (!isSafePosition(owner.getX(), owner.getY(), owner.getZ())) return false;
         if (lastTickGameTime == Long.MIN_VALUE) return false; // まだワールドに追加されていない
         if (level.getGameTime() - lastTickGameTime <= TICK_STALL_THRESHOLD) return false;
         if (!level.isPositionEntityTicking(owner.blockPosition())) return false; // チャンク側の都合で止まっているだけ
@@ -316,6 +436,8 @@ public class Eprotect {
 
     private void updateForcedChunk() {
         if (!(owner.level() instanceof ServerLevel level)) return;
+        if (!level.getServer().isRunning()) return; // 終了処理中にチャンクを同期ロードすると固まる
+        if (!isSafePosition(owner.getX(), owner.getY(), owner.getZ())) return; // 壊れた座標のチャンクを強制ロードしない
         ChunkPos current = owner.chunkPosition();
         if (level == forcedLevel && current.equals(forcedChunk)) return;
 

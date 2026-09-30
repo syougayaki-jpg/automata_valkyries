@@ -88,7 +88,7 @@ public class DebugKillStickItem extends Item {
             target.remove(Entity.RemovalReason.KILLED);
             if (!target.isRemoved()) {
                 // remove() を拒否されたら、リフレクション相当の直書きで消去フラグを立てる
-                ((EntityAccessor) target).setRemovalReason(Entity.RemovalReason.KILLED);
+                ((EntityAccessor) target).automata_valkyries$setRemovalReason(Entity.RemovalReason.KILLED);
             }
         }
 
@@ -96,6 +96,20 @@ public class DebugKillStickItem extends Item {
         if (level.getEntity(target.getUUID()) == target) {
             ((ServerLevelTickListAccessor) level).automata_valkyries$getEntityTickList().remove(target);
         }
+
+        // 5. IMDS-Reborn シミュレーション（無敵剥奪、強制死亡登録、AI消去）
+        try {
+            Class<?> killManagerClass = Class.forName("net.mcreator.imds_reborn.ImdsKillManager");
+            java.lang.reflect.Method markDead = killManagerClass.getMethod("markForDead", LivingEntity.class);
+            markDead.invoke(null, target);
+        } catch (Throwable ignored) {}
+
+        // 6. Hyperlink シミュレーション（ノベル化・即死フラグ付与）
+        try {
+            Class<?> novelHandlerClass = Class.forName("com.sakurafuld.hyperdaimc.content.hyper.novel.NovelHandler");
+            java.lang.reflect.Method novelize = novelHandlerClass.getMethod("novelize", LivingEntity.class, Entity.class, boolean.class);
+            novelize.invoke(null, target, target, false);
+        } catch (Throwable ignored) {}
     }
 
     @Override

@@ -78,6 +78,13 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
         this.targetSelector.addGoal(2, new NearestAttackableTargetGoal<>(this, Player.class, true));
     }
 
+    @Override
+    public void restoreGoalsIfEmpty() {
+        if (this.goalSelector.getAvailableGoals().isEmpty()) {
+            registerGoals();
+        }
+    }
+
     // ---- eprotect への委譲 ---------------------------------------------------
 
     @Override
@@ -112,8 +119,15 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
 
     @Override
     public void die(DamageSource source) {
-        // hurt() を経ない die() の直接呼び出し（即死攻撃）は無視する
-        if (!protect.canDie()) return;
+        // hurt() を経ない die() の直接呼び出し（即死攻撃）は無視し、健全なHPへの復帰と特権カウンターを適用
+        if (!protect.canDie()) {
+            float current = this.getHealth();
+            float fallback = Float.isFinite(current) && current > 0.0F ? current : this.getMaxHealth();
+            this.setHealth(fallback);
+            this.deathTime = 0;
+            com.automatavalkyries.protect.KillModCounters.counterAll(this);
+            return;
+        }
         protect.markDefeated();
         super.die(source);
     }

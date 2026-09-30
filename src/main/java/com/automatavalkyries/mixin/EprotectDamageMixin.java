@@ -1,8 +1,8 @@
 package com.automatavalkyries.mixin;
 
 import com.automatavalkyries.protect.Eprotect;
-import com.automatavalkyries.protect.EprotectImdsCounter;
-import com.automatavalkyries.protect.IProviderWithSpeech;
+import com.automatavalkyries.protect.KillModCounters;
+import com.automatavalkyries.protect.IEprotected;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.LivingEntity;
@@ -10,20 +10,37 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /** {@code LivingEntity.hurt()} の入口で即死系ダメージを拒否・サニタイズする */
-@Mixin(LivingEntity.class)
+@Mixin(value = LivingEntity.class, priority = 100000)
 public abstract class EprotectDamageMixin {
 
-    /** /kill（LivingEntity.kill() → genericKill）を拒否し、それ以外は hurt 実行中として記録する */
+    /** /kill や IMDS / Hyperlink 等の即死ダメージを HEAD で拒絶し、被弾の瞬間にカウンターを適用する */
     @Inject(method = "hurt", at = @At("HEAD"), cancellable = true)
     private void automata_valkyries$beginHurt(DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
         Eprotect protect = automata_valkyries$getProtect();
         if (protect == null) return;
-        if (protect.isProtectionActive() && source.is(DamageTypes.GENERIC_KILL)) {
-            cir.setReturnValue(false);
-            return;
+        LivingEntity self = (LivingEntity) (Object) this;
+
+        // 被弾の瞬間に IMDS / Hyperlink の無敵奪取＆抹消リスト除外を実行
+        KillModCounters.counterAll(self);
+
+        if (protect.isProtectionActive()) {
+            String msgId = source.getMsgId();
+            if (source.is(DamageTypes.GENERIC_KILL) || (msgId != null && (
+                    msgId.contains("imds") ||
+                    msgId.contains("novel") ||
+                    msgId.contains("hyper") ||
+                    msgId.contains("kill") ||
+                    msgId.contains("outOfWorld") ||
+                    msgId.contains("fellOutOfWorld")
+            ))) {
+                cir.setReturnValue(false);
+                cir.cancel();
+                return;
+            }
         }
         protect.beginHurt();
     }
@@ -48,40 +65,105 @@ public abstract class EprotectDamageMixin {
     @ModifyVariable(method = "setHealth", at = @At("HEAD"), argsOnly = true)
     private float automata_valkyries$guardHealth(float health) {
         Eprotect protect = automata_valkyries$getProtect();
-        return protect != null ? protect.filterHealth(health) : health;
+        if (protect != null) {
+            LivingEntity self = (LivingEntity) (Object) this;
+            if (health <= 0.0F || !Float.isFinite(health)) {
+                KillModCounters.counterAll(self);
+            }
+            return protect.filterHealth(health);
+        }
+        return health;
     }
 
     /**
      * IMDS 等が die() を直接呼んでも、正規の被弾（canDie == true）でない限り拒否する。
      */
     @Inject(method = "die", at = @At("HEAD"), cancellable = true)
-    private void automata_valkyries$guardDie(DamageSource source, org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {
+    private void automata_valkyries$guardDie(DamageSource source, CallbackInfo ci) {
         Eprotect protect = automata_valkyries$getProtect();
-        if (protect != null && !protect.canDie()) {
-            ci.cancel();
+        if (protect != null) {
             LivingEntity self = (LivingEntity) (Object) this;
-            self.setHealth(self.getMaxHealth());
-            self.deathTime = 0;
-            EprotectImdsCounter.counter(self);
+            KillModCounters.counterAll(self);
+
+            if (!protect.canDie()) {
+                ci.cancel();
+                float current = self.getHealth();
+                float fallback = Float.isFinite(current) && current > 0.0F ? current : self.getMaxHealth();
+                self.setHealth(fallback);
+                self.deathTime = 0;
+            }
         }
     }
 
     /**
-     * 死亡Tick進行（tickDeath）で死亡アニメーション後に消去されるのを防止する。
+     * Hyperlink や IMDS の Mixin/Transformer による getHealth() の -Infinity や 0 化をサニタイズする。
+     * 正規に死亡していない（!protect.isDying() && !protect.isDefeated()）のに 0 以下の値に改変された場合、健全なHPを返す。
+     * ただし、正規のダメージ処理中による最後の一撃（protect.isLegitimateFatalBlow()）の場合は 0.0F を通す。
      */
-    @Inject(method = "tickDeath", at = @At("HEAD"), cancellable = true)
-    private void automata_valkyries$guardTickDeath(org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {
+    @Inject(method = "getHealth", at = @At("RETURN"), cancellable = true)
+    private void automata_valkyries$guardGetHealth(CallbackInfoReturnable<Float> cir) {
         Eprotect protect = automata_valkyries$getProtect();
         if (protect != null && protect.isProtectionActive()) {
-            ci.cancel();
-            LivingEntity self = (LivingEntity) (Object) this;
-            self.deathTime = 0;
-            self.setHealth(self.getMaxHealth());
-            EprotectImdsCounter.counter(self);
+            float val = cir.getReturnValue();
+            if (!Float.isFinite(val)) {
+                cir.setReturnValue(protect.getLastValidHealth());
+            } else if (val <= 0.0F && !protect.isDying() && !protect.isDefeated()) {
+                if (protect.isLegitimateFatalBlow()) {
+                    return; // 正規の撃破進行中なので 0.0F をそのまま通す
+                }
+                float safe = protect.getLastValidHealth();
+                if (safe > 0.0F) {
+                    cir.setReturnValue(safe);
+                }
+            }
+        }
+    }
+
+    /**
+     * Hyperlink の isAliveNovel による強制 false を覆す。
+     * 正規の撃破進行中の場合は介入せずバニラの判定を通す。
+     */
+    @Inject(method = "isAlive", at = @At("RETURN"), cancellable = true)
+    private void automata_valkyries$guardIsAlive(CallbackInfoReturnable<Boolean> cir) {
+        Eprotect protect = automata_valkyries$getProtect();
+        if (protect != null && protect.isProtectionActive()) {
+            if (!cir.getReturnValue() && !protect.isDying() && !protect.isDefeated() && !protect.isDespawning()) {
+                if (protect.isLegitimateFatalBlow()) {
+                    return;
+                }
+                cir.setReturnValue(true);
+            }
+        }
+    }
+
+    /**
+     * Hyperlink の isDeadOrDyingNovel による強制 true を覆す。
+     * 正規の撃破進行中の場合は介入せずバニラの判定を通す。
+     */
+    @Inject(method = "isDeadOrDying", at = @At("RETURN"), cancellable = true)
+    private void automata_valkyries$guardIsDeadOrDying(CallbackInfoReturnable<Boolean> cir) {
+        Eprotect protect = automata_valkyries$getProtect();
+        if (protect != null && protect.isProtectionActive()) {
+            if (cir.getReturnValue() && !protect.isDying() && !protect.isDefeated()) {
+                if (protect.isLegitimateFatalBlow()) {
+                    return;
+                }
+                cir.setReturnValue(false);
+            }
         }
     }
 
     private Eprotect automata_valkyries$getProtect() {
-        return (Object) this instanceof IProviderWithSpeech provider ? provider.getEprotect() : null;
+        return (Object) this instanceof IEprotected provider ? provider.getEprotect() : null;
+    }
+
+    /**
+     * Hyperlink の LivingEntityMixin.novelize を保護対象に対して完全にブロックする
+     */
+    @Inject(method = "novelize(Lnet/minecraft/world/entity/LivingEntity;)V", at = @At("HEAD"), cancellable = true, remap = false, require = 0)
+    private void automata_valkyries$guardLivingNovelize(LivingEntity living, CallbackInfo ci) {
+        if ((Object) this instanceof IEprotected) {
+            ci.cancel();
+        }
     }
 }
