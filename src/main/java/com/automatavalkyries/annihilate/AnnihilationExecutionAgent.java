@@ -127,6 +127,10 @@ public final class AnnihilationExecutionAgent {
             entity.discard();
             AutomataValkyries.LOGGER.info("[AnnihilationAgent] Blocked and canceled re-join of annihilated entity: {} ({})",
                     entity.getName().getString(), entity.getUUID());
+        } else if (entity != null && !(entity instanceof Player) && !(entity instanceof IEprotected) && SpawnBanZone.shouldRefuse(entity)) {
+            // 消した直後に、同じ種類の個体が別の UUID で作り直された（復活）
+            event.setCanceled(true);
+            entity.discard();
         }
     }
 
@@ -556,6 +560,9 @@ public final class AnnihilationExecutionAgent {
             ModProtectionBreaker.afterErase(target, context);
         });
 
+        // (6') 同じ種類の作り直し（別の UUID での復活）を、しばらくの間この近くで拒否する（他 MOD の種類だけ）
+        SpawnBanZone.banNear(level, target, origin);
+
         // (7) つながった同じ MOD の個体（乗客・乗り物）もまとめて消す
         for (Entity other : connected) {
             if (other instanceof LivingEntity living) {
@@ -640,6 +647,7 @@ public final class AnnihilationExecutionAgent {
     public static void clearMarks() {
         ANNIHILATED_UUIDS.clear();
         ANNIHILATED_INSTANCES.clear();
+        SpawnBanZone.clear();
     }
 
     /** 消えた位置に煙を少しだけ出す（バニラの死亡時の煙と同じ程度） */

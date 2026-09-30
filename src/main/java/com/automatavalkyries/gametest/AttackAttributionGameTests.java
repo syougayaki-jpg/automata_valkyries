@@ -248,6 +248,22 @@ public class AttackAttributionGameTests {
         helper.succeed();
     }
 
+    /** 種類単位の一時的な出現拒否: 期限内は近くでの同じ種類の参加を拒否し、期限が切れたら通す */
+    @GameTest(template = TEMPLATE, timeoutTicks = 120)
+    public static void spawnBanZoneRefusesRecreationUntilExpiry(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        net.minecraft.world.phys.Vec3 center = helper.absolutePos(new BlockPos(2, 2, 2)).getCenter();
+        com.automatavalkyries.annihilate.SpawnBanZone.ban(level, net.minecraft.world.entity.EntityType.ALLAY, center, 40);
+        Entity refused = helper.spawn(net.minecraft.world.entity.EntityType.ALLAY, new BlockPos(2, 2, 2));
+        helper.assertTrue(level.getEntity(refused.getUUID()) == null, "A banned type joined inside the zone");
+        helper.runAfterDelay(50, () -> {
+            Entity allowed = helper.spawn(net.minecraft.world.entity.EntityType.ALLAY, new BlockPos(2, 2, 2));
+            helper.assertTrue(level.getEntity(allowed.getUUID()) == allowed, "The ban did not expire");
+            allowed.discard();
+            helper.succeed();
+        });
+    }
+
     /** 護符を持たないプレイヤーは守られない */
     @GameTest(template = TEMPLATE)
     public static void playerWithoutCharmIsNotWarded(GameTestHelper helper) {

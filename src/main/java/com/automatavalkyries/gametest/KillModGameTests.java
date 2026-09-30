@@ -319,6 +319,9 @@ public class KillModGameTests {
                     var remaining = level.getEntities(type, area, e -> true);
                     helper.assertTrue(remaining.isEmpty(), path + " survived or came back: " + remaining);
                     helper.assertTrue(level.getEntity(boss.getUUID()) == null, path + " is still in the level lookup");
+                    // 消した直後は、同じ種類の作り直し（別の UUID での復活）も近くでは拒否される
+                    net.minecraft.world.entity.Entity recreated = helper.spawn(type, new BlockPos(3, 2, 3));
+                    helper.assertTrue(level.getEntity(recreated.getUUID()) == null, path + " was re-created right after the annihilation");
                     helper.succeed();
                 });
             });
