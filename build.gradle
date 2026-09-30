@@ -169,6 +169,10 @@ dependencies {
         runtimeOnly fg.deobf("curse.maven:the-trial-monolith-1462850:8561617")  // The Trial Monolith 1.4.9
         runtimeOnly fg.deobf("curse.maven:no-sugar-1476611:8000478")            // No-Sugar 1.9.1
     }
+    //   ./gradlew runClient -PwithOmniMobs   （Omni-Mobs の共通 Mixin がクライアントのクラスを参照するので、専用サーバーで起動できずクライアント専用）
+    if (project.hasProperty('withOmniMobs')) {
+        runtimeOnly fg.deobf("maven.modrinth:omni-mobs:0.3.5.3")                // Omni-Mobs 0.3.5.3
+    }
     if (project.hasProperty('withImds')) {
         runtimeOnly fg.deobf("maven.modrinth:imds-reborn:1.4.0")                // IMDS Reborn 1.4.0
     }

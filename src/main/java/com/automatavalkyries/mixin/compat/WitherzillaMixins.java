@@ -31,9 +31,42 @@ public final class WitherzillaMixins {
             if (EprotectCompat.shouldShield(entity)) ci.cancel();
         }
 
+        @Inject(method = "safeEntity(Lnet/minecraft/world/entity/Entity;)Z", at = @At("HEAD"), cancellable = true, require = 0)
+        private static void automata_valkyries$guardSafeEntity(Entity entity, CallbackInfoReturnable<Boolean> cir) {
+            if (com.automatavalkyries.annihilate.AnnihilationExecutionAgent.isAnnihilated(entity)) {
+                cir.setReturnValue(false);
+            }
+        }
+
         // 注意: ModUtil.safeEntity（Witherzilla 自身のボスの保護判定）を兵姫にも true にしてはいけない。
         // Witherzilla の Mixin がチャンクのアンロード時の区画・一覧からの削除まで拒否するため、終了時の保存で
         // 同じ個体が何度も読み直される（UUID 重複の警告が大量に出る）。
+    }
+
+    /** 処刑竜の生命維持フラグを抹消時に強制無効化 */
+    @Pseudo
+    @Mixin(targets = "com.wzz.witherzilla.entity.ExecutionDragonEntity", remap = false)
+    public abstract static class ExecutionDragon {
+        @Inject(method = "getWitherzillaLife()Z", at = @At("HEAD"), cancellable = true, require = 0)
+        private void automata_valkyries$overrideDragonLife(CallbackInfoReturnable<Boolean> cir) {
+            Entity self = (Entity) (Object) this;
+            if (com.automatavalkyries.annihilate.AnnihilationExecutionAgent.isAnnihilated(self)) {
+                cir.setReturnValue(false);
+            }
+        }
+    }
+
+    /** Witherzilla の生命維持フラグを抹消時に強制無効化 */
+    @Pseudo
+    @Mixin(targets = "com.wzz.witherzilla.entity.WitherzillaEntity", remap = false)
+    public abstract static class Witherzilla {
+        @Inject(method = "getWitherzillaLife()Z", at = @At("HEAD"), cancellable = true, require = 0)
+        private void automata_valkyries$overrideWitherzillaLife(CallbackInfoReturnable<Boolean> cir) {
+            Entity self = (Entity) (Object) this;
+            if (com.automatavalkyries.annihilate.AnnihilationExecutionAgent.isAnnihilated(self)) {
+                cir.setReturnValue(false);
+            }
+        }
     }
 
     /** 範囲攻撃の後に予約される時間差の強制消去 */

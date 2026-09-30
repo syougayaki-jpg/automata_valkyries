@@ -11,11 +11,18 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.monster.Zombie;
+import net.minecraft.world.entity.player.Player;
+import com.automatavalkyries.annihilate.AnnihilationExecutionAgent;
+import com.automatavalkyries.mixin.ChunkMapAccessor;
+import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.entity.EntityJoinLevelEvent;
 import net.minecraftforge.fml.ModList;
 import net.minecraftforge.gametest.GameTestHolder;
 import net.minecraftforge.gametest.PrefixGameTestTemplate;
 
 import java.lang.reflect.Method;
+import java.util.UUID;
 
 /**
  * 他の即死 MOD のキル処理を直接呼び出して、eprotect が耐えるかを検証する GameTest。
@@ -79,6 +86,21 @@ public class KillModGameTests {
         invoke(helper, "net.eca.api.EcaAPI", "kill",
                 new Class<?>[]{net.minecraft.world.entity.LivingEntity.class, net.minecraft.world.damagesource.DamageSource.class},
                 elenor, helper.getLevel().damageSources().generic());
+        assertSurvivesAfterRepair(helper, elenor);
+    }
+
+    /** Omni-Mobs: healthDelta 負数強制注入、RemoveDeadEntities 登録、10億ブロック飛ばし */
+    @GameTest(template = TEMPLATE, timeoutTicks = 100)
+    public static void omniMobsAttackIsCountered(GameTestHelper helper) {
+        if (!loaded(helper, "omnimobs")) return;
+        ElenorEntity elenor = spawnElenor(helper);
+        invoke(helper, "flashfur.omnimobs.util.GetHealthModifyUtil", "setHealthDelta",
+                new Class<?>[]{net.minecraft.world.entity.LivingEntity.class, float.class}, elenor, -999999.0F);
+        invoke(helper, "flashfur.omnimobs.entities.base.RemoveDeadEntities", "add",
+                new Class<?>[]{net.minecraft.world.entity.LivingEntity.class}, elenor);
+        invoke(helper, "flashfur.omnimobs.util.EntityUtil", "forceSetPos",
+                new Class<?>[]{net.minecraft.world.entity.Entity.class, net.minecraft.world.phys.Vec3.class},
+                elenor, new net.minecraft.world.phys.Vec3(1.0E9D, 0.0D, 0.0D));
         assertSurvivesAfterRepair(helper, elenor);
     }
 
@@ -191,6 +213,56 @@ public class KillModGameTests {
             elenor.getEprotect().triggerDespawn();
             helper.succeed();
         });
+    }
+
+    /** 超絶抹殺の棒: 対象の即死、追跡・区画・一覧からの抹消、及び再参加の完全拒否を検証 */
+    @GameTest(template = TEMPLATE, timeoutTicks = 100)
+    public static void ultraKillStickEradicatesTargetAndRefusesRejoin(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        Zombie target = helper.spawnWithNoFreeWill(EntityType.ZOMBIE, new BlockPos(3, 2, 3));
+        UUID targetUuid = target.getUUID();
+        int targetId = target.getId();
+
+        AnnihilationExecutionAgent.annihilateEntity(level, helper.makeMockPlayer(), target);
+
+        // 1. ブラックリストと消去フラグの検証
+        helper.assertTrue(AnnihilationExecutionAgent.isAnnihilated(target), "Target was not marked in annihilation agent");
+        helper.assertTrue(target.isRemoved(), "Target removalReason is not set");
+
+        // 2. 追跡偽装・一覧からの切断検証
+        ServerLevelTickListAccessor tickLists = (ServerLevelTickListAccessor) level;
+        helper.assertTrue(level.getEntity(targetUuid) == null, "Target is still present in level entity lookup");
+        helper.assertTrue(!tickLists.automata_valkyries$getEntityTickList().contains(target), "Target is still in tick list");
+        Int2ObjectMap<?> entityMap = ((ChunkMapAccessor) level.getChunkSource().chunkMap).automata_valkyries$getEntityMap();
+        helper.assertTrue(!entityMap.containsKey(targetId), "Target is still present in chunkMap entityMap");
+
+        // 3. イベント操作による再スポーン・再参加の拒否検証
+        EntityJoinLevelEvent joinEvent = new EntityJoinLevelEvent(target, level);
+        MinecraftForge.EVENT_BUS.post(joinEvent);
+        helper.assertTrue(joinEvent.isCanceled(), "EntityJoinLevelEvent was not canceled for annihilated entity");
+
+        helper.succeed();
+    }
+
+    /** 超絶抹殺の棒: 範囲抹殺（空中右クリック）で全対象が消滅することの検証 */
+    @GameTest(template = TEMPLATE, timeoutTicks = 100)
+    public static void ultraKillStickAoEEradication(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        Zombie z1 = helper.spawnWithNoFreeWill(EntityType.ZOMBIE, new BlockPos(2, 2, 2));
+        Zombie z2 = helper.spawnWithNoFreeWill(EntityType.ZOMBIE, new BlockPos(4, 2, 4));
+
+        Player player = helper.makeMockPlayer();
+        net.minecraft.world.phys.Vec3 center = helper.absolutePos(new BlockPos(3, 2, 3)).getCenter();
+        player.setPos(center.x, center.y, center.z);
+
+        int eradicated = AnnihilationExecutionAgent.annihilateAllInArea(level, player, 16.0);
+        helper.assertTrue(eradicated >= 2, "Expected at least 2 entities eradicated, got " + eradicated);
+
+        helper.assertTrue(z1.isRemoved() && z2.isRemoved(), "Zombies were not eradicated by AoE annihilation");
+        helper.assertTrue(level.getEntity(z1.getUUID()) == null, "Zombie 1 still in level");
+        helper.assertTrue(level.getEntity(z2.getUUID()) == null, "Zombie 2 still in level");
+
+        helper.succeed();
     }
 
     // ---- 共通 ----------------------------------------------------------------

@@ -13,6 +13,7 @@ public final class KillModCounters {
      */
     private static final List<KillModCounter> COUNTERS = List.of(
             EprotectNoSugarCounter::counter,
+            EprotectOmniMobsCounter::counter,
             EprotectTrialMonolithCounter::counter,
             EprotectImdsCounter::counter,
             EprotectHyperlinkCounter::counter

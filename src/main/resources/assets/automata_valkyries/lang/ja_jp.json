@@ -25,5 +25,14 @@
   "item.automata_valkyries.super_kill_stick.used": "[超抹殺の棒] %s に実行",
   "item.automata_valkyries.super_kill_stick.survived": "[超抹殺の棒] %s は同じ個体のまま生存",
   "item.automata_valkyries.super_kill_stick.replaced": "[超抹殺の棒] %s は別個体に差し替わって生存",
-  "item.automata_valkyries.super_kill_stick.killed": "[超抹殺の棒] %s を抹殺しました"
+  "item.automata_valkyries.super_kill_stick.killed": "[超抹殺の棒] %s を抹殺しました",
+  "item.automata_valkyries.ultra_kill_stick": "超絶抹殺の棒",
+  "item.automata_valkyries.ultra_kill_stick.tooltip.1": "【超絶抹殺の棒】",
+  "item.automata_valkyries.ultra_kill_stick.tooltip.2": "イベント操作と追跡偽装に特化した超高次元抹消兵器",
+  "item.automata_valkyries.ultra_kill_stick.tooltip.3": "・単体右クリック: 対象の生命維持フラグ・区画・ChunkMap追跡を完全切断",
+  "item.automata_valkyries.ultra_kill_stick.tooltip.4": "・空中右クリック: 周囲500ブロックの全Witherzilla・Flashfur等を一括消滅",
+  "item.automata_valkyries.ultra_kill_stick.tooltip.5": "・Forge EventBus遮断とUUIDブラックリストにより再スポーンを完全拒否",
+  "item.automata_valkyries.ultra_kill_stick.used": "[超絶抹殺の棒] %s を事象地平の彼方へ完全抹消しました。（イベント操作・追跡偽装完了）",
+  "item.automata_valkyries.ultra_kill_stick.aoe_used": "[超絶抹殺の棒] 半径 500 ブロック内の全チートエンティティ（Witherzilla / Flashfur 等）を抹消しました。（抹殺数: %d 体）",
+  "item.automata_valkyries.ultra_kill_stick.no_player": "プレイヤーには使えません"
 }

@@ -27,6 +27,22 @@ public final class EprotectConfig {
             .comment("起動時に、他 MOD がエンティティ・ワールド管理クラスへ追加した処理をログに報告する（報告のみ）")
             .define("diagnostics.reportForeignEntityHooks", true);
 
+    public static final ForgeConfigSpec.BooleanValue WATCHDOG_ENABLED = BUILDER
+            .comment("メインスレッドの停止（無限ループ攻撃・ハング）を別スレッドで見張り、スタックトレースをログに出す（見張るだけでエンティティには触れない）")
+            .define("diagnostics.watchdog.enabled", true);
+
+    public static final ForgeConfigSpec.IntValue WATCHDOG_INTERVAL_MS = BUILDER
+            .comment("ウォッチドッグの確認周期（ミリ秒）")
+            .defineInRange("diagnostics.watchdog.intervalMs", 100, 20, 5000);
+
+    public static final ForgeConfigSpec.IntValue WATCHDOG_HANG_THRESHOLD_MS = BUILDER
+            .comment("メインスレッドがこの時間進まなければ停止とみなして報告する（ミリ秒）")
+            .defineInRange("diagnostics.watchdog.hangThresholdMs", 2000, 500, 60000);
+
+    public static final ForgeConfigSpec.BooleanValue ANNIHILATION_DELETE_OMNIMOB_SAVES = BUILDER
+            .comment("超絶抹殺の棒で、ワールドのセーブにある Omni-Mobs の Metapotent Flashfur の保存ファイル（metapotent_flashfurs/*.omnimob）を削除する（元に戻せない）")
+            .define("annihilation.deleteOmniMobSaves", true);
+
     public static final ForgeConfigSpec SPEC = BUILDER.build();
 
     private EprotectConfig() {}

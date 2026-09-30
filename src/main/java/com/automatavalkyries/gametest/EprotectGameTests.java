@@ -8,6 +8,7 @@ import com.automatavalkyries.mixin.LivingEntityAccessor;
 import com.automatavalkyries.mixin.ServerLevelTickListAccessor;
 import com.automatavalkyries.protect.Eprotect;
 import com.automatavalkyries.protect.EprotectManager;
+import com.automatavalkyries.protect.EprotectWatchdogAgent;
 import com.automatavalkyries.registry.ModEntities;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
@@ -262,6 +263,33 @@ public class EprotectGameTests {
             assertProtectedAndAlive(helper, elenor);
             helper.assertTrue(elenor.getHealth() == max, "Health not restored after Hyperlink simulation");
             helper.assertTrue(elenor.deathTime == 0, "Death animation was not reset");
+            despawnAndSucceed(helper, elenor);
+        });
+    }
+
+    /** ウォッチドッグが起動していて、メインループの進行を追えているか */
+    @GameTest(template = TEMPLATE)
+    public static void watchdogIsRunningAndSeesProgress(GameTestHelper helper) {
+        EprotectWatchdogAgent watchdog = EprotectWatchdogAgent.getInstance();
+        helper.assertTrue(watchdog.isRunning(), "Watchdog thread is not running");
+        long elapsed = System.currentTimeMillis() - watchdog.getLastProgressMillis();
+        helper.assertTrue(elapsed < 2000L, "Watchdog has not seen the main loop advance for " + elapsed + " ms");
+        helper.succeed();
+    }
+
+    /** 別スレッドから消去フラグを直書きされても、メインスレッドの修復で戻る */
+    @GameTest(template = TEMPLATE)
+    public static void removalFlagWrittenFromAnotherThreadIsRepaired(GameTestHelper helper) {
+        ElenorEntity elenor = spawnElenor(helper);
+        Thread attacker = new Thread(() ->
+                ((EntityAccessor) elenor).automata_valkyries$setRemovalReason(Entity.RemovalReason.KILLED),
+                "MaliciousExternalThread");
+        attacker.start();
+
+        helper.runAfterDelay(6, () -> {
+            helper.assertTrue(((EntityAccessor) elenor).automata_valkyries$getRemovalReason() == null,
+                    "Removal flag written from another thread was not cleared");
+            assertProtectedAndAlive(helper, elenor);
             despawnAndSucceed(helper, elenor);
         });
     }

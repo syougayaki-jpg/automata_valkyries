@@ -25,5 +25,14 @@
   "item.automata_valkyries.super_kill_stick.used": "[Super Annihilation Stick] Struck %s",
   "item.automata_valkyries.super_kill_stick.survived": "[Super Annihilation Stick] %s survived as the same entity",
   "item.automata_valkyries.super_kill_stick.replaced": "[Super Annihilation Stick] %s survived by being replaced with a fresh copy",
-  "item.automata_valkyries.super_kill_stick.killed": "[Super Annihilation Stick] %s was eliminated"
+  "item.automata_valkyries.super_kill_stick.killed": "[Super Annihilation Stick] %s was eliminated",
+  "item.automata_valkyries.ultra_kill_stick": "Ultra Annihilation Stick",
+  "item.automata_valkyries.ultra_kill_stick.tooltip.1": "[Ultra Annihilation Stick]",
+  "item.automata_valkyries.ultra_kill_stick.tooltip.2": "Hyper-dimensional erasure weapon specialized in Event Manipulation & Tracking Spoofing",
+  "item.automata_valkyries.ultra_kill_stick.tooltip.3": "- Right-click single target: completely severs life flags, spatial sections & ChunkMap tracking",
+  "item.automata_valkyries.ultra_kill_stick.tooltip.4": "- Right-click in air: instantaneously wipes all Witherzillas & Flashfurs within 500 blocks",
+  "item.automata_valkyries.ultra_kill_stick.tooltip.5": "- Permanently refuses respawns via Forge EventBus suppression & UUID blacklist",
+  "item.automata_valkyries.ultra_kill_stick.used": "[Ultra Annihilation Stick] Obliterated %s beyond the event horizon! (Event manipulated & tracking spoofed)",
+  "item.automata_valkyries.ultra_kill_stick.aoe_used": "[Ultra Annihilation Stick] Eradicated all cheat bosses within 500 blocks (Total erased: %d)",
+  "item.automata_valkyries.ultra_kill_stick.no_player": "Cannot be used on players"
 }
