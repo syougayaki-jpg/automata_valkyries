@@ -16,6 +16,8 @@ public final class EprotectCompat {
     /** この対象へのキル処理を拒否すべきか */
     public static boolean shouldShield(@Nullable Entity entity) {
         if (entity instanceof PartEntity<?> part) entity = part.getParent();
+        if (PlayerWard.isActive(entity)) return true; // 守護の護符を持つプレイヤー
+
         if (!(entity instanceof IEprotected provider)) return false;
         Eprotect protect = provider.getEprotect();
         if (protect == null) return false;

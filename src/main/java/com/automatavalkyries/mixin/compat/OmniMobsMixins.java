@@ -2,6 +2,7 @@ package com.automatavalkyries.mixin.compat;
 
 import com.automatavalkyries.annihilate.AnnihilationExecutionAgent;
 import com.automatavalkyries.protect.EprotectCompat;
+import com.automatavalkyries.protect.IEprotected;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
@@ -52,7 +53,8 @@ public final class OmniMobsMixins {
         private void automata_valkyries$guardInstantKill(LivingEntity target, float amount, CallbackInfo ci) {
             if (EprotectCompat.shieldAttack(target, "omnimobs:instantKill")) {
                 ci.cancel();
-                target.hurt(target.damageSources().generic(), amount);
+                // 通常の被弾に置き換えるのは被弾量の上限がある保護対象だけ（守護の護符のプレイヤーは上限が無いので止めるだけ）
+                if (target instanceof IEprotected) target.hurt(target.damageSources().generic(), amount);
             }
         }
 
@@ -73,7 +75,9 @@ public final class OmniMobsMixins {
                                                             @Coerce Object source, CallbackInfo ci) {
             if (EprotectCompat.shieldAttack(target, "omnimobs:forceHurt")) {
                 ci.cancel();
-                target.hurt(attacker != null ? target.damageSources().mobAttack(attacker) : target.damageSources().generic(), Float.MAX_VALUE);
+                if (target instanceof IEprotected) {
+                    target.hurt(attacker != null ? target.damageSources().mobAttack(attacker) : target.damageSources().generic(), Float.MAX_VALUE);
+                }
             }
         }
 

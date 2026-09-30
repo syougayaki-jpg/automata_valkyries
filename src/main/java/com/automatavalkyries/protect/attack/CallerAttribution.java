@@ -102,6 +102,30 @@ public final class CallerAttribution {
         return walk(target, false);
     }
 
+    /**
+     * 呼び出し経路で最初に現れる他 MOD（vanilla のクラスへ差し込まれたメソッドは数えない）。無ければ null。
+     * 守護の護符で使う: vanilla の経路の途中に性能系 MOD の差し込みがあっても、それを攻撃とみなさないため。
+     */
+    @Nullable
+    public static String foreignClassMod(@Nullable Entity target) {
+        WALKS.incrementAndGet();
+        Class<?> targetClass = target != null ? target.getClass() : null;
+        return WALKER.walk(frames -> {
+            Iterator<StackWalker.StackFrame> it = frames.limit(64).iterator();
+            while (it.hasNext()) {
+                StackWalker.StackFrame frame = it.next();
+                Class<?> type = frame.getDeclaringClass();
+                String method = frame.getMethodName();
+                if (isOwnPlumbing(type, method)) continue;
+                if (method.indexOf('$') >= 0 && mergedMod(type, method, frame.getDescriptor()) != null) continue;
+                if (targetClass != null && type.isAssignableFrom(targetClass)) continue;
+                String mod = modOf(type);
+                if (isForeign(mod)) return mod;
+            }
+            return null;
+        });
+    }
+
     public static long walkCount() {
         return WALKS.get();
     }
@@ -162,6 +186,7 @@ public final class CallerAttribution {
                 || name.equals("com.automatavalkyries.protect.Eprotect")
                 || name.equals("com.automatavalkyries.protect.EprotectCompat")
                 || name.equals("com.automatavalkyries.protect.EprotectForgeEvents")
+                || name.equals("com.automatavalkyries.protect.PlayerWard")
                 || method.contains("automata_valkyries$")
                 || name.startsWith("org.spongepowered.");
     }

@@ -3,6 +3,7 @@ package com.automatavalkyries.mixin;
 import com.automatavalkyries.config.EprotectConfig;
 import com.automatavalkyries.protect.Eprotect;
 import com.automatavalkyries.protect.KillModCounters;
+import com.automatavalkyries.protect.PlayerWard;
 import com.automatavalkyries.protect.IEprotected;
 import com.automatavalkyries.protect.attack.AttackLog;
 import com.automatavalkyries.protect.attack.AttackOp;
@@ -32,6 +33,10 @@ public abstract class EprotectEntityMixin {
 
     @Inject(method = "setRemoved", at = @At("HEAD"), cancellable = true)
     private void automata_valkyries$guardSetRemoved(Entity.RemovalReason reason, CallbackInfo ci) {
+        if (automata_valkyries$wardRefusesRemoval(reason)) {
+            ci.cancel();
+            return;
+        }
         if ((Object) this instanceof IEprotected provider) {
             Eprotect protect = provider.getEprotect();
             if (protect != null && protect.shouldBlockRemoval(reason)) {
@@ -45,6 +50,10 @@ public abstract class EprotectEntityMixin {
 
     @Inject(method = "remove", at = @At("HEAD"), cancellable = true)
     private void automata_valkyries$guardRemove(Entity.RemovalReason reason, CallbackInfo ci) {
+        if (automata_valkyries$wardRefusesRemoval(reason)) {
+            ci.cancel();
+            return;
+        }
         if ((Object) this instanceof IEprotected provider) {
             Eprotect protect = provider.getEprotect();
             if (protect != null && protect.shouldBlockRemoval(reason)) {
@@ -56,8 +65,23 @@ public abstract class EprotectEntityMixin {
         }
     }
 
+    /**
+     * 守護の護符を持つ生きたプレイヤーを、他 MOD が消去（KILLED / DISCARDED）しようとしたら拒否する。
+     * vanilla の消去（リスポーン時の古い個体の破棄・ログアウト・次元移動）は他 MOD の経路を通らないので通る
+     */
+    @Unique
+    private boolean automata_valkyries$wardRefusesRemoval(Entity.RemovalReason reason) {
+        Entity self = (Entity) (Object) this;
+        return reason.shouldDestroy() && PlayerWard.isActive(self)
+                && PlayerWard.refuseFromForeignMod(self, AttackOp.REMOVE + ":" + reason.name().toLowerCase(java.util.Locale.ROOT));
+    }
+
     @Inject(method = "discard", at = @At("HEAD"), cancellable = true)
     private void automata_valkyries$guardDiscard(CallbackInfo ci) {
+        if (automata_valkyries$wardRefusesRemoval(Entity.RemovalReason.DISCARDED)) {
+            ci.cancel();
+            return;
+        }
         if ((Object) this instanceof IEprotected provider) {
             Eprotect protect = provider.getEprotect();
             if (protect != null && protect.isGuardingRemoval()) {
@@ -122,6 +146,17 @@ public abstract class EprotectEntityMixin {
      */
     @Inject(method = "setPosRaw", at = @At("HEAD"), cancellable = true)
     private void automata_valkyries$guardSetPosRaw(double x, double y, double z, CallbackInfo ci) {
+        Entity entity = (Entity) (Object) this;
+        if (PlayerWard.isActive(entity)) {
+            // 守護の護符: 他 MOD による遠くへの強制移動・ワールド外への飛ばし。通常の移動は短いので距離で先に弾き、スタックを辿らない
+            boolean unsafe = !Eprotect.isSafePosition(entity, x, y, z);
+            double limit = EprotectConfig.get(EprotectConfig.BLACKLIST_FORCED_RELOCATION_DISTANCE);
+            if ((unsafe || entity.distanceToSqr(x, y, z) > limit * limit)
+                    && PlayerWard.refuseFromForeignMod(entity, unsafe ? AttackOp.UNSAFE_POSITION : AttackOp.FORCED_RELOCATION)) {
+                ci.cancel();
+            }
+            return;
+        }
         if ((Object) this instanceof IEprotected provider) {
             Eprotect protect = provider.getEprotect();
             if (protect == null || !protect.isProtectionActive()) return;

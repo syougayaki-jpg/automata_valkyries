@@ -182,6 +182,50 @@ public class AttackAttributionGameTests {
         finish(helper, elenor);
     }
 
+    /**
+     * 守護の護符を持つプレイヤー: 他 MOD の強制テレポート・即死（/kill 型・HP 0 化・die 直呼び・消去）は拒否し、
+     * 短い移動と通常のダメージ（致死量なら死亡）は通す
+     */
+    @GameTest(template = TEMPLATE)
+    public static void wardCharmBlocksModTeleportAndInstantKill(GameTestHelper helper) {
+        FakeKillMod.install();
+        net.minecraft.world.entity.player.Player player = helper.makeMockPlayer();
+        player.getInventory().add(new net.minecraft.world.item.ItemStack(com.automatavalkyries.registry.ModItems.WARD_CHARM.get()));
+        com.automatavalkyries.protect.PlayerWard.refresh(player);
+        var generic = helper.getLevel().damageSources().generic();
+
+        double x = player.getX();
+        FakeKillMod.relocate(player, 100.0D);
+        helper.assertTrue(player.getX() == x, "A mod's forced teleport moved the warded player");
+        FakeKillMod.relocate(player, 1.0D);
+        helper.assertTrue(player.getX() == x + 1.0D, "A short move of the warded player was blocked");
+
+        player.kill();
+        FakeKillMod.setHealth(player, 0.0F);
+        FakeKillMod.die(player, generic);
+        FakeKillMod.discard(player);
+        helper.assertTrue(player.getHealth() > 0.0F && !player.isDeadOrDying(), "An instant kill got through: " + player.getHealth());
+        helper.assertFalse(player.isRemoved(), "The warded player was removed: " + player.getRemovalReason());
+
+        float before = player.getHealth();
+        FakeKillMod.hit(player, generic, 5.0F);
+        helper.assertTrue(player.getHealth() < before, "Ordinary damage to the warded player was blocked");
+        FakeKillMod.hit(player, generic, 1000.0F);
+        helper.assertTrue(player.isDeadOrDying(), "Lethal ordinary damage did not kill the warded player");
+        helper.succeed();
+    }
+
+    /** 護符を持たないプレイヤーは守られない */
+    @GameTest(template = TEMPLATE)
+    public static void playerWithoutCharmIsNotWarded(GameTestHelper helper) {
+        FakeKillMod.install();
+        net.minecraft.world.entity.player.Player player = helper.makeMockPlayer();
+        com.automatavalkyries.protect.PlayerWard.refresh(player);
+        FakeKillMod.setHealth(player, 0.0F);
+        helper.assertTrue(player.getHealth() <= 0.0F, "A player without the charm was protected");
+        helper.succeed();
+    }
+
     /** Mixin を経ない直書きの修復は、呼び出し元不明（unknown）として記録される */
     @GameTest(template = TEMPLATE)
     public static void directWriteRepairIsRecordedAsUnknown(GameTestHelper helper) {

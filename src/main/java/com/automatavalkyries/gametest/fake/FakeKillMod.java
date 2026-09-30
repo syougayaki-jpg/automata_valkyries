@@ -41,6 +41,14 @@ public final class FakeKillMod {
         return target.changeDimension(destination);
     }
 
+    public static void die(LivingEntity target, DamageSource source) {
+        target.die(source);
+    }
+
+    public static void discard(Entity target) {
+        target.discard();
+    }
+
     public static void fakeDimensionRemoval(Entity target) {
         target.setRemoved(Entity.RemovalReason.CHANGED_DIMENSION);
     }
