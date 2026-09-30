@@ -20,7 +20,10 @@
     "compat.ImdsUtilMixins$AutoMoveCancel",
     "compat.NoSugarMixins$EraserUtils",
     "compat.NoSugarMixins$Living",
-    "compat.TrialMonolithMixins$Helper"
+    "compat.TrialMonolithMixins$Helper",
+    "compat.WitherzillaMixins$Util",
+    "compat.WitherzillaMixins$TimerCache",
+    "compat.WitherzillaMixins$Unsafe"
   ],
   "injectors": {
     "defaultRequire": 1

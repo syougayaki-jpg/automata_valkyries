@@ -172,6 +172,15 @@ dependencies {
     if (project.hasProperty('withImds')) {
         runtimeOnly fg.deobf("maven.modrinth:imds-reborn:1.4.0")                // IMDS Reborn 1.4.0
     }
+    // 追加の検証対象（上の組み合わせと同時にも使える）
+    //   ./gradlew runGameTestServer -PwithKillMods2
+    //   ./gradlew runClient -PwithKillMods2 -PwithWitherzilla   （Witherzilla は専用サーバーで起動できないのでクライアント専用）
+    if (project.hasProperty('withKillMods2') || project.hasProperty('withWitherzilla')) {
+        runtimeOnly fg.deobf("maven.modrinth:re-avaritia:1.20.1-1.4.2-release") // Re:Avaritia 1.4.2
+    }
+    if (project.hasProperty('withWitherzilla')) {
+        runtimeOnly fg.deobf("maven.modrinth:witherzilla:1.7")                  // Witherzilla 1.7
+    }
 
     // Example mod dependency with JEI - using fg.deobf() ensures the dependency is remapped to your development mappings
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime

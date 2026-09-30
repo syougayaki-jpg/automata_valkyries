@@ -332,9 +332,17 @@ public class Eprotect {
                 || ((ServerLevelTickListAccessor) level).automata_valkyries$getEntityManager().isLoaded(owner.getUUID())) {
             return 0;
         }
-        if (level.addFreshEntity(owner)) {
-            AutomataValkyries.LOGGER.warn("[eprotect] Restored {} after it was removed from the world", owner);
-            return 1;
+        try {
+            // エンティティ一覧からだけ消して追跡（ChunkMap）を残す MOD がある。残ったまま戻すと
+            // 「Entity is already tracked!」でサーバーが落ちるので、先に追跡を外しておく（未追跡なら何もしない）
+            level.getChunkSource().removeEntity(owner);
+            if (level.addFreshEntity(owner)) {
+                AutomataValkyries.LOGGER.warn("[eprotect] Restored {} after it was removed from the world", owner);
+                return 1;
+            }
+        } catch (RuntimeException e) {
+            // 他 MOD がワールドの一覧を中途半端に壊していると復元自体が失敗しうる。サーバーを落とさず「戻せない」扱いにする
+            AutomataValkyries.LOGGER.error("[eprotect] Failed to restore {} to the world", owner, e);
         }
         return 5;
     }
