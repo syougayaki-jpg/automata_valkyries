@@ -491,8 +491,15 @@ public final class AnnihilationExecutionAgent {
      * @return 抹消に成功した場合 true
      */
     public static boolean annihilateEntity(ServerLevel level, Player attacker, LivingEntity target) {
+        return annihilateEntity(level, attacker, target, true);
+    }
+
+    /** @param playSound 効果音を鳴らすか（範囲版は 1 体ごとに鳴らさず、最後に 1 回だけ鳴らす） */
+    private static boolean annihilateEntity(ServerLevel level, Player attacker, LivingEntity target, boolean playSound) {
         // 兵姫などの保護対象は範囲版と同じく対象外（抹消のブラックリストと eprotect の入り直しが競合する）
         if (target == null || target instanceof Player || target instanceof IEprotected) return false;
+        // 追跡偽装で座標を NaN にするので、演出の位置は先に取っておく
+        Vec3 origin = target.position().add(0.0, target.getBbHeight() / 2.0, 0.0);
 
         runWithEventSuppression(() -> {
             // (1) ブラックリスト登録
@@ -518,15 +525,17 @@ public final class AnnihilationExecutionAgent {
             target.invalidateCaps();
             target.onRemovedFromWorld();
 
-            // (6) 抹消ビジュアル＆サウンド演出
-            spawnAnnihilationEffects(level, target.position());
         });
+
+        // (6) 演出（控えめ: 煙のパーティクルと効果音 1 つだけ）
+        spawnAnnihilationParticles(level, origin);
+        if (playSound) playAnnihilationSound(level, origin);
 
         return true;
     }
 
     /**
-     * 範囲内の全チートエンティティ・ボスを一掃する（超絶抹殺の棒の右クリック範囲殲滅）。
+     * 範囲内の全エンティティ（プレイヤー・兵姫などの保護対象を除く生物）を一掃する（超絶抹殺の棒の空中右クリック）。
      *
      * @param level 実行ワールド
      * @param attacker 実行プレイヤー
@@ -544,7 +553,7 @@ public final class AnnihilationExecutionAgent {
         int eradicated = 0;
         for (Entity e : entities) {
             if (e instanceof LivingEntity living) {
-                if (annihilateEntity(level, attacker, living)) {
+                if (annihilateEntity(level, attacker, living, false)) {
                     eradicated++;
                 }
             }
@@ -561,28 +570,20 @@ public final class AnnihilationExecutionAgent {
         level.setRainLevel(0.0F);
         level.setThunderLevel(0.0F);
 
-        // プレイヤー周囲の演出
-        spawnAnnihilationEffects(level, attacker.position());
+        playAnnihilationSound(level, attacker.position());
 
         return eradicated;
     }
 
-    /**
-     * 超絶抹殺発動時のエフェクト・パーティクル・サウンドの生成
-     */
-    private static void spawnAnnihilationEffects(ServerLevel level, Vec3 pos) {
-        if (!Float.isFinite((float) pos.x) || !Float.isFinite((float) pos.y) || !Float.isFinite((float) pos.z)) {
-            return;
-        }
+    /** 消えた位置に煙を少しだけ出す（バニラの死亡時の煙と同じ程度） */
+    private static void spawnAnnihilationParticles(ServerLevel level, Vec3 pos) {
+        if (!Double.isFinite(pos.x) || !Double.isFinite(pos.y) || !Double.isFinite(pos.z)) return;
+        level.sendParticles(ParticleTypes.POOF, pos.x, pos.y, pos.z, 8, 0.3, 0.3, 0.3, 0.02);
+    }
 
-        level.sendParticles(ParticleTypes.EXPLOSION_EMITTER, pos.x, pos.y + 1.0, pos.z, 2, 0.5, 0.5, 0.5, 0.0);
-        level.sendParticles(ParticleTypes.DRAGON_BREATH, pos.x, pos.y + 1.0, pos.z, 50, 1.5, 1.5, 1.5, 0.1);
-        level.sendParticles(ParticleTypes.FLASH, pos.x, pos.y + 1.0, pos.z, 5, 0.0, 0.0, 0.0, 0.0);
-        level.sendParticles(ParticleTypes.PORTAL, pos.x, pos.y + 1.0, pos.z, 40, 1.0, 1.0, 1.0, 1.0);
-
-        level.playSound(null, pos.x, pos.y, pos.z, SoundEvents.WITHER_DEATH, SoundSource.PLAYERS, 2.0F, 0.8F);
-        level.playSound(null, pos.x, pos.y, pos.z, SoundEvents.ENDER_DRAGON_DEATH, SoundSource.PLAYERS, 1.5F, 1.2F);
-        level.playSound(null, pos.x, pos.y, pos.z, SoundEvents.BEACON_DEACTIVATE, SoundSource.PLAYERS, 2.0F, 0.5F);
+    private static void playAnnihilationSound(ServerLevel level, Vec3 pos) {
+        if (!Double.isFinite(pos.x) || !Double.isFinite(pos.y) || !Double.isFinite(pos.z)) return;
+        level.playSound(null, pos.x, pos.y, pos.z, SoundEvents.BEACON_DEACTIVATE, SoundSource.PLAYERS, 1.0F, 1.2F);
     }
 
     @SubscribeEvent

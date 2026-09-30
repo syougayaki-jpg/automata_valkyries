@@ -61,7 +61,7 @@ public class UltraKillStickItem extends Item {
         ItemStack itemInHand = player.getItemInHand(hand);
 
         if (!level.isClientSide && level instanceof ServerLevel serverLevel) {
-            // 空中右クリック（範囲抹消モード）: 半径 500 ブロック内のボス・チートモブを一括抹消
+            // 空中右クリック（範囲抹消モード）: 半径 500 ブロック内の全エンティティ（プレイヤー・兵姫を除く）を一括抹消
             int eradicated = AnnihilationExecutionAgent.annihilateAllInArea(serverLevel, player, 500.0);
             player.displayClientMessage(Component.translatable("item.automata_valkyries.ultra_kill_stick.aoe_used",
                     eradicated).withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD), false);
