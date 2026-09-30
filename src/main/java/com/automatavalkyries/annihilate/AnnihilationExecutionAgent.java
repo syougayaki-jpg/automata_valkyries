@@ -115,6 +115,9 @@ public final class AnnihilationExecutionAgent {
      */
     @SubscribeEvent(priority = EventPriority.HIGHEST, receiveCanceled = true)
     public static void onEntityJoinLevel(EntityJoinLevelEvent event) {
+        // サーバー側だけで判定する。シングルプレイでは static の一覧をクライアントの描画スレッドと共有してしまい、
+        // WeakHashMap（スレッド非安全）を 2 スレッドから触ることになる。消去はサーバーからの通知でクライアントにも届く
+        if (event.getLevel().isClientSide()) return;
         Entity entity = event.getEntity();
         if (entity != null && isAnnihilated(entity)) {
             event.setCanceled(true);

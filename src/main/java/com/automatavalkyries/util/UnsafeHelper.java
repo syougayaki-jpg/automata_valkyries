@@ -105,6 +105,35 @@ public final class UnsafeHelper {
         }
     }
 
+    /**
+     * 削除を拒否する ArrayList（Omni-Mobs の ProtectedArrayList など）から、条件に合う要素を内部配列ごと詰めて取り除く。
+     * <p>
+     * 拒否する実装に {@code Iterator.remove()} を使ってはいけない: 内部の {@code remove(int)} が何もせずに戻ると、
+     * イテレータは位置を巻き戻して同じ要素を返し続け、無限ループになる。
+     * ArrayList のオフセットで書くので、ArrayList 以外には書かない（メモリ破壊になる）。
+     * </p>
+     * @return 取り除いた数（ArrayList でない・Unsafe が使えないときは 0）
+     */
+    public static int removeFromArrayList(Object list, java.util.function.Predicate<Object> shouldRemove) {
+        if (!(list instanceof java.util.ArrayList<?>) || THE_UNSAFE == null) return 0;
+        try {
+            long sizeOffset = objectFieldOffset(java.util.ArrayList.class.getDeclaredField("size"));
+            long dataOffset = objectFieldOffset(java.util.ArrayList.class.getDeclaredField("elementData"));
+            if (sizeOffset < 0 || dataOffset < 0) return 0;
+            if (!(getObject(list, dataOffset) instanceof Object[] data)) return 0;
+            int size = Math.min(getInt(list, sizeOffset), data.length);
+            int kept = 0;
+            for (int i = 0; i < size; i++) {
+                if (!shouldRemove.test(data[i])) data[kept++] = data[i];
+            }
+            java.util.Arrays.fill(data, kept, size, null); // 参照を残すと GC されない
+            putInt(list, sizeOffset, kept);
+            return size - kept;
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
     public static void setFieldValue(Object target, String fieldName, Object value) {
         if (target == null) return;
         try {

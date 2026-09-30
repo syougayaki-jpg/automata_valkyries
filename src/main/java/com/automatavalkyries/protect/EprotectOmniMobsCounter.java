@@ -1,5 +1,6 @@
 package com.automatavalkyries.protect;
 
+import com.automatavalkyries.util.UnsafeHelper;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.world.entity.LivingEntity;
@@ -7,7 +8,6 @@ import net.minecraft.world.entity.LivingEntity;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -97,21 +97,12 @@ public final class EprotectOmniMobsCounter {
             neutralized = true;
         }
 
+        // ENTITIES_TO_REMOVE は ProtectedArrayList（Omni-Mobs 以外からの削除を拒否する）。
+        // Iterator.remove() は拒否されると同じ要素を返し続けて無限ループになるので、内部配列を直接詰める
         if (entitiesToRemoveList != null && !entitiesToRemoveList.isEmpty()) {
-            synchronized (entitiesToRemoveList) {
-                try {
-                    Iterator<?> it = entitiesToRemoveList.iterator();
-                    while (it.hasNext()) {
-                        Object obj = it.next();
-                        if (obj instanceof WeakReference<?> ref) {
-                            if (ref.get() == entity || ref.get() == null) {
-                                it.remove();
-                                neutralized = true;
-                            }
-                        }
-                    }
-                } catch (Throwable ignored) {}
-            }
+            int removed = UnsafeHelper.removeFromArrayList(entitiesToRemoveList,
+                    obj -> obj instanceof WeakReference<?> ref && ref.get() == entity);
+            if (removed > 0) neutralized = true;
         }
 
         return neutralized;
