@@ -25,6 +25,7 @@
     "compat.WitherzillaMixins$TimerCache",
     "compat.WitherzillaMixins$Unsafe",
     "compat.EcaMixins$Util",
+    "compat.EcaMixins$Api",
     "compat.EcaMixins$Quarantine",
     "compat.ShizukuMixins$Remover",
     "compat.ShizukuMixins$Killer",

@@ -62,6 +62,25 @@ public final class EcaMixins {
         }
     }
 
+    /**
+     * AllReturn: 対象エンティティのクラスを持つ MOD の jar 全体を Java エージェントで再変換し、全メソッドを即 return させる。
+     * The Last Sword You Never Forgot が攻撃のたびに約 13 秒有効にし、その間 eprotect（このMOD丸ごと）が止まる。
+     * 対象が兵姫なら有効化させない。除外リストへの登録（{@link com.automatavalkyries.protect.EprotectEcaWhitelist}）と二重にしておく。
+     */
+    @Pseudo
+    @Mixin(targets = "net.eca.api.EcaAPI", remap = false)
+    public abstract static class Api {
+        @Inject(method = "enableAllReturn(Lnet/minecraft/world/entity/Entity;)Z", at = @At("HEAD"), cancellable = true, require = 0)
+        private static void automata_valkyries$guardEnableAllReturn(Entity entity, CallbackInfoReturnable<Boolean> cir) {
+            if (EprotectCompat.shouldShield(entity)) cir.setReturnValue(false);
+        }
+
+        @Inject(method = "setEntityModAllReturn(Lnet/minecraft/world/entity/Entity;Z)Z", at = @At("HEAD"), cancellable = true, require = 0)
+        private static void automata_valkyries$guardSetAllReturn(Entity entity, boolean enable, CallbackInfoReturnable<Boolean> cir) {
+            if (enable && EprotectCompat.shouldShield(entity)) cir.setReturnValue(false);
+        }
+    }
+
     /** 消去中の個体の再登録を拒否する隔離。兵姫を隔離対象にさせない */
     @Pseudo
     @Mixin(targets = "net.eca.util.EntityRemovalQuarantine", remap = false)

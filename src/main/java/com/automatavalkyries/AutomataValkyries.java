@@ -1,5 +1,6 @@
 package com.automatavalkyries;
 
+import com.automatavalkyries.protect.EprotectEcaWhitelist;
 import com.automatavalkyries.protect.EprotectManager;
 import com.automatavalkyries.protect.ForeignHookReport;
 import com.automatavalkyries.registry.ModCreativeTabs;
@@ -33,6 +34,9 @@ public class AutomataValkyries {
 
         // 保護対象の監視（ゲーム中のイベントなので Forge バス）
         MinecraftForge.EVENT_BUS.register(EprotectManager.getInstance());
+
+        // ECA の書き換え除外リストへ登録（攻撃より前に済ませたいので構築時に行う）
+        EprotectEcaWhitelist.register();
     }
 
     private void commonSetup(FMLCommonSetupEvent event) {
