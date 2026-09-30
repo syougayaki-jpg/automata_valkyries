@@ -9,13 +9,19 @@ import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.event.entity.living.LivingDropsEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.server.ServerStoppedEvent;
+import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -81,7 +87,50 @@ public final class PlayerWard {
 
     @SubscribeEvent
     public static void onPlayerTick(TickEvent.PlayerTickEvent event) {
-        if (event.phase == TickEvent.Phase.END && !event.player.level().isClientSide) refresh(event.player);
+        if (event.phase != TickEvent.Phase.END || event.player.level().isClientSide) return;
+        refresh(event.player);
+        // 溜まった魂ダメージ（The Trial Monolith）は溜まり切ると死亡させ、復活後も残って死に続けるので毎 Tick 戻す
+        if (isActive(event.player) && EprotectTrialMonolithCounter.counter(event.player)) {
+            AttackLog.neutralized(event.player, CallerAttribution.modOfClassName(
+                    "io.github.kosianodangoo.trialmonolith.api.mixin.ISoulDamage"), "trial_monolith");
+        }
+    }
+
+    // ---- 死んでも手放さない ----------------------------------------------------
+
+    /** 死亡時に落とさずに預かった護符（リスポーン後の個体へ戻す） */
+    private static final Map<UUID, List<ItemStack>> KEPT_ON_DEATH = new ConcurrentHashMap<>();
+
+    /**
+     * 死亡時、護符を落とし物から外して預かる。落とすと守りを失い、復活直後に残った即死効果で死に続けることがある。
+     * 優先度は最後（他 MOD が落とし物を増減させた後）
+     */
+    @SubscribeEvent(priority = EventPriority.LOWEST)
+    public static void onDrops(LivingDropsEvent event) {
+        if (!(event.getEntity() instanceof Player player) || player.level().isClientSide) return;
+        List<ItemStack> kept = new ArrayList<>();
+        event.getDrops().removeIf(drop -> {
+            ItemStack stack = drop.getItem();
+            if (!stack.is(ModItems.WARD_CHARM.get())) return false;
+            kept.add(stack.copy());
+            drop.discard();
+            return true;
+        });
+        if (!kept.isEmpty()) KEPT_ON_DEATH.computeIfAbsent(player.getUUID(), k -> new ArrayList<>()).addAll(kept);
+    }
+
+    /** リスポーン後の個体へ、預かった護符を戻す */
+    @SubscribeEvent
+    public static void onClone(PlayerEvent.Clone event) {
+        if (!event.isWasDeath()) return;
+        List<ItemStack> kept = KEPT_ON_DEATH.remove(event.getOriginal().getUUID());
+        if (kept == null) return;
+        Player player = event.getEntity();
+        for (ItemStack stack : kept) {
+            if (!player.getInventory().add(stack)) player.drop(stack, false);
+        }
+        refresh(player);
+        EprotectTrialMonolithCounter.counter(player);
     }
 
     @SubscribeEvent
@@ -92,5 +141,6 @@ public final class PlayerWard {
     @SubscribeEvent
     public static void onServerStopped(ServerStoppedEvent event) {
         WARDED.clear();
+        KEPT_ON_DEATH.clear();
     }
 }

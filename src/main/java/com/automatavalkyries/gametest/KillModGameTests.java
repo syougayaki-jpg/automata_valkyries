@@ -300,6 +300,29 @@ public class KillModGameTests {
         annihilateTrialMonolithBoss(helper, "tesseract_beast");
     }
 
+    /** The Trial Monolith: 守護の護符を持つプレイヤーに魂ダメージ（設定・加算・強制）が溜まらない */
+    @GameTest(template = TEMPLATE, timeoutTicks = 100)
+    public static void wardedPlayerTakesNoSoulDamage(GameTestHelper helper) {
+        if (!loaded(helper, "the_trial_monolith")) return;
+        net.minecraft.world.entity.player.Player player = helper.makeMockPlayer();
+        player.getInventory().add(new net.minecraft.world.item.ItemStack(com.automatavalkyries.registry.ModItems.WARD_CHARM.get()));
+        com.automatavalkyries.protect.PlayerWard.refresh(player);
+        String helperClass = "io.github.kosianodangoo.trialmonolith.common.helper.EntityHelper";
+        Class<?>[] args = {net.minecraft.world.entity.Entity.class, float.class};
+        invoke(helper, helperClass, "addSoulDamage", args, player, 5.0F);
+        invoke(helper, helperClass, "addSoulDamageForce", args, player, 5.0F);
+        invoke(helper, helperClass, "setSoulDamage", args, player, 5.0F);
+        invoke(helper, helperClass, "setSoulDamageForce", args, player, 5.0F);
+        try {
+            float soul = (Float) Class.forName(helperClass).getMethod("getSoulDamage", net.minecraft.world.entity.Entity.class).invoke(null, player);
+            helper.assertTrue(soul == 0.0F, "Soul damage built up on the warded player: " + soul);
+        } catch (ReflectiveOperationException e) {
+            helper.fail("Could not read soul damage: " + e);
+        }
+        helper.assertTrue(player.isAlive(), "The warded player died from soul damage");
+        helper.succeed();
+    }
+
     private static void annihilateTrialMonolithBoss(GameTestHelper helper, String path) {
         if (!loaded(helper, "the_trial_monolith")) return;
         var type = net.minecraftforge.registries.ForgeRegistries.ENTITY_TYPES.getValue(

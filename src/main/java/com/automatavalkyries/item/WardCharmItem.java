@@ -25,7 +25,7 @@ public class WardCharmItem extends Item {
 
     @Override
     public void appendHoverText(ItemStack stack, @Nullable Level level, List<Component> tooltip, TooltipFlag flag) {
-        for (int i = 1; i <= 3; i++) {
+        for (int i = 1; i <= 4; i++) {
             tooltip.add(Component.translatable("item.automata_valkyries.ward_charm.tooltip." + i)
                     .withStyle(i == 1 ? ChatFormatting.AQUA : ChatFormatting.GRAY));
         }

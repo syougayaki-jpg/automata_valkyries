@@ -264,6 +264,27 @@ public class AttackAttributionGameTests {
         });
     }
 
+    /** 守護の護符は死亡時に落とし物から外れ、リスポーン後の個体の持ち物へ戻る */
+    @GameTest(template = TEMPLATE)
+    public static void wardCharmIsKeptOnDeath(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        net.minecraft.world.entity.player.Player dying = helper.makeMockPlayer();
+        net.minecraft.world.item.ItemStack charm = new net.minecraft.world.item.ItemStack(com.automatavalkyries.registry.ModItems.WARD_CHARM.get());
+        java.util.List<net.minecraft.world.entity.item.ItemEntity> drops = new java.util.ArrayList<>();
+        drops.add(new net.minecraft.world.entity.item.ItemEntity(level, dying.getX(), dying.getY(), dying.getZ(), charm));
+        drops.add(new net.minecraft.world.entity.item.ItemEntity(level, dying.getX(), dying.getY(), dying.getZ(),
+                new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIRT)));
+        net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(new net.minecraftforge.event.entity.living.LivingDropsEvent(
+                dying, level.damageSources().generic(), drops, 0, false));
+        helper.assertTrue(drops.size() == 1 && drops.get(0).getItem().is(net.minecraft.world.item.Items.DIRT),
+                "The charm was dropped (or other drops were touched): " + drops);
+
+        net.minecraft.world.entity.player.Player respawned = helper.makeMockPlayer();
+        net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(new net.minecraftforge.event.entity.player.PlayerEvent.Clone(respawned, dying, true));
+        helper.assertTrue(respawned.getInventory().contains(charm), "The charm was not returned after respawning");
+        helper.succeed();
+    }
+
     /** 護符を持たないプレイヤーは守られない */
     @GameTest(template = TEMPLATE)
     public static void playerWithoutCharmIsNotWarded(GameTestHelper helper) {

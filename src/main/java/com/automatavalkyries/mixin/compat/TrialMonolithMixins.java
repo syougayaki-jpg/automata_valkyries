@@ -24,6 +24,18 @@ public final class TrialMonolithMixins {
             if (damage > 0.0F && EprotectCompat.shieldAttack(entity, "trial_monolith:setSoulDamage")) ci.cancel();
         }
 
+        /** 強制でない設定・加算も魂ダメージを溜める（溜まると死亡・消去が走り、プレイヤーは復活のたびに死に続ける） */
+        @Inject(method = "setSoulDamage(Lnet/minecraft/world/entity/Entity;F)V", at = @At("HEAD"), cancellable = true, require = 0)
+        private static void automata_valkyries$guardSetSoulDamageSoft(Entity entity, float damage, CallbackInfo ci) {
+            if (damage > 0.0F && EprotectCompat.shieldAttack(entity, "trial_monolith:setSoulDamage")) ci.cancel();
+        }
+
+        @Inject(method = {"addSoulDamage(Lnet/minecraft/world/entity/Entity;F)V", "addSoulDamageForce(Lnet/minecraft/world/entity/Entity;F)V"},
+                at = @At("HEAD"), cancellable = true, require = 0)
+        private static void automata_valkyries$guardAddSoulDamage(Entity entity, float damage, CallbackInfo ci) {
+            if (damage > 0.0F && EprotectCompat.shieldAttack(entity, "trial_monolith:addSoulDamage")) ci.cancel();
+        }
+
         @Inject(method = {"onSoulDeath(Lnet/minecraft/world/entity/Entity;)V", "onSoulRemove(Lnet/minecraft/world/entity/Entity;)V"},
                 at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardSoulKill(Entity entity, CallbackInfo ci) {
