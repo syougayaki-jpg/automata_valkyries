@@ -31,6 +31,8 @@
     "compat.WitherzillaMixins$TimerCache",
     "compat.WitherzillaMixins$Unsafe",
     "compat.OmniMobsMixins$Hooks",
+    "compat.OmniMobsMixins$Flashfur",
+    "compat.OmniMobsMixins$Util",
     "compat.EcaMixins$Util",
     "compat.EcaMixins$Api",
     "compat.EcaMixins$Quarantine",
