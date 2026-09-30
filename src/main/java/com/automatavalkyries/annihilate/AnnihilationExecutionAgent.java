@@ -528,6 +528,10 @@ public final class AnnihilationExecutionAgent {
             neutralizeWitherzilla(level, target);
             neutralizeFlashfur(level, target);
 
+            // (2') 他 MOD の独自の生命維持（保護の切り替え・代理の本体）を外し、対応していればその MOD 自身の撃破経路で倒す
+            ModProtectionBreaker.breakProtection(level, target);
+            ModProtectionBreaker.finishWithModOwnDeath(target);
+
             // (3) バニラ即死・デスフラグ・無敵リセット
             target.invulnerableTime = 0;
             target.setHealth(0.0F);

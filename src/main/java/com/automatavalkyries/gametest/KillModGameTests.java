@@ -282,6 +282,49 @@ public class KillModGameTests {
         helper.succeed();
     }
 
+    /**
+     * 超絶抹殺の棒 × The Trial Monolith の侵略者のモノリス（HP は常に無限大、魂ダメージでしか死なない、remove は空）。
+     * しばらく待っても同じ種類の個体が残っていない（復活もしない）こと
+     */
+    @GameTest(template = TEMPLATE, timeoutTicks = 200)
+    public static void ultraKillStickErasesInvaderMonolith(GameTestHelper helper) {
+        annihilateTrialMonolithBoss(helper, "invader_monolith");
+    }
+
+    /**
+     * 超絶抹殺の棒 × テッセラクトビースト（エンティティは代理で、本体のコントローラーが代理を作り直す）。
+     * 代理を消すだけでは復活するので、本体ごと消えていること
+     */
+    @GameTest(template = TEMPLATE, timeoutTicks = 200)
+    public static void ultraKillStickErasesTesseractBeast(GameTestHelper helper) {
+        annihilateTrialMonolithBoss(helper, "tesseract_beast");
+    }
+
+    private static void annihilateTrialMonolithBoss(GameTestHelper helper, String path) {
+        if (!loaded(helper, "the_trial_monolith")) return;
+        var type = net.minecraftforge.registries.ForgeRegistries.ENTITY_TYPES.getValue(
+                net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("the_trial_monolith", path));
+        if (type == null) {
+            helper.fail("Entity type the_trial_monolith:" + path + " is not registered");
+            return;
+        }
+        ServerLevel level = helper.getLevel();
+        helper.runAfterDelay(2, () -> {
+            net.minecraft.world.entity.Entity boss = helper.spawn(type, new BlockPos(3, 2, 3));
+            helper.runAfterDelay(5, () -> {
+                helper.assertTrue(boss instanceof net.minecraft.world.entity.LivingEntity, path + " is not a living entity");
+                AnnihilationExecutionAgent.annihilateEntity(level, helper.makeMockPlayer(), (net.minecraft.world.entity.LivingEntity) boss);
+                helper.runAfterDelay(60, () -> {
+                    net.minecraft.world.phys.AABB area = new net.minecraft.world.phys.AABB(helper.absolutePos(new BlockPos(3, 2, 3))).inflate(64.0D);
+                    var remaining = level.getEntities(type, area, e -> true);
+                    helper.assertTrue(remaining.isEmpty(), path + " survived or came back: " + remaining);
+                    helper.assertTrue(level.getEntity(boss.getUUID()) == null, path + " is still in the level lookup");
+                    helper.succeed();
+                });
+            });
+        });
+    }
+
     /** 超絶抹殺の棒: 範囲抹殺（空中右クリック）で全対象が消滅することの検証 */
     @GameTest(template = TEMPLATE, timeoutTicks = 100)
     public static void ultraKillStickAoEEradication(GameTestHelper helper) {
