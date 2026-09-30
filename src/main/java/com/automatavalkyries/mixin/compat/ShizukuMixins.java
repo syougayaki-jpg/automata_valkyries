@@ -57,6 +57,61 @@ public final class ShizukuMixins {
         }
     }
 
+    /**
+     * 必殺技「Ymsa（審判）」。範囲内の全モブを対象に、HP の消去・フィールドの直書き・物理削除・再出現の抑止を行い、
+     * その後も毎 Tick 同じ UUID を消し続ける（ANNIHILATED / PENDING_WIPE）。対象選定（shouldKill）で外すのが根本対策。
+     */
+    @Pseudo
+    @Mixin(targets = "com.buwan.shizuku.sa.Ymsa", remap = false)
+    public abstract static class Ymsa {
+        @Inject(method = "shouldKill(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/server/level/ServerPlayer;)Z",
+                at = @At("HEAD"), cancellable = true, require = 0)
+        private static void automata_valkyries$excludeTarget(LivingEntity entity, net.minecraft.server.level.ServerPlayer caster,
+                                                            CallbackInfoReturnable<Boolean> cir) {
+            if (EprotectCompat.shouldShield(entity)) cir.setReturnValue(false);
+        }
+
+        @Inject(method = "annihilate(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/server/level/ServerPlayer;Lnet/minecraft/server/level/ServerLevel;)Z",
+                at = @At("HEAD"), cancellable = true, require = 0)
+        private static void automata_valkyries$guardAnnihilate(LivingEntity entity, net.minecraft.server.level.ServerPlayer caster,
+                                                              net.minecraft.server.level.ServerLevel level, CallbackInfoReturnable<Boolean> cir) {
+            if (EprotectCompat.shouldShield(entity)) cir.setReturnValue(false);
+        }
+
+        @Inject(method = "physicallyRemove(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/server/level/ServerLevel;)V",
+                at = @At("HEAD"), cancellable = true, require = 0)
+        private static void automata_valkyries$guardPhysicalRemove(LivingEntity entity, net.minecraft.server.level.ServerLevel level, CallbackInfo ci) {
+            if (EprotectCompat.shouldShield(entity)) ci.cancel();
+        }
+
+        @Inject(method = {"wipeBossHealth(Lnet/minecraft/world/entity/LivingEntity;)V", "stripProtections(Lnet/minecraft/world/entity/LivingEntity;)V"},
+                at = @At("HEAD"), cancellable = true, require = 0)
+        private static void automata_valkyries$guardWipe(LivingEntity entity, CallbackInfo ci) {
+            if (EprotectCompat.shouldShield(entity)) ci.cancel();
+        }
+
+        @Inject(method = "wipeEntityFields(Lnet/minecraft/world/entity/Entity;)V", at = @At("HEAD"), cancellable = true, require = 0)
+        private static void automata_valkyries$guardWipeFields(Entity entity, CallbackInfo ci) {
+            if (EprotectCompat.shouldShield(entity)) ci.cancel();
+        }
+
+        @Inject(method = "suppressRespawn(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/server/level/ServerPlayer;)V",
+                at = @At("HEAD"), cancellable = true, require = 0)
+        private static void automata_valkyries$guardSuppress(LivingEntity entity, net.minecraft.server.level.ServerPlayer caster, CallbackInfo ci) {
+            if (EprotectCompat.shouldShield(entity)) ci.cancel();
+        }
+
+        @Inject(method = "isTickSuppressed(Lnet/minecraft/world/entity/LivingEntity;)Z", at = @At("HEAD"), cancellable = true, require = 0)
+        private static void automata_valkyries$allowTick(LivingEntity entity, CallbackInfoReturnable<Boolean> cir) {
+            if (EprotectCompat.shouldShield(entity)) cir.setReturnValue(false);
+        }
+
+        @Inject(method = "shouldCancelJoin(Lnet/minecraft/world/entity/Entity;)Z", at = @At("HEAD"), cancellable = true, require = 0)
+        private static void automata_valkyries$allowJoin(Entity entity, CallbackInfoReturnable<Boolean> cir) {
+            if (EprotectCompat.shouldShield(entity)) cir.setReturnValue(false);
+        }
+    }
+
     /** 「消去済み」の印。印が付くと Shizuku の Mixin が Tick と再登録を拒否する */
     @Pseudo
     @Mixin(targets = "com.buwan.shizuku.core.IsRemovedHelper", remap = false)

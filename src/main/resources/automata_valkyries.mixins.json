@@ -28,6 +28,7 @@
     "compat.EcaMixins$Quarantine",
     "compat.ShizukuMixins$Remover",
     "compat.ShizukuMixins$Killer",
+    "compat.ShizukuMixins$Ymsa",
     "compat.ShizukuMixins$RemovedMark",
     "compat.ShizukuMixins$HealthLock"
   ],
