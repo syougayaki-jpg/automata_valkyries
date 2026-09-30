@@ -34,5 +34,17 @@
   "item.automata_valkyries.ultra_kill_stick.tooltip.5": "・Forge EventBus遮断とUUIDブラックリストにより再スポーンを完全拒否",
   "item.automata_valkyries.ultra_kill_stick.used": "[超絶抹殺の棒] %s を事象地平の彼方へ完全抹消しました。（イベント操作・追跡偽装完了）",
   "item.automata_valkyries.ultra_kill_stick.aoe_used": "[超絶抹殺の棒] 半径 500 ブロック内の全エンティティを抹消しました。（抹殺数: %d 体）",
-  "item.automata_valkyries.ultra_kill_stick.no_player": "プレイヤーには使えません"
+  "item.automata_valkyries.ultra_kill_stick.no_player": "プレイヤーには使えません",
+  "item.automata_valkyries.verify_stick": "確認棒（テスト用）",
+  "item.automata_valkyries.verify_stick.tooltip.1": "モブを右クリック: 3 つの攻撃を順に試して結果を報告",
+  "item.automata_valkyries.verify_stick.tooltip.2": "① 無敵時間を消して 30 連打",
+  "item.automata_valkyries.verify_stick.tooltip.3": "② チャンクのアンロードを装った消去",
+  "item.automata_valkyries.verify_stick.tooltip.4": "③ 追い出し＋参加イベントのキャンセル",
+  "item.automata_valkyries.verify_stick.start": "[確認棒] %s に 3 つの攻撃を順に試します",
+  "item.automata_valkyries.verify_stick.hits": "[確認棒] ① 30 連打: HP %s → %s（最大 HP の %s%% 減、上限 10%%）",
+  "item.automata_valkyries.verify_stick.unload.ok": "[確認棒] ② 偽装アンロード: 同じ個体のまま残りました",
+  "item.automata_valkyries.verify_stick.unload.ng": "[確認棒] ② 偽装アンロード: 消されました",
+  "item.automata_valkyries.verify_stick.join.ok": "[確認棒] ③ 参加拒否: 同じ個体のまま入り直しました",
+  "item.automata_valkyries.verify_stick.join.replaced": "[確認棒] ③ 参加拒否: 別個体に差し替わって生存しました",
+  "item.automata_valkyries.verify_stick.join.ng": "[確認棒] ③ 参加拒否: 消されました"
 }
