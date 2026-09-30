@@ -8,6 +8,8 @@
     "EntityAccessor",
     "LivingEntityAccessor",
     "ServerLevelTickListAccessor",
+    "EntityManagerAccessor",
+    "ChunkMapAccessor",
     "EprotectDamageMixin",
     "EprotectEntityMixin",
     "EprotectSynchedDataMixin",

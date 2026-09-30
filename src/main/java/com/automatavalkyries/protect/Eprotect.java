@@ -12,10 +12,11 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.ChunkPos;
-import net.minecraft.world.level.entity.EntityInLevelCallback;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.common.world.ForgeChunkManager;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.EnumSet;
 
 /**
  * 個体ごとの保護コントローラー（eprotect）。
@@ -57,12 +58,9 @@ public class Eprotect {
     /** 最後に本体の Tick が走ったゲーム時刻（Tick 停止の検出用） */
     private long lastTickGameTime = Long.MIN_VALUE;
 
-    /** 最後に確認した正常な座標（IMDS の -Infinity 直書きからの復帰用） */
+    /** 最後に確認した正常な座標（入り直しの際、壊された座標を戻す先） */
     @Nullable
     private Vec3 lastSafePos;
-    /** 最後に確認したワールドとの接続（NULL に差し替えられたときの復帰用） */
-    @Nullable
-    private EntityInLevelCallback lastLevelCallback;
 
     @Nullable
     private ServerLevel forcedLevel;
@@ -259,12 +257,14 @@ public class Eprotect {
     // ---- 修復 ----------------------------------------------------------------
 
     /**
-     * HP 異常・死亡フラグ・消去フラグを修復する。ワールドや Tick 対象から外されていれば戻す。
-     * <p>
-     * 各修復ステップはどの即死 MOD が相手でも同じ形で効く（MOD 固有の処理は {@link KillModCounters} に分ける）。
+     * 毎 Tick の自己修復。「点検 → 丸ごと入り直し」の 2 段構え。
+     * <ol>
+     *   <li>他 MOD 固有のフラグを解除する（{@link KillModCounters}）。フラグが残ったままだと以後の読み出しが偽装されるので必ず最初</li>
+     *   <li>HP と死亡フラグ（ワールドへの載り方とは別の状態）を戻す</li>
+     *   <li>ワールドに正しく載っているかを点検し（{@link WorldPresence#inspect}）、1 つでも崩れていれば
+     *       部分的に直さず、バニラの正規ルートで丸ごと入り直させる（{@link WorldPresence#rejoin}）</li>
+     * </ol>
      * 修復した件数は {@link #noteAnomalies} に積み、追いつかなければ退避する。
-     * 他 MOD の ASM は getHealth / isRemoved 等の呼び出し箇所の戻り値を書き換えうるので、MOD 固有のフラグ解除を必ず最初に行う。
-     * </p>
      */
     void repair() {
         boolean neutralized = KillModCounters.counterAll(owner);
@@ -292,12 +292,9 @@ public class Eprotect {
             AutomataValkyries.LOGGER.warn("[eprotect] Neutralized kill-mod flags on {}", owner);
             anomalies++;
         }
-        if (restorePosition()) anomalies++;
         if (restoreHealth()) anomalies++;
         if (clearDeadFlag()) anomalies++;
-        if (clearIllegalRemovalFlag()) anomalies++;
-        if (restoreLevelCallback()) anomalies++;
-        anomalies += restoreToWorld();
+        anomalies += restorePresence();
         if (restoreTickingIfStopped()) anomalies++;
 
         if (anomalies > 0) noteAnomalies(anomalies);
@@ -327,29 +324,41 @@ public class Eprotect {
     }
 
     /**
-     * ワールドから外されていれば戻す。戻せなければ修復が効いていないので重く数える。
-     * @return 異常の件数（0: 異常なし / 1: 戻した / 5: 戻せない）
+     * ワールドへの載り方を点検し、崩れていれば丸ごと入り直させる。
+     * 保存・終了中は触らない（入り直しはチャンクや一覧を動かすので、終了処理と競合する）。
+     * @return 異常の件数（0: 異常なし / 1: 入り直した / 2: 別個体に差し替えた / 5: 戻せない）
      */
-    private int restoreToWorld() {
-        if (!(owner.level() instanceof ServerLevel level) || level.getEntity(owner.getUUID()) != null) return 0;
-        // 保存・終了中は戻さない。UUID がまだ登録済み（見えない区画にいる等）なら戻すと複製になる
-        if (!level.getServer().isRunning()
-                || ((ServerLevelTickListAccessor) level).automata_valkyries$getEntityManager().isLoaded(owner.getUUID())) {
-            return 0;
-        }
-        try {
-            // エンティティ一覧からだけ消して追跡（ChunkMap）を残す MOD がある。残ったまま戻すと
-            // 「Entity is already tracked!」でサーバーが落ちるので、先に追跡を外しておく（未追跡なら何もしない）
-            level.getChunkSource().removeEntity(owner);
-            if (level.addFreshEntity(owner)) {
-                AutomataValkyries.LOGGER.warn("[eprotect] Restored {} after it was removed from the world", owner);
+    private int restorePresence() {
+        if (!(owner.level() instanceof ServerLevel level) || !level.getServer().isRunning()) return 0;
+        EnumSet<WorldPresence.Issue> issues = WorldPresence.inspect(level, owner);
+        if (issues.isEmpty()) return 0;
+
+        WorldPresence.Outcome outcome = WorldPresence.rejoin(level, owner, lastSafePos);
+        switch (outcome) {
+            case REJOINED -> {
+                AutomataValkyries.LOGGER.warn("[eprotect] Rejoined {} via the vanilla route (broken: {})", owner, issues);
                 return 1;
             }
-        } catch (RuntimeException e) {
-            // 他 MOD がワールドの一覧を中途半端に壊していると復元自体が失敗しうる。サーバーを落とさず「戻せない」扱いにする
-            AutomataValkyries.LOGGER.error("[eprotect] Failed to restore {} to the world", owner, e);
+            case REPLACED -> {
+                AutomataValkyries.LOGGER.warn("[eprotect] Rejoin was refused; replaced {} with a fresh copy (broken: {})", owner, issues);
+                return 2;
+            }
+            default -> {
+                AutomataValkyries.LOGGER.error("[eprotect] Could not bring {} back into the world (broken: {})", owner, issues);
+                return 5;
+            }
         }
-        return 5;
+    }
+
+    /**
+     * 入り直しを拒否されて同じ UUID の新しい個体に差し替えたあと、古い個体（ワールドのどこにも載っていない）の保護を解く。
+     * 以後の保護は新しい個体の Eprotect が担う。
+     */
+    void retireReplaced() {
+        despawning = true; // 保護を解く（セリフ・効果音は出さない）
+        releaseForcedChunk();
+        EprotectManager.getInstance().unregister(this);
+        ((EntityAccessor) owner).automata_valkyries$setRemovalReason(Entity.RemovalReason.DISCARDED);
     }
 
     // ---- 退避（修復が追いつかないとき） --------------------------------------
@@ -377,53 +386,14 @@ public class Eprotect {
         }
     }
 
-    /** 正常な状態（座標・ワールドとの接続）を控えておく。修復で戻す先になる */
+    /** 正常な座標を控えておく。入り直しで座標が壊れていたときに戻す先になる */
     private void rememberHealthyState() {
         if (isSafePosition(owner, owner.getX(), owner.getY(), owner.getZ())) {
             lastSafePos = owner.position();
         }
-        EntityInLevelCallback callback = ((EntityAccessor) owner).automata_valkyries$getLevelCallback();
-        if (isVanillaCallback(callback)) {
-            lastLevelCallback = callback;
-        }
     }
 
-    /**
-     * バニラのエンティティ管理が渡す接続か。NULL は除外する。
-     * MoreAvaritia のように「何もしない独自の実装」へ差し替えてくる MOD があるので、NULL かどうかだけでは判定しない。
-     */
-    private static boolean isVanillaCallback(EntityInLevelCallback callback) {
-        return callback != EntityInLevelCallback.NULL && callback.getClass().getName().startsWith("net.minecraft.");
-    }
-
-    /** 座標フィールドの直書き（IMDS の -Infinity 奈落落とし等）で壊れた座標を、最後の正常な座標へ戻す */
-    private boolean restorePosition() {
-        if (isSafePosition(owner, owner.getX(), owner.getY(), owner.getZ()) || lastSafePos == null) return false;
-        owner.setPos(lastSafePos.x, lastSafePos.y, lastSafePos.z);
-        owner.setDeltaMovement(Vec3.ZERO);
-        AutomataValkyries.LOGGER.warn("[eprotect] Restored position of {}", owner);
-        return true;
-    }
-
-    /**
-     * ワールドとの接続（levelCallback）を NULL やバニラ以外の実装に直書きされていたら戻す。
-     * NULL のままだと移動・保存・消去がワールドに伝わらず、区画に残った古いデータが壊れた座標で保存される。
-     * 正規の消去（removalReason あり）の後は触らない。
-     */
-    private boolean restoreLevelCallback() {
-        EntityAccessor accessor = (EntityAccessor) owner;
-        if (isVanillaCallback(accessor.automata_valkyries$getLevelCallback())
-                || lastLevelCallback == null || accessor.automata_valkyries$getRemovalReason() != null) {
-            return false;
-        }
-        accessor.automata_valkyries$setLevelCallback(lastLevelCallback);
-        accessor.automata_valkyries$setAddedToWorld(true);
-        lastLevelCallback.onMove(); // 区画の登録を現在の座標に合わせ直す
-        AutomataValkyries.LOGGER.warn("[eprotect] Restored level callback of {}", owner);
-        return true;
-    }
-
-    /** Mixin を経ずに直書きされた消去フラグ（KILLED / DISCARDED）を消す */
+    /** 撃破演出中に Mixin を経ずに直書きされた消去フラグ（KILLED / DISCARDED）を消す（演出中は入り直しをしない） */
     private boolean clearIllegalRemovalFlag() {
         EntityAccessor accessor = (EntityAccessor) owner;
         if (accessor.automata_valkyries$getRemovalReason() != null && accessor.automata_valkyries$getRemovalReason().shouldDestroy()) {
@@ -436,8 +406,8 @@ public class Eprotect {
     }
 
     /**
-     * Tick 停止対策: 本来 Tick されるべき位置にいるのに本体の Tick が止まっていれば、Tick 対象一覧へ戻す。
-     * （{@link #tick()} が走らない状態なので、マネージャーの周期処理から呼ばれる）
+     * Tick 停止対策: ワールドには正しく載っているのに本体の Tick が止まっていれば（他 MOD が Tick の反復から
+     * 読み飛ばしている等）、Tick 対象一覧へ入れ直す。{@link #tick()} が走らない状態なので、マネージャーの周期処理から呼ばれる。
      */
     private boolean restoreTickingIfStopped() {
         // isRemoved() は他 MOD の ASM に呼び出し箇所ごと偽装されうるので、フィールドを直接読む

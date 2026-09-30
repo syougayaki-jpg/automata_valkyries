@@ -82,6 +82,42 @@ public class KillModGameTests {
         assertSurvivesAfterRepair(helper, elenor);
     }
 
+    /**
+     * 他 MOD に頼らず「深い追い出し」を再現する: ワールドの各一覧（UUID 登録・検索表・区画・Tick 一覧・追跡）から直接外し、
+     * 接続を何もしない独自実装へ差し替え、消去フラグを直書きする（MoreAvaritia / annihilationblade / ECA 型）。
+     * 入り直しで点検項目がすべて正常に戻ることを確認する。
+     */
+    @GameTest(template = TEMPLATE, timeoutTicks = 100)
+    public static void deepEvictionIsRejoined(GameTestHelper helper) {
+        ElenorEntity elenor = spawnElenor(helper);
+        ServerLevel level = helper.getLevel();
+        @SuppressWarnings("unchecked")
+        com.automatavalkyries.mixin.EntityManagerAccessor<net.minecraft.world.entity.Entity> manager =
+                (com.automatavalkyries.mixin.EntityManagerAccessor<net.minecraft.world.entity.Entity>) (Object)
+                        ((ServerLevelTickListAccessor) level).automata_valkyries$getEntityManager();
+        helper.runAfterDelay(2, () -> {
+            level.getChunkSource().removeEntity(elenor);
+            ((ServerLevelTickListAccessor) level).automata_valkyries$getEntityTickList().remove(elenor);
+            manager.automata_valkyries$getVisibleEntityStorage().remove(elenor);
+            manager.automata_valkyries$getKnownUuids().remove(elenor.getUUID());
+            var section = manager.automata_valkyries$getSectionStorage()
+                    .getSection(net.minecraft.core.SectionPos.asLong(elenor.blockPosition()));
+            if (section != null) section.remove(elenor);
+            ((EntityAccessor) elenor).automata_valkyries$setLevelCallback(new net.minecraft.world.level.entity.EntityInLevelCallback() {
+                @Override public void onMove() {}
+                @Override public void onRemove(net.minecraft.world.entity.Entity.RemovalReason reason) {}
+            });
+            ((EntityAccessor) elenor).automata_valkyries$setRemovalReason(net.minecraft.world.entity.Entity.RemovalReason.KILLED);
+            helper.assertFalse(com.automatavalkyries.protect.WorldPresence.inspect(level, elenor).isEmpty(),
+                    "Eviction simulation did not break anything");
+            helper.runAfterDelay(REPAIR_TICKS, () -> {
+                var issues = com.automatavalkyries.protect.WorldPresence.inspect(level, elenor);
+                helper.assertTrue(issues.isEmpty(), "Still broken after rejoin: " + issues);
+                assertSurvivesAfterRepair(helper, elenor);
+            });
+        });
+    }
+
     // ---- 共通 ----------------------------------------------------------------
 
     private static ElenorEntity spawnElenor(GameTestHelper helper) {
