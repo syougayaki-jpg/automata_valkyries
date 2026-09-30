@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:blasting",
+  "category": "misc",
+  "cookingtime": 100,
+  "experience": 0.7,
+  "group": "ingot_astrite",
+  "ingredient": {
+    "item": "automata_valkyries:raw_astrite"
+  },
+  "result": "automata_valkyries:ingot_astrite"
+}

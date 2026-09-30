@@ -1,0 +1,21 @@
+{
+  "itemGroup.automata_valkyries.main": "戦術兵姫",
+  "entity.automata_valkyries.elenor": "エレノア",
+  "entity.automata_valkyries.elenor.defeat_speech": "エレノア: 「あら、もう終わりですか？ 期待外れですね……♪」",
+  "item.automata_valkyries.raw_astrite": "アストライトの粗鉱",
+  "item.automata_valkyries.ingot_astrite": "アストライト金属",
+  "item.automata_valkyries.raw_phononium": "フォノニウムの粗鉱",
+  "item.automata_valkyries.ingot_phononium": "フォノニウム金属",
+  "item.automata_valkyries.raw_ceruleas": "セルリアスの粗鉱",
+  "item.automata_valkyries.ingot_ceruleas": "セルリアス金属",
+  "item.automata_valkyries.elenor_spawn_egg": "エレノアのスポーンエッグ",
+  "item.automata_valkyries.debug_kill_stick": "抹殺の棒（テスト用）",
+  "item.automata_valkyries.debug_kill_stick.tooltip.1": "モブを右クリック: 最大ダメージ",
+  "item.automata_valkyries.debug_kill_stick.tooltip.2": "＋ /kill",
+  "item.automata_valkyries.debug_kill_stick.tooltip.3": "＋ 強制デスフラグ（HP0・die・dead・消去）",
+  "item.automata_valkyries.debug_kill_stick.tooltip.4": "＋ Tick 停止",
+  "item.automata_valkyries.debug_kill_stick.used": "[抹殺の棒] %s に実行",
+  "item.automata_valkyries.debug_kill_stick.survived": "[抹殺の棒] %s は生存（HP %s / %s）",
+  "item.automata_valkyries.debug_kill_stick.killed": "[抹殺の棒] %s を抹殺しました",
+  "item.automata_valkyries.debug_kill_stick.no_player": "プレイヤーには使えません"
+}

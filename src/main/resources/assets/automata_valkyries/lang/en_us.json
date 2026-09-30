@@ -1,0 +1,21 @@
+{
+  "itemGroup.automata_valkyries.main": "Automata Valkyries",
+  "entity.automata_valkyries.elenor": "Elenor",
+  "entity.automata_valkyries.elenor.defeat_speech": "Elenor: \"Oh, is that all? How disappointing...♪\"",
+  "item.automata_valkyries.raw_astrite": "Raw Astrite",
+  "item.automata_valkyries.ingot_astrite": "Astrite Ingot",
+  "item.automata_valkyries.raw_phononium": "Raw Phononium",
+  "item.automata_valkyries.ingot_phononium": "Phononium Ingot",
+  "item.automata_valkyries.raw_ceruleas": "Raw Ceruleas",
+  "item.automata_valkyries.ingot_ceruleas": "Ceruleas Ingot",
+  "item.automata_valkyries.elenor_spawn_egg": "Elenor Spawn Egg",
+  "item.automata_valkyries.debug_kill_stick": "Annihilation Stick (Debug)",
+  "item.automata_valkyries.debug_kill_stick.tooltip.1": "Right-click a mob: max damage",
+  "item.automata_valkyries.debug_kill_stick.tooltip.2": "+ /kill",
+  "item.automata_valkyries.debug_kill_stick.tooltip.3": "+ forced death flags (health 0, die, dead, removal)",
+  "item.automata_valkyries.debug_kill_stick.tooltip.4": "+ tick stop",
+  "item.automata_valkyries.debug_kill_stick.used": "[Annihilation Stick] Struck %s",
+  "item.automata_valkyries.debug_kill_stick.survived": "[Annihilation Stick] %s survived (HP %s / %s)",
+  "item.automata_valkyries.debug_kill_stick.killed": "[Annihilation Stick] %s was eliminated",
+  "item.automata_valkyries.debug_kill_stick.no_player": "Cannot be used on players"
+}

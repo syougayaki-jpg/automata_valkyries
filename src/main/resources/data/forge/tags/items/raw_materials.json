@@ -1,0 +1,8 @@
+{
+  "replace": false,
+  "values": [
+    "#forge:raw_materials/astrite",
+    "#forge:raw_materials/phononium",
+    "#forge:raw_materials/ceruleas"
+  ]
+}

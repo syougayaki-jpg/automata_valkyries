@@ -7,6 +7,31 @@ Minecraft **1.20.1** / **Forge 47.4.x** / **Java 17** の MOD。
 - メインクラス: `src/main/java/com/automatavalkyries/AutomataValkyries.java`
 - マッピング: Mojang 公式名（`official`）。MCP/SRG 名（`func_xxx`, `field_xxx`）は使わない
 
+## MOD 全体仕様
+
+MOD 全体の仕様（世界観、兵姫、敵・ボス、アイテム、マシン）は **[`docs/SPEC_TACTICAL_VALKYRIES.md`](docs/SPEC_TACTICAL_VALKYRIES.md)** にある。
+
+- 元資料は 1.20.4+ / NeoForge 前提。1.20.1 Forge への読み替えは同書 §0.1 を参照（`c:` タグは `forge:` に、時間停止は独自実装）
+- 【暫定統一】の項目（§0.2）は後でユーザーが調整する前提の仮決定。変更されたら仕様書を更新する
+- 未定・未受領の項目（§0.3）は推測で埋めず、ユーザーに確認する
+
+## 戦術兵姫MOD 設計・開発コンテキスト（Antigravity引継ぎ）
+
+Antigravity AIとの対話で策定・実装された戦術兵姫のコア保護システム（`eprotect`）およびサンプルボス（エレノア）の全仕様・コード資産は **[`docs/TACTICAL_DOLL_CHAT_CONTEXT.md`](docs/TACTICAL_DOLL_CHAT_CONTEXT.md)** に詳細に記録されています。
+
+- **主要要件**:
+  1. `/kill` 拒否・即死攻撃無効化（Mixinによる `Entity.remove` / `discard` / `setRemoved` / `onRemovedFromWorld` のブロック）
+  2. **IMDS-Reborn（インフィニティマタードミネーターソードリボーン）完全耐性**:
+     - `die(DamageSource)` の直接呼び出しを HEAD で完全阻止（HP即時全快 & `deathTime = 0`）
+     - IMDSの内部Mixin無敵フラグ（`imds$setInvulnerable(true)`）を逆奪取して常時完全無敵化
+     - `ImdsKillManager` の `FORCE_DEAD_UUIDS` / `REMOVED_UUIDS` からの自動除外
+     - `-Infinity` テレポート（奈落落とし）の阻止と安全座標バックアップへの即時ロールバック
+  3. 桁外れ大ダメージカット（NaN / 無限大 / 100以上のダメージを上限10.0Fに制限）
+  4. 毎Tick同期自己修復 & 物理消去からの自動復元（Forge `ServerTickEvent` 監視）
+  5. ボス退場演出（`IProviderWithSpeech`、プレイヤー敗北時の紫色セリフ `「あら、もう終わりですか？ 期待外れですね……♪」` & サウンド）
+- **移植元資産**: `C:\Users\sfdge\Downloads\masterE` にて最新ビルド成功（`mastere-1.0.0.jar` 生成確認済み）。
+- **実装タスク**: `docs/TACTICAL_DOLL_CHAT_CONTEXT.md` を参照し、`automata_valkyries`（`com.automatavalkyries`）へ順次移植・拡張すること。
+
 ## コマンド
 
 Windows では `.\gradlew.bat`、Git Bash では `./gradlew`。

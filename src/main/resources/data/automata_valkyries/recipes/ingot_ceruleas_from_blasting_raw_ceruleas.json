@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:blasting",
+  "category": "misc",
+  "cookingtime": 100,
+  "experience": 0.7,
+  "group": "ingot_ceruleas",
+  "ingredient": {
+    "item": "automata_valkyries:raw_ceruleas"
+  },
+  "result": "automata_valkyries:ingot_ceruleas"
+}

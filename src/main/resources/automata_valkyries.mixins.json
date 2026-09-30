@@ -1,0 +1,17 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.automatavalkyries.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "automata_valkyries.refmap.json",
+  "mixins": [
+    "EntityAccessor",
+    "LivingEntityAccessor",
+    "ServerLevelTickListAccessor",
+    "EprotectDamageMixin",
+    "EprotectEntityMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
