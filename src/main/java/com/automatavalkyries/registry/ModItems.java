@@ -2,6 +2,7 @@ package com.automatavalkyries.registry;
 
 import com.automatavalkyries.AutomataValkyries;
 import com.automatavalkyries.item.DebugKillStickItem;
+import com.automatavalkyries.item.SuperKillStickItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Rarity;
 import net.minecraftforge.common.ForgeSpawnEggItem;
@@ -29,6 +30,8 @@ public class ModItems {
     // ---- テスト用 ----
     public static final RegistryObject<Item> DEBUG_KILL_STICK = ITEMS.register("debug_kill_stick", () ->
             new DebugKillStickItem(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC)));
+    public static final RegistryObject<Item> SUPER_KILL_STICK = ITEMS.register("super_kill_stick", () ->
+            new SuperKillStickItem(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC)));
 
     private static RegistryObject<Item> simple(String name) {
         return ITEMS.register(name, () -> new Item(new Item.Properties()));

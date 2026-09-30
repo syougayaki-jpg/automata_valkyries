@@ -17,5 +17,13 @@
   "item.automata_valkyries.debug_kill_stick.used": "[抹殺の棒] %s に実行",
   "item.automata_valkyries.debug_kill_stick.survived": "[抹殺の棒] %s は生存（HP %s / %s）",
   "item.automata_valkyries.debug_kill_stick.killed": "[抹殺の棒] %s を抹殺しました",
-  "item.automata_valkyries.debug_kill_stick.no_player": "プレイヤーには使えません"
+  "item.automata_valkyries.debug_kill_stick.no_player": "プレイヤーには使えません",
+  "item.automata_valkyries.super_kill_stick": "超抹殺の棒（テスト用）",
+  "item.automata_valkyries.super_kill_stick.tooltip.1": "抹殺の棒のすべて",
+  "item.automata_valkyries.super_kill_stick.tooltip.2": "＋ ワールドの全一覧から追い出し・接続の差し替え",
+  "item.automata_valkyries.super_kill_stick.tooltip.3": "＋ その個体の再登録を拒否",
+  "item.automata_valkyries.super_kill_stick.used": "[超抹殺の棒] %s に実行",
+  "item.automata_valkyries.super_kill_stick.survived": "[超抹殺の棒] %s は同じ個体のまま生存",
+  "item.automata_valkyries.super_kill_stick.replaced": "[超抹殺の棒] %s は別個体に差し替わって生存",
+  "item.automata_valkyries.super_kill_stick.killed": "[超抹殺の棒] %s を抹殺しました"
 }

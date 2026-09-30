@@ -356,6 +356,7 @@ public class Eprotect {
      */
     void retireReplaced() {
         despawning = true; // 保護を解く（セリフ・効果音は出さない）
+        if (owner instanceof IEprotected protectedOwner) protectedOwner.onRetired();
         releaseForcedChunk();
         EprotectManager.getInstance().unregister(this);
         ((EntityAccessor) owner).automata_valkyries$setRemovalReason(Entity.RemovalReason.DISCARDED);

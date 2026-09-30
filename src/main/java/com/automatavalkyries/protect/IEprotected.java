@@ -11,4 +11,7 @@ public interface IEprotected {
 
     /** AI（GoalSelector）が外部 MOD によって全消去された場合に復元するコールバック */
     default void restoreGoalsIfEmpty() {}
+
+    /** ワールドへの入り直しを拒否され、同じ UUID の新しい個体に差し替えられた古い個体で呼ばれる（ボスバー等の後片付け） */
+    default void onRetired() {}
 }

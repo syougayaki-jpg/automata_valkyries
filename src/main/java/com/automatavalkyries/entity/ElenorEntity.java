@@ -5,6 +5,9 @@ import com.automatavalkyries.protect.IProviderWithSpeech;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerBossEvent;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.BossEvent;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.damagesource.DamageSource;
@@ -44,6 +47,10 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
     public static final int DEATH_TICKS = 30;
 
     private final Eprotect protect = new Eprotect(this);
+    /** 画面上部のボスバー（HP の見える化）。追跡中のプレイヤーだけに表示する */
+    private final ServerBossEvent bossEvent =
+            new ServerBossEvent(Component.translatable("entity.automata_valkyries.elenor"), BossEvent.BossBarColor.PURPLE,
+                    BossEvent.BossBarOverlay.NOTCHED_10);
     /** プレイヤーと交戦したか */
     private boolean engaged = false;
     private int noPlayerTicks = 0;
@@ -105,9 +112,30 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
         if (!this.level().isClientSide) {
             protect.tick();
             tickRetreat();
+            bossEvent.setProgress(Math.max(0.0F, Math.min(1.0F, this.getHealth() / this.getMaxHealth())));
         } else {
             protect.clientTick();
         }
+    }
+
+    // ---- ボスバー --------------------------------------------------------------
+
+    @Override
+    public void startSeenByPlayer(ServerPlayer player) {
+        super.startSeenByPlayer(player);
+        bossEvent.addPlayer(player);
+    }
+
+    @Override
+    public void stopSeenByPlayer(ServerPlayer player) {
+        super.stopSeenByPlayer(player);
+        bossEvent.removePlayer(player);
+    }
+
+    /** 別個体に差し替えられた古い個体のボスバーを片付ける（新しい個体が自分のボスバーを出す） */
+    @Override
+    public void onRetired() {
+        bossEvent.removeAllPlayers();
     }
 
     @Override

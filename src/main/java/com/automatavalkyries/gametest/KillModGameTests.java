@@ -118,6 +118,34 @@ public class KillModGameTests {
         });
     }
 
+    /**
+     * 超抹殺の棒: 深い追い出しに加えて同じ個体の再登録を拒否する。入り直しは失敗し、同じ UUID の新しい個体への差し替えで
+     * 生き残ること（古い個体は保護を解かれ、新しい個体が保護を引き継ぐ）を確認する。
+     */
+    @GameTest(template = TEMPLATE, timeoutTicks = 100)
+    public static void refusedRejoinIsReplacedWithCopy(GameTestHelper helper) {
+        ElenorEntity elenor = spawnElenor(helper);
+        ServerLevel level = helper.getLevel();
+        java.util.UUID uuid = elenor.getUUID();
+        helper.runAfterDelay(2, () -> {
+            com.automatavalkyries.item.DebugKillStickItem.annihilate(level, null, elenor);
+            com.automatavalkyries.item.SuperKillStickItem.evict(level, elenor);
+            com.automatavalkyries.item.SuperKillStickItem.refuseRejoin(elenor);
+            helper.runAfterDelay(REPAIR_TICKS, () -> {
+                net.minecraft.world.entity.Entity current = level.getEntity(uuid);
+                helper.assertTrue(current instanceof ElenorEntity, "No entity with Elenor's UUID after replacement: " + current);
+                helper.assertTrue(current != elenor, "The refused instance came back instead of a fresh copy");
+                ElenorEntity copy = (ElenorEntity) current;
+                helper.assertTrue(copy.getEprotect().isProtectionActive(), "The copy is not protected");
+                helper.assertFalse(elenor.getEprotect().isGuardingRemoval(), "The retired instance is still guarding");
+                var issues = com.automatavalkyries.protect.WorldPresence.inspect(level, copy);
+                helper.assertTrue(issues.isEmpty(), "The copy is not correctly in the world: " + issues);
+                copy.getEprotect().triggerDespawn();
+                helper.succeed();
+            });
+        });
+    }
+
     // ---- 共通 ----------------------------------------------------------------
 
     private static ElenorEntity spawnElenor(GameTestHelper helper) {

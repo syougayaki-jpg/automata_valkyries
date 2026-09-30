@@ -17,5 +17,13 @@
   "item.automata_valkyries.debug_kill_stick.used": "[Annihilation Stick] Struck %s",
   "item.automata_valkyries.debug_kill_stick.survived": "[Annihilation Stick] %s survived (HP %s / %s)",
   "item.automata_valkyries.debug_kill_stick.killed": "[Annihilation Stick] %s was eliminated",
-  "item.automata_valkyries.debug_kill_stick.no_player": "Cannot be used on players"
+  "item.automata_valkyries.debug_kill_stick.no_player": "Cannot be used on players",
+  "item.automata_valkyries.super_kill_stick": "Super Annihilation Stick (Debug)",
+  "item.automata_valkyries.super_kill_stick.tooltip.1": "Everything the Annihilation Stick does",
+  "item.automata_valkyries.super_kill_stick.tooltip.2": "+ evicts the mob from every world list and swaps its level callback",
+  "item.automata_valkyries.super_kill_stick.tooltip.3": "+ refuses that exact instance from rejoining the world",
+  "item.automata_valkyries.super_kill_stick.used": "[Super Annihilation Stick] Struck %s",
+  "item.automata_valkyries.super_kill_stick.survived": "[Super Annihilation Stick] %s survived as the same entity",
+  "item.automata_valkyries.super_kill_stick.replaced": "[Super Annihilation Stick] %s survived by being replaced with a fresh copy",
+  "item.automata_valkyries.super_kill_stick.killed": "[Super Annihilation Stick] %s was eliminated"
 }
