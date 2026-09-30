@@ -177,6 +177,22 @@ dependencies {
     //   ./gradlew runClient -PwithKillMods2 -PwithWitherzilla   （Witherzilla は専用サーバーで起動できないのでクライアント専用）
     if (project.hasProperty('withKillMods2') || project.hasProperty('withWitherzilla')) {
         runtimeOnly fg.deobf("maven.modrinth:re-avaritia:1.20.1-1.4.2-release") // Re:Avaritia 1.4.2
+        runtimeOnly fg.deobf("maven.modrinth:more_avaritia:2.4")                 // MoreAvaritia 2.4（Re:Avaritia が前提）
+    }
+    //   ./gradlew runClient -PwithSlashBlade   （SlashBlade 拡張の即死刀）
+    if (project.hasProperty('withSlashBlade')) {
+        runtimeOnly fg.deobf("maven.modrinth:slashblade-resharped:1.9.65")      // 前提: SlashBlade: Resharped
+        runtimeOnly fg.deobf("maven.modrinth:annihilationblade:1.4.1")          // annihilationblade 1.4.1
+        runtimeOnly fg.deobf("maven.modrinth:nekohashizuku-blade:3.7.0")        // Shizuku Blade 3.7.0（Java エージェント同梱）
+    }
+    //   ./gradlew runGameTestServer -PwithEca   （Epic Core API。Java エージェント同梱）
+    //   ./gradlew runClient -PwithLastSword     （ECA を使う剣。専用サーバーで起動できないのでクライアント専用）
+    if (project.hasProperty('withEca') || project.hasProperty('withLastSword')) {
+        runtimeOnly fg.deobf("maven.modrinth:curios:5.14.1+1.20.1")
+        runtimeOnly fg.deobf("maven.modrinth:epic-core-api:1.1.8-fix")          // Epic Core API 1.1.8-fix
+    }
+    if (project.hasProperty('withLastSword')) {
+        runtimeOnly fg.deobf("maven.modrinth:the-last-sword-you-never-forgot:1.1.1") // The Last Sword You Never Forgot 1.1.1
     }
     if (project.hasProperty('withWitherzilla')) {
         runtimeOnly fg.deobf("maven.modrinth:witherzilla:1.7")                  // Witherzilla 1.7

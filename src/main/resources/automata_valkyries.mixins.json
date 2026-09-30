@@ -23,7 +23,9 @@
     "compat.TrialMonolithMixins$Helper",
     "compat.WitherzillaMixins$Util",
     "compat.WitherzillaMixins$TimerCache",
-    "compat.WitherzillaMixins$Unsafe"
+    "compat.WitherzillaMixins$Unsafe",
+    "compat.EcaMixins$Util",
+    "compat.EcaMixins$Quarantine"
   ],
   "injectors": {
     "defaultRequire": 1
