@@ -1,0 +1,28 @@
+package com.automatavalkyries.network;
+
+import com.automatavalkyries.AutomataValkyries;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraftforge.network.NetworkDirection;
+import net.minecraftforge.network.NetworkRegistry;
+import net.minecraftforge.network.simple.SimpleChannel;
+
+/** このMODのパケット通信路 */
+public final class ModNetwork {
+
+    private static final String PROTOCOL_VERSION = "1";
+
+    public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
+            ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "main"),
+            () -> PROTOCOL_VERSION, PROTOCOL_VERSION::equals, PROTOCOL_VERSION::equals);
+
+    private ModNetwork() {}
+
+    public static void register() {
+        int id = 0;
+        CHANNEL.messageBuilder(AnnihilatedEntitiesPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(AnnihilatedEntitiesPacket::encode)
+                .decoder(AnnihilatedEntitiesPacket::decode)
+                .consumerMainThread(AnnihilatedEntitiesPacket::handle)
+                .add();
+    }
+}

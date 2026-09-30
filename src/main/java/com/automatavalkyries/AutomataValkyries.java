@@ -1,5 +1,6 @@
 package com.automatavalkyries;
 
+import com.automatavalkyries.network.ModNetwork;
 import com.automatavalkyries.protect.EprotectEcaWhitelist;
 import com.automatavalkyries.protect.EprotectManager;
 import com.automatavalkyries.protect.ForeignHookReport;
@@ -40,6 +41,7 @@ public class AutomataValkyries {
     }
 
     private void commonSetup(FMLCommonSetupEvent event) {
+        event.enqueueWork(ModNetwork::register);
         event.enqueueWork(EprotectManager::registerChunkLoadingCallback);
         if (EprotectConfig.get(EprotectConfig.REPORT_FOREIGN_ENTITY_HOOKS)) {
             event.enqueueWork(ForeignHookReport::log);

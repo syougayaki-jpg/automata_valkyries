@@ -9,6 +9,8 @@ import com.automatavalkyries.mixin.EntityManagerAccessor;
 import com.automatavalkyries.mixin.EntityTickListAccessor;
 import com.automatavalkyries.mixin.LivingEntityAccessor;
 import com.automatavalkyries.mixin.ServerLevelTickListAccessor;
+import com.automatavalkyries.network.AnnihilatedEntitiesPacket;
+import com.automatavalkyries.network.ModNetwork;
 import com.automatavalkyries.protect.IEprotected;
 import com.automatavalkyries.util.UnsafeHelper;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
@@ -42,6 +44,7 @@ import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.network.PacketDistributor;
 
 import java.io.File;
 import java.lang.reflect.Field;
@@ -491,15 +494,30 @@ public final class AnnihilationExecutionAgent {
      * @return 抹消に成功した場合 true
      */
     public static boolean annihilateEntity(ServerLevel level, Player attacker, LivingEntity target) {
-        return annihilateEntity(level, attacker, target, true);
+        List<UUID> uuids = new ArrayList<>();
+        List<Integer> ids = new ArrayList<>();
+        boolean done = annihilateEntity(level, attacker, target, true, uuids, ids);
+        notifyClients(level, uuids, ids);
+        return done;
     }
 
-    /** @param playSound 効果音を鳴らすか（範囲版は 1 体ごとに鳴らさず、最後に 1 回だけ鳴らす） */
-    private static boolean annihilateEntity(ServerLevel level, Player attacker, LivingEntity target, boolean playSound) {
+    /**
+     * @param playSound 効果音を鳴らすか（範囲版は 1 体ごとに鳴らさず、最後に 1 回だけ鳴らす）
+     * @param uuids / ids 抹消した個体をクライアントへ知らせるために集める（部位エンティティの ID も含む）
+     */
+    private static boolean annihilateEntity(ServerLevel level, Player attacker, LivingEntity target, boolean playSound,
+                                            List<UUID> uuids, List<Integer> ids) {
         // 兵姫などの保護対象は範囲版と同じく対象外（抹消のブラックリストと eprotect の入り直しが競合する）
         if (target == null || target instanceof Player || target instanceof IEprotected) return false;
         // 追跡偽装で座標を NaN にするので、演出の位置は先に取っておく
         Vec3 origin = target.position().add(0.0, target.getBbHeight() / 2.0, 0.0);
+        uuids.add(target.getUUID());
+        ids.add(target.getId());
+        if (target.isMultipartEntity() && target.getParts() != null) {
+            for (PartEntity<?> part : target.getParts()) {
+                if (part != null) ids.add(part.getId());
+            }
+        }
 
         runWithEventSuppression(() -> {
             // (1) ブラックリスト登録
@@ -551,13 +569,16 @@ public final class AnnihilationExecutionAgent {
         });
 
         int eradicated = 0;
+        List<UUID> uuids = new ArrayList<>();
+        List<Integer> ids = new ArrayList<>();
         for (Entity e : entities) {
             if (e instanceof LivingEntity living) {
-                if (annihilateEntity(level, attacker, living, false)) {
+                if (annihilateEntity(level, attacker, living, false, uuids, ids)) {
                     eradicated++;
                 }
             }
         }
+        notifyClients(level, uuids, ids);
 
         // Metapotent Flashfur のレベル常駐体及びディスク保存の一括抹消
         wipeFlashfurLevelMemory();
@@ -575,6 +596,25 @@ public final class AnnihilationExecutionAgent {
         return eradicated;
     }
 
+    /**
+     * 抹消した個体をこのディメンションのクライアントへ知らせる。
+     * バニラの消去通知だけでは、自分で消去を拒否する実装（Witherzilla の処刑竜など）がクライアントに幽霊として残る。
+     */
+    private static void notifyClients(ServerLevel level, List<UUID> uuids, List<Integer> ids) {
+        if (uuids.isEmpty() && ids.isEmpty()) return;
+        ModNetwork.CHANNEL.send(PacketDistributor.DIMENSION.with(level::dimension), new AnnihilatedEntitiesPacket(uuids, ids));
+    }
+
+    /** クライアントで抹消済みとして記録する（生命維持フラグを false にする Mixin がクライアントでも効くように） */
+    public static void markAnnihilated(UUID uuid) {
+        ANNIHILATED_UUIDS.add(uuid);
+    }
+
+    public static void clearMarks() {
+        ANNIHILATED_UUIDS.clear();
+        ANNIHILATED_INSTANCES.clear();
+    }
+
     /** 消えた位置に煙を少しだけ出す（バニラの死亡時の煙と同じ程度） */
     private static void spawnAnnihilationParticles(ServerLevel level, Vec3 pos) {
         if (!Double.isFinite(pos.x) || !Double.isFinite(pos.y) || !Double.isFinite(pos.z)) return;
@@ -588,7 +628,6 @@ public final class AnnihilationExecutionAgent {
 
     @SubscribeEvent
     public static void onServerStopped(ServerStoppedEvent event) {
-        ANNIHILATED_UUIDS.clear();
-        ANNIHILATED_INSTANCES.clear();
+        clearMarks();
     }
 }

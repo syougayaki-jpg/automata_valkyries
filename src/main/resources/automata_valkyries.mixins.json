@@ -42,6 +42,10 @@
     "compat.ShizukuMixins$RemovedMark",
     "compat.ShizukuMixins$HealthLock"
   ],
+  "client": [
+    "client.ClientLevelAccessor",
+    "client.TransientEntitySectionManagerAccessor"
+  ],
   "injectors": {
     "defaultRequire": 1
   }
