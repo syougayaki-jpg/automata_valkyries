@@ -496,19 +496,22 @@ public final class AnnihilationExecutionAgent {
     public static boolean annihilateEntity(ServerLevel level, Player attacker, LivingEntity target) {
         List<UUID> uuids = new ArrayList<>();
         List<Integer> ids = new ArrayList<>();
-        boolean done = annihilateEntity(level, attacker, target, true, uuids, ids);
+        boolean done = annihilateEntity(level, attacker, target, true, true, uuids, ids);
         notifyClients(level, uuids, ids);
         return done;
     }
 
     /**
      * @param playSound 効果音を鳴らすか（範囲版は 1 体ごとに鳴らさず、最後に 1 回だけ鳴らす）
+     * @param expand    つながった同じ MOD の個体（乗客・乗り物）もまとめて消すか（つながった個体からはさらに広げない）
      * @param uuids / ids 抹消した個体をクライアントへ知らせるために集める（部位エンティティの ID も含む）
      */
-    private static boolean annihilateEntity(ServerLevel level, Player attacker, LivingEntity target, boolean playSound,
+    private static boolean annihilateEntity(ServerLevel level, Player attacker, LivingEntity target, boolean playSound, boolean expand,
                                             List<UUID> uuids, List<Integer> ids) {
         // 兵姫などの保護対象は範囲版と同じく対象外（抹消のブラックリストと eprotect の入り直しが競合する）
         if (target == null || target instanceof Player || target instanceof IEprotected) return false;
+        if (ANNIHILATED_INSTANCES.contains(target) && target.isRemoved()) return false; // つながりで既に消した個体
+        List<Entity> connected = expand ? ModProtectionBreaker.connectedEntities(target) : List.of();
         // 追跡偽装で座標を NaN にするので、演出の位置は先に取っておく
         Vec3 origin = target.position().add(0.0, target.getBbHeight() / 2.0, 0.0);
         uuids.add(target.getUUID());
@@ -528,9 +531,11 @@ public final class AnnihilationExecutionAgent {
             neutralizeWitherzilla(level, target);
             neutralizeFlashfur(level, target);
 
-            // (2') 他 MOD の独自の生命維持（保護の切り替え・代理の本体）を外し、対応していればその MOD 自身の撃破経路で倒す
-            ModProtectionBreaker.breakProtection(level, target);
+            // (2') 他 MOD の独自の生命維持（保護の切り替え・フラグ・代理の本体・静的な一覧）を外し、対応していればその MOD 自身の撃破経路で倒す
+            ModProtectionBreaker.Context context = ModProtectionBreaker.breakProtection(level, target);
             ModProtectionBreaker.finishWithModOwnDeath(target);
+            target.ejectPassengers();
+            target.stopRiding();
 
             // (3) バニラ即死・デスフラグ・無敵リセット
             target.invulnerableTime = 0;
@@ -547,7 +552,25 @@ public final class AnnihilationExecutionAgent {
             target.invalidateCaps();
             target.onRemovedFromWorld();
 
+            // (6) 死亡処理の途中で静的な一覧へ戻されていれば、もう一度取り除く
+            ModProtectionBreaker.afterErase(target, context);
         });
+
+        // (7) つながった同じ MOD の個体（乗客・乗り物）もまとめて消す
+        for (Entity other : connected) {
+            if (other instanceof LivingEntity living) {
+                annihilateEntity(level, attacker, living, false, false, uuids, ids);
+            } else {
+                uuids.add(other.getUUID());
+                ids.add(other.getId());
+                ANNIHILATED_UUIDS.add(other.getUUID());
+                ANNIHILATED_INSTANCES.add(other);
+                runWithEventSuppression(() -> {
+                    spoofAndDisconnectTracking(level, other);
+                    other.discard();
+                });
+            }
+        }
 
         // (6) 演出（控えめ: 煙のパーティクルと効果音 1 つだけ）
         spawnAnnihilationParticles(level, origin);
@@ -577,7 +600,7 @@ public final class AnnihilationExecutionAgent {
         List<Integer> ids = new ArrayList<>();
         for (Entity e : entities) {
             if (e instanceof LivingEntity living) {
-                if (annihilateEntity(level, attacker, living, false, uuids, ids)) {
+                if (annihilateEntity(level, attacker, living, false, true, uuids, ids)) {
                     eradicated++;
                 }
             }

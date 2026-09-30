@@ -215,6 +215,39 @@ public class AttackAttributionGameTests {
         helper.succeed();
     }
 
+    /**
+     * 超絶抹殺の棒の準汎用処理: 架空の MOD のボスの保護・復活のフラグが下り（待ち時間には触れない）、本体が消され、
+     * 静的な一覧・管理表から対象・本体・UUID が取り除かれ、同じ MOD の乗客もまとめて消える
+     */
+    @GameTest(template = TEMPLATE)
+    public static void ultraKillStickBreaksSemiGenericLifeSupport(GameTestHelper helper) {
+        FakeKillMod.install();
+        ServerLevel level = helper.getLevel();
+        BlockPos pos = helper.absolutePos(new BlockPos(2, 2, 2));
+        com.automatavalkyries.gametest.fake.FakeBoss boss = new com.automatavalkyries.gametest.fake.FakeBoss(net.minecraft.world.entity.EntityType.ZOMBIE, level);
+        boss.moveTo(pos.getX() + 0.5D, pos.getY(), pos.getZ() + 0.5D, 0.0F, 0.0F);
+        level.addFreshEntity(boss);
+        boss.registerInMod();
+        var minion = new com.automatavalkyries.gametest.fake.FakeBoss.Minion(net.minecraft.world.entity.EntityType.ZOMBIE, level);
+        minion.moveTo(pos.getX() + 0.5D, pos.getY(), pos.getZ() + 0.5D, 0.0F, 0.0F);
+        level.addFreshEntity(minion);
+        minion.startRiding(boss, true);
+
+        com.automatavalkyries.annihilate.AnnihilationExecutionAgent.annihilateEntity(level, helper.makeMockPlayer(), boss);
+
+        helper.assertFalse(boss.invulnerableToAll, "Protection flag was not lowered");
+        helper.assertFalse(boss.canRevive, "Revival flag was not lowered");
+        helper.assertTrue(boss.reviveCount == 0, "Remaining revivals were not zeroed: " + boss.reviveCount);
+        helper.assertTrue(boss.respawnDelay == 100, "A timer was touched: " + boss.respawnDelay);
+        helper.assertTrue(boss.controller.removed, "The controller was not removed");
+        helper.assertTrue(com.automatavalkyries.gametest.fake.FakeBoss.REVIVE_QUEUE.isEmpty(),
+                "Revival queue still holds: " + com.automatavalkyries.gametest.fake.FakeBoss.REVIVE_QUEUE);
+        helper.assertTrue(com.automatavalkyries.gametest.fake.FakeBoss.REGISTRY.isEmpty(), "Registry still holds the boss");
+        helper.assertTrue(minion.isRemoved(), "The same-mod passenger was not erased");
+        helper.assertTrue(level.getEntity(minion.getUUID()) == null, "The passenger is still in the level");
+        helper.succeed();
+    }
+
     /** 護符を持たないプレイヤーは守られない */
     @GameTest(template = TEMPLATE)
     public static void playerWithoutCharmIsNotWarded(GameTestHelper helper) {
