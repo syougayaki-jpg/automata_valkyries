@@ -81,7 +81,7 @@ public abstract class EprotectEntityMixin {
         if ((Object) this instanceof IEprotected provider) {
             Eprotect protect = provider.getEprotect();
             if (protect != null && protect.isProtectionActive()) {
-                if (!Eprotect.isSafePosition(x, y, z)) {
+                if (!Eprotect.isSafePosition((Entity) (Object) this, x, y, z)) {
                     ci.cancel();
                 }
             }
@@ -93,7 +93,7 @@ public abstract class EprotectEntityMixin {
         if ((Object) this instanceof IEprotected provider) {
             Eprotect protect = provider.getEprotect();
             if (protect != null && protect.isProtectionActive()) {
-                if (!Eprotect.isSafePosition(x, y, z)) {
+                if (!Eprotect.isSafePosition((Entity) (Object) this, x, y, z)) {
                     ci.cancel();
                 }
             }
@@ -108,7 +108,7 @@ public abstract class EprotectEntityMixin {
     private void automata_valkyries$guardSetPosRaw(double x, double y, double z, CallbackInfo ci) {
         if ((Object) this instanceof IEprotected provider) {
             Eprotect protect = provider.getEprotect();
-            if (protect != null && protect.isProtectionActive() && !Eprotect.isSafePosition(x, y, z)) {
+            if (protect != null && protect.isProtectionActive() && !Eprotect.isSafePosition((Entity) (Object) this, x, y, z)) {
                 ci.cancel();
             }
         }

@@ -25,7 +25,11 @@
     "compat.WitherzillaMixins$TimerCache",
     "compat.WitherzillaMixins$Unsafe",
     "compat.EcaMixins$Util",
-    "compat.EcaMixins$Quarantine"
+    "compat.EcaMixins$Quarantine",
+    "compat.ShizukuMixins$Remover",
+    "compat.ShizukuMixins$Killer",
+    "compat.ShizukuMixins$RemovedMark",
+    "compat.ShizukuMixins$HealthLock"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -73,10 +73,15 @@ public class Eprotect {
         this.owner = owner;
     }
 
-    /** 座標として正常か（NaN / 無限大 / ワールド境界の遥か外 / 奈落の底を弾く） */
-    public static boolean isSafePosition(double x, double y, double z) {
+    /**
+     * 座標として正常か（NaN / 無限大 / ワールド境界の遥か外 / 奈落を弾く）。
+     * 奈落はそのワールドの最低高度 - 64（バニラの奈落ダメージが始まる高さ）より下。固定値だと (-999, -999, -999) のような
+     * 「ぎりぎり有限」の飛ばし先をすり抜けるので、ワールドの高さで判定する。
+     */
+    public static boolean isSafePosition(Entity entity, double x, double y, double z) {
         if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)) return false;
-        return Math.abs(x) <= 3.0E7D && Math.abs(z) <= 3.0E7D && y >= -1000.0D && y <= 2.0E7D;
+        return Math.abs(x) <= 3.0E7D && Math.abs(z) <= 3.0E7D
+                && y >= entity.level().getMinBuildHeight() - 64 && y <= 2.0E7D;
     }
 
     public LivingEntity getOwner() {
@@ -374,7 +379,7 @@ public class Eprotect {
 
     /** 正常な状態（座標・ワールドとの接続）を控えておく。修復で戻す先になる */
     private void rememberHealthyState() {
-        if (isSafePosition(owner.getX(), owner.getY(), owner.getZ())) {
+        if (isSafePosition(owner, owner.getX(), owner.getY(), owner.getZ())) {
             lastSafePos = owner.position();
         }
         EntityInLevelCallback callback = ((EntityAccessor) owner).automata_valkyries$getLevelCallback();
@@ -385,7 +390,7 @@ public class Eprotect {
 
     /** 座標フィールドの直書き（IMDS の -Infinity 奈落落とし等）で壊れた座標を、最後の正常な座標へ戻す */
     private boolean restorePosition() {
-        if (isSafePosition(owner.getX(), owner.getY(), owner.getZ()) || lastSafePos == null) return false;
+        if (isSafePosition(owner, owner.getX(), owner.getY(), owner.getZ()) || lastSafePos == null) return false;
         owner.setPos(lastSafePos.x, lastSafePos.y, lastSafePos.z);
         owner.setDeltaMovement(Vec3.ZERO);
         AutomataValkyries.LOGGER.warn("[eprotect] Restored position of {}", owner);
@@ -429,7 +434,7 @@ public class Eprotect {
     private boolean restoreTickingIfStopped() {
         // isRemoved() は他 MOD の ASM に呼び出し箇所ごと偽装されうるので、フィールドを直接読む
         if (!(owner.level() instanceof ServerLevel level) || ((EntityAccessor) owner).automata_valkyries$getRemovalReason() != null) return false;
-        if (!isSafePosition(owner.getX(), owner.getY(), owner.getZ())) return false;
+        if (!isSafePosition(owner, owner.getX(), owner.getY(), owner.getZ())) return false;
         if (lastTickGameTime == Long.MIN_VALUE) return false; // まだワールドに追加されていない
         if (level.getGameTime() - lastTickGameTime <= TICK_STALL_THRESHOLD) return false;
         if (!level.isPositionEntityTicking(owner.blockPosition())) return false; // チャンク側の都合で止まっているだけ
@@ -445,7 +450,7 @@ public class Eprotect {
     private void updateForcedChunk() {
         if (!(owner.level() instanceof ServerLevel level)) return;
         if (!level.getServer().isRunning()) return; // 終了処理中にチャンクを同期ロードすると固まる
-        if (!isSafePosition(owner.getX(), owner.getY(), owner.getZ())) return; // 壊れた座標のチャンクを強制ロードしない
+        if (!isSafePosition(owner, owner.getX(), owner.getY(), owner.getZ())) return; // 壊れた座標のチャンクを強制ロードしない
         ChunkPos current = owner.chunkPosition();
         if (level == forcedLevel && current.equals(forcedChunk)) return;
 

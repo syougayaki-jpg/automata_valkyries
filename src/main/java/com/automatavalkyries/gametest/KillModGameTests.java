@@ -107,7 +107,10 @@ public class KillModGameTests {
     }
 
     private static void assertSurvivesAfterRepair(GameTestHelper helper, ElenorEntity elenor) {
+        net.minecraft.world.phys.Vec3 spawnPos = elenor.position();
         helper.runAfterDelay(REPAIR_TICKS, () -> {
+            // (-999, -999, -999) などへの飛ばしから戻っているか
+            helper.assertTrue(elenor.position().distanceTo(spawnPos) < 16.0D, "Elenor was displaced to " + elenor.position());
             ServerLevel level = helper.getLevel();
             ServerLevelTickListAccessor lists = (ServerLevelTickListAccessor) level;
             helper.assertTrue(((EntityAccessor) elenor).automata_valkyries$getRemovalReason() == null,
