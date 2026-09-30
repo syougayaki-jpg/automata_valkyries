@@ -141,6 +141,30 @@ public class EprotectGameTests {
         });
     }
 
+    /**
+     * 最大 HP（MAX_HEALTH 属性）の改ざん: 基礎値の書き換えと他 MOD の補正が外れ、既定値（500）に戻ること。
+     * 基礎値を 20 億へ上げてから、他 MOD 名義の -100% 補正で 1 まで下げる（1 撃で倒せる残量になる）
+     */
+    @GameTest(template = TEMPLATE)
+    public static void tamperedMaxHealthIsRestored(GameTestHelper helper) {
+        ElenorEntity elenor = spawnElenor(helper);
+        float max = elenor.getMaxHealth();
+        var attribute = elenor.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH);
+        attribute.setBaseValue(2.0E9D);
+        elenor.setHealth(2.0E9F); // 回復方向の書き込みは通る
+        attribute.addPermanentModifier(new net.minecraft.world.entity.ai.attributes.AttributeModifier(
+                java.util.UUID.randomUUID(), "foreign_max_health_cut", -1.0D,
+                net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.MULTIPLY_TOTAL));
+        helper.runAfterDelay(3, () -> {
+            helper.assertTrue(elenor.getMaxHealth() == max, "Max health was not restored: " + elenor.getMaxHealth());
+            helper.assertTrue(attribute.getModifiers().isEmpty(), "Foreign modifier remained: " + attribute.getModifiers());
+            float hp = elenor.getHealth();
+            helper.assertTrue(hp > 0.0F && hp <= max, "Health is outside the restored max: " + hp);
+            assertProtectedAndAlive(helper, elenor);
+            despawnAndSucceed(helper, elenor);
+        });
+    }
+
     @GameTest(template = TEMPLATE)
     public static void directDeathIsRepaired(GameTestHelper helper) {
         ElenorEntity elenor = spawnElenor(helper);

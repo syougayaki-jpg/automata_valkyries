@@ -11,7 +11,12 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.ai.attributes.AttributeInstance;
+import net.minecraft.world.entity.ai.attributes.AttributeModifier;
+import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.ai.attributes.DefaultAttributes;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.entity.Visibility;
 import net.minecraft.world.phys.Vec3;
@@ -19,6 +24,7 @@ import net.minecraftforge.common.world.ForgeChunkManager;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.EnumSet;
+import java.util.List;
 
 /**
  * 個体ごとの保護コントローラー（eprotect）。
@@ -352,12 +358,50 @@ public class Eprotect {
             AutomataValkyries.LOGGER.warn("[eprotect] Neutralized kill-mod flags on {}", owner);
             anomalies++;
         }
+        if (restoreMaxHealth()) anomalies++;
         if (restoreHealth()) anomalies++;
         if (clearDeadFlag()) anomalies++;
         anomalies += restorePresence();
         if (restoreTickingIfStopped()) anomalies++;
 
         if (anomalies > 0) noteAnomalies(anomalies);
+    }
+
+    /**
+     * 最大 HP（MAX_HEALTH 属性）の改ざんを戻す。基礎値は種類の既定値へ戻し、他 MOD の補正（名前がこの MOD の ID で始まらないもの）は外す。
+     * 下げられると HP がそこまで切り詰められて 1 撃で倒せる残量になり、桁外れに上げられると 1 撃の上限（最大 HP の
+     * {@link #MAX_HIT_RATIO}）が意味をなさず戦闘が成り立たない。どちらも他 MOD の属性上限の解除や /attribute で起こる。
+     */
+    private boolean restoreMaxHealth() {
+        AttributeInstance attribute = owner.getAttribute(Attributes.MAX_HEALTH);
+        if (attribute == null) return false;
+        double expectedBase = defaultMaxHealth(attribute);
+        double oldValue = attribute.getValue();
+        int removed = 0;
+        for (AttributeModifier modifier : List.copyOf(attribute.getModifiers())) {
+            if (!modifier.getName().startsWith(AutomataValkyries.MODID)) {
+                attribute.removeModifier(modifier.getId());
+                removed++;
+            }
+        }
+        boolean baseChanged = attribute.getBaseValue() != expectedBase;
+        if (baseChanged) attribute.setBaseValue(expectedBase);
+        if (removed == 0 && !baseChanged) return false;
+
+        float max = owner.getMaxHealth();
+        if (lastValidHealth > max) lastValidHealth = max;
+        if (!(owner.getHealth() <= max)) owner.setHealth(max); // NaN も含めて切り詰める
+        AutomataValkyries.LOGGER.warn("[eprotect] Restored tampered max health of {} ({} -> {}, {} foreign modifiers removed)",
+                owner, oldValue, max, removed);
+        return true;
+    }
+
+    private double defaultMaxHealth(AttributeInstance attribute) {
+        @SuppressWarnings("unchecked")
+        EntityType<? extends LivingEntity> type = (EntityType<? extends LivingEntity>) owner.getType();
+        return DefaultAttributes.hasSupplier(type)
+                ? DefaultAttributes.getSupplier(type).getBaseValue(Attributes.MAX_HEALTH)
+                : attribute.getAttribute().getDefaultValue();
     }
 
     /** hurt() を経ない即死（setHealth(0) など）や NaN 化は直前の正常値へ戻す */
