@@ -35,7 +35,12 @@
    - `imds$isForceRemoved()` が true の場合、`isRemoved()` を `true` に偽装。
 
 ### 2.2. Eprotect の完全対抗策（IMDS無力化＆無敵奪取）
-1. **IMDSの神無敵フラグの逆奪取 (`EprotectImdsCounter`)**:
+
+> **2026-10-01 更新**: 下記 1 の「神無敵の逆奪取」はユーザー判断で廃止した。IMDS が入っている環境だけエレノアが一切ダメージを受けず、
+> 被弾量の上限（10 秒に最大 HP の 10%）が効かなくなるため。`EprotectImdsCounter` は今は神無敵を**外す**側（`IMDS_INV_UUIDS` から除外、
+> `imds$setInvulnerable(false)`）。抹消リストからの除外と強制死亡・強制削除フラグの解除は引き続き行う。
+
+1. **IMDSの神無敵フラグの逆奪取 (`EprotectImdsCounter`)**（廃止）:
    - IMDSの内部Mixinでは、`((IEntityImds) entity).imds$isInvulnerable()` が `true` の場合、**`imds_hurt`, `imds_actuallyHurt`, `imds_die`, `imds_tickDeath` のすべての攻撃・キルコードが即座にキャンセルされる仕様**になっている。
    - Eprotectはリフレクションにより、自身のエンティティに対して **`imds$setInvulnerable(true)` を常時付与** し、`imds$setForceDead(false)` / `imds$setForceRemoved(false)` に上書き。
    - さらに `ImdsKillManager` の `FORCE_DEAD_UUIDS`, `REMOVED_UUIDS`, `NOAI_UUIDS` から自身のUUIDを毎Tick削除。

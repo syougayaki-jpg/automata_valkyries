@@ -24,7 +24,7 @@ public abstract class EprotectDamageMixin {
         if (protect == null) return;
         LivingEntity self = (LivingEntity) (Object) this;
 
-        // 被弾の瞬間に IMDS / Hyperlink の無敵奪取＆抹消リスト除外を実行
+        // 被弾の瞬間に IMDS / Hyperlink の抹消リスト除外・フラグ解除を実行
         KillModCounters.counterAll(self);
 
         if (protect.isProtectionActive()) {

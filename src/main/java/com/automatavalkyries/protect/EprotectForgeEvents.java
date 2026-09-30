@@ -16,7 +16,7 @@ import net.minecraftforge.fml.common.Mod;
 
 /**
  * Forge イベントバスにおける最優先（HIGHEST）防御インターセプト。
- * Mixin より前のイベント処理段階で IMDS や Hyperlink の攻撃を検知・無効化し、特権無敵の奪取を行う。
+ * Mixin より前のイベント処理段階で IMDS や Hyperlink の攻撃を検知・無効化し、即死 MOD の登録・フラグを解除する。
  */
 @Mod.EventBusSubscriber(modid = AutomataValkyries.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public class EprotectForgeEvents {
@@ -28,7 +28,7 @@ public class EprotectForgeEvents {
             Eprotect protect = provider.getEprotect();
             if (protect == null || !protect.isProtectionActive()) return;
 
-            // 攻撃された瞬間に特権無敵の再奪取＆リスト除外を実行
+            // 攻撃された瞬間に即死 MOD の抹消リスト除外・フラグ解除を実行
             KillModCounters.counterAll(target);
 
             DamageSource source = event.getSource();

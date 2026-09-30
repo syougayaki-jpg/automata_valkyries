@@ -20,7 +20,6 @@ public final class EprotectImdsCounter {
     private static Set<UUID> testUuids = null;
     private static Set<UUID> imdsInvUuids = null;
 
-    private static Method markForInvMethod = null;
     private static Method unmarkMethod = null;
     private static Method unRemoveMethod = null;
     private static Method removeNoAiMethod = null;
@@ -43,7 +42,6 @@ public final class EprotectImdsCounter {
             testUuids = getStaticSet(killManagerClass, "TEST_UUIDS");
             imdsInvUuids = getStaticSet(killManagerClass, "IMDS_INV_UUIDS");
 
-            markForInvMethod = killManagerClass.getMethod("markForInv", LivingEntity.class);
             unmarkMethod = killManagerClass.getMethod("unmark", LivingEntity.class);
             unRemoveMethod = killManagerClass.getMethod("unRemove", net.minecraft.world.entity.Entity.class);
             removeNoAiMethod = killManagerClass.getMethod("removeNoAi", LivingEntity.class);
@@ -70,7 +68,12 @@ public final class EprotectImdsCounter {
     }
 
     /**
-     * IMDS-Reborn の即死・抹消処理を常時解除し、IMDS 自身の神無敵フラグを奪取して自身を保護する
+     * IMDS-Reborn の即死・抹消処理を常時解除する。
+     * <p>
+     * 以前は IMDS 自身の神無敵（IMDS_INV_UUIDS / imds$setInvulnerable）を奪って保護対象を完全無敵にしていたが、
+     * IMDS が入っている環境だけ一切ダメージを受けず倒せなくなり、被弾量の上限（10 秒に最大 HP の 10%）と食い違うのでやめた。
+     * 過去に付けた神無敵が保存データに残っていても外す。
+     * </p>
      */
     public static boolean counter(LivingEntity entity) {
         if (!initialized) {
@@ -79,30 +82,27 @@ public final class EprotectImdsCounter {
 
         UUID uuid = entity.getUUID();
 
-        // 1. ImdsKillManager の抹消・死亡・AI停止登録リストから強制削除
+        // 1. ImdsKillManager の抹消・死亡・AI停止・神無敵の登録リストから強制削除
         boolean found = false;
         if (forceDeadUuids != null) found |= forceDeadUuids.remove(uuid);
         if (removedUuids != null) found |= removedUuids.remove(uuid);
         if (noaiUuids != null) noaiUuids.remove(uuid);
         if (testUuids != null) testUuids.remove(uuid);
+        if (imdsInvUuids != null) imdsInvUuids.remove(uuid);
 
-        // 2. ImdsKillManager の神無敵リスト（IMDS_INV_UUIDS）に自身を登録！
-        if (imdsInvUuids != null) imdsInvUuids.add(uuid);
-
-        // 3. ImdsKillManager のユーティリティメソッドを呼び出し
+        // 2. ImdsKillManager のユーティリティメソッドで登録を解除
         try {
-            if (markForInvMethod != null) markForInvMethod.invoke(null, entity);
             if (unmarkMethod != null) unmarkMethod.invoke(null, entity);
             if (unRemoveMethod != null) unRemoveMethod.invoke(null, entity);
             if (removeNoAiMethod != null) removeNoAiMethod.invoke(null, entity);
         } catch (Throwable ignored) {}
 
-        // 4. IEntityImds のフラグを操作：IMDSの神無敵フラグをONにし、強制死亡/強制削除フラグをOFFにする
+        // 3. IEntityImds のフラグを操作：強制死亡/強制削除/神無敵をすべて OFF にする
         if (iEntityImdsClass != null && iEntityImdsClass.isInstance(entity)) {
             try {
                 if (setForceDeadMethod != null) setForceDeadMethod.invoke(entity, false);
                 if (setForceRemovedMethod != null) setForceRemovedMethod.invoke(entity, false);
-                if (setInvulnerableMethod != null) setInvulnerableMethod.invoke(entity, true);
+                if (setInvulnerableMethod != null) setInvulnerableMethod.invoke(entity, false);
             } catch (Throwable ignored) {}
         }
         return found;
