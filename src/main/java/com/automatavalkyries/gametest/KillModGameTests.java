@@ -588,6 +588,24 @@ public class KillModGameTests {
         helper.succeed();
     }
 
+    /**
+     * 通常時のプレイヤー保護制限の検証: 護符を持たずリスポーン保護期間でもない通常のプレイヤーは、
+     * 保護シールドが付与されず、ダメージを受けて正常に死亡すること。
+     */
+    @GameTest(template = TEMPLATE, timeoutTicks = 50)
+    public static void normalPlayerWithoutRespawnGraceIsNotProtected(GameTestHelper helper) {
+        Player player = helper.makeMockPlayer();
+        com.automatavalkyries.protect.PlayerWard.refresh(player);
+        helper.assertFalse(com.automatavalkyries.protect.PlayerWard.isRespawnProtected(player), "Normal player had respawn grace");
+        helper.assertFalse(com.automatavalkyries.protect.PlayerWard.isActive(player), "Normal player was active in PlayerWard");
+
+        // 通常ダメージが通り死亡すること
+        var generic = helper.getLevel().damageSources().generic();
+        player.hurt(generic, 1000.0F);
+        helper.assertTrue(player.isDeadOrDying(), "Normal player did not die from lethal damage");
+        helper.succeed();
+    }
+
     /** 対象 MOD が無ければ成功扱いで終える */
     private static boolean loaded(GameTestHelper helper, String modId) {
         if (ModList.get().isLoaded(modId)) return true;

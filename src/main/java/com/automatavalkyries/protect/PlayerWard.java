@@ -67,8 +67,20 @@ public final class PlayerWard {
     public static boolean isActive(@Nullable Entity entity) {
         if (!(entity instanceof Player player) || player.level().isClientSide) return false;
         if (isRespawnProtected(player)) return true;
-        return WARDED.contains(player.getUUID()) && DirectRead.hasHealth(player); // isDeadOrDying() は他 MOD に偽装されうる
+        if (!WARDED.contains(player.getUUID())) return false;
+        // HP の読み出し（同期データ）に他 MOD の処理が挟まり、そこからまたここが呼ばれることがある
+        // （Hyperlink: SynchedEntityData.get → novelized → 互換 Mixin → isActive）。入れ子の中では HP を読まずに答える
+        if (READING_HEALTH.get()) return true;
+        READING_HEALTH.set(true);
+        try {
+            return DirectRead.hasHealth(player); // isDeadOrDying() は他 MOD に偽装されうる
+        } finally {
+            READING_HEALTH.set(false);
+        }
     }
+
+    /** {@link #isActive} が HP を読んでいる最中か（入れ子の呼び出しで無限に再帰しないため） */
+    private static final ThreadLocal<Boolean> READING_HEALTH = ThreadLocal.withInitial(() -> false);
 
     /** 持ち物を見て覚え直す（毎 Tick 呼ぶ。GameTest からも呼ぶ） */
     public static void refresh(Player player) {
@@ -114,6 +126,13 @@ public final class PlayerWard {
         return lower.contains("imds") || lower.contains("novel") || lower.contains("hyper") || lower.contains("kill");
     }
 
+    /** 他 MOD が付けた死亡・消去の印をプレイヤーから外す（保護対象の兵姫と同じ後始末を使う） */
+    private static void cleanLingeringKillState(Player player) {
+        KillModCounters.counterAll(player);
+        com.automatavalkyries.protect.flag.KillLists.purge(player);
+        ForeignStateCleaner.clean(player);
+    }
+
     @SubscribeEvent
     public static void onPlayerTick(TickEvent.PlayerTickEvent event) {
         if (event.phase != TickEvent.Phase.END || event.player.level().isClientSide) return;
@@ -123,6 +142,9 @@ public final class PlayerWard {
         // リスポーン保護 Tick のカウントダウンと状態維持
         Integer grace = RESPAWN_GRACE_TICKS.get(player.getUUID());
         if (grace != null) {
+            // 保護の間も、切れる瞬間も、他 MOD が残した死亡・消去の印を外す（Hyperlink の novelize、ECA の死亡予定・隔離等）。
+            // 保護で HP 0 を止めているだけだと印が残り、10 秒の保護が切れた瞬間にその MOD に殺される
+            cleanLingeringKillState(player);
             if (grace <= 1) {
                 RESPAWN_GRACE_TICKS.remove(player.getUUID());
             } else {
@@ -137,9 +159,9 @@ public final class PlayerWard {
             }
         }
 
-        // ラストソードを手放した場合や死亡後の位置固定・無敵・ヘルスロックを毎 Tick 自動解除
+        // ラストソードを手放した場合の位置固定のみを安全に解除（チートMOD解除や小説化解除はリスポーン保護中のみ）
         if (!EcaLastSwordHelper.hasDefenseSword(player)) {
-            EcaLastSwordHelper.cleanupPlayerRestraints(player);
+            EcaLastSwordHelper.clearLocationLock(player.getUUID());
         }
         // 溜まった魂ダメージ（The Trial Monolith）は溜まり切ると死亡させ、復活後も残って死に続けるので毎 Tick 戻す
         if (isActive(player) && EprotectTrialMonolithCounter.counter(player)) {

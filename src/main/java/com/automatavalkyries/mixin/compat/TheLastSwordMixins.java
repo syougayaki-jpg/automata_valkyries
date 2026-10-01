@@ -58,6 +58,12 @@ public final class TheLastSwordMixins {
         @Inject(method = "attack(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/world/entity/Entity;F)V",
                 at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardAttack(LivingEntity living, Entity attacker, float damage, CallbackInfo ci) {
+            if (living instanceof net.minecraft.world.entity.player.Player player) {
+                if (com.automatavalkyries.protect.PlayerWard.isRespawnProtected(player)) {
+                    ci.cancel();
+                }
+                return;
+            }
             if (EprotectCompat.shieldAttack(living, "the_last_sword:attack")) {
                 ci.cancel();
             }
@@ -74,6 +80,12 @@ public final class TheLastSwordMixins {
         @Inject(method = "applyBaseDamage(Lnet/minecraft/world/entity/Entity;)V",
                 at = @At("HEAD"), cancellable = true, require = 0)
         private void automata_valkyries$guardBaseDamage(Entity target, CallbackInfo ci) {
+            if (target instanceof net.minecraft.world.entity.player.Player player) {
+                if (com.automatavalkyries.protect.PlayerWard.isRespawnProtected(player)) {
+                    ci.cancel();
+                }
+                return;
+            }
             if (EprotectCompat.shieldAttack(target, "the_last_sword:projectileBase")) {
                 ci.cancel();
             }
@@ -82,6 +94,12 @@ public final class TheLastSwordMixins {
         @Inject(method = "applyExtraDamage(Lnet/minecraft/world/entity/Entity;)V",
                 at = @At("HEAD"), cancellable = true, require = 0)
         private void automata_valkyries$guardExtraDamage(Entity target, CallbackInfo ci) {
+            if (target instanceof net.minecraft.world.entity.player.Player player) {
+                if (com.automatavalkyries.protect.PlayerWard.isRespawnProtected(player)) {
+                    ci.cancel();
+                }
+                return;
+            }
             if (EprotectCompat.shieldAttack(target, "the_last_sword:projectileExtra")) {
                 ci.cancel();
             }
@@ -96,7 +114,7 @@ public final class TheLastSwordMixins {
         private static void automata_valkyries$guardUltraTestSwordTick(net.minecraftforge.event.TickEvent.PlayerTickEvent event, CallbackInfo ci) {
             if (event != null && event.player != null) {
                 if (!com.automatavalkyries.protect.EcaLastSwordHelper.hasDefenseSword(event.player)) {
-                    com.automatavalkyries.protect.EcaLastSwordHelper.cleanupPlayerRestraints(event.player);
+                    com.automatavalkyries.protect.EcaLastSwordHelper.clearLocationLock(event.player.getUUID());
                 }
             }
         }
