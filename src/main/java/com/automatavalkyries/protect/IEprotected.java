@@ -14,4 +14,9 @@ public interface IEprotected {
 
     /** ワールドへの入り直しを拒否され、同じ UUID の新しい個体に差し替えられた古い個体で呼ばれる（ボスバー等の後片付け） */
     default void onRetired() {}
+
+    /** 異常修復が短時間に規定回数（既定200回）を超えた際に自動退避するか（ボスなどで退避させたくない場合は false） */
+    default boolean canRetreatOnExcessiveAnomalies() {
+        return true;
+    }
 }

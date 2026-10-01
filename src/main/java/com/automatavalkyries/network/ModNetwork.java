@@ -24,5 +24,11 @@ public final class ModNetwork {
                 .decoder(AnnihilatedEntitiesPacket::decode)
                 .consumerMainThread(AnnihilatedEntitiesPacket::handle)
                 .add();
+
+        CHANNEL.messageBuilder(TerminusPlayerDeathPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(TerminusPlayerDeathPacket::encode)
+                .decoder(TerminusPlayerDeathPacket::decode)
+                .consumerMainThread(TerminusPlayerDeathPacket::handle)
+                .add();
     }
 }

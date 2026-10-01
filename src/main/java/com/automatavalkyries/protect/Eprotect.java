@@ -633,8 +633,10 @@ public class Eprotect {
             anomalyCount = 0;
         }
         anomalyCount += count;
+        boolean canRetreat = !(owner instanceof IEprotected eprotected) || eprotected.canRetreatOnExcessiveAnomalies();
         if (anomalyCount >= EprotectConfig.get(EprotectConfig.RETREAT_ANOMALY_THRESHOLD)
-                && EprotectConfig.get(EprotectConfig.RETREAT_WHEN_UNREPAIRABLE)) {
+                && EprotectConfig.get(EprotectConfig.RETREAT_WHEN_UNREPAIRABLE)
+                && canRetreat) {
             AutomataValkyries.LOGGER.warn("[eprotect] {} anomalies repaired within {} ticks; retreating {} safely",
                     anomalyCount, window, owner);
             AttackLog.retreated(owner);

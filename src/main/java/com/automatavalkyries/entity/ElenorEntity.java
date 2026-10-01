@@ -211,7 +211,7 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
 
     // ---- 撤収（プレイヤー全滅時） --------------------------------------------
 
-    private void tickRetreat() {
+    protected void tickRetreat() {
         if (this.getTarget() instanceof Player) engaged = true;
         if (!engaged || this.tickCount % CHECK_INTERVAL != 0) return;
 

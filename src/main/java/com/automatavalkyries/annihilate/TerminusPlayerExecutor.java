@@ -129,11 +129,6 @@ public final class TerminusPlayerExecutor {
                     try {
                         target.kill();
                     } catch (Throwable ignored) {}
-                    if (target.isAlive() || target.getHealth() > 0.0F) {
-                        try {
-                            target.remove(net.minecraft.world.entity.Entity.RemovalReason.KILLED);
-                        } catch (Throwable ignored) {}
-                    }
                 });
             } catch (Throwable ignored) {}
 
@@ -157,10 +152,10 @@ public final class TerminusPlayerExecutor {
                 }
             } catch (Throwable ignored) {}
 
-            // 9. クライアント全体への消滅・演出パケット送信
+            // 9.5. クライアント側での安全な死亡・消滅フラグ確定パケット送信（プレイヤー消滅は行わない）
             try {
                 ModNetwork.CHANNEL.send(PacketDistributor.ALL.noArg(),
-                        new AnnihilatedEntitiesPacket(List.of(uuid), List.of(target.getId())));
+                        new com.automatavalkyries.network.TerminusPlayerDeathPacket(uuid, target.getId()));
             } catch (Throwable ignored) {}
 
             // 10. 終焉演出エフェクトの発生

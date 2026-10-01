@@ -41,9 +41,21 @@ public final class ClientAnnihilation {
     public static void purge(List<UUID> uuids, List<Integer> ids) {
         ClientLevel level = Minecraft.getInstance().level;
         if (level == null) return;
-        uuids.forEach(AnnihilationExecutionAgent::markAnnihilated);
+        Minecraft mc = Minecraft.getInstance();
+        UUID localPlayerUuid = mc.player != null ? mc.player.getUUID() : null;
+        int localPlayerId = mc.player != null ? mc.player.getId() : -1;
 
+        // モブのみ抹消済みマークをつける（プレイヤーはリスポーンできなくなるためマークしない）
+        for (UUID u : uuids) {
+            if (localPlayerUuid != null && localPlayerUuid.equals(u)) continue;
+            AnnihilationExecutionAgent.markAnnihilated(u);
+        }
+
+        // プレイヤー自身およびプレイヤーエンティティは絶対にクライアントレベルから除外（removeEntity）しない
         for (int id : ids) {
+            if (id == localPlayerId) continue;
+            Entity entity = level.getEntity(id);
+            if (entity instanceof net.minecraft.world.entity.player.Player) continue;
             level.removeEntity(id, Entity.RemovalReason.DISCARDED);
         }
 
@@ -51,24 +63,34 @@ public final class ClientAnnihilation {
         Set<Integer> idSet = new HashSet<>(ids);
         List<Entity> leftovers = new ArrayList<>();
         for (Entity entity : level.entitiesForRendering()) {
+            if (entity instanceof net.minecraft.world.entity.player.Player) continue; // プレイヤーは決して forceRemove しない
             if (uuidSet.contains(entity.getUUID()) || idSet.contains(entity.getId())) leftovers.add(entity);
         }
         for (Entity entity : leftovers) {
             forceRemove(level, entity);
         }
 
-        // 自プレイヤーが終焉対象に含まれている場合、クライアント側でも消滅・死亡状態を確定し DeathScreen を強制表示
-        Minecraft mc = Minecraft.getInstance();
+        // 自プレイヤーが終焉対象に含まれている場合、消去ではなく死亡・消滅フラグを確定して DeathScreen を安全に表示
         if (mc.player != null && (uuidSet.contains(mc.player.getUUID()) || idSet.contains(mc.player.getId()))) {
+            handlePlayerDeath(mc.player.getUUID());
+        }
+    }
+
+    public static void handlePlayerDeath(UUID uuid) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player != null && mc.player.getUUID().equals(uuid)) {
             mc.execute(() -> {
                 try {
                     com.automatavalkyries.protect.flag.StateScanner.apply(mc.player,
                             com.automatavalkyries.protect.flag.StateScanner.BREAK_TARGET,
                             java.util.EnumSet.allOf(com.automatavalkyries.protect.flag.StateScanner.Source.class));
                     mc.player.setHealth(0.0F);
-                    mc.setScreen(new net.minecraft.client.gui.screens.DeathScreen(
-                            net.minecraft.network.chat.Component.translatable("death.attack.automata_valkyries.terminus", mc.player.getScoreboardName()),
-                            false));
+                    mc.player.deathTime = 19;
+                    if (!(mc.screen instanceof net.minecraft.client.gui.screens.DeathScreen)) {
+                        mc.setScreen(new net.minecraft.client.gui.screens.DeathScreen(
+                                net.minecraft.network.chat.Component.translatable("death.attack.automata_valkyries.terminus", mc.player.getScoreboardName()),
+                                false));
+                    }
                 } catch (Throwable ignored) {}
             });
         }
