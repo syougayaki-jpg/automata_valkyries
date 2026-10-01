@@ -10,10 +10,13 @@ import com.automatavalkyries.protect.attack.AttackLog;
 import com.automatavalkyries.protect.attack.AttackOp;
 import com.automatavalkyries.protect.attack.CallerAttribution;
 import com.automatavalkyries.protect.attack.ModBlacklist;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
@@ -27,6 +30,7 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.common.world.ForgeChunkManager;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
@@ -60,6 +64,8 @@ public class Eprotect {
      * 無敵時間を消して hurt() を連打すると、1 撃ごとの上限だけでは 1 Tick のうちに正規撃破まで削られる
      */
     public static final int DAMAGE_WINDOW_TICKS = 200;
+    /** ブラックリストの MOD からのダメージの上限（罰則。{@link #MAX_HIT_RATIO} の代わりに使う） */
+    public static final float BLACKLIST_HIT_RATIO = 0.01F;
     /** 本体の Tick がこの Tick 数より長く止まっていたら Tick 停止とみなす */
     private static final long TICK_STALL_THRESHOLD = 3;
 
@@ -310,9 +316,13 @@ public class Eprotect {
      * HP に反映される直前: {@link #DAMAGE_WINDOW_TICKS} の間に引く量を、合計で最大 HP の {@link #MAX_HIT_RATIO} までに制限する。
      * 窓は最初の被弾から数え始める（上限いっぱいの 1 撃を受けたら、次に削られるのは窓が明けてから）
      */
-    public float capFinalDamage(float amount) {
+    public float capFinalDamage(float amount, @Nullable DamageSource source) {
         if (!isProtectionActive()) return amount;
-        float cap = Math.max(1.0F, owner.getMaxHealth() * MAX_HIT_RATIO);
+        // ブラックリストの MOD からのダメージは上限を下げる（罰則）
+        String penalized = source != null ? blacklistedDamageMod(source) : null;
+        float ratio = penalized != null ? BLACKLIST_HIT_RATIO : MAX_HIT_RATIO;
+        if (penalized != null) AttackLog.blocked(owner, AttackOp.DAMAGE_PENALTY, penalized);
+        float cap = Math.max(1.0F, owner.getMaxHealth() * ratio);
         if (!Float.isFinite(amount)) amount = cap;
         long now = owner.level().getGameTime();
         if (now - damageWindowStart >= DAMAGE_WINDOW_TICKS) {
@@ -322,6 +332,28 @@ public class Eprotect {
         float allowed = Math.max(0.0F, Math.min(amount, cap - damageInWindow));
         damageInWindow += allowed;
         return allowed;
+    }
+
+    /**
+     * ダメージの出どころがブラックリストの MOD ならその ID（攻撃者の持つアイテム → 直接・間接の攻撃元の種類 → ダメージの種類 →
+     * 呼び出し経路の順に見る）。ブラックリストが空なら何もしない
+     */
+    @Nullable
+    private String blacklistedDamageMod(DamageSource source) {
+        if (!ModBlacklist.isActive()) return null;
+        List<String> candidates = new ArrayList<>();
+        if (source.getEntity() instanceof LivingEntity attacker && !attacker.getMainHandItem().isEmpty()) {
+            ResourceLocation item = BuiltInRegistries.ITEM.getKey(attacker.getMainHandItem().getItem());
+            if (item != null) candidates.add(item.getNamespace());
+        }
+        if (source.getDirectEntity() != null) candidates.add(BuiltInRegistries.ENTITY_TYPE.getKey(source.getDirectEntity().getType()).getNamespace());
+        if (source.getEntity() != null) candidates.add(BuiltInRegistries.ENTITY_TYPE.getKey(source.getEntity().getType()).getNamespace());
+        source.typeHolder().unwrapKey().ifPresent(key -> candidates.add(key.location().getNamespace()));
+        for (String mod : candidates) {
+            if (ModBlacklist.contains(mod)) return mod;
+        }
+        String caller = CallerAttribution.foreignClassMod(owner);
+        return ModBlacklist.contains(caller) ? caller : null;
     }
 
     /** 被弾量の時間窓を数え直す（GameTest や、演出として正規に続けて大ダメージを与えたい場合に使う） */
@@ -414,6 +446,9 @@ public class Eprotect {
         if (restoreHealth()) anomalies++;
         if (clearDeadFlag()) anomalies++;
         anomalies += restorePresence();
+        // vanilla の状態を戻した後に回す（vanilla のフィールドを見せるだけのアクセサ（nosugar の DeadFlag 等）を
+        // 他 MOD 固有の状態と取り違えて、直書きの修復をその MOD の攻撃として記録しないため）
+        if (ForeignStateCleaner.clean(owner)) anomalies++;
         if (restoreTickingIfStopped()) anomalies++;
 
         if (anomalies > 0) noteAnomalies(anomalies);

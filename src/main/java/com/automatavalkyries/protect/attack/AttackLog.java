@@ -92,6 +92,7 @@ public final class AttackLog {
                 : a.callerIsForeign() ? a.callerMod() : a.foreignMod() != null ? a.foreignMod() : a.callerMod();
         String charge = CallerAttribution.isForeign(knownMod) ? knownMod : chargeable(a);
         record(target, mod, op, Outcome.REFUSED, a.callerFrame(), mod.equals(a.callerMod()) ? null : a.callerMod(), charge);
+        AttackerListCleanup.afterAttack(target, a);
     }
 
     /** ブラックリストの MOD なので拒否した（判定で求めた呼び出し元をそのまま使う） */
@@ -110,6 +111,7 @@ public final class AttackLog {
         String via = a.callerMod();
         String mod = a.otherForeign() != null ? a.otherForeign() : via;
         record(target, mod, AttackOp.COMPAT + ":" + op, Outcome.SHIELDED, a.callerFrame(), mod.equals(via) ? null : via, chargeable(a));
+        AttackerListCleanup.afterAttack(target, a);
     }
 
     /** 即死 MOD が付けたフラグ・登録を解除した（その MOD の名前は対策側が知っている） */

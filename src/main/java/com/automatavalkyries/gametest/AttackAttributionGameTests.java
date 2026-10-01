@@ -296,6 +296,82 @@ public class AttackAttributionGameTests {
         helper.succeed();
     }
 
+    /** ブラックリストの MOD からのダメージは、上限が最大 HP の 1% に下がる（罰則） */
+    @GameTest(template = TEMPLATE)
+    public static void blacklistedDamageIsCappedHarder(GameTestHelper helper) {
+        ElenorEntity elenor = spawnElenor(helper);
+        ModBlacklist.add(FakeKillMod.MOD_ID, ModBlacklist.Source.MANUAL, false);
+        try {
+            elenor.getEprotect().resetDamageWindow();
+            float before = elenor.getHealth();
+            float penaltyCap = Math.max(1.0F, elenor.getMaxHealth() * com.automatavalkyries.protect.Eprotect.BLACKLIST_HIT_RATIO);
+            FakeKillMod.hit(elenor, helper.getLevel().damageSources().generic(), elenor.getMaxHealth());
+            float taken = before - elenor.getHealth();
+            helper.assertTrue(Math.abs(taken - penaltyCap) < 0.01F, "Blacklisted damage was not capped at 1%: took " + taken + ", cap " + penaltyCap);
+            helper.assertTrue(logged(FakeKillMod.MOD_ID, com.automatavalkyries.protect.attack.AttackOp.DAMAGE_PENALTY, AttackLog.Outcome.BLOCKED_BLACKLIST),
+                    "The damage penalty was not recorded");
+        } finally {
+            ModBlacklist.remove(FakeKillMod.MOD_ID, false);
+        }
+        finish(helper, elenor);
+    }
+
+    /**
+     * 他 MOD の状態の準汎用リセット: 死亡・破滅を表す値は戻り、守りを表す値は残る。
+     * 永続データの死亡の印は消え、他の値と vanilla の状態異常は残る
+     */
+    @GameTest(template = TEMPLATE)
+    public static void foreignKillStateIsReset(GameTestHelper helper) {
+        FakeKillMod.install();
+        var mob = new com.automatavalkyries.gametest.fake.FakeStatefulMob(net.minecraft.world.entity.EntityType.ZOMBIE, helper.getLevel());
+        mob.getPersistentData().putBoolean("fakemod_doomed", true);
+        mob.getPersistentData().putBoolean("fakemod_protected", true);
+        mob.getPersistentData().putInt("fakemod_level", 3);
+        mob.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.WEAKNESS, 200));
+
+        helper.assertTrue(com.automatavalkyries.protect.ForeignStateCleaner.clean(mob), "Nothing was cleaned");
+        helper.assertFalse(mob.fakemod$isMarkedForDeath(), "Death mark was not reset");
+        helper.assertTrue(mob.fakemod$getDoomLevel() == 0.0F, "Doom level was not reset: " + mob.fakemod$getDoomLevel());
+        helper.assertTrue(mob.fakemod$isProtected(), "A guard-like value was touched");
+        helper.assertFalse(mob.getPersistentData().contains("fakemod_doomed"), "Persistent kill mark was not removed");
+        helper.assertTrue(mob.getPersistentData().contains("fakemod_protected"), "A guard-like persistent value was removed");
+        helper.assertTrue(mob.getPersistentData().contains("fakemod_level"), "An unrelated persistent value was removed");
+        helper.assertTrue(mob.hasEffect(net.minecraft.world.effect.MobEffects.WEAKNESS), "A vanilla effect was removed");
+        helper.assertFalse(com.automatavalkyries.protect.ForeignStateCleaner.clean(mob), "A clean entity was cleaned again");
+        helper.succeed();
+    }
+
+    /** 他 MOD が保護対象の Tick を取り消しても戻す。保護対象でなければ取り消しのまま */
+    @GameTest(template = TEMPLATE)
+    public static void cancelledTickIsRestoredForProtectedOnly(GameTestHelper helper) {
+        ElenorEntity elenor = spawnElenor(helper);
+        var protectedTick = new net.minecraftforge.event.entity.living.LivingEvent.LivingTickEvent(elenor);
+        protectedTick.setCanceled(true);
+        net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(protectedTick);
+        helper.assertFalse(protectedTick.isCanceled(), "The protected entity's tick stayed cancelled");
+
+        Entity zombie = helper.spawnWithNoFreeWill(net.minecraft.world.entity.EntityType.ZOMBIE, new BlockPos(1, 2, 1));
+        var otherTick = new net.minecraftforge.event.entity.living.LivingEvent.LivingTickEvent((net.minecraft.world.entity.LivingEntity) zombie);
+        otherTick.setCanceled(true);
+        net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(otherTick);
+        helper.assertTrue(otherTick.isCanceled(), "An unprotected entity's tick was un-cancelled");
+        zombie.discard();
+        finish(helper, elenor);
+    }
+
+    /** 拒否した攻撃の後、攻撃した MOD のクラスの静的な一覧から保護対象が取り除かれる（同じ個体を狙い直させない） */
+    @GameTest(template = TEMPLATE)
+    public static void attackerKillListIsCleanedAfterRefusal(GameTestHelper helper) {
+        ElenorEntity elenor = spawnElenor(helper);
+        FakeKillMod.DOOMED_UUIDS.clear();
+        FakeKillMod.DOOMED_ENTITIES.clear();
+        FakeKillMod.doomAndDiscard(elenor);
+        helper.assertFalse(elenor.isRemoved(), "The discard was not refused");
+        helper.assertFalse(FakeKillMod.DOOMED_UUIDS.contains(elenor.getUUID()), "The UUID is still in the attacker's list");
+        helper.assertFalse(FakeKillMod.DOOMED_ENTITIES.contains(elenor), "The entity is still in the attacker's list");
+        finish(helper, elenor);
+    }
+
     /** Mixin を経ない直書きの修復は、呼び出し元不明（unknown）として記録される */
     @GameTest(template = TEMPLATE)
     public static void directWriteRepairIsRecordedAsUnknown(GameTestHelper helper) {

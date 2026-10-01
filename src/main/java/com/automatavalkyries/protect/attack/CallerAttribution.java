@@ -46,7 +46,8 @@ public final class CallerAttribution {
      * @param foreignMod   最寄りの他 MOD（無ければ null）
      * @param otherForeign 直接の呼び出し元とは別の、最寄りの他 MOD（互換 Mixin で「経由した MOD」と「攻撃した MOD」を分ける用）
      */
-    public record Attribution(String callerMod, String callerFrame, @Nullable String foreignMod, @Nullable String otherForeign) {
+    public record Attribution(String callerMod, String callerFrame, @Nullable String foreignMod, @Nullable String otherForeign,
+                              @Nullable Class<?> callerClass, @Nullable Class<?> foreignClass) {
         public boolean callerIsForeign() {
             return isForeign(callerMod);
         }
@@ -144,6 +145,8 @@ public final class CallerAttribution {
             String callerFrame = "?";
             String foreign = null;
             String other = null;
+            Class<?> callerClass = null;
+            Class<?> foreignClass = null;
             Iterator<StackWalker.StackFrame> it = frames.limit(MAX_FRAMES).iterator();
             while (it.hasNext()) {
                 StackWalker.StackFrame frame = it.next();
@@ -167,20 +170,27 @@ public final class CallerAttribution {
                 if (callerMod == null) {
                     callerMod = mod;
                     callerFrame = type.getName() + "." + method + ":" + frame.getLineNumber();
+                    callerClass = merged ? null : type;
                     if (callerOnly) break;
-                    if (isForeign(mod)) foreign = mod;
+                    if (isForeign(mod)) {
+                        foreign = mod;
+                        foreignClass = callerClass;
+                    }
                     continue;
                 }
                 // 直接の呼び出し元より先では、vanilla へ差し込まれたメソッドは数えない（Hyperlink のように全エンティティの Tick に
                 // 差し込む MOD が、どの攻撃の経路にも現れて攻撃者と取り違えられるため）
                 if (merged) continue;
                 if (isForeign(mod)) {
-                    if (foreign == null) foreign = mod;
+                    if (foreign == null) {
+                        foreign = mod;
+                        foreignClass = type;
+                    }
                     if (other == null && !mod.equals(callerMod)) other = mod;
                     if (foreign != null && other != null) break;
                 }
             }
-            return new Attribution(callerMod != null ? callerMod : UNKNOWN, callerFrame, foreign, other);
+            return new Attribution(callerMod != null ? callerMod : UNKNOWN, callerFrame, foreign, other, callerClass, foreignClass);
         });
     }
 

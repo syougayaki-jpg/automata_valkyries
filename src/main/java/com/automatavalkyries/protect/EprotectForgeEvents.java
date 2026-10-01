@@ -42,6 +42,20 @@ public class EprotectForgeEvents {
     }
 
     /** 即死ダメージの拒否を記録する。ダメージの種類と、攻撃者の持つアイテムの名前空間（アイテムによる即死ならその MOD の ID）も添える */
+    /**
+     * 他 MOD が保護対象の毎 Tick の処理（LivingTickEvent）をキャンセルして止めたら、最後に打ち消す。
+     * 止められると修復（本体の Tick から呼ぶ）も AI も動かなくなる
+     */
+    @SubscribeEvent(priority = EventPriority.LOWEST, receiveCanceled = true)
+    public static void onLivingTick(net.minecraftforge.event.entity.living.LivingEvent.LivingTickEvent event) {
+        if (!event.isCanceled() || event.getEntity().level().isClientSide()) return;
+        if (!(event.getEntity() instanceof IEprotected provider)) return;
+        Eprotect protect = provider.getEprotect();
+        if (protect == null || !protect.isProtectionActive()) return;
+        event.setCanceled(false);
+        AttackLog.repaired(event.getEntity(), "cancelled_tick");
+    }
+
     public static void recordKillDamage(LivingEntity target, DamageSource source) {
         var typeKey = source.typeHolder().unwrapKey().map(key -> key.location()).orElse(null);
         String knownMod = typeKey != null && !"minecraft".equals(typeKey.getNamespace()) ? typeKey.getNamespace() : null;

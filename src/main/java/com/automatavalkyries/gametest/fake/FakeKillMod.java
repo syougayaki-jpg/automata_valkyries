@@ -17,6 +17,17 @@ public final class FakeKillMod {
 
     private FakeKillMod() {}
 
+    /** 抹殺予定の一覧（実際の即死 MOD は ここに載せた個体を後から何度も攻撃し直す） */
+    public static final java.util.Set<java.util.UUID> DOOMED_UUIDS = new java.util.HashSet<>();
+    public static final java.util.List<Entity> DOOMED_ENTITIES = new java.util.ArrayList<>();
+
+    /** 抹殺予定に載せてから消そうとする */
+    public static void doomAndDiscard(Entity target) {
+        DOOMED_UUIDS.add(target.getUUID());
+        DOOMED_ENTITIES.add(target);
+        target.discard();
+    }
+
     public static void install() {
         CallerAttribution.overrideForTest(PACKAGE, MOD_ID);
     }

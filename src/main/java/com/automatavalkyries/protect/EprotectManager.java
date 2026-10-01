@@ -157,7 +157,7 @@ public class EprotectManager {
         if (event.getEntity() instanceof IEprotected provider) {
             Eprotect protect = provider.getEprotect();
             if (protect != null) {
-                event.setAmount(protect.capFinalDamage(event.getAmount()));
+                event.setAmount(protect.capFinalDamage(event.getAmount(), event.getSource()));
             }
         }
     }

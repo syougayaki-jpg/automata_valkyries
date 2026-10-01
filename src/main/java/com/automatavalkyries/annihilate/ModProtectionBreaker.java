@@ -3,24 +3,20 @@ package com.automatavalkyries.annihilate;
 import com.automatavalkyries.AutomataValkyries;
 import com.automatavalkyries.protect.IEprotected;
 import com.automatavalkyries.protect.attack.CallerAttribution;
-import com.automatavalkyries.util.UnsafeHelper;
+import com.automatavalkyries.util.StaticReferencePurger;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 
-import java.lang.ref.Reference;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.regex.Pattern;
 
 /**
@@ -55,8 +51,6 @@ public final class ModProtectionBreaker {
     private static final Pattern ZERO_COUNT = Pattern.compile(
             "(?i)(lives|lifecount|livesleft|remaininglives|extralives)|.*(revive|respawn|resurrect|rebirth)\\w*(count|left|remaining|times|charges)");
     private static final String[] CONTROLLER_KILL_METHODS = {"remove", "kill", "discard"};
-    /** これより大きい一覧は触らない（取り違えたときの被害と負荷を抑える） */
-    private static final int MAX_COLLECTION_SIZE = 10_000;
 
     private static final String TRIAL_MONOLITH = "io.github.kosianodangoo.trialmonolith.";
 
@@ -254,59 +248,8 @@ public final class ModProtectionBreaker {
         Set<Object> victims = Collections.newSetFromMap(new IdentityHashMap<>());
         victims.add(target);
         victims.addAll(controllers);
-        UUID uuid = target.getUUID();
-        for (Class<?> type : classes) {
-            for (Field field : type.getDeclaredFields()) {
-                if (!Modifier.isStatic(field.getModifiers()) || field.getType().isPrimitive()) continue;
-                try {
-                    field.setAccessible(true);
-                    Object value = field.get(null);
-                    int removed = 0;
-                    if (value instanceof Collection<?> collection) removed = purgeCollection(collection, victims, uuid);
-                    else if (value instanceof Map<?, ?> map) removed = purgeMap(map, victims, uuid);
-                    if (removed > 0) {
-                        AutomataValkyries.LOGGER.info("[AnnihilationAgent] Removed {} reference(s) to {} from {}.{}", removed,
-                                target.getName().getString(), type.getSimpleName(), field.getName());
-                    }
-                } catch (Throwable ignored) {}
-            }
-        }
+        StaticReferencePurger.purge(classes, victims, target.getUUID(), target.getName().getString());
     }
-
-    private static int purgeCollection(Collection<?> collection, Set<Object> victims, UUID uuid) {
-        if (collection.size() > MAX_COLLECTION_SIZE) return 0;
-        List<Object> matches = new ArrayList<>();
-        for (Object element : collection.toArray()) {
-            if (matches(element, victims, uuid)) matches.add(element);
-        }
-        if (matches.isEmpty()) return 0;
-        int removed = 0;
-        for (Object element : matches) {
-            // 1 回ずつ remove する（Iterator.remove は、削除を拒否する一覧で同じ要素を返し続けて止まらなくなる）
-            for (int i = 0; i < 4 && collection.remove(element); i++) removed++;
-        }
-        // 削除を拒否する ArrayList（Omni-Mobs の ProtectedArrayList 等）は内部配列を詰める
-        if (removed < matches.size()) removed += UnsafeHelper.removeFromArrayList(collection, e -> matches(e, victims, uuid));
-        return removed;
-    }
-
-    private static int purgeMap(Map<?, ?> map, Set<Object> victims, UUID uuid) {
-        if (map.size() > MAX_COLLECTION_SIZE) return 0;
-        int removed = 0;
-        for (Map.Entry<?, ?> entry : new ArrayList<>(map.entrySet())) {
-            if (matches(entry.getKey(), victims, uuid) || matches(entry.getValue(), victims, uuid)) {
-                if (map.remove(entry.getKey()) != null || !map.containsKey(entry.getKey())) removed++;
-            }
-        }
-        return removed;
-    }
-
-    private static boolean matches(Object element, Set<Object> victims, UUID uuid) {
-        if (element == null) return false;
-        if (victims.contains(element) || uuid.equals(element)) return true;
-        return element instanceof Reference<?> reference && victims.contains(reference.get());
-    }
-
     // ---- 共通 --------------------------------------------------------------
 
     private static Method findNoArg(Class<?> type, String name) {
