@@ -50,6 +50,7 @@ public final class EprotectCommands {
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("eprotect")
                 .requires(source -> source.hasPermission(2))
+                .then(Commands.literal("observer").executes(EprotectCommands::showObserver))
                 .then(Commands.literal("attacks")
                         .executes(EprotectCommands::showAttacks)
                         .then(Commands.literal("clear").executes(EprotectCommands::clearAttacks)))
@@ -105,6 +106,39 @@ public final class EprotectCommands {
                 yesNo(FlagDictionary.harmfulOnProtected(name)), yesNo(FlagDictionary.protectiveOnTarget(name)),
                 yesNo(FlagDictionary.livesCounter(name))), false);
         return categories.size();
+    }
+
+    /** 観察用 Java エージェントの記録（新しい順に 10 件。クラスの書き換えと、新しく見つけた変換器） */
+    private static int showObserver(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        if (!com.automatavalkyries.protect.ObserverLink.active()) {
+            source.sendSuccess(() -> Component.translatable(KEY + "observer.inactive").withStyle(ChatFormatting.GRAY), false);
+            return 0;
+        }
+        var events = com.automatavalkyries.protect.ObserverLink.events();
+        source.sendSuccess(() -> Component.translatable(KEY + "observer.header",
+                String.valueOf(com.automatavalkyries.protect.ObserverLink.status())).withStyle(ChatFormatting.GOLD), false);
+        int shown = 0;
+        for (int i = events.size() - 1; i >= 0 && shown < 10; i--) {
+            var e = events.get(i);
+            shown++;
+            source.sendSuccess(() -> Component.translatable(KEY + "observer.entry", e.get("time"), e.get("kind"), e.get("class"), e.classMod(),
+                    e.callerMod(), e.get("caller").isEmpty() ? "-" : e.get("caller")), false);
+            if (!e.get("neutered").isEmpty()) {
+                source.sendSuccess(() -> Component.translatable(KEY + "observer.neutered", e.get("neutered")).withStyle(ChatFormatting.RED), false);
+            }
+            if (!e.get("changed").isEmpty()) {
+                source.sendSuccess(() -> Component.translatable(KEY + "observer.changed", e.get("changed")).withStyle(ChatFormatting.GRAY), false);
+            }
+            var unknown = e.unknownAddedNames();
+            if (!unknown.isEmpty()) {
+                source.sendSuccess(() -> Component.translatable(KEY + "observer.unknown", String.join(", ", unknown)).withStyle(ChatFormatting.AQUA), false);
+            }
+            if (!e.get("note").isEmpty()) {
+                source.sendSuccess(() -> Component.literal("  " + e.get("note")).withStyle(ChatFormatting.DARK_GRAY), false);
+            }
+        }
+        return events.size();
     }
 
     /** 辞書補助の監視が挙げた候補（点数の高い順に 10 件） */

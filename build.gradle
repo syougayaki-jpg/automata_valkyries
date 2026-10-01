@@ -16,6 +16,33 @@ base {
 // Mojang ships Java 17 to end users in 1.18+, so your mod should target Java 17.
 java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 
+// 観察用の Java エージェント（src/observer）。MOD とは別の jar（build/libs/automata_valkyries-observer.jar）にし、
+// 起動オプション -javaagent で読ませる。Minecraft・Forge には依存しない（JDK だけ）
+sourceSets {
+    observer
+}
+def observerJarFile = layout.buildDirectory.file("libs/${mod_id}-observer.jar")
+tasks.register('observerJar', Jar) {
+    group = 'build'
+    description = 'Builds the observation Java agent'
+    from sourceSets.observer.output
+    archiveFileName = "${mod_id}-observer.jar"
+    manifest {
+        attributes([
+                'Premain-Class'          : 'com.automatavalkyries.observer.ObserverAgent',
+                'Agent-Class'            : 'com.automatavalkyries.observer.ObserverAgent',
+                'Can-Retransform-Classes': 'true',
+                'Can-Redefine-Classes'   : 'false',
+                'Implementation-Version' : mod_version
+        ])
+    }
+}
+tasks.named('assemble') { dependsOn 'observerJar' }
+if (project.hasProperty('withObserver')) {
+    tasks.matching { it.name.startsWith('prepareRun') || it.name in ['runClient', 'runServer', 'runGameTestServer'] }
+            .configureEach { dependsOn 'observerJar' }
+}
+
 println "Java: ${System.getProperty 'java.version'}, JVM: ${System.getProperty 'java.vm.version'} (${System.getProperty 'java.vendor'}), Arch: ${System.getProperty 'os.arch'}"
 minecraft {
     // The mappings can be changed at any time and must be in the following format.
@@ -77,6 +104,9 @@ minecraft {
 
             // -PgenericOnly（runGameTestServer / runClient）: MOD ごとの個別対策を切り、準汎用の層だけでどこまで守れるかを測る
             if (project.hasProperty('genericOnly')) property 'automata_valkyries.genericOnly', 'true'
+
+            // -PwithObserver: 観察用の Java エージェント（クラスの書き換えを見張るだけ）を付けて起動する
+            if (project.hasProperty('withObserver')) jvmArg "-javaagent:${observerJarFile.get().asFile.absolutePath}"
 
             mods {
                 "${mod_id}" {

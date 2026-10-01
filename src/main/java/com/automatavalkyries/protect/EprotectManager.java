@@ -166,6 +166,7 @@ public class EprotectManager {
     public void onServerStarted(ServerStartedEvent event) {
         EprotectWatchdogAgent.getInstance().start(event.getServer());
         com.automatavalkyries.protect.flag.FlagWatchAgent.getInstance().start(event.getServer());
+        ObserverLink.logStatus();
         if (EprotectConfig.get(EprotectConfig.ATTACK_LOG_WRITE_FILE)) AttackLogFile.open();
     }
 

@@ -44,6 +44,7 @@ Windows では `.\gradlew.bat`、Git Bash では `./gradlew`。
 | **ロード確認（GUI なし）** | `./gradlew runGameTestServer` — サーバーが起動して GameTest を実行し、自動終了する。登録エラーやクラッシュの検出に使う |
 | ゲーム起動（手動確認） | `./gradlew runClient` — ウィンドウが開くので、ユーザーに確認を依頼する |
 | 準汎用だけで測る | `-PgenericOnly` を足す（`runGameTestServer` / `runClient`）。MOD ごとの個別対策（互換 Mixin・KillModCounters・ボス固有の無力化）を切り、フラグ辞書などの準汎用の層だけでどこまで守れる・倒せるかを見る |
+| 観察用 Java エージェントを付ける | `-PwithObserver` を足す（`runGameTestServer` / `runClient`）。`build/libs/automata_valkyries-observer.jar`（`src/observer`、JDK だけに依存）を `-javaagent` で読ませる。クラスは書き換えず、他の Java エージェントによる実行中の書き換え（再変換・再定義）と呼んだ側を `logs/automata_valkyries-observer.log` と `/eprotect observer` に出す。後から読み込まれたエージェントの再変換の中身は見えないので、見たいときはそのエージェントの後で `jcmd <pid> JVMTI.agent_load <jar>` で attach する |
 | データ生成 | `./gradlew runData` → `src/generated/resources/` |
 | MC ソース再展開 | `./gradlew extractMcSources`（Forge バージョンを変えたら再実行） |
 
