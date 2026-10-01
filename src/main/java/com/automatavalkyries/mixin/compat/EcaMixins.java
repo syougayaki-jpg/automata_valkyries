@@ -36,13 +36,13 @@ public final class EcaMixins {
         @Inject(method = "remove(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/entity/Entity$RemovalReason;)V",
                 at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardRemove(Entity entity, Entity.RemovalReason reason, CallbackInfo ci) {
-            if (EprotectCompat.shieldAttack(entity, "eca:remove")) ci.cancel();
+            if (entity instanceof net.minecraft.world.entity.player.Player || EprotectCompat.shieldAttack(entity, "eca:remove")) ci.cancel();
         }
 
         @Inject(method = "removeFromServerContainers(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/entity/Entity;)V",
                 at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardContainers(ServerLevel level, Entity entity, CallbackInfo ci) {
-            if (EprotectCompat.shieldAttack(entity, "eca:containers")) ci.cancel();
+            if (entity instanceof net.minecraft.world.entity.player.Player || EprotectCompat.shieldAttack(entity, "eca:containers")) ci.cancel();
         }
 
         @Inject(method = {"cleanupAI(Lnet/minecraft/world/entity/Entity;)V", "cleanupBossBar(Lnet/minecraft/world/entity/Entity;)V"},
@@ -60,7 +60,11 @@ public final class EcaMixins {
         /** 遠方（102400, -102400, 102400）への強制テレポート */
         @Inject(method = "teleport(Lnet/minecraft/world/entity/Entity;DDD)Z", at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardTeleport(Entity entity, double x, double y, double z, CallbackInfoReturnable<Boolean> cir) {
-            if (EprotectCompat.shieldAttack(entity, "eca:teleport")) cir.setReturnValue(false);
+            if (entity instanceof net.minecraft.world.entity.player.Player
+                    || (x == 102400.0D && y == -102400.0D && z == 102400.0D)
+                    || EprotectCompat.shieldAttack(entity, "eca:teleport")) {
+                cir.setReturnValue(false);
+            }
         }
     }
 
@@ -97,30 +101,30 @@ public final class EcaMixins {
         /** 検索表・区画・Tick 一覧・追跡からの隠蔽と追加拒否（ECA の各 Mixin が使う） */
         @Inject(method = "shouldBlockSpawn(Ljava/lang/Object;)Z", at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$exempt(Object entity, CallbackInfoReturnable<Boolean> cir) {
-            if (entity instanceof IEprotected) cir.setReturnValue(false);
+            if (entity instanceof net.minecraft.world.entity.player.Player || entity instanceof IEprotected) cir.setReturnValue(false);
         }
 
         /** ServerLevel.addFreshEntity / addEntity の拒否（入り直し・差し替えもここを通る） */
         @Inject(method = "shouldBlockSpawn(Lnet/minecraft/world/level/Level;Lnet/minecraft/world/entity/Entity;)Z",
                 at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$exemptAdd(Level level, Entity entity, CallbackInfoReturnable<Boolean> cir) {
-            if (entity instanceof IEprotected) cir.setReturnValue(false);
+            if (entity instanceof net.minecraft.world.entity.player.Player || entity instanceof IEprotected) cir.setReturnValue(false);
         }
     }
 
-    /** 消去中の個体の再登録を拒否する隔離。兵姫を隔離対象にさせない */
+    /** 消去中の個体の再登録を拒否する隔離。兵姫およびプレイヤーを隔離対象にさせない */
     @Pseudo
     @Mixin(targets = "net.eca.util.EntityRemovalQuarantine", remap = false)
     public abstract static class Quarantine {
         @Inject(method = "begin(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/entity/Entity;)V",
                 at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardBegin(ServerLevel level, Entity entity, CallbackInfo ci) {
-            if (EprotectCompat.shieldAttack(entity, "eca:begin")) ci.cancel();
+            if (entity instanceof net.minecraft.world.entity.player.Player || EprotectCompat.shieldAttack(entity, "eca:begin")) ci.cancel();
         }
 
         @Inject(method = "shouldBlockAdd(Lnet/minecraft/world/entity/Entity;)Z", at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$allowAdd(Entity entity, CallbackInfoReturnable<Boolean> cir) {
-            if (EprotectCompat.shouldShield(entity)) cir.setReturnValue(false);
+            if (entity instanceof net.minecraft.world.entity.player.Player || EprotectCompat.shouldShield(entity)) cir.setReturnValue(false);
         }
     }
 }

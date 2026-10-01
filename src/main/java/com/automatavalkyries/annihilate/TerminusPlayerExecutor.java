@@ -318,6 +318,60 @@ public final class TerminusPlayerExecutor {
                 // 4. クライアント側へ TerminusPlayerRespawnPacket を同報送信して完全正常化
                 ModNetwork.CHANNEL.send(PacketDistributor.ALL.noArg(),
                         new com.automatavalkyries.network.TerminusPlayerRespawnPacket(uuid));
+
+                // 5. ECA / 他 MOD のヘルスロック・無敵フック解除
+                try {
+                    Class<?> ecaApi = Class.forName("net.eca.api.EcaAPI");
+                    ecaApi.getMethod("unlockHealth", net.minecraft.world.entity.LivingEntity.class).invoke(null, player);
+                    ecaApi.getMethod("unlockMaxHealth", net.minecraft.world.entity.LivingEntity.class).invoke(null, player);
+                    ecaApi.getMethod("setInvulnerable", net.minecraft.world.entity.Entity.class, boolean.class).invoke(null, player, false);
+                } catch (Throwable ignored) {}
+
+                // 6. ECA 等の追放テレポートによる異常座標（Y < -64, |X| >= 50000, |Z| >= 50000 等）の検知と安全スポーン地点への救出
+                rescueIfAbnormalPosition(player);
+
+                // 7. 動作不能状態の解除（移動速度属性、重力等の正常化）
+                normalizePlayerMovement(player);
+            } catch (Throwable ignored) {}
+        }
+
+        @net.minecraftforge.eventbus.api.SubscribeEvent
+        public static void onPlayerTick(net.minecraftforge.event.TickEvent.PlayerTickEvent event) {
+            if (event.phase != net.minecraftforge.event.TickEvent.Phase.END) return;
+            if (!(event.player instanceof ServerPlayer player)) return;
+
+            // ECA 等による虚無座標（102400, -102400, 102400）または Y < -500 への追放を自動救出
+            rescueIfAbnormalPosition(player);
+
+            // 移動速度がゼロやマイナスに固定されている場合の自動修復
+            if (player.tickCount % 20 == 0) {
+                normalizePlayerMovement(player);
+            }
+        }
+
+        private static void rescueIfAbnormalPosition(ServerPlayer player) {
+            try {
+                Vec3 pos = player.position();
+                if (pos.y < -64.0D || Math.abs(pos.x) >= 50000.0D || Math.abs(pos.z) >= 50000.0D
+                        || (Math.abs(pos.x - 102400.0D) < 2.0D && Math.abs(pos.z - 102400.0D) < 2.0D)) {
+                    ServerLevel level = player.serverLevel();
+                    net.minecraft.core.BlockPos spawnPos = level.getSharedSpawnPos();
+                    AutomataValkyries.LOGGER.warn("[Terminus] Rescuing player {} from abnormal void coordinates ({}, {}, {}) to spawn ({}, {}, {})",
+                            player.getScoreboardName(), pos.x, pos.y, pos.z, spawnPos.getX(), spawnPos.getY(), spawnPos.getZ());
+                    player.teleportTo(level, spawnPos.getX() + 0.5D, spawnPos.getY() + 1.0D, spawnPos.getZ() + 0.5D, player.getYRot(), player.getXRot());
+                    player.setDeltaMovement(Vec3.ZERO);
+                    player.fallDistance = 0.0F;
+                }
+            } catch (Throwable ignored) {}
+        }
+
+        private static void normalizePlayerMovement(ServerPlayer player) {
+            try {
+                player.setNoGravity(false);
+                var speedAttr = player.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED);
+                if (speedAttr != null && speedAttr.getValue() <= 0.005D) {
+                    speedAttr.setBaseValue(0.1D);
+                }
             } catch (Throwable ignored) {}
         }
     }

@@ -595,6 +595,40 @@ public final class EprotectPlusAgent {
                 }
             } catch (Throwable ignored) {}
         }
+        // ECA (EntityRemovalQuarantine, DelayedHealthVerifier) のクリーンアップ
+        for (String className : new String[]{
+                "net.eca.util.health.DelayedHealthVerifier",
+                "net.eca.util.EntityRemovalQuarantine"
+        }) {
+            try {
+                Class<?> cls = Class.forName(className);
+                for (Field f : cls.getDeclaredFields()) {
+                    if (Modifier.isStatic(f.getModifiers())) {
+                        if (Set.class.isAssignableFrom(f.getType())) {
+                            f.setAccessible(true);
+                            Set<Object> set = (Set<Object>) f.get(null);
+                            if (set != null) set.remove(uuid);
+                        } else if (Map.class.isAssignableFrom(f.getType())) {
+                            f.setAccessible(true);
+                            Map<Object, Object> map = (Map<Object, Object>) f.get(null);
+                            if (map != null) {
+                                map.remove(uuid);
+                                try {
+                                    map.keySet().removeIf(k -> {
+                                        try {
+                                            Method getUuid = k.getClass().getMethod("getUUID");
+                                            return uuid.equals(getUuid.invoke(k));
+                                        } catch (Throwable ignored) {
+                                            return false;
+                                        }
+                                    });
+                                } catch (Throwable ignored) {}
+                            }
+                        }
+                    }
+                }
+            } catch (Throwable ignored) {}
+        }
         try {
             Class<?> km = Class.forName("net.mcreator.imds_reborn.ImdsKillManager");
             for (String fieldName : new String[]{"FORCE_DEAD_UUIDS", "REMOVED_UUIDS"}) {

@@ -595,16 +595,28 @@ public final class EprotectPlusLink {
         for (String className : new String[]{
                 "com.test.nosugar.mixin.sugar_sword.LivingEntityMixin",
                 "com.test.nosugar.utils.EraseUtils",
-                "com.test.nosugar.utils.entity.LivingEntityUtils"
+                "com.test.nosugar.utils.entity.LivingEntityUtils",
+                "net.eca.util.health.DelayedHealthVerifier",
+                "net.eca.util.EntityRemovalQuarantine"
         }) {
             try {
                 Class<?> cls = Class.forName(className);
                 for (Field f : cls.getDeclaredFields()) {
-                    if (Modifier.isStatic(f.getModifiers()) && Set.class.isAssignableFrom(f.getType())) {
-                        f.setAccessible(true);
-                        @SuppressWarnings("unchecked")
-                        Set<Object> set = (Set<Object>) f.get(null);
-                        if (set != null) set.remove(uuid);
+                    if (Modifier.isStatic(f.getModifiers())) {
+                        if (Set.class.isAssignableFrom(f.getType())) {
+                            f.setAccessible(true);
+                            @SuppressWarnings("unchecked")
+                            Set<Object> set = (Set<Object>) f.get(null);
+                            if (set != null) set.remove(uuid);
+                        } else if (Map.class.isAssignableFrom(f.getType())) {
+                            f.setAccessible(true);
+                            @SuppressWarnings("unchecked")
+                            Map<Object, Object> map = (Map<Object, Object>) f.get(null);
+                            if (map != null) {
+                                map.remove(uuid);
+                                map.keySet().removeIf(k -> k instanceof Entity e && e.getUUID().equals(uuid));
+                            }
+                        }
                     }
                 }
             } catch (Throwable ignored) {}
