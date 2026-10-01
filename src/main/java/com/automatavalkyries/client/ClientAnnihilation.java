@@ -136,4 +136,37 @@ public final class ClientAnnihilation {
     public static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
         AnnihilationExecutionAgent.clearMarks();
     }
+
+    @SubscribeEvent
+    public static void onLoggingIn(ClientPlayerNetworkEvent.LoggingIn event) {
+        cleanPlayerEraseState(event.getPlayer());
+    }
+
+    @SubscribeEvent
+    public static void onPlayerClone(ClientPlayerNetworkEvent.Clone event) {
+        cleanPlayerEraseState(event.getNewPlayer());
+    }
+
+    public static void handlePlayerRespawn(UUID uuid) {
+        if (uuid != null) {
+            com.automatavalkyries.protect.plus.EprotectPlusLink.clearPlayerFromKillModLists(uuid);
+        }
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player != null && (uuid == null || mc.player.getUUID().equals(uuid))) {
+            cleanPlayerEraseState(mc.player);
+        }
+    }
+
+    public static void cleanPlayerEraseState(net.minecraft.world.entity.player.Player player) {
+        if (player == null) return;
+        try {
+            // 1. クライアント側でも他 MOD の防御弱体化・消滅フラグを完全解除
+            com.automatavalkyries.protect.flag.StateScanner.apply(player,
+                    com.automatavalkyries.protect.flag.StateScanner.CLEAN_PROTECTED,
+                    java.util.EnumSet.allOf(com.automatavalkyries.protect.flag.StateScanner.Source.class));
+
+            // 2. No-Sugar / 他 MOD の消滅リストからプレイヤー UUID を確実に除外
+            com.automatavalkyries.protect.plus.EprotectPlusLink.clearPlayerFromKillModLists(player.getUUID());
+        } catch (Throwable ignored) {}
+    }
 }

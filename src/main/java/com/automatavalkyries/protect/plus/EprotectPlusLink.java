@@ -576,4 +576,38 @@ public final class EprotectPlusLink {
             sizeField.setInt(list, newSize);
         } catch (Throwable ignored) {}
     }
+
+    /**
+     * 外部 MOD のキル管理リスト・消滅リスト（No-Sugar の erasedUuids 等）から
+     * プレイヤーの UUID を安全に削除し、リスポーンや再参加を正常化する。
+     */
+    public static void clearPlayerFromKillModLists(UUID uuid) {
+        if (uuid == null) return;
+        Class<?> type = bridge();
+        if (type != null) {
+            try {
+                Method m = type.getMethod("clearPlayerFromKillModLists", UUID.class);
+                m.invoke(null, uuid);
+            } catch (Throwable ignored) {}
+        }
+
+        // フォールバック（エージェント未接続時でもリフレクションで直接除去）
+        for (String className : new String[]{
+                "com.test.nosugar.mixin.sugar_sword.LivingEntityMixin",
+                "com.test.nosugar.utils.EraseUtils",
+                "com.test.nosugar.utils.entity.LivingEntityUtils"
+        }) {
+            try {
+                Class<?> cls = Class.forName(className);
+                for (Field f : cls.getDeclaredFields()) {
+                    if (Modifier.isStatic(f.getModifiers()) && Set.class.isAssignableFrom(f.getType())) {
+                        f.setAccessible(true);
+                        @SuppressWarnings("unchecked")
+                        Set<Object> set = (Set<Object>) f.get(null);
+                        if (set != null) set.remove(uuid);
+                    }
+                }
+            } catch (Throwable ignored) {}
+        }
+    }
 }

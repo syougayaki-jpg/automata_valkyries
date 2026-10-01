@@ -30,5 +30,11 @@ public final class ModNetwork {
                 .decoder(TerminusPlayerDeathPacket::decode)
                 .consumerMainThread(TerminusPlayerDeathPacket::handle)
                 .add();
+
+        CHANNEL.messageBuilder(TerminusPlayerRespawnPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(TerminusPlayerRespawnPacket::encode)
+                .decoder(TerminusPlayerRespawnPacket::decode)
+                .consumerMainThread(TerminusPlayerRespawnPacket::handle)
+                .add();
     }
 }

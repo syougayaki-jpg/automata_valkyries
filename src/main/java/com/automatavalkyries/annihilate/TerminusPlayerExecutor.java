@@ -92,8 +92,8 @@ public final class TerminusPlayerExecutor {
                 }
             } catch (Throwable ignored) {}
 
-            // 4.5. 外部 MOD のアビリティリセット & クライアント向け消滅パケットの準汎用送信
-            broadcastModErasure(level, target);
+            // 4.5. 外部 MOD のチートアビリティ解除 & 消滅リストからの保護
+            neutralizeExternalModDefenses(target);
 
             // 5. 無敵時間の完全ゼロ化 & 全ポーション・バフ効果の即時消去
             target.invulnerableTime = 0;
@@ -229,18 +229,39 @@ public final class TerminusPlayerExecutor {
     }
 
     /**
-     * 外部 MOD（No-Sugar 等）のアビリティリセットメソッドおよび消滅通知パケットを
-     * リフレクションを用いて準汎用的に執行・送信する。
+     * 外部 MOD（No-Sugar 等）のチートアビリティ解除メソッド（SnackProtector.resetAbilities 等）を
+     * リフレクションを用いて準汎用的に執行し、同時に静的消滅リストからプレイヤー UUID を確実に保護する。
+     * ※プレイヤーに対して消滅パケット（EraseEntityPacket: true）を送ると、リスポーン時に
+     *   クライアント側で cancel addEntity されてしまい停止（ゴースト化）するため、絶対に送信してはならない。
      */
-    private static void broadcastModErasure(ServerLevel level, ServerPlayer target) {
+    private static void neutralizeExternalModDefenses(ServerPlayer target) {
         if (target == null) return;
         UUID uuid = target.getUUID();
 
-        // 1. No-Sugar の消滅パケット（EraseEntityPacket）をクライアントへ送信し、クライアント側のフックを自壊させる
+        // 1. No-Sugar のアビリティ・飛行解除メソッド（SnackProtector.resetAbilities）を強制呼出し
+        try {
+            Class<?> protectorClass = Class.forName("com.test.nosugar.additional.SnackArmor$SnackProtector");
+            Method reset = protectorClass.getDeclaredMethod("resetAbilities", Player.class);
+            reset.setAccessible(true);
+            reset.invoke(null, target);
+        } catch (Throwable ignored) {}
+
+        // 2. 外部 MOD のキル・消滅管理リストからプレイヤー UUID を確実に除外
+        EprotectPlusLink.clearPlayerFromKillModLists(uuid);
+
+        // 3. No-Sugar の消滅パケット解除（EraseEntityPacket: false）を送信してクライアント側の消滅状態を事前解除
+        sendModErasePacket(uuid, false);
+    }
+
+    /**
+     * No-Sugar 等の消滅パケット送信ヘルパー（消滅解除用）。
+     */
+    public static void sendModErasePacket(UUID uuid, boolean erased) {
+        if (uuid == null) return;
         try {
             Class<?> packetClass = Class.forName("com.test.nosugar.network.packets.EraseEntityPacket");
             java.lang.reflect.Constructor<?> ctor = packetClass.getConstructor(UUID.class, boolean.class);
-            Object packet = ctor.newInstance(uuid, true);
+            Object packet = ctor.newInstance(uuid, erased);
 
             Class<?> handlerClass = Class.forName("com.test.nosugar.network.PacketHandler");
             Field channelField = handlerClass.getDeclaredField("CHANNEL");
@@ -249,14 +270,6 @@ public final class TerminusPlayerExecutor {
             if (channel instanceof net.minecraftforge.network.simple.SimpleChannel simpleChannel) {
                 simpleChannel.send(PacketDistributor.ALL.noArg(), packet);
             }
-        } catch (Throwable ignored) {}
-
-        // 2. No-Sugar のアビリティ・飛行解除メソッド（SnackProtector.resetAbilities）を強制呼出し
-        try {
-            Class<?> protectorClass = Class.forName("com.test.nosugar.additional.SnackArmor$SnackProtector");
-            Method reset = protectorClass.getDeclaredMethod("resetAbilities", Player.class);
-            reset.setAccessible(true);
-            reset.invoke(null, target);
         } catch (Throwable ignored) {}
     }
 
@@ -268,5 +281,44 @@ public final class TerminusPlayerExecutor {
 
         level.playSound(null, pos.x, pos.y, pos.z, SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.PLAYERS, 2.0F, 0.5F);
         level.playSound(null, pos.x, pos.y, pos.z, SoundEvents.WITHER_DEATH, SoundSource.PLAYERS, 1.8F, 0.7F);
+    }
+
+    /**
+     * 終焉執行を受けたプレイヤーがリスポーンまたはクローンされる際、
+     * 外部 MOD のキル管理リスト・消滅リストからの除外および状態初期化を最高優先度で執行する。
+     */
+    @net.minecraftforge.fml.common.Mod.EventBusSubscriber(modid = AutomataValkyries.MODID)
+    public static final class Events {
+        private Events() {}
+
+        @net.minecraftforge.eventbus.api.SubscribeEvent(priority = net.minecraftforge.eventbus.api.EventPriority.HIGHEST)
+        public static void onPlayerRespawn(net.minecraftforge.event.entity.player.PlayerEvent.PlayerRespawnEvent event) {
+            if (!(event.getEntity() instanceof ServerPlayer player)) return;
+            handlePlayerRespawnOrClone(player);
+        }
+
+        @net.minecraftforge.eventbus.api.SubscribeEvent(priority = net.minecraftforge.eventbus.api.EventPriority.HIGHEST)
+        public static void onPlayerClone(net.minecraftforge.event.entity.player.PlayerEvent.Clone event) {
+            if (!(event.getEntity() instanceof ServerPlayer player)) return;
+            handlePlayerRespawnOrClone(player);
+        }
+
+        private static void handlePlayerRespawnOrClone(ServerPlayer player) {
+            UUID uuid = player.getUUID();
+            try {
+                // 1. サーバー側の外部 MOD 消滅リスト（erasedUuids等）から確実に除外
+                EprotectPlusLink.clearPlayerFromKillModLists(uuid);
+
+                // 2. プレイヤー自身の防御・消滅フラグの完全初期化
+                StateScanner.apply(player, StateScanner.CLEAN_PROTECTED, EnumSet.allOf(StateScanner.Source.class));
+
+                // 3. No-Sugar の消滅パケット解除（EraseEntityPacket: false）を送信
+                sendModErasePacket(uuid, false);
+
+                // 4. クライアント側へ TerminusPlayerRespawnPacket を同報送信して完全正常化
+                ModNetwork.CHANNEL.send(PacketDistributor.ALL.noArg(),
+                        new com.automatavalkyries.network.TerminusPlayerRespawnPacket(uuid));
+            } catch (Throwable ignored) {}
+        }
     }
 }

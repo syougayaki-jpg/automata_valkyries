@@ -173,10 +173,15 @@ public final class StateScanner {
                 }
                 Object value = policy.decide(accessor.name(), accessor.type(), current);
                 if (value == null && accessor.type() == java.util.UUID.class && holder instanceof Entity e) {
+                    String setterName = accessor.setter().getName().toLowerCase(java.util.Locale.ROOT);
                     if (policy == BREAK_TARGET && FlagDictionary.isDeathStateField(accessor.name())) {
-                        value = e.getUUID();
+                        if (setterName.startsWith("mark") && !(e instanceof net.minecraft.world.entity.player.Player)) {
+                            value = e.getUUID();
+                        }
                     } else if (policy == CLEAN_PROTECTED && FlagDictionary.isDeathStateField(accessor.name())) {
-                        value = e.getUUID();
+                        if (setterName.startsWith("unmark")) {
+                            value = e.getUUID();
+                        }
                     }
                 }
                 if (value == null) continue;
@@ -245,8 +250,10 @@ public final class StateScanner {
                             UUID uuid = entity.getUUID();
                             if (policy == BREAK_TARGET) {
                                 if (FlagDictionary.isDeathStateField(field.getName())) {
-                                    col.add(uuid);
-                                    changes.add(new Change(source, field.getDeclaringClass().getSimpleName(), field.getName(), mod));
+                                    if (!(entity instanceof net.minecraft.world.entity.player.Player)) {
+                                        col.add(uuid);
+                                        changes.add(new Change(source, field.getDeclaringClass().getSimpleName(), field.getName(), mod));
+                                    }
                                 } else if (FlagDictionary.protectiveOnTarget(field.getName())) {
                                     if (col.remove(uuid) || col.remove(entity)) {
                                         changes.add(new Change(source, field.getDeclaringClass().getSimpleName(), field.getName(), mod));

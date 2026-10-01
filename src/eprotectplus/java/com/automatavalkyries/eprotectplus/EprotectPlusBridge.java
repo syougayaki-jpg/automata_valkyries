@@ -16,6 +16,7 @@ import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -216,5 +217,9 @@ public final class EprotectPlusBridge {
 
     public static Map<String, String> getFlagProtectorStats() {
         return com.automatavalkyries.eprotectplus.flag.FlagDictionaryProtector.getStats();
+    }
+
+    public static void clearPlayerFromKillModLists(UUID uuid) {
+        EprotectPlusAgent.clearPlayerFromKillModLists(uuid);
     }
 }

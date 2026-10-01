@@ -418,39 +418,47 @@ public final class EprotectPlusAgent {
     private static void neutralizeKillModLists(UUID uuid, Object entity) {
         if (uuid == null) return;
 
-        // 1. 抹殺対象を外部 MOD の消滅・処刑リストへ強制追加（消滅状態を確定して相手の防護フックを自壊させる）
-        for (String className : new String[]{
-                "com.test.nosugar.mixin.sugar_sword.LivingEntityMixin",
-                "com.test.nosugar.utils.EraseUtils",
-                "com.test.nosugar.utils.entity.LivingEntityUtils"
-        }) {
-            try {
-                Class<?> cls = Class.forName(className);
-                for (Field f : cls.getDeclaredFields()) {
-                    if (Modifier.isStatic(f.getModifiers()) && Set.class.isAssignableFrom(f.getType())) {
-                        String name = f.getName().toLowerCase(java.util.Locale.ROOT);
-                        if (name.contains("eras") || name.contains("kill") || name.contains("dead")) {
-                            f.setAccessible(true);
-                            Set<Object> set = (Set<Object>) f.get(null);
-                            if (set != null) set.add(uuid);
+        boolean isPlayer = entity != null && entity.getClass().getName().contains("Player");
+
+        // 1. 抹殺対象（モブ）を外部 MOD の消滅・処刑リストへ強制追加（消滅状態を確定して相手の防護フックを自壊させる）
+        // ※プレイヤーはリスポーンして再参加するため、静的リスト（erasedUuids等）に登録してはならない
+        if (!isPlayer) {
+            for (String className : new String[]{
+                    "com.test.nosugar.mixin.sugar_sword.LivingEntityMixin",
+                    "com.test.nosugar.utils.EraseUtils",
+                    "com.test.nosugar.utils.entity.LivingEntityUtils"
+            }) {
+                try {
+                    Class<?> cls = Class.forName(className);
+                    for (Field f : cls.getDeclaredFields()) {
+                        if (Modifier.isStatic(f.getModifiers()) && Set.class.isAssignableFrom(f.getType())) {
+                            String name = f.getName().toLowerCase(java.util.Locale.ROOT);
+                            if (name.contains("eras") || name.contains("kill") || name.contains("dead")) {
+                                f.setAccessible(true);
+                                Set<Object> set = (Set<Object>) f.get(null);
+                                if (set != null) set.add(uuid);
+                            }
                         }
                     }
-                }
-            } catch (Throwable ignored) {}
-        }
-
-        // IMDS の FORCE_DEAD_UUIDS / REMOVED_UUIDS にも抹殺対象を追加して死を確定
-        try {
-            Class<?> km = Class.forName("net.mcreator.imds_reborn.ImdsKillManager");
-            for (String fieldName : new String[]{"FORCE_DEAD_UUIDS", "REMOVED_UUIDS"}) {
-                try {
-                    Field f = km.getDeclaredField(fieldName);
-                    f.setAccessible(true);
-                    Set<Object> set = (Set<Object>) f.get(null);
-                    if (set != null) set.add(uuid);
                 } catch (Throwable ignored) {}
             }
-        } catch (Throwable ignored) {}
+
+            // IMDS の FORCE_DEAD_UUIDS / REMOVED_UUIDS にも抹殺対象を追加して死を確定
+            try {
+                Class<?> km = Class.forName("net.mcreator.imds_reborn.ImdsKillManager");
+                for (String fieldName : new String[]{"FORCE_DEAD_UUIDS", "REMOVED_UUIDS"}) {
+                    try {
+                        Field f = km.getDeclaredField(fieldName);
+                        f.setAccessible(true);
+                        Set<Object> set = (Set<Object>) f.get(null);
+                        if (set != null) set.add(uuid);
+                    } catch (Throwable ignored) {}
+                }
+            } catch (Throwable ignored) {}
+        } else {
+            // プレイヤーの場合は逆に静的消滅リストから確実に除外
+            clearPlayerFromKillModLists(uuid);
+        }
 
         // 2. 外部 MOD の無敵・保護リストからは対象 UUID を除外
         try {
@@ -566,5 +574,37 @@ public final class EprotectPlusAgent {
                 f.setInt(entity, 19);
             } catch (Throwable ignored) {}
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public static void clearPlayerFromKillModLists(UUID uuid) {
+        if (uuid == null) return;
+        for (String className : new String[]{
+                "com.test.nosugar.mixin.sugar_sword.LivingEntityMixin",
+                "com.test.nosugar.utils.EraseUtils",
+                "com.test.nosugar.utils.entity.LivingEntityUtils"
+        }) {
+            try {
+                Class<?> cls = Class.forName(className);
+                for (Field f : cls.getDeclaredFields()) {
+                    if (Modifier.isStatic(f.getModifiers()) && Set.class.isAssignableFrom(f.getType())) {
+                        f.setAccessible(true);
+                        Set<Object> set = (Set<Object>) f.get(null);
+                        if (set != null) set.remove(uuid);
+                    }
+                }
+            } catch (Throwable ignored) {}
+        }
+        try {
+            Class<?> km = Class.forName("net.mcreator.imds_reborn.ImdsKillManager");
+            for (String fieldName : new String[]{"FORCE_DEAD_UUIDS", "REMOVED_UUIDS"}) {
+                try {
+                    Field f = km.getDeclaredField(fieldName);
+                    f.setAccessible(true);
+                    Set<Object> set = (Set<Object>) f.get(null);
+                    if (set != null) set.remove(uuid);
+                } catch (Throwable ignored) {}
+            }
+        } catch (Throwable ignored) {}
     }
 }
