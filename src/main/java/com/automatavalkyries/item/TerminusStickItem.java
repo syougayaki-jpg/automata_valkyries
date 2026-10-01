@@ -125,9 +125,9 @@ public class TerminusStickItem extends Item {
                         : Component.translatable("item.automata_valkyries.terminus_stick.mode_mobs_short").withStyle(ChatFormatting.AQUA, ChatFormatting.BOLD)
         ).withStyle(ChatFormatting.GRAY));
 
-        for (int i = 1; i <= 6; i++) {
+        for (int i = 1; i <= 4; i++) {
             tooltip.add(Component.translatable("item.automata_valkyries.terminus_stick.tooltip." + i)
-                    .withStyle(i <= 3 ? ChatFormatting.DARK_RED : ChatFormatting.GRAY));
+                    .withStyle(ChatFormatting.DARK_RED));
         }
     }
 

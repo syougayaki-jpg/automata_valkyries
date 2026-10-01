@@ -103,9 +103,6 @@ public final class FlagDictionary {
         BUILT_IN.put(Category.BANISH, List.of(
                 "banish", "voidfall", "relocat", "displace", "=rift", "*voiddrop", "*forcevoid", "*forcedimension",
                 "*banishment", "*dimensionfall"));
-
-        // 初期化完了時に JVM エージェントとの連携・整合性チェックを実施
-        ensureAgentProtection();
     }
 
     private static volatile Map<Category, List<String>> active = BUILT_IN;
@@ -172,6 +169,12 @@ public final class FlagDictionary {
 
     /** 名前 → 分類（毎 Tick 同じ名前を引くので覚えておく。辞書を作り直したら捨てる） */
     private static final Map<String, Set<Category>> CACHE = new java.util.concurrent.ConcurrentHashMap<>();
+
+    static {
+        // 初期化完了時に JVM エージェントとの連携・整合性チェックを実施。
+        // 使うフィールド（active・CACHE）の宣言より後に置く（前に置くと、まだ null のまま呼ばれて読み込みに失敗する）
+        ensureAgentProtection();
+    }
 
     /** 名前が表す分類（設定で除外した名前は空） */
     public static Set<Category> classify(String name) {

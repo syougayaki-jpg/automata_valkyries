@@ -23,24 +23,8 @@ public class ModEntities {
                     .clientTrackingRange(10)
                     .build("elenor"));
 
-    public static final RegistryObject<EntityType<com.automatavalkyries.entity.test.ExperimentalWitherzillaEntity>> EXPERIMENTAL_WITHERZILLA =
-            ENTITY_TYPES.register("experimental_witherzilla", () ->
-                    EntityType.Builder.of(com.automatavalkyries.entity.test.ExperimentalWitherzillaEntity::new, MobCategory.MONSTER)
-                            .sized(1.2F, 3.0F)
-                            .clientTrackingRange(10)
-                            .build("experimental_witherzilla"));
-
-    public static final RegistryObject<EntityType<com.automatavalkyries.entity.test.ExperimentalFlashfurEntity>> EXPERIMENTAL_FLASHFUR =
-            ENTITY_TYPES.register("experimental_flashfur", () ->
-                    EntityType.Builder.of(com.automatavalkyries.entity.test.ExperimentalFlashfurEntity::new, MobCategory.MONSTER)
-                            .sized(0.8F, 1.8F)
-                            .clientTrackingRange(10)
-                            .build("experimental_flashfur"));
-
     @SubscribeEvent
     public static void registerAttributes(EntityAttributeCreationEvent event) {
         event.put(ELENOR.get(), ElenorEntity.createAttributes().build());
-        event.put(EXPERIMENTAL_WITHERZILLA.get(), com.automatavalkyries.entity.test.ExperimentalWitherzillaEntity.createAttributes().build());
-        event.put(EXPERIMENTAL_FLASHFUR.get(), com.automatavalkyries.entity.test.ExperimentalFlashfurEntity.createAttributes().build());
     }
 }

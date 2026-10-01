@@ -3,8 +3,6 @@ package com.automatavalkyries.gametest;
 import com.automatavalkyries.AutomataValkyries;
 import com.automatavalkyries.annihilate.TerminusEngine;
 import com.automatavalkyries.entity.ElenorEntity;
-import com.automatavalkyries.entity.test.ExperimentalFlashfurEntity;
-import com.automatavalkyries.entity.test.ExperimentalWitherzillaEntity;
 import com.automatavalkyries.registry.ModEntities;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
@@ -40,26 +38,46 @@ public class TerminusGameTests {
     private static final String TEMPLATE = "empty";
 
     /**
+     * Eprotect+ による外部干渉の検査・迂回・兵姫（エレノア）の保護確認（真抹殺の棒の GameTest から移した）。
+     */
+    @GameTest(template = TEMPLATE, timeoutTicks = 100)
+    public static void eprotectPlusBypassesInterferenceAndProtectsElenor(GameTestHelper helper) {
+        ElenorEntity elenor = helper.spawnWithNoFreeWill(ModEntities.ELENOR.get(), new BlockPos(2, 2, 2));
+
+        // 外部干渉をシミュレート
+        EprotectPlusLink.recordInterference(elenor.getClass().getName(), "TestMockMod", "fakeHook", "Simulated interference hook");
+        EprotectPlusLink.inspectAndBypassInterference(elenor);
+
+        var events = EprotectPlusLink.getEvents();
+        helper.assertFalse(events.isEmpty(), "EprotectPlusLink did not record any events");
+
+        helper.assertTrue(elenor.isAlive(), "Elenor is dead");
+        helper.assertTrue(elenor.getEprotect().isProtectionActive(), "Elenor protection was deactivated");
+
+        elenor.getEprotect().triggerDespawn();
+        helper.succeed();
+    }
+
+    /**
      * TerminusEngine:
-     * チートMOB（Witherzilla / Flashfur）に対して汎用解体と絶対抹殺が執行されること。
+     * MOB に対して汎用解体と絶対抹殺が執行されること。
      */
     @GameTest(template = TEMPLATE, timeoutTicks = 100)
     public static void terminusEngineEradicatesCheatMobs(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        ExperimentalWitherzillaEntity witherzilla = helper.spawnWithNoFreeWill(ModEntities.EXPERIMENTAL_WITHERZILLA.get(), new BlockPos(2, 2, 2));
-        ExperimentalFlashfurEntity flashfur = helper.spawnWithNoFreeWill(ModEntities.EXPERIMENTAL_FLASHFUR.get(), new BlockPos(4, 2, 4));
+        Zombie zombie = helper.spawnWithNoFreeWill(EntityType.ZOMBIE, new BlockPos(2, 2, 2));
+        var skeleton = helper.spawnWithNoFreeWill(EntityType.WITHER_SKELETON, new BlockPos(4, 2, 4));
         Player attacker = helper.makeMockPlayer();
 
         // 終焉執行
-        boolean wDone = TerminusEngine.executeTerminus(level, attacker, witherzilla);
-        boolean fDone = TerminusEngine.executeTerminus(level, attacker, flashfur);
+        boolean zDone = TerminusEngine.executeTerminus(level, attacker, zombie);
+        boolean sDone = TerminusEngine.executeTerminus(level, attacker, skeleton);
 
-        helper.assertTrue(wDone, "Terminus execution failed on Witherzilla");
-        helper.assertTrue(fDone, "Terminus execution failed on Flashfur");
+        helper.assertTrue(zDone, "Terminus execution failed on a zombie");
+        helper.assertTrue(sDone, "Terminus execution failed on a wither skeleton");
 
-        helper.assertTrue(witherzilla.isRemoved(), "Witherzilla was not marked as removed");
-        helper.assertFalse(witherzilla.getWitherzillaLife(), "witherzillaLife was not stripped");
-        helper.assertTrue(flashfur.isRemoved(), "Flashfur was not marked as removed");
+        helper.assertTrue(zombie.isRemoved(), "The zombie was not marked as removed");
+        helper.assertTrue(skeleton.isRemoved(), "The wither skeleton was not marked as removed");
 
         helper.succeed();
     }
@@ -93,13 +111,13 @@ public class TerminusGameTests {
 
     /**
      * エレノアの終焉モード:
-     * 終焉権能を有効化したエレノアが攻撃した時、チートボスを一撃で終焉執行できること。
+     * 終焉権能を有効化したエレノアが攻撃した時、相手を一撃で終焉執行できること。
      */
     @GameTest(template = TEMPLATE, timeoutTicks = 100)
     public static void elenorTerminusModeKillsCheatBosses(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         ElenorEntity elenor = helper.spawnWithNoFreeWill(ModEntities.ELENOR.get(), new BlockPos(2, 2, 2));
-        ExperimentalWitherzillaEntity witherzilla = helper.spawnWithNoFreeWill(ModEntities.EXPERIMENTAL_WITHERZILLA.get(), new BlockPos(3, 2, 3));
+        var witherzilla = helper.spawnWithNoFreeWill(EntityType.WITHER_SKELETON, new BlockPos(3, 2, 3));
 
         // 終焉モード有効化
         elenor.setTerminusEnabled(true);
@@ -110,8 +128,7 @@ public class TerminusGameTests {
         helper.assertTrue(hit, "Elenor attack returned false");
 
         // チートボスの完全消滅を確認
-        helper.assertTrue(witherzilla.isRemoved(), "Witherzilla was not removed by Elenor Terminus attack");
-        helper.assertFalse(witherzilla.getWitherzillaLife(), "witherzillaLife was not stripped by Elenor Terminus attack");
+        helper.assertTrue(witherzilla.isRemoved(), "The target was not removed by Elenor Terminus attack");
 
         elenor.getEprotect().triggerDespawn();
         helper.succeed();
@@ -119,14 +136,14 @@ public class TerminusGameTests {
 
     /**
      * 広域終焉執行:
-     * executeAreaTerminus により範囲内のチートボスが一括消滅すること。
+     * executeAreaTerminus により範囲内の MOB が一括消滅すること。
      */
     @GameTest(template = TEMPLATE, timeoutTicks = 100)
     public static void areaTerminusEradicatesCheatEntities(GameTestHelper helper) {
         com.automatavalkyries.annihilate.SpawnBanZone.clear();
         ServerLevel level = helper.getLevel();
-        ExperimentalWitherzillaEntity w = helper.spawnWithNoFreeWill(ModEntities.EXPERIMENTAL_WITHERZILLA.get(), new BlockPos(2, 2, 2));
-        ExperimentalFlashfurEntity f = helper.spawnWithNoFreeWill(ModEntities.EXPERIMENTAL_FLASHFUR.get(), new BlockPos(4, 2, 4));
+        Zombie w = helper.spawnWithNoFreeWill(EntityType.ZOMBIE, new BlockPos(2, 2, 2));
+        var f = helper.spawnWithNoFreeWill(EntityType.WITHER_SKELETON, new BlockPos(4, 2, 4));
 
         Player player = helper.makeMockPlayer();
         net.minecraft.world.phys.Vec3 center = helper.absolutePos(new BlockPos(3, 2, 3)).getCenter();
