@@ -1,5 +1,6 @@
 package com.automatavalkyries.protect;
 
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
@@ -105,7 +106,65 @@ public final class EcaLastSwordHelper {
             setProt.invoke(null, player, false);
         } catch (Throwable ignored) {}
 
-        // 6. PersistentData 内の残存フラグパージ
+        // 6. ECA AllReturn の解除
+        try {
+            Class<?> allReturnClass = Class.forName("net.eca.coremod.AllReturnToggle");
+            Method clearAll = allReturnClass.getMethod("clearAll");
+            clearAll.invoke(null);
+        } catch (Throwable ignored) {}
+
+        // 7. Hyperlink (hyperdaimc) の Novelize 解除および VRX entries クリア
+        try {
+            Class<?> entityMixinClass = Class.forName("com.sakurafuld.hyperdaimc.mixin.novel.EntityMixin");
+            Field dataNovelizedField = entityMixinClass.getDeclaredField("DATA_NOVELIZED");
+            dataNovelizedField.setAccessible(true);
+            Object accessor = dataNovelizedField.get(null);
+            if (accessor instanceof net.minecraft.network.syncher.EntityDataAccessor dataAccessor) {
+                //noinspection unchecked
+                player.getEntityData().set(dataAccessor, false);
+            }
+        } catch (Throwable ignored) {}
+
+        try {
+            Class<?> vrxCapClass = Class.forName("com.sakurafuld.hyperdaimc.content.hyper.vrx.VRXCapability");
+            Field tokenField = vrxCapClass.getDeclaredField("TOKEN");
+            tokenField.setAccessible(true);
+            Object capToken = tokenField.get(null);
+            if (capToken instanceof net.minecraftforge.common.capabilities.Capability cap) {
+                //noinspection unchecked
+                player.getCapability(cap).ifPresent(capObj -> {
+                    try {
+                        Field entriesField = capObj.getClass().getDeclaredField("entries");
+                        entriesField.setAccessible(true);
+                        Object list = entriesField.get(capObj);
+                        if (list instanceof java.util.List entriesList) {
+                            entriesList.clear();
+                        }
+                    } catch (Throwable ignored) {}
+                });
+            }
+        } catch (Throwable ignored) {}
+
+        // 8. The Last Sword の属性リセット
+        try {
+            Class<?> modAttrs = Class.forName("net.the_last_sword.init.ModAttributes");
+            Field justDefField = modAttrs.getDeclaredField("JUSTIFIED_DEFENCE");
+            Field maxJustDefField = modAttrs.getDeclaredField("MAX_JUSTIFIED_DEFENCE");
+            justDefField.setAccessible(true);
+            maxJustDefField.setAccessible(true);
+            Object justDef = justDefField.get(null);
+            Object maxJustDef = maxJustDefField.get(null);
+            if (justDef instanceof net.minecraftforge.registries.RegistryObject<?> ro && ro.get() instanceof net.minecraft.world.entity.ai.attributes.Attribute attr) {
+                var inst = player.getAttribute(attr);
+                if (inst != null) inst.setBaseValue(0.0D);
+            }
+            if (maxJustDef instanceof net.minecraftforge.registries.RegistryObject<?> ro && ro.get() instanceof net.minecraft.world.entity.ai.attributes.Attribute attr) {
+                var inst = player.getAttribute(attr);
+                if (inst != null) inst.setBaseValue(0.0D);
+            }
+        } catch (Throwable ignored) {}
+
+        // 9. PersistentData 内の残存フラグパージ
         try {
             CompoundTag tag = player.getPersistentData();
             tag.remove("UltraTestSwordDefence");
@@ -118,10 +177,28 @@ public final class EcaLastSwordHelper {
             tag.remove("tlsWorldAnchor");
             tag.remove("tlsWorldAnchorMax");
             tag.remove("tlsIsProtected");
+            tag.remove("tlsTempJustifiedDefence");
             tag.remove("PlayerFlightIntent");
+            // ECA
+            tag.remove("ecaHealBanValue");
+            tag.remove("ecaHealthLockEnc");
+            tag.remove("ecaHealthLockKey");
+            tag.remove("ecaHealthLockCheck");
+            tag.remove("ecaMaxHealthLockEnc");
+            tag.remove("ecaMaxHealthLockKey");
+            tag.remove("ecaMaxHealthLockCheck");
+            tag.remove("ecaResurrectionTracked");
+            tag.remove("ecaInvulnerable");
+            // Hyperlink
+            tag.remove("hyperdaimc:NovelDead");
+            tag.remove("hyperdaimc:Novelized");
+            // Other cheat mods
+            tag.remove("the_trial_monolith:SoulDamage");
+            tag.remove("the_trial_monolith:SoulProtection");
+            tag.remove("imds_reborn:isImdsInvulnerable");
         } catch (Throwable ignored) {}
 
-        // 7. サバイバル時の飛行能力および重力の正常化
+        // 10. サバイバル時の飛行能力および重力の正常化
         try {
             if (!player.isCreative() && !player.isSpectator()) {
                 if (player.getAbilities().mayfly || player.getAbilities().flying) {
@@ -134,6 +211,30 @@ public final class EcaLastSwordHelper {
             var speedAttr = player.getAttribute(Attributes.MOVEMENT_SPEED);
             if (speedAttr != null && speedAttr.getValue() <= 0.005D) {
                 speedAttr.setBaseValue(0.1D);
+            }
+        } catch (Throwable ignored) {}
+
+        // 11. 周囲の危険な即死弾（TheLastEndSwordProjectile 等）を消去
+        purgeHarmfulProjectilesNear(player, 16.0D);
+    }
+
+    /**
+     * プレイヤーの周囲にある危険な射出弾・有害エンティティ（TheLastEndSwordProjectile 等）を安全に消去する。
+     */
+    public static void purgeHarmfulProjectilesNear(Player player, double radius) {
+        if (player == null || player.level().isClientSide) return;
+        try {
+            net.minecraft.world.phys.AABB area = player.getBoundingBox().inflate(radius);
+            var nearbyEntities = player.level().getEntities(player, area);
+            for (Entity entity : nearbyEntities) {
+                if (entity == null || entity.isRemoved()) continue;
+                String className = entity.getClass().getName();
+                if (className.contains("TheLastEndSwordProjectile")
+                        || className.contains("InstantKill")
+                        || className.contains("NovelProjectile")
+                        || className.contains("AnnihilationProjectile")) {
+                    entity.discard();
+                }
             }
         } catch (Throwable ignored) {}
     }

@@ -559,6 +559,35 @@ public class KillModGameTests {
         helper.succeed();
     }
 
+    /**
+     * リスポーン保護（Respawn Grace Period）: リスポーン直後のプレイヤーは護符の有無にかかわらず
+     * リスキル防止シールドが付与され、即死攻撃や ECA / Hyperlink の消滅攻撃を受けても死なずに生存すること。
+     */
+    @GameTest(template = TEMPLATE, timeoutTicks = 50)
+    public static void respawnGracePeriodProtectsPlayerFromSpawnKill(GameTestHelper helper) {
+        Player player = helper.makeMockPlayer();
+        // 護符を持たない状態でもリスポーン保護が付与されること
+        com.automatavalkyries.protect.PlayerWard.grantRespawnGrace(player, 100);
+        helper.assertTrue(com.automatavalkyries.protect.PlayerWard.isRespawnProtected(player), "Respawn grace was not active");
+        helper.assertTrue(com.automatavalkyries.protect.PlayerWard.isActive(player), "PlayerWard was not active during respawn grace");
+
+        // 即死攻撃（GENERIC_KILL）を試行しても体力が 0 にならず死なないこと
+        net.minecraft.world.damagesource.DamageSource killSource = player.damageSources().genericKill();
+        helper.assertTrue(com.automatavalkyries.protect.PlayerWard.isInstantKill(killSource), "genericKill was not identified as instant kill");
+        player.hurt(killSource, 100000.0F);
+        helper.assertTrue(player.getHealth() > 0.0F, "Player health dropped during respawn grace: " + player.getHealth());
+        helper.assertFalse(player.isDeadOrDying(), "Player died during respawn grace");
+
+        // 残存フラグの完全パージの検証
+        player.getPersistentData().putString("hyperdaimc:NovelDead", "1");
+        player.getPersistentData().putString("ecaHealBanValue", "0.0");
+        com.automatavalkyries.protect.EcaLastSwordHelper.cleanupPlayerRestraints(player);
+        helper.assertFalse(player.getPersistentData().contains("hyperdaimc:NovelDead"), "hyperdaimc:NovelDead was not purged");
+        helper.assertFalse(player.getPersistentData().contains("ecaHealBanValue"), "ecaHealBanValue was not purged");
+
+        helper.succeed();
+    }
+
     /** 対象 MOD が無ければ成功扱いで終える */
     private static boolean loaded(GameTestHelper helper, String modId) {
         if (ModList.get().isLoaded(modId)) return true;

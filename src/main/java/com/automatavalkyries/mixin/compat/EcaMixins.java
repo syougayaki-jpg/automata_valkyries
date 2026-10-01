@@ -169,18 +169,56 @@ public final class EcaMixins {
         @Inject(method = "getLock(Lnet/minecraft/world/entity/LivingEntity;)Ljava/lang/Float;", at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardGetLock(LivingEntity entity, CallbackInfoReturnable<Float> cir) {
             if (entity instanceof net.minecraft.world.entity.player.Player player) {
-                if (!com.automatavalkyries.protect.DirectRead.hasHealth(player) || !com.automatavalkyries.protect.EcaLastSwordHelper.hasDefenseSword(player)) {
+                if (!com.automatavalkyries.protect.DirectRead.hasHealth(player)
+                        || com.automatavalkyries.protect.PlayerWard.isRespawnProtected(player)
+                        || com.automatavalkyries.protect.PlayerWard.isActive(player)
+                        || !com.automatavalkyries.protect.EcaLastSwordHelper.hasDefenseSword(player)) {
                     cir.setReturnValue(null);
                 }
+            } else if (EprotectCompat.shouldShield(entity)) {
+                cir.setReturnValue(null);
             }
         }
 
         @Inject(method = "getMaxHealthLock(Lnet/minecraft/world/entity/LivingEntity;)Ljava/lang/Float;", at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardGetMaxHealthLock(LivingEntity entity, CallbackInfoReturnable<Float> cir) {
             if (entity instanceof net.minecraft.world.entity.player.Player player) {
-                if (!com.automatavalkyries.protect.DirectRead.hasHealth(player) || !com.automatavalkyries.protect.EcaLastSwordHelper.hasDefenseSword(player)) {
+                if (!com.automatavalkyries.protect.DirectRead.hasHealth(player)
+                        || com.automatavalkyries.protect.PlayerWard.isRespawnProtected(player)
+                        || com.automatavalkyries.protect.PlayerWard.isActive(player)
+                        || !com.automatavalkyries.protect.EcaLastSwordHelper.hasDefenseSword(player)) {
                     cir.setReturnValue(null);
                 }
+            } else if (EprotectCompat.shouldShield(entity)) {
+                cir.setReturnValue(null);
+            }
+        }
+
+        @Inject(method = "getHealBan(Lnet/minecraft/world/entity/LivingEntity;)Ljava/lang/Float;", at = @At("HEAD"), cancellable = true, require = 0)
+        private static void automata_valkyries$guardGetHealBan(LivingEntity entity, CallbackInfoReturnable<Float> cir) {
+            if (entity instanceof net.minecraft.world.entity.player.Player player) {
+                if (!com.automatavalkyries.protect.DirectRead.hasHealth(player)
+                        || com.automatavalkyries.protect.PlayerWard.isRespawnProtected(player)
+                        || com.automatavalkyries.protect.PlayerWard.isActive(player)
+                        || !com.automatavalkyries.protect.EcaLastSwordHelper.hasDefenseSword(player)) {
+                    cir.setReturnValue(null);
+                }
+            } else if (EprotectCompat.shouldShield(entity)) {
+                cir.setReturnValue(null);
+            }
+        }
+
+        @Inject(method = {"setLock(Lnet/minecraft/world/entity/LivingEntity;F)V", "setMaxHealthLock(Lnet/minecraft/world/entity/LivingEntity;F)V", "setHealBan(Lnet/minecraft/world/entity/LivingEntity;F)V"},
+                at = @At("HEAD"), cancellable = true, require = 0)
+        private static void automata_valkyries$guardSetLockMethods(LivingEntity entity, float val, CallbackInfo ci) {
+            if (entity instanceof net.minecraft.world.entity.player.Player player) {
+                if (com.automatavalkyries.protect.PlayerWard.isRespawnProtected(player)
+                        || com.automatavalkyries.protect.PlayerWard.isActive(player)
+                        || !com.automatavalkyries.protect.EcaLastSwordHelper.hasDefenseSword(player)) {
+                    ci.cancel();
+                }
+            } else if (EprotectCompat.shouldShield(entity)) {
+                ci.cancel();
             }
         }
     }

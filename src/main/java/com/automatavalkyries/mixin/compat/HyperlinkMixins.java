@@ -29,6 +29,16 @@ public final class HyperlinkMixins {
         private static void automata_valkyries$guardNovelized(Entity entity, CallbackInfoReturnable<Boolean> cir) {
             if (entity == null) {
                 cir.setReturnValue(false);
+                return;
+            }
+            if (entity instanceof net.minecraft.world.entity.player.Player player) {
+                if (com.automatavalkyries.protect.PlayerWard.isActive(player) || com.automatavalkyries.protect.PlayerWard.isRespawnProtected(player)) {
+                    cir.setReturnValue(false);
+                    return;
+                }
+            }
+            if (entity instanceof com.automatavalkyries.protect.IEprotected) {
+                cir.setReturnValue(false);
             }
         }
 
@@ -43,6 +53,47 @@ public final class HyperlinkMixins {
         private static void automata_valkyries$guardNovelize(LivingEntity living, Entity entity, boolean flag, CallbackInfo ci) {
             if (living == null || entity == null) {
                 ci.cancel();
+                return;
+            }
+            if (com.automatavalkyries.protect.EprotectCompat.shieldAttack(entity, "hyperlink:novelize")) {
+                ci.cancel();
+            }
+        }
+    }
+
+    @Pseudo
+    @Mixin(targets = "com.sakurafuld.hyperdaimc.mixin.novel.LivingEntityMixin", remap = false)
+    public abstract static class NovelLivingMixin {
+        @Inject(method = "getHealthNovel(Lorg/spongepowered/asm/mixin/injection/callback/CallbackInfoReturnable;)V", at = @At("HEAD"), cancellable = true, require = 0)
+        private void automata_valkyries$guardGetHealthNovel(CallbackInfoReturnable<Float> cir) {
+            if ((Object) this instanceof net.minecraft.world.entity.player.Player player) {
+                if (com.automatavalkyries.protect.PlayerWard.isActive(player) || com.automatavalkyries.protect.PlayerWard.isRespawnProtected(player)) {
+                    cir.cancel();
+                }
+            } else if ((Object) this instanceof com.automatavalkyries.protect.IEprotected) {
+                cir.cancel();
+            }
+        }
+
+        @Inject(method = "isDeadOrDyingNovel(Lorg/spongepowered/asm/mixin/injection/callback/CallbackInfoReturnable;)V", at = @At("HEAD"), cancellable = true, require = 0)
+        private void automata_valkyries$guardIsDeadOrDyingNovel(CallbackInfoReturnable<Boolean> cir) {
+            if ((Object) this instanceof net.minecraft.world.entity.player.Player player) {
+                if (com.automatavalkyries.protect.PlayerWard.isActive(player) || com.automatavalkyries.protect.PlayerWard.isRespawnProtected(player)) {
+                    cir.cancel();
+                }
+            } else if ((Object) this instanceof com.automatavalkyries.protect.IEprotected) {
+                cir.cancel();
+            }
+        }
+
+        @Inject(method = "isAliveNovel(Lorg/spongepowered/asm/mixin/injection/callback/CallbackInfoReturnable;)V", at = @At("HEAD"), cancellable = true, require = 0)
+        private void automata_valkyries$guardIsAliveNovel(CallbackInfoReturnable<Boolean> cir) {
+            if ((Object) this instanceof net.minecraft.world.entity.player.Player player) {
+                if (com.automatavalkyries.protect.PlayerWard.isActive(player) || com.automatavalkyries.protect.PlayerWard.isRespawnProtected(player)) {
+                    cir.cancel();
+                }
+            } else if ((Object) this instanceof com.automatavalkyries.protect.IEprotected) {
+                cir.cancel();
             }
         }
     }

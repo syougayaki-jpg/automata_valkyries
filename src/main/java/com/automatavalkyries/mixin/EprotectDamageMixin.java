@@ -86,9 +86,13 @@ public abstract class EprotectDamageMixin {
             }
             return protect.filterHealth(health);
         }
-        // 守護の護符: 被弾以外での HP 0 化・NaN 化を拒否する（今の HP のまま）
+        // 守護の護符またはリスポーン保護: 被弾以外での HP 0 化・NaN 化を拒否する（今の HP または最大 HP のまま）
         if (automata_valkyries$wardHurtDepth == 0 && (health <= 0.0F || !Float.isFinite(health))) {
             LivingEntity self = (LivingEntity) (Object) this;
+            if (self instanceof net.minecraft.world.entity.player.Player player && com.automatavalkyries.protect.PlayerWard.isRespawnProtected(player)) {
+                AttackLog.refused(self, AttackOp.HEALTH_LOSS + ":respawn_shield");
+                return self.getMaxHealth();
+            }
             if (PlayerWard.isActive(self)) {
                 float current = com.automatavalkyries.protect.DirectRead.health(self);
                 if (Float.isFinite(current) && current > 0.0F) {
@@ -107,9 +111,15 @@ public abstract class EprotectDamageMixin {
     private void automata_valkyries$guardDie(DamageSource source, CallbackInfo ci) {
         Eprotect protect = automata_valkyries$getProtect();
         LivingEntity living = (LivingEntity) (Object) this;
-        // 守護の護符: HP が残っているのに die() を直接呼ばれたら拒否（正規の死亡は HP 0 になってから呼ばれる）
+        // 守護の護符またはリスポーン保護: die() を直接呼ばれたら拒否し、HP と deathTime を安全値に保つ
         if (protect == null && PlayerWard.isActive(living)) {
             ci.cancel();
+            if (living instanceof net.minecraft.world.entity.player.Player player) {
+                if (player.deathTime > 0) player.deathTime = 0;
+                if (player.getHealth() <= 0.0F || !Float.isFinite(player.getHealth())) {
+                    player.setHealth(player.getMaxHealth());
+                }
+            }
             AttackLog.refused(living, AttackOp.DIE);
             return;
         }

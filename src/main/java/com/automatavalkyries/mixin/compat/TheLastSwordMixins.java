@@ -53,6 +53,18 @@ public final class TheLastSwordMixins {
     }
 
     @Pseudo
+    @Mixin(targets = "net.the_last_sword.item.TheLastSwordYouNeverForgot", remap = false)
+    public abstract static class TheLastSwordYouNeverForgotCompat {
+        @Inject(method = "attack(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/world/entity/Entity;F)V",
+                at = @At("HEAD"), cancellable = true, require = 0)
+        private static void automata_valkyries$guardAttack(LivingEntity living, Entity attacker, float damage, CallbackInfo ci) {
+            if (EprotectCompat.shieldAttack(living, "the_last_sword:attack")) {
+                ci.cancel();
+            }
+        }
+    }
+
+    @Pseudo
     @Mixin(targets = "net.the_last_sword.entity.TheLastEndSwordProjectile", remap = false)
     public abstract static class Projectile {
 

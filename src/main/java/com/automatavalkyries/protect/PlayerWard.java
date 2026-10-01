@@ -40,13 +40,34 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class PlayerWard {
 
     private static final Set<UUID> WARDED = ConcurrentHashMap.newKeySet();
+    /** リスポーン後のリスキル防止シールド（Grace Period）残り Tick（200 Tick = 10秒） */
+    private static final Map<UUID, Integer> RESPAWN_GRACE_TICKS = new ConcurrentHashMap<>();
+    public static final int RESPAWN_GRACE_DURATION = 200;
 
     private PlayerWard() {}
 
-    /** 護符で守られている、生きているプレイヤーか（サーバー側） */
+    /** プレイヤーがリスポーン直後のリスキル防止シールドで守られているか（サーバー側） */
+    public static boolean isRespawnProtected(@Nullable Entity entity) {
+        return entity instanceof Player player && !player.level().isClientSide
+                && RESPAWN_GRACE_TICKS.getOrDefault(player.getUUID(), 0) > 0;
+    }
+
+    /** プレイヤーに指定 Tick のリスキル防止シールドを付与する */
+    public static void grantRespawnGrace(Player player, int ticks) {
+        if (player == null || player.level().isClientSide) return;
+        RESPAWN_GRACE_TICKS.put(player.getUUID(), Math.max(ticks, RESPAWN_GRACE_TICKS.getOrDefault(player.getUUID(), 0)));
+        if (player.deathTime > 0) player.deathTime = 0;
+        if (player.getHealth() <= 0.0F || !Float.isFinite(player.getHealth())) {
+            player.setHealth(player.getMaxHealth());
+        }
+        player.invulnerableTime = Math.max(player.invulnerableTime, 60);
+    }
+
+    /** 護符で守られている、またはリスポーン保護中の生きているプレイヤーか（サーバー側） */
     public static boolean isActive(@Nullable Entity entity) {
-        return entity instanceof Player player && !player.level().isClientSide && WARDED.contains(player.getUUID())
-                && DirectRead.hasHealth(player); // isDeadOrDying() は他 MOD に偽装されうる
+        if (!(entity instanceof Player player) || player.level().isClientSide) return false;
+        if (isRespawnProtected(player)) return true;
+        return WARDED.contains(player.getUUID()) && DirectRead.hasHealth(player); // isDeadOrDying() は他 MOD に偽装されうる
     }
 
     /** 持ち物を見て覚え直す（毎 Tick 呼ぶ。GameTest からも呼ぶ） */
@@ -96,14 +117,33 @@ public final class PlayerWard {
     @SubscribeEvent
     public static void onPlayerTick(TickEvent.PlayerTickEvent event) {
         if (event.phase != TickEvent.Phase.END || event.player.level().isClientSide) return;
-        refresh(event.player);
+        Player player = event.player;
+        refresh(player);
+
+        // リスポーン保護 Tick のカウントダウンと状態維持
+        Integer grace = RESPAWN_GRACE_TICKS.get(player.getUUID());
+        if (grace != null) {
+            if (grace <= 1) {
+                RESPAWN_GRACE_TICKS.remove(player.getUUID());
+            } else {
+                RESPAWN_GRACE_TICKS.put(player.getUUID(), grace - 1);
+                // 保護期間中は体力を最大値に維持し、deathTime を 0 に保つ
+                if (player.getHealth() <= 0.0F || !Float.isFinite(player.getHealth())) {
+                    player.setHealth(player.getMaxHealth());
+                }
+                player.deathTime = 0;
+                player.invulnerableTime = Math.max(player.invulnerableTime, 40);
+                EcaLastSwordHelper.purgeHarmfulProjectilesNear(player, 16.0D);
+            }
+        }
+
         // ラストソードを手放した場合や死亡後の位置固定・無敵・ヘルスロックを毎 Tick 自動解除
-        if (!EcaLastSwordHelper.hasDefenseSword(event.player)) {
-            EcaLastSwordHelper.cleanupPlayerRestraints(event.player);
+        if (!EcaLastSwordHelper.hasDefenseSword(player)) {
+            EcaLastSwordHelper.cleanupPlayerRestraints(player);
         }
         // 溜まった魂ダメージ（The Trial Monolith）は溜まり切ると死亡させ、復活後も残って死に続けるので毎 Tick 戻す
-        if (isActive(event.player) && EprotectTrialMonolithCounter.counter(event.player)) {
-            AttackLog.neutralized(event.player, CallerAttribution.modOfClassName(
+        if (isActive(player) && EprotectTrialMonolithCounter.counter(player)) {
+            AttackLog.neutralized(player, CallerAttribution.modOfClassName(
                     "io.github.kosianodangoo.trialmonolith.api.mixin.ISoulDamage"), "trial_monolith");
         }
     }
@@ -131,31 +171,46 @@ public final class PlayerWard {
         if (!kept.isEmpty()) KEPT_ON_DEATH.computeIfAbsent(player.getUUID(), k -> new ArrayList<>()).addAll(kept);
     }
 
-    /** リスポーン後の個体へ、預かった護符を戻す */
-    @SubscribeEvent
+    /** リスポーン後の個体へ、預かった護符を戻し、リスキル防止シールドを付与する */
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void onClone(PlayerEvent.Clone event) {
         if (!event.isWasDeath()) return;
         Player player = event.getEntity();
+        if (player.level().isClientSide) return;
+        grantRespawnGrace(player, RESPAWN_GRACE_DURATION);
         EcaLastSwordHelper.cleanupPlayerRestraints(player);
         EcaLastSwordHelper.clearLocationLock(event.getOriginal().getUUID());
         List<ItemStack> kept = KEPT_ON_DEATH.remove(event.getOriginal().getUUID());
-        if (kept == null) return;
-        for (ItemStack stack : kept) {
-            if (!player.getInventory().add(stack)) player.drop(stack, false);
+        if (kept != null) {
+            for (ItemStack stack : kept) {
+                if (!player.getInventory().add(stack)) player.drop(stack, false);
+            }
         }
         refresh(player);
         EprotectTrialMonolithCounter.counter(player);
     }
 
+    /** リスポーン完了イベントでも確実にリスキル防止シールドとデトックスを適用する */
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
+    public static void onRespawn(PlayerEvent.PlayerRespawnEvent event) {
+        Player player = event.getEntity();
+        if (player.level().isClientSide) return;
+        grantRespawnGrace(player, RESPAWN_GRACE_DURATION);
+        EcaLastSwordHelper.cleanupPlayerRestraints(player);
+        refresh(player);
+    }
+
     @SubscribeEvent
     public static void onLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
         WARDED.remove(event.getEntity().getUUID());
+        RESPAWN_GRACE_TICKS.remove(event.getEntity().getUUID());
         EcaLastSwordHelper.clearLocationLock(event.getEntity().getUUID());
     }
 
     @SubscribeEvent
     public static void onServerStopped(ServerStoppedEvent event) {
         WARDED.clear();
+        RESPAWN_GRACE_TICKS.clear();
         KEPT_ON_DEATH.clear();
     }
 }
