@@ -82,6 +82,15 @@ public final class PlayerWard {
     /** {@link #isActive} が HP を読んでいる最中か（入れ子の呼び出しで無限に再帰しないため） */
     private static final ThreadLocal<Boolean> READING_HEALTH = ThreadLocal.withInitial(() -> false);
 
+    /**
+     * クライアントで、このプレイヤーが護符を持っているか（互換 Mixin の入口だけで使う）。
+     * 他 MOD（ECA 等）がクライアント側の HP を直接 0 にすると、サーバーでは生きているのに死亡画面になるため。
+     * クライアントには護符の一覧も保護の時間も無いので持ち物を見る。サーバーからの HP の同期は通常どおり届く
+     */
+    public static boolean isWardedOnClient(@Nullable Entity entity) {
+        return entity instanceof Player player && player.level().isClientSide && hasCharm(player);
+    }
+
     /** 持ち物を見て覚え直す（毎 Tick 呼ぶ。GameTest からも呼ぶ） */
     public static void refresh(Player player) {
         if (hasCharm(player)) WARDED.add(player.getUUID());
@@ -136,7 +145,11 @@ public final class PlayerWard {
     @SubscribeEvent
     public static void onPlayerTick(TickEvent.PlayerTickEvent event) {
         if (event.phase != TickEvent.Phase.END || event.player.level().isClientSide) return;
-        Player player = event.player;
+        tickPlayer(event.player);
+    }
+
+    /** プレイヤーの守護・リスポーン保護の毎 Tick 進行処理（テストからも直接呼び出し可能） */
+    public static void tickPlayer(Player player) {
         refresh(player);
 
         // リスポーン保護 Tick のカウントダウンと状態維持
@@ -200,6 +213,7 @@ public final class PlayerWard {
         Player player = event.getEntity();
         if (player.level().isClientSide) return;
         grantRespawnGrace(player, RESPAWN_GRACE_DURATION);
+        cleanLingeringKillState(player);
         EcaLastSwordHelper.cleanupPlayerRestraints(player);
         EcaLastSwordHelper.clearLocationLock(event.getOriginal().getUUID());
         List<ItemStack> kept = KEPT_ON_DEATH.remove(event.getOriginal().getUUID());
@@ -218,6 +232,7 @@ public final class PlayerWard {
         Player player = event.getEntity();
         if (player.level().isClientSide) return;
         grantRespawnGrace(player, RESPAWN_GRACE_DURATION);
+        cleanLingeringKillState(player);
         EcaLastSwordHelper.cleanupPlayerRestraints(player);
         refresh(player);
     }

@@ -17,6 +17,7 @@ public final class EprotectCompat {
     public static boolean shouldShield(@Nullable Entity entity) {
         if (!SpecificCountermeasures.enabled()) return false; // 準汎用の層だけを測る設定
         if (entity instanceof PartEntity<?> part) entity = part.getParent();
+        if (PlayerWard.isWardedOnClient(entity)) return true; // クライアント側でのプレイヤーの HP 0 化（死亡画面だけ出る）を止める
         if (PlayerWard.isActive(entity)) return true; // 守護の護符を持つプレイヤー
 
         if (!(entity instanceof IEprotected provider)) return false;

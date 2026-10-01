@@ -520,6 +520,10 @@ public class KillModGameTests {
             Method novelizeMethod = nhClass.getDeclaredMethod("novelize", net.minecraft.world.entity.LivingEntity.class, net.minecraft.world.entity.Entity.class, boolean.class);
             novelizeMethod.setAccessible(true);
             novelizeMethod.invoke(null, null, null, false);
+
+            Player p = helper.makeMockPlayer();
+            com.automatavalkyries.protect.EprotectHyperlinkCounter.counter(p);
+            helper.assertFalse(com.automatavalkyries.protect.EprotectHyperlinkCounter.isNovelized(p), "Mock player reported novelized after counter");
         } catch (Throwable t) {
             helper.fail("NovelHandler threw exception on null: " + t.getMessage());
             return;
@@ -585,6 +589,40 @@ public class KillModGameTests {
         helper.assertFalse(player.getPersistentData().contains("hyperdaimc:NovelDead"), "hyperdaimc:NovelDead was not purged");
         helper.assertFalse(player.getPersistentData().contains("ecaHealBanValue"), "ecaHealBanValue was not purged");
 
+        helper.succeed();
+    }
+
+    /**
+     * リスポーン保護期間終了後の生存確認:
+     * リスポーンしたプレイヤーが、保護期間（Grace Period）が終了した後も
+     * Hyperlink 等の過去の小説化フラグによって即死せず、正常に生存し続けることの検証。
+     */
+    @GameTest(template = TEMPLATE, timeoutTicks = 50)
+    public static void respawnedPlayerSurvivesAfterGraceExpires(GameTestHelper helper) {
+        Player player = helper.makeMockPlayer();
+        // 過去の命での小説化・死亡フラグが NBT に残っている状態を再現
+        player.getPersistentData().putString("hyperdaimc:NovelDead", "1");
+        player.getPersistentData().putBoolean("hyperdaimc:Novelized", true);
+
+        // 短いリスポーン保護（2 Tick）を付与してデトックスをシミュレート
+        com.automatavalkyries.protect.PlayerWard.grantRespawnGrace(player, 2);
+        com.automatavalkyries.protect.KillModCounters.counterAll(player);
+        helper.assertTrue(com.automatavalkyries.protect.PlayerWard.isRespawnProtected(player), "Respawn grace was not active");
+
+        // 2 Tick 進行させて保護期間を満了させる
+        com.automatavalkyries.protect.PlayerWard.tickPlayer(player);
+        com.automatavalkyries.protect.PlayerWard.tickPlayer(player);
+
+        // 保護が切れた後の状態
+        helper.assertFalse(com.automatavalkyries.protect.PlayerWard.isRespawnProtected(player), "Respawn grace was still active");
+        helper.assertFalse(com.automatavalkyries.protect.PlayerWard.isActive(player), "Player was still active in PlayerWard");
+
+        // 小説化フラグが解除されていること
+        helper.assertFalse(com.automatavalkyries.protect.EprotectHyperlinkCounter.isNovelized(player), "Player is still novelized");
+
+        // 体力が 0 にならず正常に生存していること
+        helper.assertTrue(player.getHealth() > 0.0F, "Player died after respawn grace expired: " + player.getHealth());
+        helper.assertFalse(player.isDeadOrDying(), "Player is marked dead or dying after respawn grace expired");
         helper.succeed();
     }
 
