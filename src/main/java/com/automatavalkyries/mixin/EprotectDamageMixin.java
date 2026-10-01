@@ -1,9 +1,8 @@
 package com.automatavalkyries.mixin;
 
 import com.automatavalkyries.protect.Eprotect;
-import com.automatavalkyries.protect.KillModCounters;
 import com.automatavalkyries.protect.IEprotected;
-import com.automatavalkyries.protect.PlayerWard;
+import com.automatavalkyries.protect.KillModCounters;
 import com.automatavalkyries.protect.attack.AttackLog;
 import com.automatavalkyries.protect.attack.AttackOp;
 import com.automatavalkyries.protect.flag.FlagDictionary;
@@ -28,15 +27,6 @@ public abstract class EprotectDamageMixin {
         Eprotect protect = automata_valkyries$getProtect();
         LivingEntity self = (LivingEntity) (Object) this;
         if (protect == null) {
-            // 守護の護符を持つプレイヤー: 即死ダメージだけ拒否し、通常の被弾は通す（被弾中の HP 減少を正規扱いにするため数える）
-            if (PlayerWard.isActive(self)) {
-                if (PlayerWard.isInstantKill(source)) {
-                    cir.setReturnValue(false);
-                    com.automatavalkyries.protect.EprotectForgeEvents.recordKillDamage(self, source);
-                    return;
-                }
-                automata_valkyries$wardHurtDepth++;
-            }
             return;
         }
 
@@ -58,12 +48,7 @@ public abstract class EprotectDamageMixin {
     private void automata_valkyries$endHurt(DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
         Eprotect protect = automata_valkyries$getProtect();
         if (protect != null) protect.endHurt();
-        if (automata_valkyries$wardHurtDepth > 0) automata_valkyries$wardHurtDepth--;
     }
-
-    /** 守護の護符を持つプレイヤーの hurt() の入れ子の深さ（この間の HP 減少・0 化は正規の被弾） */
-    @Unique
-    private int automata_valkyries$wardHurtDepth = 0;
 
     /** まな板剣などの NaN / 無限大 / 桁外れな値を上限値へ置き換える */
     @ModifyVariable(method = "hurt", at = @At("HEAD"), argsOnly = true)
@@ -86,21 +71,6 @@ public abstract class EprotectDamageMixin {
             }
             return protect.filterHealth(health);
         }
-        // 守護の護符またはリスポーン保護: 被弾以外での HP 0 化・NaN 化を拒否する（今の HP または最大 HP のまま）
-        if (automata_valkyries$wardHurtDepth == 0 && (health <= 0.0F || !Float.isFinite(health))) {
-            LivingEntity self = (LivingEntity) (Object) this;
-            if (self instanceof net.minecraft.world.entity.player.Player player && com.automatavalkyries.protect.PlayerWard.isRespawnProtected(player)) {
-                AttackLog.refused(self, AttackOp.HEALTH_LOSS + ":respawn_shield");
-                return self.getMaxHealth();
-            }
-            if (PlayerWard.isActive(self)) {
-                float current = com.automatavalkyries.protect.DirectRead.health(self);
-                if (Float.isFinite(current) && current > 0.0F) {
-                    AttackLog.refused(self, AttackOp.HEALTH_LOSS + ":zero");
-                    return current;
-                }
-            }
-        }
         return health;
     }
 
@@ -110,19 +80,6 @@ public abstract class EprotectDamageMixin {
     @Inject(method = "die", at = @At("HEAD"), cancellable = true)
     private void automata_valkyries$guardDie(DamageSource source, CallbackInfo ci) {
         Eprotect protect = automata_valkyries$getProtect();
-        LivingEntity living = (LivingEntity) (Object) this;
-        // 守護の護符またはリスポーン保護: die() を直接呼ばれたら拒否し、HP と deathTime を安全値に保つ
-        if (protect == null && PlayerWard.isActive(living)) {
-            ci.cancel();
-            if (living instanceof net.minecraft.world.entity.player.Player player) {
-                if (player.deathTime > 0) player.deathTime = 0;
-                if (player.getHealth() <= 0.0F || !Float.isFinite(player.getHealth())) {
-                    player.setHealth(player.getMaxHealth());
-                }
-            }
-            AttackLog.refused(living, AttackOp.DIE);
-            return;
-        }
         if (protect != null) {
             LivingEntity self = (LivingEntity) (Object) this;
             KillModCounters.counterAll(self);

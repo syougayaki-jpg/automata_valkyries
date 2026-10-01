@@ -4,7 +4,6 @@ import com.automatavalkyries.AutomataValkyries;
 import com.automatavalkyries.item.DebugKillStickItem;
 import com.automatavalkyries.item.SuperKillStickItem;
 import com.automatavalkyries.item.UltraKillStickItem;
-import com.automatavalkyries.item.WardCharmItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Rarity;
 import net.minecraftforge.common.ForgeSpawnEggItem;
@@ -40,10 +39,6 @@ public class ModItems {
             new UltraKillStickItem(UltraKillStickItem.defaultProperties()));
     public static final RegistryObject<Item> TERMINUS_STICK = ITEMS.register("terminus_stick", () ->
             new com.automatavalkyries.item.TerminusStickItem(com.automatavalkyries.item.TerminusStickItem.defaultProperties()));
-
-    // ---- プレイヤー用 ----
-    public static final RegistryObject<Item> WARD_CHARM = ITEMS.register("ward_charm", () ->
-            new WardCharmItem(WardCharmItem.defaultProperties()));
 
     private static RegistryObject<Item> simple(String name) {
         return ITEMS.register(name, () -> new Item(new Item.Properties()));

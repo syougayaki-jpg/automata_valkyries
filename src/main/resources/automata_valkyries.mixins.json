@@ -17,7 +17,6 @@
     "EprotectEntityMixin",
     "EprotectSynchedDataMixin",
     "EprotectSectionCallbackMixin",
-    "PlayerWardMixin",
     "OffThreadPositionMixin",
     "ShutdownDiagnosticsMixin$Chunks",
     "ShutdownDiagnosticsMixin$Tickets",

@@ -63,7 +63,6 @@
 | 攻撃の記録 | `protect/attack/*` |
 | Tick の入口の犯人探し（報告のみ） | `protect/TickEntranceHooks` |
 | 観察 | `protect/EprotectWatchdogAgent`・`protect/ForeignHookReport`・`protect/ObserverLink`（＋ `src/observer` の Java エージェント） |
-| プレイヤーの保護（護符） | `protect/PlayerWard`・`mixin/PlayerWardMixin` |
 
 ## 3. 各構成要素
 
@@ -187,10 +186,10 @@
     そのクラスが使う名前をフラグ辞書で分類して出す（`/eprotect observer capabilities`）。できることであって、したことではない。
   - 改ざん防止: このMOD 自身のクラスを他のエージェントが書き換えたら、読み込んだときの形に戻す（`=noguard` で切れる）。他 MOD のクラスは書き換えない。
 
-### 3.12 プレイヤーの保護（護符）
+### 3.12 プレイヤーのクリーンアップ（PlayerRespawnHandler）
 
-守護の護符（`WARD_CHARM`）を持つプレイヤーは、他 MOD による強制テレポート・次元移動と即死の経路を拒否する。通常のダメージでは死ぬ（上限はかけない）。
-vanilla の移動（エンダーパール・/tp・ポータル・リスポーン）は通す。死亡しても護符は手元に残る。
+プレイヤー保護システム（護符・リスポーン保護）は、エレノア等の戦闘処理との干渉による不具合防止のため廃止された。
+代わりに `PlayerRespawnHandler` により、リスポーン時や手放し時に The Last Sword や Epic Core API による位置固定・移動不能バグのクリーンアップのみを実行する。
 
 ## 4. 設定（`config/EprotectConfig`、`automata_valkyries-common.toml`）
 
@@ -258,8 +257,8 @@ vanilla の移動（エンダーパール・/tp・ポータル・リスポーン
 
 | MOD | 起きたこと |
 |---|---|
-| ECA（Epic Core API）＋ The Last Sword You Never Forgot | The Last Sword が持ち主の HP を ECA の `setHealth` で毎秒 20 回ほど下げようとし続け、守護の護符がそれを止め続ける。止めた回数が自動ブラックリストの閾値に届いて ECA が載る。クライアント側だけ HP 0 になって死亡画面が出たこともある（サーバーでは生きている）。**未解決のまま保留中**。この組み合わせを外すと起きない |
-| Hyperlink | ノベル化の判定（同期データの読み出しに差し込まれる）から互換 Mixin を経て保護の判定に戻り、無限に再帰した（`PlayerWard.isActive` の入れ子の読み出しで修正済み）。リスポーン保護が切れた瞬間に、残っていたノベル化の印で死んだ（保護の間に印を外すよう修正済み） |
+| ECA（Epic Core API）＋ The Last Sword You Never Forgot | The Last Sword が持ち主の HP を ECA の `setHealth` で毎秒 20 回ほど下げようとし続けるなど、プレイヤー保護との激しい干渉が発生したため、プレイヤー保護システムは廃止された |
+| Hyperlink | ノベル化の判定（同期データの読み出しに差し込まれる）から互換 Mixin を経て保護の判定に戻る再帰や、リスポーン後の小説化残存問題。兵姫保護に絞り込み、NPE対策とリスポーン時クリーンアップで対応 |
 | Omni-Mobs ＋ Hyperlink | ボスの描画に Hyperlink の判定が差し込まれ、消えたボスの描画で null を渡してクライアントが落ちた |
 | Omni-Mobs ＋ Witherzilla ＋ ECA | 処刑竜を遠方へ飛ばす処理と ECA のチャンク生成の拒否が重なり、サーバーが落ちた |
 

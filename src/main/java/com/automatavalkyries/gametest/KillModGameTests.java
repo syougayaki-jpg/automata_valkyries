@@ -392,28 +392,7 @@ public class KillModGameTests {
         annihilateTrialMonolithBoss(helper, "tesseract_beast");
     }
 
-    /** The Trial Monolith: 守護の護符を持つプレイヤーに魂ダメージ（設定・加算・強制）が溜まらない */
-    @GameTest(template = TEMPLATE, timeoutTicks = 100)
-    public static void wardedPlayerTakesNoSoulDamage(GameTestHelper helper) {
-        if (!loaded(helper, "the_trial_monolith")) return;
-        net.minecraft.world.entity.player.Player player = helper.makeMockPlayer();
-        player.getInventory().add(new net.minecraft.world.item.ItemStack(com.automatavalkyries.registry.ModItems.WARD_CHARM.get()));
-        com.automatavalkyries.protect.PlayerWard.refresh(player);
-        String helperClass = "io.github.kosianodangoo.trialmonolith.common.helper.EntityHelper";
-        Class<?>[] args = {net.minecraft.world.entity.Entity.class, float.class};
-        invoke(helper, helperClass, "addSoulDamage", args, player, 5.0F);
-        invoke(helper, helperClass, "addSoulDamageForce", args, player, 5.0F);
-        invoke(helper, helperClass, "setSoulDamage", args, player, 5.0F);
-        invoke(helper, helperClass, "setSoulDamageForce", args, player, 5.0F);
-        try {
-            float soul = (Float) Class.forName(helperClass).getMethod("getSoulDamage", net.minecraft.world.entity.Entity.class).invoke(null, player);
-            helper.assertTrue(soul == 0.0F, "Soul damage built up on the warded player: " + soul);
-        } catch (ReflectiveOperationException e) {
-            helper.fail("Could not read soul damage: " + e);
-        }
-        helper.assertTrue(player.isAlive(), "The warded player died from soul damage");
-        helper.succeed();
-    }
+
 
     /**
      * フラグ辞書による同期データの入口での拒否: The Trial Monolith が vanilla に足した魂ダメージの同期データを、
@@ -564,83 +543,18 @@ public class KillModGameTests {
     }
 
     /**
-     * リスポーン保護（Respawn Grace Period）: リスポーン直後のプレイヤーは護符の有無にかかわらず
-     * リスキル防止シールドが付与され、即死攻撃や ECA / Hyperlink の消滅攻撃を受けても死なずに生存すること。
+     * 残存フラグの完全パージの検証:
+     * リスポーン時や手放し時に EcaLastSwordHelper.cleanupPlayerRestraints が
+     * ECA や Hyperlink の残存フラグを正常にパージすること。
      */
     @GameTest(template = TEMPLATE, timeoutTicks = 50)
-    public static void respawnGracePeriodProtectsPlayerFromSpawnKill(GameTestHelper helper) {
+    public static void cleanupPlayerRestraintsPurgesLingeringFlags(GameTestHelper helper) {
         Player player = helper.makeMockPlayer();
-        // 護符を持たない状態でもリスポーン保護が付与されること
-        com.automatavalkyries.protect.PlayerWard.grantRespawnGrace(player, 100);
-        helper.assertTrue(com.automatavalkyries.protect.PlayerWard.isRespawnProtected(player), "Respawn grace was not active");
-        helper.assertTrue(com.automatavalkyries.protect.PlayerWard.isActive(player), "PlayerWard was not active during respawn grace");
-
-        // 即死攻撃（GENERIC_KILL）を試行しても体力が 0 にならず死なないこと
-        net.minecraft.world.damagesource.DamageSource killSource = player.damageSources().genericKill();
-        helper.assertTrue(com.automatavalkyries.protect.PlayerWard.isInstantKill(killSource), "genericKill was not identified as instant kill");
-        player.hurt(killSource, 100000.0F);
-        helper.assertTrue(player.getHealth() > 0.0F, "Player health dropped during respawn grace: " + player.getHealth());
-        helper.assertFalse(player.isDeadOrDying(), "Player died during respawn grace");
-
-        // 残存フラグの完全パージの検証
         player.getPersistentData().putString("hyperdaimc:NovelDead", "1");
         player.getPersistentData().putString("ecaHealBanValue", "0.0");
         com.automatavalkyries.protect.EcaLastSwordHelper.cleanupPlayerRestraints(player);
         helper.assertFalse(player.getPersistentData().contains("hyperdaimc:NovelDead"), "hyperdaimc:NovelDead was not purged");
         helper.assertFalse(player.getPersistentData().contains("ecaHealBanValue"), "ecaHealBanValue was not purged");
-
-        helper.succeed();
-    }
-
-    /**
-     * リスポーン保護期間終了後の生存確認:
-     * リスポーンしたプレイヤーが、保護期間（Grace Period）が終了した後も
-     * Hyperlink 等の過去の小説化フラグによって即死せず、正常に生存し続けることの検証。
-     */
-    @GameTest(template = TEMPLATE, timeoutTicks = 50)
-    public static void respawnedPlayerSurvivesAfterGraceExpires(GameTestHelper helper) {
-        Player player = helper.makeMockPlayer();
-        // 過去の命での小説化・死亡フラグが NBT に残っている状態を再現
-        player.getPersistentData().putString("hyperdaimc:NovelDead", "1");
-        player.getPersistentData().putBoolean("hyperdaimc:Novelized", true);
-
-        // 短いリスポーン保護（2 Tick）を付与してデトックスをシミュレート
-        com.automatavalkyries.protect.PlayerWard.grantRespawnGrace(player, 2);
-        com.automatavalkyries.protect.KillModCounters.counterAll(player);
-        helper.assertTrue(com.automatavalkyries.protect.PlayerWard.isRespawnProtected(player), "Respawn grace was not active");
-
-        // 2 Tick 進行させて保護期間を満了させる
-        com.automatavalkyries.protect.PlayerWard.tickPlayer(player);
-        com.automatavalkyries.protect.PlayerWard.tickPlayer(player);
-
-        // 保護が切れた後の状態
-        helper.assertFalse(com.automatavalkyries.protect.PlayerWard.isRespawnProtected(player), "Respawn grace was still active");
-        helper.assertFalse(com.automatavalkyries.protect.PlayerWard.isActive(player), "Player was still active in PlayerWard");
-
-        // 小説化フラグが解除されていること
-        helper.assertFalse(com.automatavalkyries.protect.EprotectHyperlinkCounter.isNovelized(player), "Player is still novelized");
-
-        // 体力が 0 にならず正常に生存していること
-        helper.assertTrue(player.getHealth() > 0.0F, "Player died after respawn grace expired: " + player.getHealth());
-        helper.assertFalse(player.isDeadOrDying(), "Player is marked dead or dying after respawn grace expired");
-        helper.succeed();
-    }
-
-    /**
-     * 通常時のプレイヤー保護制限の検証: 護符を持たずリスポーン保護期間でもない通常のプレイヤーは、
-     * 保護シールドが付与されず、ダメージを受けて正常に死亡すること。
-     */
-    @GameTest(template = TEMPLATE, timeoutTicks = 50)
-    public static void normalPlayerWithoutRespawnGraceIsNotProtected(GameTestHelper helper) {
-        Player player = helper.makeMockPlayer();
-        com.automatavalkyries.protect.PlayerWard.refresh(player);
-        helper.assertFalse(com.automatavalkyries.protect.PlayerWard.isRespawnProtected(player), "Normal player had respawn grace");
-        helper.assertFalse(com.automatavalkyries.protect.PlayerWard.isActive(player), "Normal player was active in PlayerWard");
-
-        // 通常ダメージが通り死亡すること
-        var generic = helper.getLevel().damageSources().generic();
-        player.hurt(generic, 1000.0F);
-        helper.assertTrue(player.isDeadOrDying(), "Normal player did not die from lethal damage");
         helper.succeed();
     }
 

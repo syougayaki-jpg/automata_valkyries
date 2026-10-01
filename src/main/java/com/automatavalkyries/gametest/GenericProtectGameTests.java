@@ -4,7 +4,6 @@ import com.automatavalkyries.AutomataValkyries;
 import com.automatavalkyries.entity.ElenorEntity;
 import com.automatavalkyries.protect.EprotectForgeEvents;
 import com.automatavalkyries.protect.ForeignStateCleaner;
-import com.automatavalkyries.protect.PlayerWard;
 import com.automatavalkyries.protect.attack.AttackLog;
 import com.automatavalkyries.protect.flag.FlagDictionary;
 import com.automatavalkyries.registry.ModEntities;
@@ -138,34 +137,7 @@ public class GenericProtectGameTests {
         helper.succeed();
     }
 
-    /**
-     * 守護の護符（PlayerWard）を持つプレイヤーが、
-     * 未知 MOD の即死ダメージ（unknown_mod:execution_strike）からフラグ辞書により保護されること。
-     */
-    @GameTest(template = TEMPLATE, timeoutTicks = 100)
-    public static void playerWardProtectsAgainstUnknownInstantKill(GameTestHelper helper) {
-        FakePlayer player = new FakePlayer(helper.getLevel(), new GameProfile(UUID.randomUUID(), "ward-player"));
-        player.setHealth(20.0F);
 
-        // 守護の護符をインベントリに持たせる
-        player.getInventory().setItem(0, new ItemStack(ModItems.WARD_CHARM.get()));
-        PlayerWard.refresh(player);
-        helper.assertTrue(PlayerWard.isActive(player), "PlayerWard is not active on player with charm");
-
-        // 未知 MOD の処刑ダメージソース
-        DamageType damageType = new DamageType("unknown_mod.execution_strike", 0.0F);
-        DamageSource executionSource = new DamageSource(Holder.direct(damageType));
-
-        helper.assertTrue(PlayerWard.isInstantKill(executionSource),
-                "PlayerWard failed to classify execution_strike as instant kill via FlagDictionary");
-
-        // 被弾を試みる
-        boolean hurt = player.hurt(executionSource, 10000.0F);
-        helper.assertFalse(hurt, "Player hurt was not rejected");
-        helper.assertTrue(player.isAlive() && player.getHealth() > 0.0F, "Player was killed by unknown execution damage");
-
-        helper.succeed();
-    }
 
     /**
      * フラグ辞書保護 Java エージェント:

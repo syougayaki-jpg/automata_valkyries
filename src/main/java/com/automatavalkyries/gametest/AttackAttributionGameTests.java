@@ -206,39 +206,6 @@ public class AttackAttributionGameTests {
     }
 
     /**
-     * 守護の護符を持つプレイヤー: 他 MOD の強制テレポート・即死（/kill 型・HP 0 化・die 直呼び・消去）は拒否し、
-     * 短い移動と通常のダメージ（致死量なら死亡）は通す
-     */
-    @GameTest(template = TEMPLATE)
-    public static void wardCharmBlocksModTeleportAndInstantKill(GameTestHelper helper) {
-        FakeKillMod.install();
-        net.minecraft.world.entity.player.Player player = helper.makeMockPlayer();
-        player.getInventory().add(new net.minecraft.world.item.ItemStack(com.automatavalkyries.registry.ModItems.WARD_CHARM.get()));
-        com.automatavalkyries.protect.PlayerWard.refresh(player);
-        var generic = helper.getLevel().damageSources().generic();
-
-        double x = player.getX();
-        FakeKillMod.relocate(player, 100.0D);
-        helper.assertTrue(player.getX() == x, "A mod's forced teleport moved the warded player");
-        FakeKillMod.relocate(player, 1.0D);
-        helper.assertTrue(player.getX() == x + 1.0D, "A short move of the warded player was blocked");
-
-        player.kill();
-        FakeKillMod.setHealth(player, 0.0F);
-        FakeKillMod.die(player, generic);
-        FakeKillMod.discard(player);
-        helper.assertTrue(player.getHealth() > 0.0F && !player.isDeadOrDying(), "An instant kill got through: " + player.getHealth());
-        helper.assertFalse(player.isRemoved(), "The warded player was removed: " + player.getRemovalReason());
-
-        float before = player.getHealth();
-        FakeKillMod.hit(player, generic, 5.0F);
-        helper.assertTrue(player.getHealth() < before, "Ordinary damage to the warded player was blocked");
-        FakeKillMod.hit(player, generic, 1000.0F);
-        helper.assertTrue(player.isDeadOrDying(), "Lethal ordinary damage did not kill the warded player");
-        helper.succeed();
-    }
-
-    /**
      * 超絶抹殺の棒の準汎用処理: 架空の MOD のボスの保護・復活のフラグが下り（待ち時間には触れない）、本体が消され、
      * 静的な一覧・管理表から対象・本体・UUID が取り除かれ、同じ MOD の乗客もまとめて消える
      */
@@ -287,37 +254,7 @@ public class AttackAttributionGameTests {
         });
     }
 
-    /** 守護の護符は死亡時に落とし物から外れ、リスポーン後の個体の持ち物へ戻る */
-    @GameTest(template = TEMPLATE)
-    public static void wardCharmIsKeptOnDeath(GameTestHelper helper) {
-        ServerLevel level = helper.getLevel();
-        net.minecraft.world.entity.player.Player dying = helper.makeMockPlayer();
-        net.minecraft.world.item.ItemStack charm = new net.minecraft.world.item.ItemStack(com.automatavalkyries.registry.ModItems.WARD_CHARM.get());
-        java.util.List<net.minecraft.world.entity.item.ItemEntity> drops = new java.util.ArrayList<>();
-        drops.add(new net.minecraft.world.entity.item.ItemEntity(level, dying.getX(), dying.getY(), dying.getZ(), charm));
-        drops.add(new net.minecraft.world.entity.item.ItemEntity(level, dying.getX(), dying.getY(), dying.getZ(),
-                new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIRT)));
-        net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(new net.minecraftforge.event.entity.living.LivingDropsEvent(
-                dying, level.damageSources().generic(), drops, 0, false));
-        helper.assertTrue(drops.size() == 1 && drops.get(0).getItem().is(net.minecraft.world.item.Items.DIRT),
-                "The charm was dropped (or other drops were touched): " + drops);
 
-        net.minecraft.world.entity.player.Player respawned = helper.makeMockPlayer();
-        net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(new net.minecraftforge.event.entity.player.PlayerEvent.Clone(respawned, dying, true));
-        helper.assertTrue(respawned.getInventory().contains(charm), "The charm was not returned after respawning");
-        helper.succeed();
-    }
-
-    /** 護符を持たないプレイヤーは守られない */
-    @GameTest(template = TEMPLATE)
-    public static void playerWithoutCharmIsNotWarded(GameTestHelper helper) {
-        FakeKillMod.install();
-        net.minecraft.world.entity.player.Player player = helper.makeMockPlayer();
-        com.automatavalkyries.protect.PlayerWard.refresh(player);
-        FakeKillMod.setHealth(player, 0.0F);
-        helper.assertTrue(player.getHealth() <= 0.0F, "A player without the charm was protected");
-        helper.succeed();
-    }
 
     /** ブラックリストの MOD からのダメージは、上限が最大 HP の 1% に下がる（罰則） */
     @GameTest(template = TEMPLATE)

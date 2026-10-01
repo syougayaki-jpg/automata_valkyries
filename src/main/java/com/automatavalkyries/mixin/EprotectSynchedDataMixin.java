@@ -27,22 +27,6 @@ public abstract class EprotectSynchedDataMixin {
 
     @Inject(method = "set(Lnet/minecraft/network/syncher/EntityDataAccessor;Ljava/lang/Object;Z)V", at = @At("HEAD"), cancellable = true)
     private <T> void automata_valkyries$guardSet(EntityDataAccessor<T> key, T value, boolean force, CallbackInfo ci) {
-        // 守護の護符を持つプレイヤー、またはリスポーン保護中のプレイヤー: 小説化や即死の印を立てる・増やす書き込みを拒否する
-        if (!(this.entity instanceof IEprotected) && com.automatavalkyries.protect.PlayerWard.isActive(this.entity)) {
-            if (Boolean.TRUE.equals(value) && EprotectHyperlinkCounter.isNovelizedAccessor(key)) {
-                ci.cancel();
-                com.automatavalkyries.protect.attack.AttackLog.refused(this.entity,
-                        com.automatavalkyries.protect.attack.AttackOp.NOVELIZE + ":data");
-                return;
-            }
-            StateScanner.DataKey wardKey = StateScanner.injectedDataKey(key);
-            if (wardKey != null && FlagDictionary.harmfulOnProtected(wardKey.name()) && automata_valkyries$worsens(key, value)) {
-                ci.cancel();
-                com.automatavalkyries.protect.attack.AttackLog.refused(this.entity,
-                        com.automatavalkyries.protect.attack.AttackOp.SYNCHED_DATA + ":" + wardKey.name(), wardKey.mod());
-            }
-            return;
-        }
         if (this.entity instanceof IEprotected provider) {
             Eprotect protect = provider.getEprotect();
             if (protect != null && protect.isProtectionActive()) {
@@ -86,12 +70,7 @@ public abstract class EprotectSynchedDataMixin {
                 if (protect != null && protect.isProtectionActive()) {
                     //noinspection unchecked
                     cir.setReturnValue((T) Boolean.FALSE);
-                    return;
                 }
-            }
-            if (com.automatavalkyries.protect.PlayerWard.isActive(this.entity)) {
-                //noinspection unchecked
-                cir.setReturnValue((T) Boolean.FALSE);
             }
         }
     }

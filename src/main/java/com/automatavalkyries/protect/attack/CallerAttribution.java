@@ -205,7 +205,6 @@ public final class CallerAttribution {
                 || name.equals("com.automatavalkyries.protect.Eprotect")
                 || name.equals("com.automatavalkyries.protect.EprotectCompat")
                 || name.equals("com.automatavalkyries.protect.EprotectForgeEvents")
-                || name.equals("com.automatavalkyries.protect.PlayerWard")
                 || method.contains("automata_valkyries$")
                 || name.startsWith("org.spongepowered.");
     }

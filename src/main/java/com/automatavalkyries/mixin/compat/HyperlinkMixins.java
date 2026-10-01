@@ -2,7 +2,6 @@ package com.automatavalkyries.mixin.compat;
 
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.player.Player;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Pseudo;
 import org.spongepowered.asm.mixin.injection.At;
@@ -14,8 +13,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * Hyperlink (hyperdaimc) に対する防御及び NullPointerException 抑制 Mixin。
  * <p>
  * 1. NovelHandler.novelized / special / novelize における引数 entity の null ガード（レンダラーやプロキシ消滅時の NPE クラッシュ防止）
- * 2. 兵姫（IEprotected）および保護対象プレイヤー（護符持ち・リスポーン保護中）に対する小説化（即死・消去）の確実な無効化
- * 3. 通常プレイヤーのリスポーン後に前の命の小説化フラグが残存して10秒経過時に即死する問題の解消
+ * 2. 兵姫（IEprotected）に対する小説化（即死・消去）の確実な無効化
  * </p>
  */
 public final class HyperlinkMixins {
@@ -28,7 +26,7 @@ public final class HyperlinkMixins {
 
         /**
          * 小説化状態判定のガード。
-         * null 参照防止、兵姫の完全免除、および保護中プレイヤー（護符所持またはリスポーン保護中）の免除を行う。
+         * null 参照防止、兵姫の完全免除を行う。
          */
         @Inject(method = "novelized(Lnet/minecraft/world/entity/Entity;)Z", at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardNovelized(Entity entity, CallbackInfoReturnable<Boolean> cir) {
@@ -38,12 +36,6 @@ public final class HyperlinkMixins {
             }
             if (entity instanceof com.automatavalkyries.protect.IEprotected) {
                 cir.setReturnValue(false);
-                return;
-            }
-            if (entity instanceof Player player) {
-                if (com.automatavalkyries.protect.PlayerWard.isActive(player)) {
-                    cir.setReturnValue(false);
-                }
             }
         }
 

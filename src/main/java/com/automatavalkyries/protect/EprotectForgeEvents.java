@@ -31,14 +31,6 @@ public class EprotectForgeEvents {
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void onLivingAttack(LivingAttackEvent event) {
         LivingEntity target = event.getEntity();
-        if (target instanceof net.minecraft.world.entity.player.Player player && (PlayerWard.isActive(player) || PlayerWard.isRespawnProtected(player))) {
-            DamageSource source = event.getSource();
-            if (PlayerWard.isRespawnProtected(player) || PlayerWard.isInstantKill(source) || isInstantKillSource(source) || isAttackerHoldingKillItem(source)) {
-                event.setCanceled(true);
-                recordKillDamage(target, source);
-                return;
-            }
-        }
         if (target instanceof IEprotected provider) {
             Eprotect protect = provider.getEprotect();
             if (protect == null || !protect.isProtectionActive()) return;
@@ -100,15 +92,6 @@ public class EprotectForgeEvents {
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void onLivingHurt(LivingHurtEvent event) {
         LivingEntity target = event.getEntity();
-        if (target instanceof net.minecraft.world.entity.player.Player player && (PlayerWard.isActive(player) || PlayerWard.isRespawnProtected(player))) {
-            DamageSource source = event.getSource();
-            if (PlayerWard.isRespawnProtected(player) || PlayerWard.isInstantKill(source) || isInstantKillSource(source) || isAttackerHoldingKillItem(source)) {
-                event.setCanceled(true);
-                event.setAmount(0.0F);
-                recordKillDamage(target, source);
-                return;
-            }
-        }
         if (target instanceof IEprotected provider) {
             Eprotect protect = provider.getEprotect();
             if (protect == null || !protect.isProtectionActive()) return;
@@ -147,16 +130,6 @@ public class EprotectForgeEvents {
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void onLivingDeath(LivingDeathEvent event) {
         LivingEntity target = event.getEntity();
-        if (target instanceof net.minecraft.world.entity.player.Player player && (PlayerWard.isActive(player) || PlayerWard.isRespawnProtected(player))) {
-            DamageSource source = event.getSource();
-            if (PlayerWard.isRespawnProtected(player) || PlayerWard.isInstantKill(source) || isInstantKillSource(source) || isAttackerHoldingKillItem(source)) {
-                event.setCanceled(true);
-                player.setHealth(player.getMaxHealth());
-                player.deathTime = 0;
-                recordKillDamage(target, source);
-                return;
-            }
-        }
         if (target instanceof IEprotected provider) {
             Eprotect protect = provider.getEprotect();
             if (protect == null) return;
