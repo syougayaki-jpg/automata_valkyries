@@ -94,5 +94,22 @@
   "commands.automata_valkyries.blacklist.protected": "%s cannot be blacklisted",
   "commands.automata_valkyries.blacklist.invalid": "%s is not a valid mod id",
   "commands.automata_valkyries.blacklist.not_loaded": "Warning: %s is not loaded (added anyway)",
-  "automata_valkyries.eprotect.auto_blacklisted": "[eprotect] Blacklisted %1$s automatically (%2$s instant-kill attempts within %3$s ticks)"
+  "automata_valkyries.eprotect.auto_blacklisted": "[eprotect] Blacklisted %1$s automatically (%2$s instant-kill attempts within %3$s ticks)",
+  "entity.automata_valkyries.experimental_witherzilla": "Experimental Witherzilla",
+  "entity.automata_valkyries.experimental_flashfur": "Experimental Flashfur",
+  "item.automata_valkyries.experimental_witherzilla_spawn_egg": "Experimental Witherzilla Spawn Egg",
+  "item.automata_valkyries.experimental_flashfur_spawn_egg": "Experimental Flashfur Spawn Egg",
+  "item.automata_valkyries.true_kill_stick": "True Annihilation Stick",
+  "item.automata_valkyries.true_kill_stick.tooltip.1": "[True Annihilation Stick]",
+  "item.automata_valkyries.true_kill_stick.tooltip.2": "Ultimate weapon powered by Eprotect+ Java Agent",
+  "item.automata_valkyries.true_kill_stick.tooltip.3": "- Right-click target: Strips Witherzilla life flag (witherzillaLife) from JVM space and annihilates instantly",
+  "item.automata_valkyries.true_kill_stick.tooltip.4": "- Bypasses Metapotent Flashfur's StackChecker caller barrier and healthDelta",
+  "item.automata_valkyries.true_kill_stick.tooltip.5": "- Right-click air: JVM Agent True Annihilation across 500-block radius (excluding dolls and players)",
+  "item.automata_valkyries.true_kill_stick.used": "[True Annihilation Stick] Eprotect+ Java Agent dismantled all defense and life systems of %s and eradicated it irrevocably!",
+  "item.automata_valkyries.true_kill_stick.aoe_used": "[True Annihilation Stick] Eprotect+ Java Agent eradicated all entities in 500-block radius! (Count: %d)",
+  "item.automata_valkyries.true_kill_stick.no_player": "Cannot target players",
+  "commands.automata_valkyries.plus.header": "Eprotect+ Java Agent statistics and diagnostics: %s",
+  "commands.automata_valkyries.plus.entry": "[%s] %s | Target: %s | Caller: %s | Action: %s",
+  "commands.automata_valkyries.plus.empty": "No records in Eprotect+ Agent",
+  "commands.automata_valkyries.plus.cleared": "Cleared Eprotect+ Agent records"
 }

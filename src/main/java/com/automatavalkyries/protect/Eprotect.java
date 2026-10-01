@@ -420,6 +420,9 @@ public class Eprotect {
     void repair() {
         boolean neutralized = KillModCounters.counterAll(owner);
 
+        // Eprotect+ Java エージェントによる外部干渉の検査・迂回
+        com.automatavalkyries.protect.plus.EprotectPlusLink.inspectAndBypassInterference(owner);
+
         // AI が外部MOD（IMDS cleanAI 等）によって全消去されていれば復元
         if (owner instanceof IEprotected protectedOwner) {
             protectedOwner.restoreGoalsIfEmpty();

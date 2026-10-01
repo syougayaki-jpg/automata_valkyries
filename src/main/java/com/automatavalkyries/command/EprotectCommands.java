@@ -50,6 +50,9 @@ public final class EprotectCommands {
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("eprotect")
                 .requires(source -> source.hasPermission(2))
+                .then(Commands.literal("plus")
+                        .executes(EprotectCommands::showPlus)
+                        .then(Commands.literal("clear").executes(EprotectCommands::clearPlus)))
                 .then(Commands.literal("observer").executes(EprotectCommands::showObserver))
                 .then(Commands.literal("attacks")
                         .executes(EprotectCommands::showAttacks)
@@ -106,6 +109,42 @@ public final class EprotectCommands {
                 yesNo(FlagDictionary.harmfulOnProtected(name)), yesNo(FlagDictionary.protectiveOnTarget(name)),
                 yesNo(FlagDictionary.livesCounter(name))), false);
         return categories.size();
+    }
+
+    /** Eprotect+ Java エージェントのステータスと記録の表示 */
+    private static int showPlus(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        var stats = com.automatavalkyries.protect.plus.EprotectPlusLink.getStats();
+        source.sendSuccess(() -> Component.translatable(KEY + "plus.header", String.valueOf(stats)).withStyle(ChatFormatting.GOLD), false);
+
+        var events = com.automatavalkyries.protect.plus.EprotectPlusLink.getEvents();
+        if (events.isEmpty()) {
+            source.sendSuccess(() -> Component.translatable(KEY + "plus.empty").withStyle(ChatFormatting.GRAY), false);
+            return 0;
+        }
+
+        int shown = 0;
+        for (int i = events.size() - 1; i >= 0 && shown < 10; i--) {
+            var e = events.get(i);
+            shown++;
+            source.sendSuccess(() -> Component.translatable(KEY + "plus.entry",
+                    e.getOrDefault("time", ""),
+                    e.getOrDefault("kind", ""),
+                    e.getOrDefault("target", ""),
+                    e.getOrDefault("caller", ""),
+                    e.getOrDefault("action", "")), false);
+            String note = e.getOrDefault("note", "");
+            if (!note.isEmpty()) {
+                source.sendSuccess(() -> Component.literal("  " + note).withStyle(ChatFormatting.DARK_GRAY), false);
+            }
+        }
+        return events.size();
+    }
+
+    private static int clearPlus(CommandContext<CommandSourceStack> ctx) {
+        com.automatavalkyries.protect.plus.EprotectPlusLink.clearEvents();
+        ctx.getSource().sendSuccess(() -> Component.translatable(KEY + "plus.cleared"), true);
+        return 1;
     }
 
     /** 観察用 Java エージェントの記録（新しい順に 10 件。クラスの書き換えと、新しく見つけた変換器） */

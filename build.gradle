@@ -16,10 +16,11 @@ base {
 // Mojang ships Java 17 to end users in 1.18+, so your mod should target Java 17.
 java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 
-// 観察用の Java エージェント（src/observer）。MOD とは別の jar（build/libs/automata_valkyries-observer.jar）にし、
+// 観察用・防御用の Java エージェント（src/observer, src/eprotectplus）。MOD とは別の jar にし、
 // 起動オプション -javaagent で読ませる。Minecraft・Forge には依存しない（JDK だけ）
 sourceSets {
     observer
+    eprotectplus
 }
 def observerJarFile = layout.buildDirectory.file("libs/${mod_id}-observer.jar")
 tasks.register('observerJar', Jar) {
@@ -37,10 +38,33 @@ tasks.register('observerJar', Jar) {
         ])
     }
 }
-tasks.named('assemble') { dependsOn 'observerJar' }
+def eprotectPlusJarFile = layout.buildDirectory.file("libs/${mod_id}-eprotect-plus.jar")
+tasks.register('eprotectPlusJar', Jar) {
+    group = 'build'
+    description = 'Builds the Eprotect+ Java agent'
+    from sourceSets.eprotectplus.output
+    archiveFileName = "${mod_id}-eprotect-plus.jar"
+    manifest {
+        attributes([
+                'Premain-Class'          : 'com.automatavalkyries.eprotectplus.EprotectPlusAgent',
+                'Agent-Class'            : 'com.automatavalkyries.eprotectplus.EprotectPlusAgent',
+                'Can-Retransform-Classes': 'true',
+                'Can-Redefine-Classes'   : 'true',
+                'Implementation-Version' : mod_version
+        ])
+    }
+}
+tasks.named('assemble') {
+    dependsOn 'observerJar'
+    dependsOn 'eprotectPlusJar'
+}
 if (project.hasProperty('withObserver')) {
     tasks.matching { it.name.startsWith('prepareRun') || it.name in ['runClient', 'runServer', 'runGameTestServer'] }
             .configureEach { dependsOn 'observerJar' }
+}
+if (project.hasProperty('withEprotectPlus')) {
+    tasks.matching { it.name.startsWith('prepareRun') || it.name in ['runClient', 'runServer', 'runGameTestServer'] }
+            .configureEach { dependsOn 'eprotectPlusJar' }
 }
 
 println "Java: ${System.getProperty 'java.version'}, JVM: ${System.getProperty 'java.vm.version'} (${System.getProperty 'java.vendor'}), Arch: ${System.getProperty 'os.arch'}"
@@ -108,6 +132,9 @@ minecraft {
             // -PwithObserver: 観察用の Java エージェント（クラスの書き換えを見張るだけ）を付けて起動する
             if (project.hasProperty('withObserver')) jvmArg "-javaagent:${observerJarFile.get().asFile.absolutePath}"
 
+            // -PwithEprotectPlus: Eprotect+ 高度防御・調査・迂回・真抹殺 Java エージェントを付けて起動する
+            if (project.hasProperty('withEprotectPlus')) jvmArg "-javaagent:${eprotectPlusJarFile.get().asFile.absolutePath}"
+
             mods {
                 "${mod_id}" {
                     source sourceSets.main
@@ -118,6 +145,9 @@ minecraft {
         client {
             // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.
             property 'forge.enabledGameTestNamespaces', mod_id
+            if (project.hasProperty('quickPlay')) {
+                args '--quickPlaySingleplayer', project.property('quickPlay')
+            }
         }
 
         server {

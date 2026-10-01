@@ -26,3 +26,6 @@ forge*changelog.txt
 
 # Extracted Minecraft sources for reference (see extractMcSources task)
 .mcsrc/
+
+# Tooling
+.mcp.json

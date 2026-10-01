@@ -94,5 +94,22 @@
   "commands.automata_valkyries.blacklist.protected": "%s はブラックリストに載せられません",
   "commands.automata_valkyries.blacklist.invalid": "%s は MOD ID として正しくありません",
   "commands.automata_valkyries.blacklist.not_loaded": "注意: %s は導入されていません（登録はしました）",
-  "automata_valkyries.eprotect.auto_blacklisted": "[eprotect] %1$s を自動でブラックリストに載せました（%3$s Tick の間に即死攻撃 %2$s 回）"
+  "automata_valkyries.eprotect.auto_blacklisted": "[eprotect] %1$s を自動でブラックリストに載せました（%3$s Tick の間に即死攻撃 %2$s 回）",
+  "entity.automata_valkyries.experimental_witherzilla": "試験的ウィザージラ",
+  "entity.automata_valkyries.experimental_flashfur": "試験的フラッシュファー",
+  "item.automata_valkyries.experimental_witherzilla_spawn_egg": "試験的ウィザージラのスポーンエッグ",
+  "item.automata_valkyries.experimental_flashfur_spawn_egg": "試験的フラッシュファーのスポーンエッグ",
+  "item.automata_valkyries.true_kill_stick": "真抹殺の棒",
+  "item.automata_valkyries.true_kill_stick.tooltip.1": "【真抹殺の棒】",
+  "item.automata_valkyries.true_kill_stick.tooltip.2": "Eprotect+ Java エージェント完全連携型・真の抹殺兵装",
+  "item.automata_valkyries.true_kill_stick.tooltip.3": "・単体右クリック: Witherzilla の生命維持フラグ（witherzillaLife）を JVM 空間から剥奪し即座に抹殺",
+  "item.automata_valkyries.true_kill_stick.tooltip.4": "・Metapotent Flashfur の StackChecker スタック検閲防壁・healthDelta を特権迂回して粉砕",
+  "item.automata_valkyries.true_kill_stick.tooltip.5": "・空中右クリック: 周囲 500 ブロック内の全エンティティを JVM エージェント真抹殺（兵姫・プレイヤーを除く）",
+  "item.automata_valkyries.true_kill_stick.used": "[真抹殺の棒] Eprotect+ Java エージェントにより %s の全防御・生命維持機構を解体し不可逆抹殺しました！",
+  "item.automata_valkyries.true_kill_stick.aoe_used": "[真抹殺の棒] Eprotect+ Java エージェントにより半径 500 ブロック内の全エンティティを真抹殺しました。（抹殺数: %d 体）",
+  "item.automata_valkyries.true_kill_stick.no_player": "プレイヤーには使えません",
+  "commands.automata_valkyries.plus.header": "Eprotect+ Java エージェント統計・診断: %s",
+  "commands.automata_valkyries.plus.entry": "[%s] %s | 対象: %s | 呼出元: %s | 処置: %s",
+  "commands.automata_valkyries.plus.empty": "Eprotect+ エージェントの記録はありません",
+  "commands.automata_valkyries.plus.cleared": "Eprotect+ エージェントの記録を消去しました"
 }

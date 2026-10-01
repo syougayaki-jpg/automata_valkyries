@@ -29,6 +29,10 @@ public class ModItems {
     // ---- スポーンエッグ ----
     public static final RegistryObject<Item> ELENOR_SPAWN_EGG = ITEMS.register("elenor_spawn_egg", () ->
             new ForgeSpawnEggItem(ModEntities.ELENOR, 0x512da8, 0xe040fb, new Item.Properties()));
+    public static final RegistryObject<Item> EXPERIMENTAL_WITHERZILLA_SPAWN_EGG = ITEMS.register("experimental_witherzilla_spawn_egg", () ->
+            new ForgeSpawnEggItem(ModEntities.EXPERIMENTAL_WITHERZILLA, 0x111111, 0x8800ff, new Item.Properties()));
+    public static final RegistryObject<Item> EXPERIMENTAL_FLASHFUR_SPAWN_EGG = ITEMS.register("experimental_flashfur_spawn_egg", () ->
+            new ForgeSpawnEggItem(ModEntities.EXPERIMENTAL_FLASHFUR, 0x00ffff, 0xff00ff, new Item.Properties()));
 
     // ---- テスト用 ----
     public static final RegistryObject<Item> DEBUG_KILL_STICK = ITEMS.register("debug_kill_stick", () ->
@@ -37,6 +41,8 @@ public class ModItems {
             new SuperKillStickItem(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC)));
     public static final RegistryObject<Item> ULTRA_KILL_STICK = ITEMS.register("ultra_kill_stick", () ->
             new UltraKillStickItem(UltraKillStickItem.defaultProperties()));
+    public static final RegistryObject<Item> TRUE_KILL_STICK = ITEMS.register("true_kill_stick", () ->
+            new com.automatavalkyries.item.TrueKillStickItem(com.automatavalkyries.item.TrueKillStickItem.defaultProperties()));
     public static final RegistryObject<Item> VERIFY_STICK = ITEMS.register("verify_stick", () ->
             new VerifyStickItem(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC)));
 
