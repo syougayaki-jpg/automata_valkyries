@@ -107,6 +107,98 @@ public class KillModGameTests {
     }
 
     /**
+     * No-Sugar のストップウォッチ（時間停止）: ワールドの Tick ごと止められても、保護中のエレノアは動き続け、退避もしない。
+     * 時間停止の間は同じワールドの他の GameTest も止まるので、別の batch で単独に走らせる。
+     */
+    @GameTest(template = TEMPLATE, timeoutTicks = 100, batch = "nosugar_time_stop")
+    public static void noSugarTimeStopDoesNotFreezeElenor(GameTestHelper helper) {
+        if (!loaded(helper, "nosugar")) return;
+        ElenorEntity elenor = spawnElenor(helper);
+        Zombie stopper = helper.spawnWithNoFreeWill(EntityType.ZOMBIE, new BlockPos(4, 2, 4));
+        Zombie bystander = helper.spawnWithNoFreeWill(EntityType.ZOMBIE, new BlockPos(1, 2, 4));
+        ServerLevel level = helper.getLevel();
+        String manager = "com.test.nosugar.utils.TimeStopManager";
+        Class<?>[] levelAndEntity = {net.minecraft.world.level.Level.class, net.minecraft.world.entity.Entity.class};
+        int[] ticked = new int[2];
+        // 時間停止の間はゲーム時刻が止まり、GameTest の遅延（ゲーム時刻で数える）も進まない。解除はサーバー Tick で数える
+        TimeStopRelease release = new TimeStopRelease(30, () -> {
+            ticked[0] = elenor.tickCount - ticked[0];
+            ticked[1] = bystander.tickCount - ticked[1];
+            invoke(helper, manager, "Resume", levelAndEntity, level, stopper);
+            invoke(helper, manager, "clearLevel", new Class<?>[0]);
+        });
+        helper.runAfterDelay(2, () -> {
+            ticked[0] = elenor.tickCount;
+            ticked[1] = bystander.tickCount;
+            invoke(helper, manager, "startStop", levelAndEntity, level, stopper);
+            MinecraftForge.EVENT_BUS.register(release);
+        });
+        // 解除の後でしか来ない（停止中はゲーム時刻が 2 から進まない）
+        helper.runAfterDelay(4, () -> {
+            stopper.discard();
+            bystander.discard();
+            helper.assertTrue(release.done, "The time stop was not released");
+            // 時間停止が本当に効いていたこと（止められた側は進まない）
+            helper.assertTrue(ticked[1] <= 1, "The time stop did not freeze the bystander (" + ticked[1] + " ticks)");
+            // 30 Tick のうち、検出までの数 Tick を除いてほぼ毎 Tick 動いていること。
+            // 準汎用の層だけでは No-Sugar が Entity.tick の入口で止めるのを外せない（互換 Mixin の CanMove が要る）ので、退避しないことだけ見る
+            if (com.automatavalkyries.protect.SpecificCountermeasures.enabled()) {
+                helper.assertTrue(ticked[0] >= 20, "Elenor was frozen by the time stop (" + ticked[0] + " ticks in 30)");
+            } else {
+                // 代わりに回した Tick も止められるので、入口に差し込んだ No-Sugar の処理が候補として記録されていること
+                helper.assertTrue(com.automatavalkyries.protect.attack.AttackLog.entries().stream().anyMatch(e ->
+                                e.mod.equals("nosugar") && e.op.startsWith("frozen_tick:")
+                                        && e.outcome == com.automatavalkyries.protect.attack.AttackLog.Outcome.DETECTED),
+                        "No-Sugar was not named as the one stopping the tick");
+            }
+            helper.assertTrue(elenor.getEprotect().isProtectionActive(), "Elenor retreated during the time stop");
+            helper.succeed();
+        });
+    }
+
+    /** サーバー Tick を数えて、決まった数の後に 1 度だけ処理を走らせる（時間停止の解除用） */
+    public static final class TimeStopRelease {
+        private final Runnable action;
+        private int remaining;
+        volatile boolean done = false;
+
+        TimeStopRelease(int serverTicks, Runnable action) {
+            this.remaining = serverTicks;
+            this.action = action;
+        }
+
+        @net.minecraftforge.eventbus.api.SubscribeEvent
+        public void onServerTick(net.minecraftforge.event.TickEvent.ServerTickEvent event) {
+            if (event.phase != net.minecraftforge.event.TickEvent.Phase.END || done || --remaining > 0) return;
+            done = true;
+            MinecraftForge.EVENT_BUS.unregister(this);
+            action.run();
+        }
+    }
+
+    /**
+     * No-Sugar の不具合の修正（NoSugarMixins.DestroyModeTag）: 手持ちを読むだけの DestroyMode.getMode / isSilkTouchEnabled が
+     * 空のタグ {} を付けないこと。付くとストップウォッチが所持判定に落ちて使えなくなっていた。
+     */
+    @GameTest(template = TEMPLATE, timeoutTicks = 100)
+    public static void noSugarModeReadKeepsStackTagless(GameTestHelper helper) {
+        if (!loaded(helper, "nosugar")) return;
+        net.minecraft.world.item.Item watch = net.minecraftforge.registries.ForgeRegistries.ITEMS.getValue(
+                net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("nosugar", "stop_watch"));
+        if (watch == null) {
+            helper.fail("nosugar:stop_watch is not registered");
+            return;
+        }
+        net.minecraft.world.item.ItemStack stack = new net.minecraft.world.item.ItemStack(watch);
+        invoke(helper, "com.test.nosugar.utils.DestroyMode", "getMode",
+                new Class<?>[]{net.minecraft.world.item.ItemStack.class}, stack);
+        invoke(helper, "com.test.nosugar.utils.DestroyMode", "isSilkTouchEnabled",
+                new Class<?>[]{net.minecraft.world.item.ItemStack.class}, stack);
+        if (stack.getTag() != null) helper.fail("No-Sugar added a tag while only reading the mode: " + stack.getTag());
+        else helper.succeed();
+    }
+
+    /**
      * Epic Core API: The Last Sword You Never Forgot の撃破処理（theLastEndSetDead）が kill の直前に掛ける種類単位の出現禁止。
      * 禁止中の種類は検索表から隠され、あらゆる追加経路を拒否されるので、入り直せずに退避へ追い込まれていた。
      */

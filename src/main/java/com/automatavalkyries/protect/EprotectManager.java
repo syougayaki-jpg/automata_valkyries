@@ -135,7 +135,7 @@ public class EprotectManager {
 
     /** 作り直しの連発を抑える。何かが作り直すたびに消し続けているなら、それ以上は追わない */
     private static boolean allowRestore(ServerLevel level, EprotectRegistry.Entry entry) {
-        long now = level.getGameTime();
+        long now = level.getServer().getTickCount(); // 時間停止でゲーム時刻が止まっても窓が明けるよう、サーバーの Tick 数で測る
         if (now - entry.restoreWindowStart > RESTORE_WINDOW) {
             entry.restoreWindowStart = now;
             entry.restoresInWindow = 0;

@@ -28,6 +28,7 @@ Antigravity AIとの対話で策定・実装された戦術兵姫のコア保護
      - `-Infinity` テレポート（奈落落とし）の阻止と安全座標バックアップへの即時ロールバック
   3. 被弾量の上限: NaN / 無限大 / 1000 以上の単発は 100 に置き換え、HP から引くのは **10 秒（200 Tick）の間に合計で最大 HP の 10% まで**（`Eprotect.capFinalDamage`、2026-10-01 にユーザー指定）。最大 HP 属性の改ざんも毎 Tick 戻す
   4. 毎Tick同期自己修復 & 物理消去からの自動復元（Forge `ServerTickEvent` 監視）
+  - 時間停止対策（2026-10-01）: 時間窓（被弾上限・修復回数・復元回数・Tick 停止の検出）はゲーム時刻ではなくサーバーの Tick 数で測る。Tick 一覧に載っているのに本体の Tick が来なければ（ワールドの Tick ごと止める型）Eprotect が代わりに回す。代わりに回しても入口で打ち切られるときは、そこに差し込まれた打ち切れる他 MOD の Mixin を候補として攻撃の記録に残す（`protect/TickEntranceHooks`、報告のみ）。エンティティ単位で止める型は互換 Mixin が要る（No-Sugar は `NoSugarMixins$TimeStop`）
   - 攻撃の記録とブラックリスト（2026-10-01）: 拒否・修復した操作を「どの MOD か」と一緒に記録（`protect/attack/`、`/eprotect attacks`、`logs/automata_valkyries-attacks.log`）。MOD 単位のブラックリストは手動（`/eprotect blacklist`）と自動（既定 1200 Tick に 20 回）で、載った MOD の即死系の操作（強制移動・次元移動・ダメージ外の HP 減少）だけ追加で止める。通常ダメージは通す
   - 準汎用の状態リセットとフラグ辞書（2026-10-01）: 他 MOD が付けた状態（インターフェース・既存クラスに足されたフィールド・Capability・永続データ）を名前で分類する辞書（`protect/flag/FlagDictionary`）で、保護対象からは死亡・停止・迂回の印を毎 Tick 戻し、超絶抹殺の棒では守り・復活の許可を外す。辞書は設定 `flagDictionary.extra` / `ignore` と `/eprotect flags` で調整する。辞書補助の非干渉監視エージェント（`protect/flag/FlagWatchAgent`、2026-10-01）は他 MOD の状態を読むだけで見張り、死亡・消去・攻撃の直前にだけ変わる辞書に無い名前を候補に挙げる（`/eprotect flags watch`、`logs/automata_valkyries-flag-candidates.txt`。辞書には自分で足さない）生死の判定・修復は getter を通さず `DirectRead` で実際の値を読む
   5. ボス退場演出（`IProviderWithSpeech`、プレイヤー敗北時の紫色セリフ `「あら、もう終わりですか？ 期待外れですね……♪」` & サウンド）

@@ -2,14 +2,18 @@ package com.automatavalkyries.protect;
 
 import com.automatavalkyries.AutomataValkyries;
 import com.automatavalkyries.config.EprotectConfig;
+import com.automatavalkyries.mixin.ChunkMapAccessor;
 import com.automatavalkyries.mixin.EntityAccessor;
 import com.automatavalkyries.mixin.EntityManagerAccessor;
+import com.automatavalkyries.mixin.EntityTickListAccessor;
 import com.automatavalkyries.mixin.LivingEntityAccessor;
 import com.automatavalkyries.mixin.ServerLevelTickListAccessor;
+import com.automatavalkyries.mixin.TrackedEntityAccessor;
 import com.automatavalkyries.protect.attack.AttackLog;
 import com.automatavalkyries.protect.attack.AttackOp;
 import com.automatavalkyries.protect.attack.CallerAttribution;
 import com.automatavalkyries.protect.attack.ModBlacklist;
+import net.minecraft.core.SectionPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -25,6 +29,7 @@ import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.attributes.DefaultAttributes;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.entity.EntityTickList;
 import net.minecraft.world.level.entity.Visibility;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.common.world.ForgeChunkManager;
@@ -84,8 +89,16 @@ public class Eprotect {
     private float damageInWindow = 0.0F;
     /** 入口の判定を通った次元移動の最中か */
     private boolean dimensionChangeApproved = false;
-    /** 最後に本体の Tick が走ったゲーム時刻（Tick 停止の検出用） */
-    private long lastTickGameTime = Long.MIN_VALUE;
+    /** 最後に本体の Tick が走ったサーバーの Tick 数（Tick 停止の検出用） */
+    private long lastTickServerTick = Long.MIN_VALUE;
+    /** ワールドの Tick ごと止められている（時間停止など）ので、本体の Tick を代わりに回している最中か */
+    private boolean drivingFrozenTick = false;
+    /** 代わりに回している本体の Tick の実行中か（その中からの再入を防ぐ） */
+    private boolean insideDrivenTick = false;
+    /** {@link #tick()} が走った回数（代わりに回した Tick の中身まで届いたかを見分ける） */
+    private int ownTickRuns = 0;
+    /** この Tick 停止で、入口で止められていることを報告済みか */
+    private boolean tickBlockReported = false;
 
     /** 最後に確認した正常な座標（入り直しの際、壊された座標を戻す先） */
     @Nullable
@@ -154,6 +167,15 @@ public class Eprotect {
         return hurtDepth > 0 && lastValidHealth <= maxSingleHit;
     }
 
+    /**
+     * 時間窓に使う時計。ワールドのゲーム時刻ではなくサーバーの Tick 数を使う。
+     * 時間停止（No-Sugar のストップウォッチ等）はワールドの Tick ごと止めるのでゲーム時刻も止まり、
+     * ゲーム時刻で測ると被弾・修復の時間窓が明けず、Tick 停止も検出できない。
+     */
+    private long serverClock() {
+        return owner.level().getServer() != null ? owner.level().getServer().getTickCount() : owner.level().getGameTime();
+    }
+
     // ---- ライフサイクル ----------------------------------------------------
 
     /**
@@ -164,7 +186,7 @@ public class Eprotect {
     public void onAddedToWorld() {
         if (!(owner.level() instanceof ServerLevel)) return;
         EprotectManager.getInstance().register(this);
-        lastTickGameTime = owner.level().getGameTime(); // 追加直後に Tick 停止されても検出できるよう、ここを起点にする
+        lastTickServerTick = serverClock(); // 追加直後に Tick 停止されても検出できるよう、ここを起点にする
         rememberHealthyState(); // 最初の Tick より前に飛ばされても戻す先があるように
     }
 
@@ -181,13 +203,14 @@ public class Eprotect {
 
     /** 毎 Tick（サーバー側）に実行する自己修復 */
     public void tick() {
+        ownTickRuns++;
         hurtDepth = 0; // hurt() 中に例外が出てカウンタが残った場合の保険
         dimensionChangeApproved = false; // 次元移動の途中で例外が出て許可が残った場合の保険
         if (!isGuardingRemoval()) return;
         // onRemovedFromWorld はチャンクの可視性低下（トラッキング終了）でも呼ばれるが、
         // 再トラッキング時に onAddedToWorld は呼ばれないため、ここで登録を維持する
         EprotectManager.getInstance().register(this);
-        lastTickGameTime = owner.level().getGameTime();
+        lastTickServerTick = serverClock();
         repair();
         if (isProtectionActive()) {
             rememberHealthyState();
@@ -325,7 +348,7 @@ public class Eprotect {
         if (penalized != null) AttackLog.blocked(owner, AttackOp.DAMAGE_PENALTY, penalized);
         float cap = Math.max(1.0F, owner.getMaxHealth() * ratio);
         if (!Float.isFinite(amount)) amount = cap;
-        long now = owner.level().getGameTime();
+        long now = serverClock();
         if (now - damageWindowStart >= DAMAGE_WINDOW_TICKS) {
             damageWindowStart = now;
             damageInWindow = 0.0F;
@@ -587,7 +610,7 @@ public class Eprotect {
      * 壊れかけの状態で居座らせず、正規の退場処理（セリフ・効果音つき）で安全に退避させる。
      */
     private void noteAnomalies(int count) {
-        long now = owner.level().getGameTime();
+        long now = serverClock();
         int window = EprotectConfig.get(EprotectConfig.RETREAT_WINDOW_TICKS);
         if (now - anomalyWindowStart > window) {
             anomalyWindowStart = now;
@@ -621,7 +644,7 @@ public class Eprotect {
      */
     private void recordToRegistryIfDue() {
         if (!(owner.level() instanceof ServerLevel level) || !presenceHealthy) return;
-        long now = level.getGameTime();
+        long now = serverClock();
         if (lastRecordTick != Long.MIN_VALUE && now - lastRecordTick < RECORD_INTERVAL) return;
         float hp = DirectRead.health(owner);
         if (!Float.isFinite(hp) || hp <= 0.0F) return;
@@ -650,22 +673,95 @@ public class Eprotect {
     }
 
     /**
-     * Tick 停止対策: ワールドには正しく載っているのに本体の Tick が止まっていれば（他 MOD が Tick の反復から
-     * 読み飛ばしている等）、Tick 対象一覧へ入れ直す。{@link #tick()} が走らない状態なので、マネージャーの周期処理から呼ばれる。
+     * Tick 停止対策: ワールドには正しく載っているのに本体の Tick が止まっていれば、
+     * <ul>
+     *   <li>Tick 対象一覧から外されている → 一覧へ入れ直す（修復として数える）</li>
+     *   <li>一覧には載っている → ワールドの Tick ごと止められている（時間停止など）か、他 MOD が反復から読み飛ばしている。
+     *       入れ直しても効かないので、止まっている間は毎 Tick ここから本体の Tick を代わりに回す（修復には数えない。
+     *       数えると時間停止が続くだけで退避してしまう）</li>
+     * </ul>
+     * {@link #tick()} が走らない状態なので、マネージャーの周期処理（サーバー Tick の最後）から呼ばれる。
+     *
+     * @return 一覧へ入れ直したとき true
      */
     private boolean restoreTickingIfStopped() {
         // isRemoved() は他 MOD の ASM に呼び出し箇所ごと偽装されうるので、フィールドを直接読む
         if (!(owner.level() instanceof ServerLevel level) || ((EntityAccessor) owner).automata_valkyries$getRemovalReason() != null) return false;
+        if (insideDrivenTick) return false;
         if (!isSafePosition(owner, owner.getX(), owner.getY(), owner.getZ())) return false;
-        if (lastTickGameTime == Long.MIN_VALUE) return false; // まだワールドに追加されていない
-        if (level.getGameTime() - lastTickGameTime <= TICK_STALL_THRESHOLD) return false;
+        if (lastTickServerTick == Long.MIN_VALUE) return false; // まだワールドに追加されていない
+        long stalled = serverClock() - lastTickServerTick;
+        if (stalled == 0) {
+            // このサーバー Tick のうちに本体の Tick が自然に走った（止められていない）
+            if (drivingFrozenTick) {
+                drivingFrozenTick = false;
+                tickBlockReported = false;
+                AutomataValkyries.LOGGER.info("[eprotect] {} is ticking on its own again", owner);
+            }
+            return false;
+        }
+        if (!drivingFrozenTick && stalled <= TICK_STALL_THRESHOLD) return false;
         if (!level.isPositionEntityTicking(owner.blockPosition())) return false; // チャンク側の都合で止まっているだけ
 
-        ((ServerLevelTickListAccessor) level).automata_valkyries$getEntityTickList().add(owner);
-        lastTickGameTime = level.getGameTime(); // 復帰の Tick が走るまで連続で戻さない
-        AutomataValkyries.LOGGER.warn("[eprotect] Restored ticking of {}", owner);
-        AttackLog.repaired(owner, "ticking");
-        return true;
+        EntityTickList tickList = ((ServerLevelTickListAccessor) level).automata_valkyries$getEntityTickList();
+        if (!((EntityTickListAccessor) tickList).automata_valkyries$getActive().containsKey(owner.getId())) {
+            drivingFrozenTick = false;
+            tickList.add(owner);
+            lastTickServerTick = serverClock(); // 復帰の Tick が走るまで連続で戻さない
+            AutomataValkyries.LOGGER.warn("[eprotect] Restored ticking of {}", owner);
+            AttackLog.repaired(owner, "ticking");
+            return true;
+        }
+
+        if (!drivingFrozenTick) {
+            drivingFrozenTick = true;
+            AutomataValkyries.LOGGER.warn("[eprotect] {} is in the tick list but is not being ticked (time stop?); ticking it directly", owner);
+            AttackLog.repaired(owner, "frozen_tick");
+        }
+        driveTick(level);
+        return false;
+    }
+
+    /** 本体の Tick をワールドの代わりに 1 回回す（騎乗中は乗り物が回すので触らない） */
+    private void driveTick(ServerLevel level) {
+        Entity vehicle = owner.getVehicle();
+        if (vehicle != null && !vehicle.isRemoved() && vehicle.hasPassenger(owner)) return;
+        int ticksBefore = owner.tickCount;
+        int runsBefore = ownTickRuns;
+        insideDrivenTick = true;
+        try {
+            level.guardEntityTick(level::tickNonPassenger, owner);
+        } finally {
+            insideDrivenTick = false;
+        }
+        // 代わりに回しても進まない＝その入口で他 MOD に打ち切られている。打ち切れる処理を候補として 1 度だけ報告する
+        // （tickCount は tickNonPassenger の先頭で進む。進んだのに tick() まで届かなければ、エンティティのクラスの tick で止められている）
+        if (!tickBlockReported) {
+            TickEntranceHooks.Stage stage = owner.tickCount == ticksBefore ? TickEntranceHooks.Stage.ENTRANCE
+                    : owner instanceof IEprotected && ownTickRuns == runsBefore ? TickEntranceHooks.Stage.ENTITY_TICK : null;
+            if (stage != null) {
+                tickBlockReported = true;
+                TickEntranceHooks.report(owner, stage);
+            }
+        }
+        sendTrackedChanges(level);
+        lastTickServerTick = serverClock() - 1; // 次のサーバー Tick で自然に走ったかを見分けられるよう、自分で回した分は数えない
+    }
+
+    /**
+     * 代わりに回した Tick の移動・状態の変化をクライアントへ送る（ChunkMap.tick の 1 体ぶん）。
+     * 送るのは本来ワールドの Tick（ServerChunkCache.tick → ChunkMap.tick）の役目なので、ワールドの Tick ごと止められていると
+     * サーバーでは動いているのにクライアントでは止まって見える。
+     */
+    private void sendTrackedChanges(ServerLevel level) {
+        Object tracked = ((ChunkMapAccessor) level.getChunkSource().chunkMap).automata_valkyries$getEntityMap().get(owner.getId());
+        if (!(tracked instanceof TrackedEntityAccessor entry)) return;
+        SectionPos section = SectionPos.of(owner);
+        if (!section.equals(entry.automata_valkyries$getLastSectionPos())) {
+            entry.automata_valkyries$updatePlayers(level.players());
+            entry.automata_valkyries$setLastSectionPos(section);
+        }
+        entry.automata_valkyries$getServerEntity().sendChanges();
     }
 
     // ---- チャンクロック ------------------------------------------------------

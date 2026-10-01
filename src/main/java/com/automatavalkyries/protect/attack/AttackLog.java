@@ -135,6 +135,17 @@ public final class AttackLog {
         record(target, CallerAttribution.UNKNOWN, op, Outcome.DETECTED, "(spoofed read)", null, null);
     }
 
+    /**
+     * 見つけたが直せない異常で、どの MOD の仕業かを静的な手がかり（その処理に差し込まれた Mixin の一覧など）から割り出した候補。
+     * 確定ではないので、ブラックリストの自動登録の回数には数えない。
+     *
+     * @param evidence 手がかり（Mixin のクラスと処理の名前など）
+     */
+    public static void detected(Entity target, String op, String mod, String evidence) {
+        if (!enabled(target)) return;
+        record(target, mod, op, Outcome.DETECTED, evidence, null, null);
+    }
+
     public static void retreated(Entity target) {
         if (!enabled(target)) return;
         record(target, CallerAttribution.UNKNOWN, AttackOp.RETREAT, Outcome.REPAIRED, "(too many repairs)", null, null);

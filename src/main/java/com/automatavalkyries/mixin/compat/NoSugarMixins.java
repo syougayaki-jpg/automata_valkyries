@@ -1,13 +1,18 @@
 package com.automatavalkyries.mixin.compat;
 
 import com.automatavalkyries.protect.EprotectCompat;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Pseudo;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
@@ -90,6 +95,53 @@ public final class NoSugarMixins {
         private void automata_valkyries$guardMarkErased(UUID uuid, CallbackInfo ci) {
             Entity self = (Entity) (Object) this;
             if (self.getUUID().equals(uuid) && EprotectCompat.shieldAttack(self, "nosugar:markErased")) ci.cancel();
+        }
+    }
+
+    /**
+     * ストップウォッチ（時間停止）。No-Sugar は止めた本人以外の Tick・AI・描画を CanMove で止める。保護中の兵姫は止まらない側に入れる。
+     * ワールドの Tick（ServerLevel.tick）自体も止められるが、そちらは準汎用の層（Eprotect の Tick 停止対策）が本体の Tick を代わりに回す。
+     */
+    @Pseudo
+    @Mixin(targets = "com.test.nosugar.utils.TimeStopManager", remap = false)
+    public abstract static class TimeStop {
+        @Inject(method = "CanMove(Lnet/minecraft/world/entity/Entity;)Z", at = @At("HEAD"), cancellable = true, require = 0)
+        private static void automata_valkyries$protectedCanMove(Entity entity, CallbackInfoReturnable<Boolean> cir) {
+            if (EprotectCompat.shouldShield(entity)) cir.setReturnValue(true);
+        }
+    }
+
+    /**
+     * No-Sugar の不具合の修正（保護とは関係なく常に効かせる）。クライアントの毎 Tick（ClientEvents.onClientTick）が手持ちの
+     * アイテムが何であれ DestroyMode.getMode を呼び、そこで getOrCreateTag するので、持っただけで空のタグ {} が付く。
+     * 読むだけのメソッドではタグを作らず、無ければ空のタグを渡す（戻り値は元と同じ）。
+     */
+    @Pseudo
+    @Mixin(targets = "com.test.nosugar.utils.DestroyMode", remap = false)
+    public abstract static class DestroyModeTag {
+        @Redirect(method = {"getMode(Lnet/minecraft/world/item/ItemStack;)Lcom/test/nosugar/utils/DestroyMode;",
+                            "isSilkTouchEnabled(Lnet/minecraft/world/item/ItemStack;)Z"},
+                at = @At(value = "INVOKE", target = "Lnet/minecraft/world/item/ItemStack;getOrCreateTag()Lnet/minecraft/nbt/CompoundTag;", remap = true),
+                require = 0)
+        private static CompoundTag automata_valkyries$readTagOnly(ItemStack stack) {
+            CompoundTag tag = stack.getTag();
+            return tag != null ? tag : new CompoundTag();
+        }
+    }
+
+    /**
+     * ストップウォッチ（時間停止）の所持判定。No-Sugar は Inventory.contains(new ItemStack(STOP_WATCH)) でタグまで比べるので、
+     * 上の不具合で {} が付いたストップウォッチ（ワールドに保存済みのものも）を持っていないことにされる。アイテムの種類だけで見る。
+     */
+    @Pseudo
+    @Mixin(targets = "com.test.nosugar.network.packets.TimeStopPacket", remap = false)
+    public abstract static class StopWatchCheck {
+        @Redirect(method = "lambda$handle$0(Lnet/minecraftforge/network/NetworkEvent$Context;)V",
+                at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/player/Inventory;contains(Lnet/minecraft/world/item/ItemStack;)Z", remap = true),
+                require = 0)
+        private static boolean automata_valkyries$containsIgnoringTag(Inventory inventory, ItemStack wanted) {
+            Item item = wanted.getItem();
+            return inventory.hasAnyMatching(stack -> stack.is(item));
         }
     }
 }
