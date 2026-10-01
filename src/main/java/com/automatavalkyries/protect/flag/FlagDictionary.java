@@ -3,14 +3,20 @@ package com.automatavalkyries.protect.flag;
 import com.automatavalkyries.AutomataValkyries;
 import com.automatavalkyries.config.EprotectConfig;
 
+import com.automatavalkyries.protect.IEprotected;
+import com.automatavalkyries.protect.attack.AttackLog;
+import com.automatavalkyries.protect.attack.CallerAttribution;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageTypes;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraftforge.registries.ForgeRegistries;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -483,5 +489,69 @@ public final class FlagDictionary {
     /** 辞書の中身（コマンドの表示用） */
     public static Map<Category, List<String>> entries() {
         return active;
+    }
+
+    /**
+     * エンティティが危険なフラグ（チートMODの即死・消滅・無敵・生命維持・防御貫通フラグ等）を
+     * 所有しているか判定する。
+     * バニラの一般モンスター（ゾンビ、スケルトン等）や家畜・村人等は false になる。
+     */
+    public static boolean hasDangerousFlag(@org.jetbrains.annotations.Nullable Entity entity) {
+        if (entity == null || !entity.isAlive()) return false;
+        if (entity instanceof IEprotected || entity instanceof net.minecraft.world.entity.player.Player) return false;
+
+        // 1. 直近に eprotect を攻撃してきた攻撃者
+        if (AttackLog.isRecentAttacker(entity)) {
+            return true;
+        }
+
+        // 2. 危険な即死・処刑アイテムを所持している場合
+        if (entity instanceof LivingEntity living) {
+            if (isKillItem(living.getMainHandItem()) || isKillItem(living.getOffhandItem())) {
+                return true;
+            }
+        }
+
+        // 3. PersistentData (Forge NBT) の危険フラグキー走査
+        try {
+            CompoundTag tag = entity.getPersistentData();
+            for (String key : tag.getAllKeys()) {
+                if (harmfulOnProtected(key) || is(key, Category.KILL) || is(key, Category.BYPASS)
+                        || is(key, Category.HEALTH_TAMPER) || is(key, Category.GUARD) || is(key, Category.BANISH)) {
+                    return true;
+                }
+            }
+        } catch (Throwable ignored) {}
+
+        // 4. クラス名・パッケージ名の照合（既知のチートMOD）
+        Class<?> clazz = entity.getClass();
+        String className = clazz.getName().toLowerCase(Locale.ROOT);
+        if (className.contains("witherzilla") || className.contains("omnimobs") || className.contains("flashfur")
+                || className.contains("nosugar") || className.contains("imds") || className.contains("the_last_sword")
+                || className.contains("hyperdaimc") || className.contains("shizuku") || className.contains("moreavaritia")) {
+            return true;
+        }
+
+        // 5. 独自フィールド・インターフェースの動的走査（他 MOD のクラスである場合）
+        if (CallerAttribution.isForeign(CallerAttribution.modOf(clazz))) {
+            for (Class<?> c = clazz; c != null && c != Object.class && CallerAttribution.isForeign(CallerAttribution.modOf(c)); c = c.getSuperclass()) {
+                for (Class<?> iface : c.getInterfaces()) {
+                    String ifaceName = iface.getSimpleName();
+                    if (harmfulOnProtected(ifaceName) || is(ifaceName, Category.KILL) || is(ifaceName, Category.BYPASS)
+                            || is(ifaceName, Category.GUARD) || is(ifaceName, Category.HEALTH_TAMPER)) {
+                        return true;
+                    }
+                }
+                for (Field f : c.getDeclaredFields()) {
+                    String fname = f.getName();
+                    if (harmfulOnProtected(fname) || is(fname, Category.KILL) || is(fname, Category.BYPASS)
+                            || is(fname, Category.GUARD) || is(fname, Category.HEALTH_TAMPER) || isDefensiveField(fname)) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 }

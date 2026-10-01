@@ -72,6 +72,22 @@ public final class AttackLog {
     private static final Map<String, Entry> ENTRIES = new ConcurrentHashMap<>();
     private static final Map<String, long[]> WALK_BUDGET = new ConcurrentHashMap<>();
     private static final Map<String, CallerAttribution.Attribution> LAST_ATTRIBUTION = new ConcurrentHashMap<>();
+    private static final Map<java.util.UUID, Long> RECENT_ATTACKERS = new ConcurrentHashMap<>();
+
+    public static void recordAttacker(@Nullable Entity attacker) {
+        if (attacker == null) return;
+        RECENT_ATTACKERS.put(attacker.getUUID(), System.currentTimeMillis());
+        if (RECENT_ATTACKERS.size() > 512) {
+            long cutoff = System.currentTimeMillis() - 30_000L;
+            RECENT_ATTACKERS.entrySet().removeIf(entry -> entry.getValue() < cutoff);
+        }
+    }
+
+    public static boolean isRecentAttacker(@Nullable Entity entity) {
+        if (entity == null) return false;
+        Long lastTime = RECENT_ATTACKERS.get(entity.getUUID());
+        return lastTime != null && (System.currentTimeMillis() - lastTime < 30_000L);
+    }
 
     private AttackLog() {}
 

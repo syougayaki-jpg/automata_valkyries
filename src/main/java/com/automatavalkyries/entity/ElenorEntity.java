@@ -89,26 +89,17 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
         this.goalSelector.addGoal(5, new RandomLookAroundGoal(this));
 
         this.targetSelector.addGoal(1, new HurtByTargetGoal(this));
-        this.targetSelector.addGoal(2, new NearestAttackableTargetGoal<>(this, Player.class, true));
-        this.targetSelector.addGoal(3, new NearestAttackableTargetGoal<>(this, Monster.class, true));
-        this.targetSelector.addGoal(4, new NearestAttackableTargetGoal<>(this, Mob.class, 10, true, false,
-                ElenorEntity::isHostileOrBossMob));
+        // 敵対は危険なフラグ（即死・消滅・無敵・生命維持・防御貫通等）を所有しているMOBに限定！
+        this.targetSelector.addGoal(2, new NearestAttackableTargetGoal<>(this, Mob.class, 10, true, false,
+                com.automatavalkyries.protect.flag.FlagDictionary::hasDangerousFlag));
+        this.targetSelector.addGoal(3, new NearestAttackableTargetGoal<>(this, Player.class, true));
     }
 
     /**
-     * 兵姫が索敵・交戦すべき敵対エンティティ（モンスター・ボス・チートMOD敵等）の判定。
-     * 家畜・村人・環境生物・味方兵姫・プレイヤーは除外。
+     * 兵姫が索敵・交戦すべき敵対エンティティ（危険なフラグを所有しているMOB）の判定。
      */
     public static boolean isHostileOrBossMob(LivingEntity entity) {
-        if (entity == null || !entity.isAlive()) return false;
-        if (entity instanceof com.automatavalkyries.protect.IEprotected || entity instanceof Player) return false;
-        if (entity instanceof net.minecraft.world.entity.animal.Animal
-                || entity instanceof net.minecraft.world.entity.npc.AbstractVillager
-                || entity instanceof net.minecraft.world.entity.animal.WaterAnimal
-                || entity instanceof net.minecraft.world.entity.ambient.AmbientCreature) {
-            return false;
-        }
-        return true;
+        return com.automatavalkyries.protect.flag.FlagDictionary.hasDangerousFlag(entity);
     }
 
     @Override

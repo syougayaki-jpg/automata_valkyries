@@ -63,7 +63,10 @@ public class FarthestElenorEntity extends ElenorEntity {
         @Override
         public boolean canUse() {
             LivingEntity target = elenor.getTarget();
-            return target != null && target.isAlive() && !(target instanceof com.automatavalkyries.protect.IEprotected);
+            if (target == null || !target.isAlive() || target instanceof com.automatavalkyries.protect.IEprotected) {
+                return false;
+            }
+            return target instanceof Player || com.automatavalkyries.protect.flag.FlagDictionary.hasDangerousFlag(target);
         }
 
         @Override
