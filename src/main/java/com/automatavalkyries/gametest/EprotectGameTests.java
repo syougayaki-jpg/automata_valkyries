@@ -212,7 +212,11 @@ public class EprotectGameTests {
     public static void debugKillStickCannotKillElenor(GameTestHelper helper) {
         ElenorEntity elenor = spawnElenor(helper);
         float max = elenor.getMaxHealth();
-        DebugKillStickItem.annihilate(helper.getLevel(), helper.makeMockPlayer(), elenor);
+        // 実際の使い方どおり棒を手に持たせる（持っていないと「即死武器を持った攻撃」の判定を通らず、見落とす）
+        var player = helper.makeMockPlayer();
+        player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND,
+                new net.minecraft.world.item.ItemStack(com.automatavalkyries.registry.ModItems.DEBUG_KILL_STICK.get()));
+        DebugKillStickItem.annihilate(helper.getLevel(), player, elenor);
 
         int[] ticksAt8 = new int[1];
         helper.runAfterDelay(8, () -> {

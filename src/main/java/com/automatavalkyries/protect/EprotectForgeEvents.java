@@ -228,9 +228,20 @@ public class EprotectForgeEvents {
 
     public static boolean isAttackerHoldingKillItem(DamageSource source) {
         if (source.getEntity() instanceof LivingEntity attacker) {
-            return isKillItem(attacker.getMainHandItem()) || isKillItem(attacker.getOffhandItem());
+            return isForeignKillItem(attacker.getMainHandItem()) || isForeignKillItem(attacker.getOffhandItem());
         }
         return false;
+    }
+
+    /**
+     * 他 MOD の即死武器か。このMOD 自身のテスト用の棒（抹殺の棒など）は名前に kill を含むが、保護を確かめるための道具なので
+     * 被弾を丸ごと止めず、通常の被弾の上限（1 撃・時間あたり最大 HP の 10%）で受けさせる。
+     */
+    private static boolean isForeignKillItem(ItemStack stack) {
+        if (stack.isEmpty()) return false;
+        var key = net.minecraftforge.registries.ForgeRegistries.ITEMS.getKey(stack.getItem());
+        if (key != null && com.automatavalkyries.AutomataValkyries.MODID.equals(key.getNamespace())) return false;
+        return isKillItem(stack);
     }
 
     public static boolean isKillItem(ItemStack stack) {
