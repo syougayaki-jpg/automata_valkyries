@@ -221,8 +221,8 @@ public final class EprotectPlusAgent {
             // 2. Omni-Mobs / Metapotent Flashfur 対策: healthDelta をリセットし、StackChecker を迂回
             neutralizeFlashfur(entity, clazz);
 
-            // 3. No-Sugar / IMDS 対策: erasedUuids, FORCE_DEAD_UUIDS 等の登録を全削除
-            neutralizeKillModLists(entityUuid);
+            // 3. No-Sugar / IMDS 対策: erasedUuids, FORCE_DEAD_UUIDS 等の消滅登録 & 不死リスト除外
+            neutralizeKillModLists(entityUuid, entity);
 
             // 4. プレイヤー無敵・クリエイティブ・チート防具アビリティの剥奪
             neutralizePlayerDefenses(entity, clazz);
@@ -414,30 +414,81 @@ public final class EprotectPlusAgent {
         } catch (Throwable ignored) {}
     }
 
-    private static void neutralizeKillModLists(UUID uuid) {
+    @SuppressWarnings("unchecked")
+    private static void neutralizeKillModLists(UUID uuid, Object entity) {
         if (uuid == null) return;
 
-        // No-Sugar の erasedUuids
-        try {
-            Class<?> eraseClass = Class.forName("com.test.nosugar.utils.EraseUtils");
-            Field f = eraseClass.getDeclaredField("erasedUuids");
-            f.setAccessible(true);
-            Object set = f.get(null);
-            if (set instanceof Set<?> s) s.remove(uuid);
-        } catch (Throwable ignored) {}
+        // 1. 抹殺対象を外部 MOD の消滅・処刑リストへ強制追加（消滅状態を確定して相手の防護フックを自壊させる）
+        for (String className : new String[]{
+                "com.test.nosugar.mixin.sugar_sword.LivingEntityMixin",
+                "com.test.nosugar.utils.EraseUtils",
+                "com.test.nosugar.utils.entity.LivingEntityUtils"
+        }) {
+            try {
+                Class<?> cls = Class.forName(className);
+                for (Field f : cls.getDeclaredFields()) {
+                    if (Modifier.isStatic(f.getModifiers()) && Set.class.isAssignableFrom(f.getType())) {
+                        String name = f.getName().toLowerCase(java.util.Locale.ROOT);
+                        if (name.contains("eras") || name.contains("kill") || name.contains("dead")) {
+                            f.setAccessible(true);
+                            Set<Object> set = (Set<Object>) f.get(null);
+                            if (set != null) set.add(uuid);
+                        }
+                    }
+                }
+            } catch (Throwable ignored) {}
+        }
 
-        // IMDS の FORCE_DEAD_UUIDS / REMOVED_UUIDS
+        // IMDS の FORCE_DEAD_UUIDS / REMOVED_UUIDS にも抹殺対象を追加して死を確定
         try {
             Class<?> km = Class.forName("net.mcreator.imds_reborn.ImdsKillManager");
-            for (String fieldName : new String[]{"FORCE_DEAD_UUIDS", "REMOVED_UUIDS", "NOAI_UUIDS"}) {
+            for (String fieldName : new String[]{"FORCE_DEAD_UUIDS", "REMOVED_UUIDS"}) {
                 try {
                     Field f = km.getDeclaredField(fieldName);
                     f.setAccessible(true);
-                    Object set = f.get(null);
-                    if (set instanceof Set<?> s) s.remove(uuid);
+                    Set<Object> set = (Set<Object>) f.get(null);
+                    if (set != null) set.add(uuid);
                 } catch (Throwable ignored) {}
             }
         } catch (Throwable ignored) {}
+
+        // 2. 外部 MOD の無敵・保護リストからは対象 UUID を除外
+        try {
+            Class<?> km = Class.forName("net.mcreator.imds_reborn.ImdsKillManager");
+            for (String fieldName : new String[]{"IMDS_INV_UUIDS", "KEEPINV_UUIDS"}) {
+                try {
+                    Field f = km.getDeclaredField(fieldName);
+                    f.setAccessible(true);
+                    Set<Object> set = (Set<Object>) f.get(null);
+                    if (set != null) set.remove(uuid);
+                } catch (Throwable ignored) {}
+            }
+        } catch (Throwable ignored) {}
+
+        // 3. 対象エンティティの消滅・抹殺メソッド（setErased 等）をリフレクション直接呼び出し
+        if (entity != null) {
+            Class<?> eClass = entity.getClass();
+            for (Method m : eClass.getMethods()) {
+                String mName = m.getName();
+                if (m.getParameterCount() == 1 && m.getParameterTypes()[0] == boolean.class) {
+                    if (com.automatavalkyries.eprotectplus.flag.FlagDictionaryProtector.isDeathState(mName)) {
+                        try {
+                            m.invoke(entity, true);
+                        } catch (Throwable ignored) {}
+                    } else if (com.automatavalkyries.eprotectplus.flag.FlagDictionaryProtector.isDefensive(mName)) {
+                        try {
+                            m.invoke(entity, false);
+                        } catch (Throwable ignored) {}
+                    }
+                } else if (m.getParameterCount() == 1 && m.getParameterTypes()[0] == UUID.class) {
+                    if (com.automatavalkyries.eprotectplus.flag.FlagDictionaryProtector.isDeathState(mName)) {
+                        try {
+                            m.invoke(entity, uuid);
+                        } catch (Throwable ignored) {}
+                    }
+                }
+            }
+        }
     }
 
     private static void neutralizeDefensiveFields(Object entity, Class<?> clazz) {

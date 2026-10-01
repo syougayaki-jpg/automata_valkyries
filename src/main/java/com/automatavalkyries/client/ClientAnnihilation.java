@@ -56,6 +56,22 @@ public final class ClientAnnihilation {
         for (Entity entity : leftovers) {
             forceRemove(level, entity);
         }
+
+        // 自プレイヤーが終焉対象に含まれている場合、クライアント側でも消滅・死亡状態を確定し DeathScreen を強制表示
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player != null && (uuidSet.contains(mc.player.getUUID()) || idSet.contains(mc.player.getId()))) {
+            mc.execute(() -> {
+                try {
+                    com.automatavalkyries.protect.flag.StateScanner.apply(mc.player,
+                            com.automatavalkyries.protect.flag.StateScanner.BREAK_TARGET,
+                            java.util.EnumSet.allOf(com.automatavalkyries.protect.flag.StateScanner.Source.class));
+                    mc.player.setHealth(0.0F);
+                    mc.setScreen(new net.minecraft.client.gui.screens.DeathScreen(
+                            net.minecraft.network.chat.Component.translatable("death.attack.automata_valkyries.terminus", mc.player.getScoreboardName()),
+                            false));
+                } catch (Throwable ignored) {}
+            });
+        }
     }
 
     private static void forceRemove(ClientLevel level, Entity entity) {

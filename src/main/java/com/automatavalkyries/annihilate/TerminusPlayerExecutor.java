@@ -24,6 +24,7 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.network.PacketDistributor;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
@@ -73,7 +74,10 @@ public final class TerminusPlayerExecutor {
                 target.onUpdateAbilities();
             } catch (Throwable ignored) {}
 
-            // 2.5. StateScanner と FlagDictionary による NBT / Interface / Capability の汎用防御解除
+            // 3. チート防具・不死のトーテム・身代わりアイテムをフラグ辞書で準汎用剥奪 & インベントリ即時同期
+            stripPlayerDefensiveItems(target);
+
+            // 4. StateScanner と FlagDictionary による NBT / Interface / InjectedField / Capability の汎用防御解除 & 消滅状態強制書き込み
             try {
                 StateScanner.apply(target, StateScanner.BREAK_TARGET, EnumSet.allOf(StateScanner.Source.class));
             } catch (Throwable ignored) {}
@@ -88,10 +92,10 @@ public final class TerminusPlayerExecutor {
                 }
             } catch (Throwable ignored) {}
 
-            // 3. チート防具・不死のトーテム・身代わりアイテムをフラグ辞書で準汎用剥奪
-            stripPlayerDefensiveItems(target);
+            // 4.5. 外部 MOD のアビリティリセット & クライアント向け消滅パケットの準汎用送信
+            broadcastModErasure(level, target);
 
-            // 4. 無敵時間の完全ゼロ化 & 全ポーション・バフ効果の即時消去
+            // 5. 無敵時間の完全ゼロ化 & 全ポーション・バフ効果の即時消去
             target.invulnerableTime = 0;
             target.removeAllEffects();
 
@@ -103,17 +107,18 @@ public final class TerminusPlayerExecutor {
                 }
             }
 
-            // 5. HP同期データおよびフィールドの強制ゼロ化
+            // 6. HP同期データおよびフィールドの強制ゼロ化 & 死亡フラグの事前設定
             target.setHealth(0.0F);
             try {
+                target.deathTime = 19;
                 ((LivingEntityAccessor) target).automata_valkyries$setDead(true);
                 target.getEntityData().set(LivingEntityAccessor.automata_valkyries$getDataHealthId(), 0.0F);
             } catch (Throwable ignored) {}
 
-            // 6. Java エージェント特権空間による外部 MOD のキル管理リスト・防御フックの解除
+            // 7. Java エージェント特権空間による外部 MOD のキル管理リスト・防御フックの解除 & 消滅登録
             EprotectPlusLink.annihilateTargetWithAgent(target);
 
-            // 7. 死亡イベント発火 & 強制キル執行
+            // 8. 死亡イベント発火 & 強制キル執行
             try {
                 AnnihilationExecutionAgent.runWithEventSuppression(() -> {
                     try {
@@ -124,6 +129,11 @@ public final class TerminusPlayerExecutor {
                     try {
                         target.kill();
                     } catch (Throwable ignored) {}
+                    if (target.isAlive() || target.getHealth() > 0.0F) {
+                        try {
+                            target.remove(net.minecraft.world.entity.Entity.RemovalReason.KILLED);
+                        } catch (Throwable ignored) {}
+                    }
                 });
             } catch (Throwable ignored) {}
 
@@ -132,9 +142,10 @@ public final class TerminusPlayerExecutor {
                 target.setHealth(0.0F);
                 target.deathTime = 19;
                 ((LivingEntityAccessor) target).automata_valkyries$setDead(true);
+                target.getEntityData().set(LivingEntityAccessor.automata_valkyries$getDataHealthId(), 0.0F);
             } catch (Throwable ignored) {}
 
-            // 8. 死亡パケット（CombatKillPacket）および HP=0 同期パケットの送信（死亡画面強制）
+            // 9. 死亡パケット（CombatKillPacket）および HP=0 同期パケットの送信（死亡画面強制）
             try {
                 if (target.connection != null && target.connection.connection != null && target.connection.connection.isConnected()) {
                     target.connection.send(new ClientboundPlayerCombatKillPacket(target.getId(),
@@ -216,6 +227,41 @@ public final class TerminusPlayerExecutor {
                     }
                 }
             } catch (Throwable ignored) {}
+
+            player.containerMenu.broadcastChanges();
+            player.inventoryMenu.broadcastChanges();
+        } catch (Throwable ignored) {}
+    }
+
+    /**
+     * 外部 MOD（No-Sugar 等）のアビリティリセットメソッドおよび消滅通知パケットを
+     * リフレクションを用いて準汎用的に執行・送信する。
+     */
+    private static void broadcastModErasure(ServerLevel level, ServerPlayer target) {
+        if (target == null) return;
+        UUID uuid = target.getUUID();
+
+        // 1. No-Sugar の消滅パケット（EraseEntityPacket）をクライアントへ送信し、クライアント側のフックを自壊させる
+        try {
+            Class<?> packetClass = Class.forName("com.test.nosugar.network.packets.EraseEntityPacket");
+            java.lang.reflect.Constructor<?> ctor = packetClass.getConstructor(UUID.class, boolean.class);
+            Object packet = ctor.newInstance(uuid, true);
+
+            Class<?> handlerClass = Class.forName("com.test.nosugar.network.PacketHandler");
+            Field channelField = handlerClass.getDeclaredField("CHANNEL");
+            channelField.setAccessible(true);
+            Object channel = channelField.get(null);
+            if (channel instanceof net.minecraftforge.network.simple.SimpleChannel simpleChannel) {
+                simpleChannel.send(PacketDistributor.ALL.noArg(), packet);
+            }
+        } catch (Throwable ignored) {}
+
+        // 2. No-Sugar のアビリティ・飛行解除メソッド（SnackProtector.resetAbilities）を強制呼出し
+        try {
+            Class<?> protectorClass = Class.forName("com.test.nosugar.additional.SnackArmor$SnackProtector");
+            Method reset = protectorClass.getDeclaredMethod("resetAbilities", Player.class);
+            reset.setAccessible(true);
+            reset.invoke(null, target);
         } catch (Throwable ignored) {}
     }
 

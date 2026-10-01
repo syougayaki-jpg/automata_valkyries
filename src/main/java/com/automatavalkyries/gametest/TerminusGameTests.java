@@ -135,6 +135,26 @@ public class TerminusGameTests {
     }
 
     /**
+     * 最果てのエレノア: 攻撃してきた相手に終焉で反撃し、自分は保護されたまま残ること。終焉は切り替えられないこと。
+     */
+    @GameTest(template = TEMPLATE, timeoutTicks = 100)
+    public static void farthestElenorRetaliatesWithTerminus(GameTestHelper helper) {
+        var farthest = helper.spawnWithNoFreeWill(ModEntities.FARTHEST_ELENOR.get(), new BlockPos(2, 2, 2));
+        Zombie attacker = helper.spawnWithNoFreeWill(EntityType.ZOMBIE, new BlockPos(3, 2, 3));
+
+        farthest.setTerminusEnabled(false);
+        helper.assertTrue(farthest.isTerminusEnabled(), "The Farthest Elenor's Terminus could be turned off");
+
+        farthest.hurt(helper.getLevel().damageSources().mobAttack(attacker), 5.0F);
+        helper.assertTrue(attacker.isRemoved(), "The attacker was not eliminated by the counterattack");
+        helper.assertTrue(farthest.isAlive() && farthest.getEprotect().isProtectionActive(),
+                "The Farthest Elenor lost her protection");
+
+        farthest.getEprotect().triggerDespawn();
+        helper.succeed();
+    }
+
+    /**
      * 広域終焉執行:
      * executeAreaTerminus により範囲内の MOB が一括消滅すること。
      */

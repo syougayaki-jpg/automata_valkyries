@@ -22,6 +22,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * エンティティに他 MOD が付けた「状態」を、{@link FlagDictionary} の分類に従って読み書きする（準汎用）。
@@ -89,18 +90,19 @@ public final class StateScanner {
         }
     };
 
-    /** 抹殺の対象: 守り・復活の許可を下ろし、残り復活回数を 0 に、守りの迂回を有効にする（待ち時間には触れない） */
+    /** 抹殺の対象: 守り・復活の許可を下ろし、残り復活回数を 0 に、守りの迂回および死亡・消滅状態を有効にする（待ち時間には触れない） */
     public static final Policy BREAK_TARGET = new Policy() {
         @Override
         public boolean relevant(String name) {
             return FlagDictionary.is(name, FlagDictionary.Category.BYPASS) || FlagDictionary.protectiveOnTarget(name)
-                    || FlagDictionary.livesCounter(name);
+                    || FlagDictionary.livesCounter(name) || FlagDictionary.isDeathStateField(name);
         }
 
         @Override
         public Object decide(String name, Class<?> type, @Nullable Object current) {
             if (type == boolean.class) {
                 if (FlagDictionary.is(name, FlagDictionary.Category.BYPASS)) return Boolean.TRUE.equals(current) ? null : Boolean.TRUE;
+                if (FlagDictionary.isDeathStateField(name)) return Boolean.TRUE.equals(current) ? null : Boolean.TRUE;
                 if (FlagDictionary.protectiveOnTarget(name)) return cleared(type, current);
                 return null;
             }
@@ -170,6 +172,13 @@ public final class StateScanner {
                     continue;
                 }
                 Object value = policy.decide(accessor.name(), accessor.type(), current);
+                if (value == null && accessor.type() == java.util.UUID.class && holder instanceof Entity e) {
+                    if (policy == BREAK_TARGET && FlagDictionary.isDeathStateField(accessor.name())) {
+                        value = e.getUUID();
+                    } else if (policy == CLEAN_PROTECTED && FlagDictionary.isDeathStateField(accessor.name())) {
+                        value = e.getUUID();
+                    }
+                }
                 if (value == null) continue;
                 accessor.setter().invoke(holder, value);
                 changes.add(new Change(Source.INTERFACE, accessor.setter().getDeclaringClass().getSimpleName(), accessor.name(), accessor.mod()));
@@ -186,8 +195,16 @@ public final class StateScanner {
             for (Method setter : api.getMethods()) {
                 if (setter.getParameterCount() != 1 || !VALUE_TYPES.contains(setter.getParameterTypes()[0])) continue;
                 String bare = bareName(setter.getName());
-                if (bare.length() <= 3 || !bare.toLowerCase(java.util.Locale.ROOT).startsWith("set")) continue;
-                String property = bare.substring(3);
+                String lower = bare.toLowerCase(java.util.Locale.ROOT);
+                String property = null;
+                if (lower.startsWith("set") && bare.length() > 3) {
+                    property = bare.substring(3);
+                } else if (lower.startsWith("mark") && bare.length() > 4) {
+                    property = bare.substring(4);
+                } else if (lower.startsWith("unmark") && bare.length() > 6) {
+                    property = bare.substring(6);
+                }
+                if (property == null || property.isEmpty()) continue;
                 Class<?> valueType = setter.getParameterTypes()[0];
                 result.add(new Accessor(findGetter(api, property, valueType), setter, valueType, property, mod));
             }
@@ -217,7 +234,37 @@ public final class StateScanner {
 
     private static void applyField(Object holder, Field field, String mod, Source source, Policy policy, List<Change> changes) {
         int modifiers = field.getModifiers();
-        if (Modifier.isStatic(modifiers)) return;
+        if (Modifier.isStatic(modifiers)) {
+            if (Collection.class.isAssignableFrom(field.getType()) && holder instanceof Entity entity) {
+                if (policy.relevant(field.getName())) {
+                    try {
+                        field.setAccessible(true);
+                        @SuppressWarnings("unchecked")
+                        Collection<Object> col = (Collection<Object>) field.get(null);
+                        if (col != null) {
+                            UUID uuid = entity.getUUID();
+                            if (policy == BREAK_TARGET) {
+                                if (FlagDictionary.isDeathStateField(field.getName())) {
+                                    col.add(uuid);
+                                    changes.add(new Change(source, field.getDeclaringClass().getSimpleName(), field.getName(), mod));
+                                } else if (FlagDictionary.protectiveOnTarget(field.getName())) {
+                                    if (col.remove(uuid) || col.remove(entity)) {
+                                        changes.add(new Change(source, field.getDeclaringClass().getSimpleName(), field.getName(), mod));
+                                    }
+                                }
+                            } else if (policy == CLEAN_PROTECTED) {
+                                if (FlagDictionary.isDeathStateField(field.getName())) {
+                                    if (col.remove(uuid) || col.remove(entity)) {
+                                        changes.add(new Change(source, field.getDeclaringClass().getSimpleName(), field.getName(), mod));
+                                    }
+                                }
+                            }
+                        }
+                    } catch (Throwable ignored) {}
+                }
+            }
+            return;
+        }
 
         // コレクション・マップのクリア対応（finalであっても中身をクリア可能）
         if (Collection.class.isAssignableFrom(field.getType())) {

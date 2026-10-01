@@ -47,7 +47,7 @@ public final class FlagDictionaryProtector {
                 "disintegrat", "nonexist", "unexist", "exterminat", "eradicat", "despawn", "fatal", "doomed",
                 "*forcedead", "*forcekill", "*instakill", "*instantkill", "*markedfordeath", "*forcedeath", "*truekill",
                 "*absolutekill", "*superkill", "*directkill", "*unmake", "*erasetarget", "*cleartarget", "*removeentity",
-                "*setdead", "*forcediscard", "*fatalkill", "*cleardata"));
+                "*setdead", "*forcediscard", "*fatalkill", "*cleardata", "*seterased", "*markerased", "*eraseentity"));
 
         master.put("CONTROL", List.of(
                 "freez", "frozen", "stun", "paraly", "petrif", "=sealed", "timelock", "chronolock", "chronostop",
@@ -68,6 +68,8 @@ public final class FlagDictionaryProtector {
                 "=god", "godmode", "muteki", "undying", "barrier", "exempt", "whitelist", "=ward", "warded", "fumetsu",
                 "deathless", "unkillable", "indestruct", "*dimensionalcore", "phasing", "intangib", "aegis", "sanctuary",
                 "impervious", "defiance", "witherzilla", "perpetual", "eternal", "unbreakable", "unyielding", "adamant",
+                "fullset", "=halo", "bless", "blessing", "snack",
+                "*forcefullset", "*wasfullset", "*forcehalo", "*hasfullset", "*snackprotector",
                 "*damagenegation", "*negatedamage", "*infinitehp", "*infinitehealth", "*infinitedefense", "*infinitelife",
                 "*immortalstate", "*invulnerablestate", "*godstate"));
 

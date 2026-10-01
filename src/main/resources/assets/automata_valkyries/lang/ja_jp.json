@@ -1,6 +1,7 @@
 {
   "itemGroup.automata_valkyries.main": "戦術兵姫",
   "entity.automata_valkyries.elenor": "エレノア",
+  "entity.automata_valkyries.farthest_elenor": "最果てのエレノア",
   "entity.automata_valkyries.elenor.defeat_speech": "エレノア: 「あら、もう終わりですか？ 期待外れですね……♪」",
   "item.automata_valkyries.raw_astrite": "アストライトの粗鉱",
   "item.automata_valkyries.ingot_astrite": "アストライト金属",
@@ -9,6 +10,9 @@
   "item.automata_valkyries.raw_ceruleas": "セルリアスの粗鉱",
   "item.automata_valkyries.ingot_ceruleas": "セルリアス金属",
   "item.automata_valkyries.elenor_spawn_egg": "エレノアのスポーンエッグ",
+  "item.automata_valkyries.farthest_elenor_spawn_egg": "最果てのエレノアのスポーンエッグ",
+  "message.automata_valkyries.farthest_elenor.retaliate": "最果てのエレノア: 「わたくしに刃を向けるなんて……終わりにして差し上げますわ♪」",
+  "message.automata_valkyries.farthest_elenor.cannot_disable": "最果てのエレノアの終焉は止められません",
   "item.automata_valkyries.debug_kill_stick": "抹殺の棒（テスト用）",
   "item.automata_valkyries.debug_kill_stick.tooltip.1": "モブを右クリック: 最大ダメージ",
   "item.automata_valkyries.debug_kill_stick.tooltip.2": "＋ /kill",

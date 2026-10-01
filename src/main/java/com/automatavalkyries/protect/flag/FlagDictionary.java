@@ -73,7 +73,7 @@ public final class FlagDictionary {
                 "disintegrat", "nonexist", "unexist", "exterminat", "eradicat", "despawn", "fatal", "doomed",
                 "*forcedead", "*forcekill", "*instakill", "*instantkill", "*markedfordeath", "*forcedeath", "*truekill",
                 "*absolutekill", "*superkill", "*directkill", "*unmake", "*erasetarget", "*cleartarget", "*removeentity",
-                "*setdead", "*forcediscard", "*fatalkill", "*cleardata"));
+                "*setdead", "*forcediscard", "*fatalkill", "*cleardata", "*seterased", "*markerased", "*eraseentity"));
         BUILT_IN.put(Category.CONTROL, List.of(
                 "freez", "frozen", "stun", "paraly", "petrif", "=sealed", "timelock", "chronolock", "chronostop",
                 "ticklock", "frozenevent", "immob", "stasis", "suppress", "lockdown", "=bind", "=bound", "binding",
@@ -91,6 +91,8 @@ public final class FlagDictionary {
                 "=god", "godmode", "muteki", "undying", "barrier", "exempt", "whitelist", "=ward", "warded", "fumetsu",
                 "deathless", "unkillable", "indestruct", "*dimensionalcore", "phasing", "intangib", "aegis", "sanctuary",
                 "impervious", "defiance", "witherzilla", "perpetual", "eternal", "unbreakable", "unyielding", "adamant",
+                "fullset", "=halo", "bless", "blessing", "snack",
+                "*forcefullset", "*wasfullset", "*forcehalo", "*hasfullset", "*snackprotector",
                 "*damagenegation", "*negatedamage", "*infinitehp", "*infinitehealth", "*infinitedefense", "*infinitelife",
                 "*immortalstate", "*invulnerablestate", "*godstate"));
         BUILT_IN.put(Category.BYPASS, List.of(
@@ -340,7 +342,7 @@ public final class FlagDictionary {
         }
         String lower = name.toLowerCase(Locale.ROOT);
         return lower.contains("dead") || lower.contains("death") || lower.contains("removed")
-                || lower.contains("erased");
+                || lower.contains("eras");
     }
 
     /**
@@ -373,7 +375,9 @@ public final class FlagDictionary {
             if (protectiveOnTarget(path) || is(path, Category.GUARD) || is(path, Category.REVIVE)) return true;
             String fullKey = key.toString().toLowerCase(Locale.ROOT);
             if (fullKey.contains("infinity") || fullKey.contains("immortal") || fullKey.contains("totem")
-                    || fullKey.contains("invulnerab") || fullKey.contains("god") || fullKey.contains("ward")) {
+                    || fullKey.contains("invulnerab") || fullKey.contains("god") || fullKey.contains("ward")
+                    || fullKey.contains("halo") || fullKey.contains("sugar") || fullKey.contains("snack")
+                    || fullKey.contains("bless")) {
                 return true;
             }
         }

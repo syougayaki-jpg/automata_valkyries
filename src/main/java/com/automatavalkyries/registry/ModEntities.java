@@ -23,8 +23,17 @@ public class ModEntities {
                     .clientTrackingRange(10)
                     .build("elenor"));
 
+    /** おまけ: 攻撃されると終焉で反撃する「最果てのエレノア」（見た目・大きさはエレノアと同じ） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.FarthestElenorEntity>> FARTHEST_ELENOR =
+            ENTITY_TYPES.register("farthest_elenor", () ->
+                    EntityType.Builder.of(com.automatavalkyries.entity.FarthestElenorEntity::new, MobCategory.MONSTER)
+                            .sized(0.6F, 1.9F)
+                            .clientTrackingRange(10)
+                            .build("farthest_elenor"));
+
     @SubscribeEvent
     public static void registerAttributes(EntityAttributeCreationEvent event) {
         event.put(ELENOR.get(), ElenorEntity.createAttributes().build());
+        event.put(FARTHEST_ELENOR.get(), ElenorEntity.createAttributes().build());
     }
 }

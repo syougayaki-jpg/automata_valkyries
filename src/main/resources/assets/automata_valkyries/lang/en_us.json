@@ -1,6 +1,7 @@
 {
   "itemGroup.automata_valkyries.main": "Automata Valkyries",
   "entity.automata_valkyries.elenor": "Elenor",
+  "entity.automata_valkyries.farthest_elenor": "Elenor of the Farthest End",
   "entity.automata_valkyries.elenor.defeat_speech": "Elenor: \"Oh, is that all? How disappointing...♪\"",
   "item.automata_valkyries.raw_astrite": "Raw Astrite",
   "item.automata_valkyries.ingot_astrite": "Astrite Ingot",
@@ -9,6 +10,9 @@
   "item.automata_valkyries.raw_ceruleas": "Raw Ceruleas",
   "item.automata_valkyries.ingot_ceruleas": "Ceruleas Ingot",
   "item.automata_valkyries.elenor_spawn_egg": "Elenor Spawn Egg",
+  "item.automata_valkyries.farthest_elenor_spawn_egg": "Elenor of the Farthest End Spawn Egg",
+  "message.automata_valkyries.farthest_elenor.retaliate": "Elenor of the Farthest End: \"Raising your blade against me? Then let me bring you to your end~\"",
+  "message.automata_valkyries.farthest_elenor.cannot_disable": "The Terminus of Elenor of the Farthest End cannot be turned off",
   "item.automata_valkyries.debug_kill_stick": "Annihilation Stick (Debug)",
   "item.automata_valkyries.debug_kill_stick.tooltip.1": "Right-click a mob: max damage",
   "item.automata_valkyries.debug_kill_stick.tooltip.2": "+ /kill",

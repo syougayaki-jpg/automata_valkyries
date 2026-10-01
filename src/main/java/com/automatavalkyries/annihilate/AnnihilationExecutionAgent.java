@@ -122,6 +122,13 @@ public final class AnnihilationExecutionAgent {
         // WeakHashMap（スレッド非安全）を 2 スレッドから触ることになる。消去はサーバーからの通知でクライアントにも届く
         if (event.getLevel().isClientSide()) return;
         Entity entity = event.getEntity();
+        if (entity instanceof Player player && isAnnihilated(entity)) {
+            // プレイヤーはリスポーンで同じ UUID の新しい個体として入り直すので、拒否すると入れなくなる（ワールドに居ないまま
+            // 操作だけ残り、モブも出せなくなる）。プレイヤーの入り直しは常に通し、一覧から外す
+            ANNIHILATED_UUIDS.remove(player.getUUID());
+            ANNIHILATED_INSTANCES.remove(player);
+            return;
+        }
         if (entity != null && isAnnihilated(entity)) {
             event.setCanceled(true);
             entity.discard();
