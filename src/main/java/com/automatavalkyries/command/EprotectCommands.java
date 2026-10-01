@@ -4,6 +4,7 @@ import com.automatavalkyries.AutomataValkyries;
 import com.automatavalkyries.protect.attack.AttackLog;
 import com.automatavalkyries.protect.attack.AttackLogFile;
 import com.automatavalkyries.protect.attack.ModBlacklist;
+import com.automatavalkyries.protect.flag.FlagDictionary;
 import com.automatavalkyries.config.EprotectConfig;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
@@ -72,7 +73,39 @@ public final class EprotectCommands {
                         .then(Commands.literal("remove")
                                 .then(Commands.argument("modid", StringArgumentType.word())
                                         .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(ModBlacklist.list(), builder))
-                                        .executes(ctx -> removeFromBlacklist(ctx, StringArgumentType.getString(ctx, "modid")))))));
+                                        .executes(ctx -> removeFromBlacklist(ctx, StringArgumentType.getString(ctx, "modid"))))))
+                .then(Commands.literal("flags")
+                        .executes(EprotectCommands::showFlagDictionary)
+                        .then(Commands.literal("test")
+                                .then(Commands.argument("name", StringArgumentType.greedyString())
+                                        .executes(ctx -> testFlagName(ctx, StringArgumentType.getString(ctx, "name")))))));
+    }
+
+    /** 辞書の分類ごとの項目数 */
+    private static int showFlagDictionary(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        source.sendSuccess(() -> Component.translatable(KEY + "flags.header").withStyle(ChatFormatting.GOLD), false);
+        FlagDictionary.entries().forEach((category, entries) -> source.sendSuccess(() -> Component.translatable(KEY + "flags.category",
+                category.name().toLowerCase(java.util.Locale.ROOT), entries.size(), String.join(", ", entries)), false));
+        return FlagDictionary.entries().size();
+    }
+
+    /** 名前を辞書で引いた結果（保護対象なら戻すか・抹殺なら外すか） */
+    private static int testFlagName(CommandContext<CommandSourceStack> ctx, String name) {
+        CommandSourceStack source = ctx.getSource();
+        Set<FlagDictionary.Category> categories = FlagDictionary.classify(name);
+        String words = String.join(" ", FlagDictionary.words(name));
+        String found = categories.isEmpty() ? "-" : categories.stream().map(c -> c.name().toLowerCase(java.util.Locale.ROOT))
+                .collect(java.util.stream.Collectors.joining(", "));
+        source.sendSuccess(() -> Component.translatable(KEY + "flags.test", name, words, found), false);
+        source.sendSuccess(() -> Component.translatable(KEY + "flags.verdict",
+                yesNo(FlagDictionary.harmfulOnProtected(name)), yesNo(FlagDictionary.protectiveOnTarget(name)),
+                yesNo(FlagDictionary.livesCounter(name))), false);
+        return categories.size();
+    }
+
+    private static Component yesNo(boolean value) {
+        return Component.translatable(KEY + "flags." + (value ? "yes" : "no")).withStyle(value ? ChatFormatting.GREEN : ChatFormatting.GRAY);
     }
 
     private static int showAttacks(CommandContext<CommandSourceStack> ctx) {
@@ -88,6 +121,7 @@ public final class EprotectCommands {
                 ChatFormatting color = switch (entry.outcome) {
                     case BLOCKED_BLACKLIST -> ChatFormatting.LIGHT_PURPLE;
                     case REPAIRED -> ChatFormatting.GRAY;
+                    case DETECTED -> ChatFormatting.YELLOW;
                     default -> ChatFormatting.RED;
                 };
                 String mark = ModBlacklist.contains(entry.mod) ? " [BL]" : "";

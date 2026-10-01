@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.automatavalkyries.gametest.fake.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "mixins": [
+    "FakeInjectedStateMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

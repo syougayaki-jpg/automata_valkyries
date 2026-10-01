@@ -13,6 +13,7 @@ public final class AttackOp {
     public static final String NOVELIZE = "novelize";
     public static final String FORCED_RELOCATION = "forced_relocation";
     public static final String DIMENSION_CHANGE = "dimension_change";
+    public static final String SPOOFED_READ = "spoofed_read";             // + ":" + 偽装された getter
     public static final String DAMAGE_PENALTY = "damage_penalty";
     public static final String COMPAT = "compat";                         // + ":" + 互換 Mixin の操作名
     public static final String NEUTRALIZED = "neutralized";               // + ":" + 即死 MOD の対策名

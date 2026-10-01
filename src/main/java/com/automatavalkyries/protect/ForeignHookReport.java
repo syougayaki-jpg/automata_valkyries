@@ -1,6 +1,9 @@
 package com.automatavalkyries.protect;
 
 import com.automatavalkyries.AutomataValkyries;
+import com.automatavalkyries.protect.attack.CallerAttribution;
+import com.automatavalkyries.protect.flag.FlagDictionary;
+import com.automatavalkyries.protect.flag.InjectedMembers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ChunkMap;
 import net.minecraft.server.level.ServerLevel;
@@ -49,6 +52,7 @@ public final class ForeignHookReport {
             }
         }
 
+        logInjectedFields();
         if (byMixin.isEmpty()) {
             AutomataValkyries.LOGGER.info("[eprotect] No foreign hooks on entity lifecycle classes");
             return;
@@ -60,5 +64,27 @@ public final class ForeignHookReport {
             if (suspicious) AutomataValkyries.LOGGER.warn(line);
             else AutomataValkyries.LOGGER.info(line);
         });
+    }
+
+    /**
+     * 他 MOD がエンティティのクラスに足したフィールドと、フラグ辞書での扱い（保護対象なら戻す・抹殺で外す）。
+     * 辞書の取り違えを見つける手がかり（取り違えは設定 flagDictionary.ignore で外せる）。
+     */
+    private static void logInjectedFields() {
+        for (Class<?> target : new Class<?>[]{Entity.class, LivingEntity.class, Mob.class}) {
+            for (InjectedMembers.InjectedField injected : InjectedMembers.fields(target)) {
+                if (CallerAttribution.SELF.equals(injected.mod())) continue;
+                // 準汎用の処理が扱うのは、static でも final でもない boolean・数値だけ
+                int modifiers = injected.field().getModifiers();
+                Class<?> type = injected.field().getType();
+                if (java.lang.reflect.Modifier.isStatic(modifiers) || java.lang.reflect.Modifier.isFinal(modifiers)
+                        || !(type.isPrimitive() && type != char.class)) continue;
+                String name = injected.field().getName();
+                String verdict = FlagDictionary.harmfulOnProtected(name) ? "reset on protected"
+                        : FlagDictionary.protectiveOnTarget(name) || FlagDictionary.livesCounter(name) ? "broken by annihilation" : "-";
+                AutomataValkyries.LOGGER.info("[eprotect]   injected field {}.{} : {} ({}) -> {}", target.getSimpleName(), name,
+                        injected.field().getType().getSimpleName(), injected.mod(), verdict);
+            }
+        }
     }
 }

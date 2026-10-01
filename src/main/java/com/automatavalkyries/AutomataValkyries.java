@@ -46,7 +46,10 @@ public class AutomataValkyries {
     }
 
     private static void onConfigChanged(ModConfig config) {
-        if (config.getSpec() == EprotectConfig.SPEC) ModBlacklist.reloadFromConfig();
+        if (config.getSpec() == EprotectConfig.SPEC) {
+            ModBlacklist.reloadFromConfig();
+            com.automatavalkyries.protect.flag.FlagDictionary.reloadFromConfig();
+        }
     }
 
     private void commonSetup(FMLCommonSetupEvent event) {

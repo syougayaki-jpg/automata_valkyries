@@ -54,7 +54,7 @@ public final class EcaMixins {
         /** HP の多経路書き込み（同期データ直書き・データフロー逆算・外部スキャン）。減らす方向だけ拒否する */
         @Inject(method = "setHealth(Lnet/minecraft/world/entity/LivingEntity;F)Z", at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardSetHealth(LivingEntity entity, float health, CallbackInfoReturnable<Boolean> cir) {
-            if (!(health >= entity.getHealth()) && EprotectCompat.shieldAttack(entity, "eca:setHealth")) cir.setReturnValue(false);
+            if (!(health >= com.automatavalkyries.protect.DirectRead.health(entity)) && EprotectCompat.shieldAttack(entity, "eca:setHealth")) cir.setReturnValue(false);
         }
 
         /** 遠方（102400, -102400, 102400）への強制テレポート */

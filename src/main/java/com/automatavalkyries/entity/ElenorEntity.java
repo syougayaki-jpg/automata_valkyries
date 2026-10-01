@@ -150,7 +150,7 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
         // hurt() を経ない die() の直接呼び出し（即死攻撃）は無視し、健全なHPへの復帰と特権カウンターを適用
         if (!protect.canDie()) {
             protect.noteRefusedDeath();
-            float current = this.getHealth();
+            float current = com.automatavalkyries.protect.DirectRead.health(this);
             float fallback = Float.isFinite(current) && current > 0.0F ? current : this.getMaxHealth();
             this.setHealth(fallback);
             this.deathTime = 0;
@@ -169,7 +169,7 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
         ++this.deathTime;
         if (this.level().isClientSide) {
             spawnDeathParticles();
-        } else if (this.deathTime >= DEATH_TICKS && !this.isRemoved()) {
+        } else if (this.deathTime >= DEATH_TICKS && !com.automatavalkyries.protect.DirectRead.isRemoved(this)) {
             this.level().broadcastEntityEvent(this, (byte) 60); // 消滅時の煙
             protect.finishDeath(); // ここで初めて消去を許可（撃破演出中の強制消去は eprotect が拒否）
             this.remove(RemovalReason.KILLED);

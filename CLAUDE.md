@@ -29,6 +29,7 @@ Antigravity AIとの対話で策定・実装された戦術兵姫のコア保護
   3. 被弾量の上限: NaN / 無限大 / 1000 以上の単発は 100 に置き換え、HP から引くのは **10 秒（200 Tick）の間に合計で最大 HP の 10% まで**（`Eprotect.capFinalDamage`、2026-10-01 にユーザー指定）。最大 HP 属性の改ざんも毎 Tick 戻す
   4. 毎Tick同期自己修復 & 物理消去からの自動復元（Forge `ServerTickEvent` 監視）
   - 攻撃の記録とブラックリスト（2026-10-01）: 拒否・修復した操作を「どの MOD か」と一緒に記録（`protect/attack/`、`/eprotect attacks`、`logs/automata_valkyries-attacks.log`）。MOD 単位のブラックリストは手動（`/eprotect blacklist`）と自動（既定 1200 Tick に 20 回）で、載った MOD の即死系の操作（強制移動・次元移動・ダメージ外の HP 減少）だけ追加で止める。通常ダメージは通す
+  - 準汎用の状態リセットとフラグ辞書（2026-10-01）: 他 MOD が付けた状態（インターフェース・既存クラスに足されたフィールド・Capability・永続データ）を名前で分類する辞書（`protect/flag/FlagDictionary`）で、保護対象からは死亡・停止・迂回の印を毎 Tick 戻し、超絶抹殺の棒では守り・復活の許可を外す。辞書は設定 `flagDictionary.extra` / `ignore` と `/eprotect flags` で調整する。生死の判定・修復は getter を通さず `DirectRead` で実際の値を読む
   5. ボス退場演出（`IProviderWithSpeech`、プレイヤー敗北時の紫色セリフ `「あら、もう終わりですか？ 期待外れですね……♪」` & サウンド）
 - **移植元資産**: `C:\Users\sfdge\Downloads\masterE` にて最新ビルド成功（`mastere-1.0.0.jar` 生成確認済み）。
 - **実装タスク**: `docs/TACTICAL_DOLL_CHAT_CONTEXT.md` を参照し、`automata_valkyries`（`com.automatavalkyries`）へ順次移植・拡張すること。

@@ -29,7 +29,9 @@ public final class AttackLog {
         /** 即死 MOD が付けたフラグ・登録を解除した */
         NEUTRALIZED(true),
         /** Mixin を経ない直書きを後から修復した（呼び出し元は分からない） */
-        REPAIRED(false);
+        REPAIRED(false),
+        /** 見つけたが直せない（読み出しの偽装など。呼び出し元は分からない） */
+        DETECTED(false);
 
         final boolean countsTowardAuto;
 
@@ -125,6 +127,12 @@ public final class AttackLog {
     public static void repaired(Entity target, String kind) {
         if (!enabled(target)) return;
         record(target, CallerAttribution.UNKNOWN, AttackOp.REPAIR + ":" + kind, Outcome.REPAIRED, "(direct write)", null, null);
+    }
+
+    /** 見つけたが直せない異常（読み出しの偽装など） */
+    public static void detected(Entity target, String op) {
+        if (!enabled(target)) return;
+        record(target, CallerAttribution.UNKNOWN, op, Outcome.DETECTED, "(spoofed read)", null, null);
     }
 
     public static void retreated(Entity target) {

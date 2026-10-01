@@ -3,9 +3,16 @@ package com.automatavalkyries.annihilate;
 import com.automatavalkyries.AutomataValkyries;
 import com.automatavalkyries.protect.IEprotected;
 import com.automatavalkyries.protect.attack.CallerAttribution;
+import com.automatavalkyries.protect.flag.FlagDictionary;
+import com.automatavalkyries.protect.flag.StateScanner;
 import com.automatavalkyries.util.StaticReferencePurger;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.effect.MobEffect;
+import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 
 import java.lang.reflect.Field;
@@ -13,11 +20,11 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.regex.Pattern;
 
 /**
  * 他 MOD のボスが持つ「独自の生命維持」を外して、その MOD 自身の死亡・消去経路で倒す（超絶抹殺の棒の前処理・後処理）。
@@ -25,10 +32,9 @@ import java.util.regex.Pattern;
  *   <li>既知の MOD の本来の撃破経路（個別対応）: The Trial Monolith の魂ダメージ（侵略者のモノリス・テッセラクトビースト）</li>
  *   <li>準汎用（未知の MOD 向け。どれも「他 MOD のクラス」だけを対象にし、vanilla・Forge・このMOD のクラスには触れない）:
  *     <ul>
- *       <li>保護の切り替え: 対象が実装する他 MOD のインターフェースの set…Protect / Barrier / Invulnerable / Immune / God / Muteki 等を無効、
- *           set…Bypass… を有効にする</li>
- *       <li>保護・復活のフラグ: 対象自身のフィールド（final 以外）のうち、保護・復活の boolean を false、残り復活回数を 0 にする
- *           （復活までの待ち時間などのタイマーは、0 にすると早まりうるので触らない）</li>
+ *       <li>守りの状態: フラグ辞書（{@link FlagDictionary}）で守り・復活の許可と分かる状態を、他 MOD のインターフェース・
+ *           既存クラスに足されたフィールド・対象自身のフィールド・Capability・永続データから下ろし、残り復活回数を 0 に、
+ *           守りの迂回を有効にする。守りを表す他 MOD の状態異常も外す（待ち時間などのタイマーは触らない）</li>
  *       <li>代理と本体: 対象のフィールドが指すオブジェクトが対象を指し返していれば、そのオブジェクトの remove() / kill() / discard() を呼ぶ
  *           （代理だけ消すと本体が代理を作り直す）</li>
  *       <li>静的な一覧: 対象・本体のクラスと、対象のフィールドが直接指す他 MOD のオブジェクトのクラスの static な
@@ -41,15 +47,6 @@ import java.util.regex.Pattern;
  */
 public final class ModProtectionBreaker {
 
-    private static final Pattern DISABLE_SETTER = Pattern.compile(
-            "(?i)set\\w*(protect|barrier|invuln|immun|invinc|godmode|god|muteki|shield|undying|immortal|dimensionalcore)\\w*");
-    private static final Pattern ENABLE_SETTER = Pattern.compile("(?i)set\\w*bypass\\w*");
-    /** false にする boolean フィールド（保護・復活の許可） */
-    private static final Pattern DISABLE_FLAG = Pattern.compile(
-            "(?i).*(invuln|immortal|invinc|protect|undying|godmode|muteki|immune|barrier|canrevive|canrespawn|revivable|respawnable|resurrect).*");
-    /** 0 にする数値フィールド（残り復活回数。待ち時間・間隔は含めない） */
-    private static final Pattern ZERO_COUNT = Pattern.compile(
-            "(?i)(lives|lifecount|livesleft|remaininglives|extralives)|.*(revive|respawn|resurrect|rebirth)\\w*(count|left|remaining|times|charges)");
     private static final String[] CONTROLLER_KILL_METHODS = {"remove", "kill", "discard"};
 
     private static final String TRIAL_MONOLITH = "io.github.kosianodangoo.trialmonolith.";
@@ -64,8 +61,7 @@ public final class ModProtectionBreaker {
     /** 抹殺の前処理: 生命維持を外し、本体を消し、静的な一覧から取り除く */
     public static Context breakProtection(ServerLevel level, Entity target) {
         breakTrialMonolith(target);
-        disableProtectionSwitches(target);
-        clearFlagFields(target);
+        breakProtectiveStates(target);
         List<Object> controllers = removeControllers(target);
         purgeStaticReferences(target, controllers);
         return new Context(controllers);
@@ -126,56 +122,31 @@ public final class ModProtectionBreaker {
         }
     }
 
-    // ---- 準汎用: 保護の切り替え・フラグ ---------------------------------------------
+    // ---- 準汎用: 保護の切り替え・フラグ・永続データ・状態異常 -------------------------------
 
-    /** 他 MOD のインターフェースにある保護の切り替えを無効にする（迂回の切り替えは有効にする） */
-    private static void disableProtectionSwitches(Entity target) {
-        for (Class<?> api : foreignInterfaces(target.getClass())) {
-            for (Method method : api.getMethods()) {
-                if (method.getParameterCount() != 1 || method.getParameterTypes()[0] != boolean.class) continue;
-                String name = stripPrefix(method.getName());
-                Boolean value = ENABLE_SETTER.matcher(name).matches() ? Boolean.TRUE
-                        : DISABLE_SETTER.matcher(name).matches() ? Boolean.FALSE : null;
-                if (value == null) continue;
-                try {
-                    method.invoke(target, value);
-                    AutomataValkyries.LOGGER.info("[AnnihilationAgent] {}.{}({}) on {}", api.getSimpleName(), method.getName(), value,
-                            target.getName().getString());
-                } catch (Throwable ignored) {}
+    private static final EnumSet<StateScanner.Source> SOURCES = EnumSet.allOf(StateScanner.Source.class);
+
+    /**
+     * フラグ辞書（{@link FlagDictionary}）で守り・復活の許可と分かる状態を下ろし、残り復活回数を 0 に、守りの迂回を有効にする。
+     * 他 MOD のインターフェース・既存クラスに足されたフィールド・対象のクラス自身のフィールド・Capability・永続データが対象
+     * （{@link StateScanner}）。復活までの待ち時間などのタイマーは、0 にすると早まりうるので触らない。
+     */
+    private static void breakProtectiveStates(Entity target) {
+        for (StateScanner.Change change : StateScanner.apply(target, StateScanner.BREAK_TARGET, SOURCES)) {
+            AutomataValkyries.LOGGER.info("[AnnihilationAgent] Broke {} ({}) on {}", change, change.mod(), target.getName().getString());
+        }
+        if (!(target instanceof LivingEntity living)) return;
+        List<MobEffect> protective = new ArrayList<>();
+        for (MobEffectInstance instance : living.getActiveEffects()) {
+            ResourceLocation key = BuiltInRegistries.MOB_EFFECT.getKey(instance.getEffect());
+            if (key != null && CallerAttribution.isForeign(key.getNamespace()) && FlagDictionary.protectiveOnTarget(key.getPath())) {
+                protective.add(instance.getEffect());
             }
         }
-    }
-
-    /** 対象自身（他 MOD のクラスで宣言された final 以外のフィールド）の保護・復活のフラグを下ろし、残り復活回数を 0 にする */
-    private static void clearFlagFields(Entity target) {
-        for (Class<?> type = target.getClass(); type != null && isForeign(type); type = type.getSuperclass()) {
-            for (Field field : type.getDeclaredFields()) {
-                int modifiers = field.getModifiers();
-                if (Modifier.isStatic(modifiers) || Modifier.isFinal(modifiers)) continue;
-                String name = stripPrefix(field.getName());
-                try {
-                    Class<?> fieldType = field.getType();
-                    if (fieldType == boolean.class && DISABLE_FLAG.matcher(name).matches()) {
-                        field.setAccessible(true);
-                        if (field.getBoolean(target)) {
-                            field.setBoolean(target, false);
-                            AutomataValkyries.LOGGER.info("[AnnihilationAgent] {}.{} = false on {}", type.getSimpleName(), field.getName(),
-                                    target.getName().getString());
-                        }
-                    } else if ((fieldType == int.class || fieldType == long.class || fieldType == short.class || fieldType == byte.class)
-                            && ZERO_COUNT.matcher(name).matches()) {
-                        field.setAccessible(true);
-                        if (((Number) field.get(target)).longValue() != 0) {
-                            if (fieldType == int.class) field.setInt(target, 0);
-                            else if (fieldType == long.class) field.setLong(target, 0L);
-                            else if (fieldType == short.class) field.setShort(target, (short) 0);
-                            else field.setByte(target, (byte) 0);
-                            AutomataValkyries.LOGGER.info("[AnnihilationAgent] {}.{} = 0 on {}", type.getSimpleName(), field.getName(),
-                                    target.getName().getString());
-                        }
-                    }
-                } catch (Throwable ignored) {}
-            }
+        for (MobEffect effect : protective) {
+            living.removeEffect(effect);
+            AutomataValkyries.LOGGER.info("[AnnihilationAgent] Removed protective effect {} from {}",
+                    BuiltInRegistries.MOB_EFFECT.getKey(effect), target.getName().getString());
         }
     }
 
@@ -261,18 +232,6 @@ public final class ModProtectionBreaker {
         return null;
     }
 
-    private static Set<Class<?>> foreignInterfaces(Class<?> type) {
-        Set<Class<?>> result = new LinkedHashSet<>();
-        for (Class<?> c = type; c != null && isForeign(c); c = c.getSuperclass()) collectInterfaces(c, result);
-        return result;
-    }
-
-    private static void collectInterfaces(Class<?> type, Set<Class<?>> out) {
-        for (Class<?> api : type.getInterfaces()) {
-            if (isForeign(api) && out.add(api)) collectInterfaces(api, out);
-        }
-    }
-
     private static void addForeignHierarchy(Class<?> type, Set<Class<?>> out) {
         for (Class<?> c = type; c != null && isForeign(c); c = c.getSuperclass()) out.add(c);
     }
@@ -282,9 +241,4 @@ public final class ModProtectionBreaker {
         return CallerAttribution.isForeign(CallerAttribution.modOf(type));
     }
 
-    /** Mixin の接頭辞付きの名前（the_trial_monolith$setSoulProtected 等）から本来の名前を取り出す */
-    private static String stripPrefix(String name) {
-        int dollar = name.lastIndexOf('$');
-        return dollar >= 0 ? name.substring(dollar + 1) : name;
-    }
 }

@@ -97,7 +97,7 @@ public abstract class EprotectDamageMixin {
         if (automata_valkyries$wardHurtDepth == 0 && (health <= 0.0F || !Float.isFinite(health))) {
             LivingEntity self = (LivingEntity) (Object) this;
             if (PlayerWard.isActive(self)) {
-                float current = self.getHealth();
+                float current = com.automatavalkyries.protect.DirectRead.health(self);
                 if (Float.isFinite(current) && current > 0.0F) {
                     AttackLog.refused(self, AttackOp.HEALTH_LOSS + ":zero");
                     return current;
@@ -127,7 +127,7 @@ public abstract class EprotectDamageMixin {
             if (!protect.canDie()) {
                 ci.cancel();
                 protect.noteRefusedDeath();
-                float current = self.getHealth();
+                float current = com.automatavalkyries.protect.DirectRead.health(self);
                 float fallback = Float.isFinite(current) && current > 0.0F ? current : self.getMaxHealth();
                 self.setHealth(fallback);
                 self.deathTime = 0;

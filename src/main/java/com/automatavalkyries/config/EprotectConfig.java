@@ -85,6 +85,15 @@ public final class EprotectConfig {
             .comment("次元移動・次元移動を装った消去は、直接の呼び出し元でなくても呼び出し経路にブラックリストの MOD があれば拒否する")
             .define("blacklist.strictRemoval", false);
 
+    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> FLAG_EXTRA = BUILDER
+            .comment("フラグ辞書に足す項目（\"分類:項目\"）。分類は kill / control / health_tamper / guard / bypass / revive / count / timer。",
+                    "項目は 単語の頭（例 kill:smite）、=単語そのもの（例 kill:=doom）、*つなげた名前に含まれる（例 guard:*holyshield）")
+            .defineListAllowEmpty("flagDictionary.extra", List.of(), o -> o instanceof String s && s.indexOf(':') > 0);
+
+    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> FLAG_IGNORE = BUILDER
+            .comment("フラグ辞書で扱わない名前（取り違えの除外。例 \"soulBound\"）。大文字小文字・区切りは無視して比べる")
+            .defineListAllowEmpty("flagDictionary.ignore", List.of(), o -> o instanceof String);
+
     public static final ForgeConfigSpec SPEC = BUILDER.build();
 
     private EprotectConfig() {}

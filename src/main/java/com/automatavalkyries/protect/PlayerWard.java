@@ -45,7 +45,7 @@ public final class PlayerWard {
     /** 護符で守られている、生きているプレイヤーか（サーバー側） */
     public static boolean isActive(@Nullable Entity entity) {
         return entity instanceof Player player && !player.level().isClientSide && WARDED.contains(player.getUUID())
-                && !player.isDeadOrDying();
+                && DirectRead.hasHealth(player); // isDeadOrDying() は他 MOD に偽装されうる
     }
 
     /** 持ち物を見て覚え直す（毎 Tick 呼ぶ。GameTest からも呼ぶ） */

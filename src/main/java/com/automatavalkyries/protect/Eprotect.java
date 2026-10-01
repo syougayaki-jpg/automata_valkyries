@@ -169,7 +169,7 @@ public class Eprotect {
 
     public void onRemovedFromWorld() {
         if (!(owner.level() instanceof ServerLevel)) return;
-        Entity.RemovalReason reason = owner.getRemovalReason();
+        Entity.RemovalReason reason = DirectRead.removalReason(owner);
         // Mixin をすり抜けた不正消去: マネージャーが復元できるよう登録とチャンクロックを維持する
         if (isGuardingRemoval() && isIllegalRemoval(owner, reason)) return;
         // 次元移動: 移動先で同じ UUID の個体が改めて登録されるので、元の次元の記録は消す（残すと元の次元で復元されて複製になる）
@@ -282,7 +282,7 @@ public class Eprotect {
         if (!isProtectionActive()) return true;
         // 正規の hurt 処理中であり、被弾前の体力が1撃で倒せる残量（最大HPの10%）以下で、
         // かつ現在のHPが本当に 0 以下になった場合のみ許可する
-        return isLegitimateFatalBlow() && owner.getHealth() <= 0.0F;
+        return isLegitimateFatalBlow() && !(DirectRead.health(owner) > 0.0F);
     }
 
     public void markDefeated() {
@@ -297,7 +297,7 @@ public class Eprotect {
     public void endHurt() {
         if (hurtDepth > 0) hurtDepth--;
         // 正規の被弾で減った HP を「直前の正常値」として記録（同 Tick 内の即死ハックで被弾前に戻らないように）
-        float hp = owner.getHealth();
+        float hp = DirectRead.health(owner);
         if (Float.isFinite(hp) && hp > 0.0F) lastValidHealth = hp;
     }
 
@@ -371,7 +371,7 @@ public class Eprotect {
             return fallback;
         }
         if (hurtDepth == 0) {
-            float current = owner.getHealth();
+            float current = DirectRead.health(owner);
             float safeCurrent = Float.isFinite(current) && current > 0.0F ? current : fallback;
             if (health <= 0.0F) {
                 AttackLog.refused(owner, AttackOp.HEALTH_LOSS + ":zero");
@@ -449,9 +449,19 @@ public class Eprotect {
         // vanilla の状態を戻した後に回す（vanilla のフィールドを見せるだけのアクセサ（nosugar の DeadFlag 等）を
         // 他 MOD 固有の状態と取り違えて、直書きの修復をその MOD の攻撃として記録しないため）
         if (ForeignStateCleaner.clean(owner)) anomalies++;
+        noteSpoofedRead();
         if (restoreTickingIfStopped()) anomalies++;
 
         if (anomalies > 0) noteAnomalies(anomalies);
+    }
+
+    /**
+     * 読み出しの偽装を記録する（実際は生きているのに getter が「死亡・消去済み」と答える）。直せるのは原因の印だけなので、
+     * 原因の印を戻した後（{@link ForeignStateCleaner} の後）にも残っているものだけを、修復の件数には数えずに記録する。
+     */
+    private void noteSpoofedRead() {
+        String spoofed = DirectRead.spoofedRead(owner);
+        if (spoofed != null) AttackLog.detected(owner, AttackOp.SPOOFED_READ + ":" + spoofed);
     }
 
     /**
@@ -477,7 +487,7 @@ public class Eprotect {
 
         float max = owner.getMaxHealth();
         if (lastValidHealth > max) lastValidHealth = max;
-        if (!(owner.getHealth() <= max)) owner.setHealth(max); // NaN も含めて切り詰める
+        if (!(DirectRead.health(owner) <= max)) owner.setHealth(max); // NaN も含めて切り詰める
         AutomataValkyries.LOGGER.warn("[eprotect] Restored tampered max health of {} ({} -> {}, {} foreign modifiers removed)",
                 owner, oldValue, max, removed);
         AttackLog.repaired(owner, "max_health");
@@ -494,7 +504,8 @@ public class Eprotect {
 
     /** hurt() を経ない即死（setHealth(0) など）や NaN 化は直前の正常値へ戻す */
     private boolean restoreHealth() {
-        float hp = owner.getHealth();
+        // getHealth() はこのMOD の Mixin が HP 0 を直前の正常値に読み替えるので、同期データの実際の値を見る
+        float hp = DirectRead.health(owner);
         if (Float.isFinite(hp) && hp > 0.0F) {
             lastValidHealth = hp;
             return false;
@@ -604,7 +615,7 @@ public class Eprotect {
         if (!(owner.level() instanceof ServerLevel level) || !presenceHealthy) return;
         long now = level.getGameTime();
         if (lastRecordTick != Long.MIN_VALUE && now - lastRecordTick < RECORD_INTERVAL) return;
-        float hp = owner.getHealth();
+        float hp = DirectRead.health(owner);
         if (!Float.isFinite(hp) || hp <= 0.0F) return;
         lastRecordTick = now;
         registry().record(owner, lastSafePos != null ? lastSafePos : owner.position());

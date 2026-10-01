@@ -46,7 +46,7 @@ public final class MoreAvaritiaMixins {
                 at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardSetHealth(LivingEntity living, float health, DamageSource source, LivingEntity attacker,
                                                              CallbackInfo ci) {
-            if (!(health >= living.getHealth()) && EprotectCompat.shieldAttack(living, "more_avaritia:setHealth")) ci.cancel();
+            if (!(health >= com.automatavalkyries.protect.DirectRead.health(living)) && EprotectCompat.shieldAttack(living, "more_avaritia:setHealth")) ci.cancel();
         }
 
         /** 倒していないのに戦利品だけ落とさせない */

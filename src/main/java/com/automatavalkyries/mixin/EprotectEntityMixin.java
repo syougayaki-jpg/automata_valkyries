@@ -102,7 +102,7 @@ public abstract class EprotectEntityMixin {
         if ((Object) this instanceof IEprotected provider) {
             Eprotect protect = provider.getEprotect();
             Entity self = (Entity) (Object) this;
-            Entity.RemovalReason reason = self.getRemovalReason();
+            Entity.RemovalReason reason = com.automatavalkyries.protect.DirectRead.removalReason(self);
             if (protect != null && protect.isGuardingRemoval() && (reason == null || Eprotect.isIllegalRemoval(self, reason))) {
                 ci.cancel();
                 // 消去理由が無いのはチャンクの可視性低下（正規の追跡終了）。拒否はするが攻撃としては記録しない

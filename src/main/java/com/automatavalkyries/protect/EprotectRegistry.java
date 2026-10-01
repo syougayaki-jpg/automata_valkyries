@@ -108,11 +108,11 @@ public final class EprotectRegistry {
         if (!entity.saveAsPassenger(snapshot)) return; // 消去中など保存できない状態なら前回の記録を残す
         Entry entry = entries.get(entity.getUUID());
         if (entry == null) {
-            entries.put(entity.getUUID(), new Entry(entity.getUUID(), State.ACTIVE, snapshot, entity.getHealth(), safePos));
+            entries.put(entity.getUUID(), new Entry(entity.getUUID(), State.ACTIVE, snapshot, DirectRead.health(entity), safePos));
         } else {
             entry.state = State.ACTIVE;
             entry.snapshot = snapshot;
-            entry.health = entity.getHealth();
+            entry.health = DirectRead.health(entity);
             entry.safePos = safePos;
         }
         markDirty();
