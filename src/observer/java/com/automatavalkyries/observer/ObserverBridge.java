@@ -40,7 +40,7 @@ public final class ObserverBridge {
             Path path = Paths.get("logs", "automata_valkyries-observer.log");
             Files.createDirectories(path.getParent());
             writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-            writer.write("# 観察用 Java エージェントの記録（読むだけ。クラスは書き換えない）");
+            writer.write("# 観察用 Java エージェントの記録（他 MOD のクラスは書き換えない。このMOD 自身のクラスへの書き換えだけ元に戻す（guard））");
             writer.newLine();
             writer.write("# 書式: 時刻 | 種類 | クラス | 呼び出し元 | 変わったメソッド | 潰されたメソッド | 新しい参照 | 備考");
             writer.newLine();
@@ -91,6 +91,24 @@ public final class ObserverBridge {
         List<Map<String, String>> copy = new ArrayList<>(EVENTS.size());
         for (Map<String, String> event : EVENTS) copy.add(java.util.Collections.unmodifiableMap(new LinkedHashMap<>(event)));
         return copy;
+    }
+
+    /** 改ざん防止の自己点検を始める（GameTest 用。点検用のクラス GuardProbe 以外は受け付けない） */
+    public static String startGuardSelfTest(Class<?> probe) {
+        try {
+            return IntegrityGuard.startSelfTest(probe);
+        } catch (Throwable t) {
+            return "failed: " + t;
+        }
+    }
+
+    public static void endGuardSelfTest() {
+        IntegrityGuard.endSelfTest();
+    }
+
+    /** 能力の地図（置き場所, 能力, クラスの数, 例） */
+    public static List<Map<String, String>> capabilities() {
+        return ObserverAgent.capabilities();
     }
 
     public static Map<String, String> status() {

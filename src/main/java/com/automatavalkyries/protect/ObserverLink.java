@@ -84,10 +84,54 @@ public final class ObserverLink {
         return events;
     }
 
+    /** 能力の地図の 1 行（その MOD のクラスが何をできる作りか。実際にしたかは別） */
+    public record Capability(String mod, String capability, int classes, String samples, String location) {}
+
+    /** 能力の地図（MOD・能力の順）。MOD は例のクラスのパッケージから引く */
+    @SuppressWarnings("unchecked")
+    public static List<Capability> capabilities() {
+        Object value = call("capabilities");
+        if (!(value instanceof List<?> list)) return List.of();
+        // 同じ MOD が jar を分けている（エージェントの jar と MOD の jar 等）ことがあるので、MOD・能力ごとにまとめる
+        Map<String, Capability> merged = new java.util.TreeMap<>();
+        for (Object item : list) {
+            if (!(item instanceof Map<?, ?> map)) continue;
+            Map<String, String> raw = (Map<String, String>) map;
+            String samples = raw.getOrDefault("samples", "");
+            String first = samples.split(", ")[0];
+            int count;
+            try {
+                count = Integer.parseInt(raw.getOrDefault("classes", "0"));
+            } catch (NumberFormatException e) {
+                count = 0;
+            }
+            String mod = first.isEmpty() ? CallerAttribution.UNKNOWN : CallerAttribution.modOfClassName(first);
+            String capability = raw.getOrDefault("capability", "?");
+            String location = raw.getOrDefault("location", "?");
+            Capability row = new Capability(mod, capability, count, samples, location);
+            merged.merge(mod + "|" + capability, row, (a, b) -> new Capability(mod, capability, a.classes() + b.classes(),
+                    joinSamples(a.samples(), b.samples()), a.location() + " " + b.location()));
+        }
+        return new ArrayList<>(merged.values());
+    }
+
+    private static String joinSamples(String a, String b) {
+        Set<String> samples = new LinkedHashSet<>();
+        for (String s : (a + ", " + b).split(", ")) {
+            if (!s.isEmpty() && samples.size() < 3) samples.add(s);
+        }
+        return String.join(", ", samples);
+    }
+
     /** サーバー起動時にログへ一言（付いているかどうか） */
     public static void logStatus() {
         if (active()) {
             AutomataValkyries.LOGGER.info("[observer] The observation Java agent is attached: {}", status());
+            for (Capability row : capabilities()) {
+                if (!CallerAttribution.isForeign(row.mod())) continue;
+                AutomataValkyries.LOGGER.info("[observer]   capability {}: {} ({} classes, e.g. {})", row.mod(), row.capability(),
+                        row.classes(), row.samples());
+            }
         } else {
             AutomataValkyries.LOGGER.debug("[observer] The observation Java agent is not attached");
         }
@@ -108,6 +152,21 @@ public final class ObserverLink {
 
     private static String modOfClass(String className) {
         return className.isEmpty() || className.equals("-") ? "-" : CallerAttribution.modOfClassName(className);
+    }
+
+    /** 改ざん防止の自己点検（GameTest 用。点検用のクラスだけを潰す変換器を他のエージェントのふりをして入れる） */
+    public static String startGuardSelfTest(Class<?> probe) {
+        Class<?> type = bridge();
+        if (type == null) return "not attached";
+        try {
+            return String.valueOf(type.getMethod("startGuardSelfTest", Class.class).invoke(null, probe));
+        } catch (Throwable t) {
+            return "failed: " + t;
+        }
+    }
+
+    public static void endGuardSelfTest() {
+        call("endGuardSelfTest");
     }
 
     @Nullable

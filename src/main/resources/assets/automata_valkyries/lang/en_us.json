@@ -91,6 +91,8 @@
   "commands.automata_valkyries.observer.neutered": "  Methods reduced to an immediate return: %s",
   "commands.automata_valkyries.observer.changed": "  Methods whose code changed: %s",
   "commands.automata_valkyries.observer.unknown": "  Newly referenced names not in the dictionary: %s",
+  "commands.automata_valkyries.observer.capabilities.header": "Capability map (what other mods' classes are able to do, not what they did): %s rows",
+  "commands.automata_valkyries.observer.capabilities.entry": "%s: %s (%s classes, e.g. %s)",
   "commands.automata_valkyries.blacklist.protected": "%s cannot be blacklisted",
   "commands.automata_valkyries.blacklist.invalid": "%s is not a valid mod id",
   "commands.automata_valkyries.blacklist.not_loaded": "Warning: %s is not loaded (added anyway)",

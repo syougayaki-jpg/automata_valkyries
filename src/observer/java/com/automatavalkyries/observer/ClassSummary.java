@@ -23,6 +23,8 @@ final class ClassSummary {
     final Map<String, MethodInfo> methods = new LinkedHashMap<>();
     /** 参照しているメソッド・フィールド（"所有クラス.名前"） */
     final Set<String> refs = new LinkedHashSet<>();
+    /** 文字列定数（リフレクションで使うフィールド名などの手がかり） */
+    final Set<String> strings = new LinkedHashSet<>();
 
     private ClassSummary(String name) {
         this.name = name;
@@ -87,6 +89,8 @@ final class ClassSummary {
                 String owner = className(pool, links, links[i][0]);
                 int[] nameAndType = links[links[i][1]];
                 summary.refs.add(owner + "." + pool[nameAndType[0]]);
+            } else if (tags[i] == 8) {
+                summary.strings.add((String) pool[links[i][0]]);
             }
         }
         return summary;

@@ -53,7 +53,9 @@ public final class EprotectCommands {
                 .then(Commands.literal("plus")
                         .executes(EprotectCommands::showPlus)
                         .then(Commands.literal("clear").executes(EprotectCommands::clearPlus)))
-                .then(Commands.literal("observer").executes(EprotectCommands::showObserver))
+                .then(Commands.literal("observer")
+                        .executes(EprotectCommands::showObserver)
+                        .then(Commands.literal("capabilities").executes(EprotectCommands::showCapabilities)))
                 .then(Commands.literal("attacks")
                         .executes(EprotectCommands::showAttacks)
                         .then(Commands.literal("clear").executes(EprotectCommands::clearAttacks)))
@@ -145,6 +147,22 @@ public final class EprotectCommands {
         com.automatavalkyries.protect.plus.EprotectPlusLink.clearEvents();
         ctx.getSource().sendSuccess(() -> Component.translatable(KEY + "plus.cleared"), true);
         return 1;
+    }
+
+    /** 能力の地図: 他 MOD のクラスが何をできる作りか（MOD・能力ごと。実際にしたかは別） */
+    private static int showCapabilities(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        if (!com.automatavalkyries.protect.ObserverLink.active()) {
+            source.sendSuccess(() -> Component.translatable(KEY + "observer.inactive").withStyle(ChatFormatting.GRAY), false);
+            return 0;
+        }
+        var rows = com.automatavalkyries.protect.ObserverLink.capabilities();
+        source.sendSuccess(() -> Component.translatable(KEY + "observer.capabilities.header", rows.size()).withStyle(ChatFormatting.GOLD), false);
+        for (var row : rows) {
+            source.sendSuccess(() -> Component.translatable(KEY + "observer.capabilities.entry", row.mod(), row.capability(),
+                    row.classes(), row.samples()), false);
+        }
+        return rows.size();
     }
 
     /** 観察用 Java エージェントの記録（新しい順に 10 件。クラスの書き換えと、新しく見つけた変換器） */
