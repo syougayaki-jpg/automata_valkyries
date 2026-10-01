@@ -15,6 +15,8 @@ MOD 全体の仕様（世界観、兵姫、敵・ボス、アイテム、マシ�
 - 【暫定統一】の項目（§0.2）は後でユーザーが調整する前提の仮決定。変更されたら仕様書を更新する
 - 未定・未受領の項目（§0.3）は推測で埋めず、ユーザーに確認する
 
+**注意（2026-10-02 時点）**: Java エージェントのクラスや深いフックを持つ MOD（Hyperlink・ECA など）とは、保護同士・保護と即死がぶつかって干渉することがある。ECA ＋ The Last Sword の組み合わせでのプレイヤーの死亡は未解決のまま保留中（詳細は保護の仕様書 §8.1）。検証は組み合わせを絞って行う。
+
 保護の仕組み（Eprotect）の全体像・各層・設定・テスト方針・他 MOD への移植手順は **[`docs/SPEC_EPROTECT_ARCHITECTURE.md`](docs/SPEC_EPROTECT_ARCHITECTURE.md)** にまとめてある（ゲーム内保護側）。
 
 Java エージェント（Eprotect+ / FlagDictionaryProtector）、終焉執行エンジン（Terminus / プレイヤー絶対死 / 10秒耐性検知）、および高次元防護（ブラックリスト強化・10秒間無敵・バイトコード完全性復元）の包括的アーキテクチャ仕様書・データは **[`docs/SPEC_JAVA_AGENT_TERMINUS_AND_EPROTECT_PLUS.md`](docs/SPEC_JAVA_AGENT_TERMINUS_AND_EPROTECT_PLUS.md)** に完全永続化保存されている。
