@@ -23,8 +23,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 public final class SpawnBanZone {
 
-    public static final int DURATION_TICKS = 200;
-    public static final double RADIUS = 64.0D;
+    public static final int DURATION_TICKS = 20;
+    public static final double RADIUS = 16.0D;
 
     private record Zone(ResourceKey<Level> dimension, EntityType<?> type, Vec3 center, long expiresAt) {}
 

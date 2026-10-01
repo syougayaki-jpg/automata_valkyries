@@ -85,6 +85,15 @@ public final class EcaMixins {
         private static void automata_valkyries$guardSetAllReturn(Entity entity, boolean enable, CallbackInfoReturnable<Boolean> cir) {
             if (enable && EprotectCompat.shieldAttack(entity, "eca:setAllReturn")) cir.setReturnValue(false);
         }
+
+        @Inject(method = "isInvulnerable(Lnet/minecraft/world/entity/Entity;)Z", at = @At("HEAD"), cancellable = true, require = 0)
+        private static void automata_valkyries$guardIsInvulnerable(Entity entity, CallbackInfoReturnable<Boolean> cir) {
+            if (entity instanceof net.minecraft.world.entity.player.Player player) {
+                if (!com.automatavalkyries.protect.DirectRead.hasHealth(player) || !com.automatavalkyries.protect.EcaLastSwordHelper.hasDefenseSword(player)) {
+                    cir.setReturnValue(false);
+                }
+            }
+        }
     }
 
     /**
@@ -125,6 +134,54 @@ public final class EcaMixins {
         @Inject(method = "shouldBlockAdd(Lnet/minecraft/world/entity/Entity;)Z", at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$allowAdd(Entity entity, CallbackInfoReturnable<Boolean> cir) {
             if (entity instanceof net.minecraft.world.entity.player.Player || EprotectCompat.shouldShield(entity)) cir.setReturnValue(false);
+        }
+    }
+
+    /** ECA の位置固定（EntityLocationManager）の無力化と正常化 */
+    @Pseudo
+    @Mixin(targets = "net.eca.util.EntityLocationManager", remap = false)
+    public abstract static class LocationManager {
+        @Inject(method = "isLocationLocked(Lnet/minecraft/world/entity/Entity;)Z", at = @At("HEAD"), cancellable = true, require = 0)
+        private static void automata_valkyries$guardIsLocationLocked(Entity entity, CallbackInfoReturnable<Boolean> cir) {
+            if (entity instanceof net.minecraft.world.entity.player.Player player) {
+                if (!com.automatavalkyries.protect.DirectRead.hasHealth(player) || !com.automatavalkyries.protect.EcaLastSwordHelper.hasDefenseSword(player)) {
+                    com.automatavalkyries.protect.EcaLastSwordHelper.cleanupPlayerRestraints(player);
+                    cir.setReturnValue(false);
+                }
+            }
+        }
+
+        @Inject(method = {"lockLocation(Lnet/minecraft/world/entity/Entity;)V", "lockLocation(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/phys/Vec3;)V"},
+                at = @At("HEAD"), cancellable = true, require = 0)
+        private static void automata_valkyries$guardLockLocation(Entity entity, CallbackInfo ci) {
+            if (entity instanceof net.minecraft.world.entity.player.Player player) {
+                if (!com.automatavalkyries.protect.DirectRead.hasHealth(player) || !com.automatavalkyries.protect.EcaLastSwordHelper.hasDefenseSword(player)) {
+                    ci.cancel();
+                }
+            }
+        }
+    }
+
+    /** ECA のヘルスロック（HealthLockManager）の解除 */
+    @Pseudo
+    @Mixin(targets = "net.eca.util.health.health_lock.HealthLockManager", remap = false)
+    public abstract static class HealthLockManagerCompat {
+        @Inject(method = "getLock(Lnet/minecraft/world/entity/LivingEntity;)Ljava/lang/Float;", at = @At("HEAD"), cancellable = true, require = 0)
+        private static void automata_valkyries$guardGetLock(LivingEntity entity, CallbackInfoReturnable<Float> cir) {
+            if (entity instanceof net.minecraft.world.entity.player.Player player) {
+                if (!com.automatavalkyries.protect.DirectRead.hasHealth(player) || !com.automatavalkyries.protect.EcaLastSwordHelper.hasDefenseSword(player)) {
+                    cir.setReturnValue(null);
+                }
+            }
+        }
+
+        @Inject(method = "getMaxHealthLock(Lnet/minecraft/world/entity/LivingEntity;)Ljava/lang/Float;", at = @At("HEAD"), cancellable = true, require = 0)
+        private static void automata_valkyries$guardGetMaxHealthLock(LivingEntity entity, CallbackInfoReturnable<Float> cir) {
+            if (entity instanceof net.minecraft.world.entity.player.Player player) {
+                if (!com.automatavalkyries.protect.DirectRead.hasHealth(player) || !com.automatavalkyries.protect.EcaLastSwordHelper.hasDefenseSword(player)) {
+                    cir.setReturnValue(null);
+                }
+            }
         }
     }
 }

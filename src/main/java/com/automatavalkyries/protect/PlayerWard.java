@@ -97,6 +97,10 @@ public final class PlayerWard {
     public static void onPlayerTick(TickEvent.PlayerTickEvent event) {
         if (event.phase != TickEvent.Phase.END || event.player.level().isClientSide) return;
         refresh(event.player);
+        // ラストソードを手放した場合や死亡後の位置固定・無敵・ヘルスロックを毎 Tick 自動解除
+        if (!EcaLastSwordHelper.hasDefenseSword(event.player)) {
+            EcaLastSwordHelper.cleanupPlayerRestraints(event.player);
+        }
         // 溜まった魂ダメージ（The Trial Monolith）は溜まり切ると死亡させ、復活後も残って死に続けるので毎 Tick 戻す
         if (isActive(event.player) && EprotectTrialMonolithCounter.counter(event.player)) {
             AttackLog.neutralized(event.player, CallerAttribution.modOfClassName(
@@ -131,9 +135,11 @@ public final class PlayerWard {
     @SubscribeEvent
     public static void onClone(PlayerEvent.Clone event) {
         if (!event.isWasDeath()) return;
+        Player player = event.getEntity();
+        EcaLastSwordHelper.cleanupPlayerRestraints(player);
+        EcaLastSwordHelper.clearLocationLock(event.getOriginal().getUUID());
         List<ItemStack> kept = KEPT_ON_DEATH.remove(event.getOriginal().getUUID());
         if (kept == null) return;
-        Player player = event.getEntity();
         for (ItemStack stack : kept) {
             if (!player.getInventory().add(stack)) player.drop(stack, false);
         }
@@ -144,6 +150,7 @@ public final class PlayerWard {
     @SubscribeEvent
     public static void onLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
         WARDED.remove(event.getEntity().getUUID());
+        EcaLastSwordHelper.clearLocationLock(event.getEntity().getUUID());
     }
 
     @SubscribeEvent

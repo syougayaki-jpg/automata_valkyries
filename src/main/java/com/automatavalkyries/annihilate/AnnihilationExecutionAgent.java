@@ -432,8 +432,8 @@ public final class AnnihilationExecutionAgent {
                 }
             } catch (Throwable ignored) {}
 
-            // (2) MetapotentFlashfurLevel.metapotentFlashfurList の Unsafe 直接メモリ抹消
-            wipeFlashfurLevelMemory();
+            // (2) MetapotentFlashfurLevel.metapotentFlashfurList から死亡・抹消済み個体を安全に除去
+            purgeDeadFlashfurs();
 
             // (3) ディスク上の .omnimob ファイルの消去（ワールド再ロード時の復活阻止）
             wipeFlashfurDiskSaves(level);

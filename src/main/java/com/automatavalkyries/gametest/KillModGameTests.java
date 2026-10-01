@@ -537,7 +537,25 @@ public class KillModGameTests {
         // purgeDeadFlashfurs() および wipeFlashfurLevelMemory() が安全に例外なく完了すること
         AnnihilationExecutionAgent.purgeDeadFlashfurs();
         AnnihilationExecutionAgent.wipeFlashfurLevelMemory();
+        helper.succeed();
+    }
 
+    /**
+     * The Last Sword / ECA: プレイヤーが死亡または手放した際、EntityLocationManager の位置固定・ヘルスロック・無敵・飛行タグが
+     * 即座に解除され、移動不能や死地への強制引き戻しが発生しないこと。
+     */
+    @GameTest(template = TEMPLATE, timeoutTicks = 50)
+    public static void ecaPlayerRestraintsAreClearedOnDropOrDeath(GameTestHelper helper) {
+        Player player = helper.makeMockPlayer();
+        player.getPersistentData().putBoolean("UltraTestSwordDefence", true);
+        player.getPersistentData().putBoolean("TheLastSwordFly", true);
+        player.getPersistentData().putBoolean("TheLastSwordDefence", true);
+        com.automatavalkyries.protect.EcaLastSwordHelper.cleanupPlayerRestraints(player);
+
+        helper.assertFalse(player.getPersistentData().contains("UltraTestSwordDefence"), "UltraTestSwordDefence tag remained");
+        helper.assertFalse(player.getPersistentData().contains("TheLastSwordFly"), "TheLastSwordFly tag remained");
+        helper.assertFalse(player.getPersistentData().contains("TheLastSwordDefence"), "TheLastSwordDefence tag remained");
+        helper.assertFalse(com.automatavalkyries.protect.EcaLastSwordHelper.hasDefenseSword(player), "Mock player reported having defense sword");
         helper.succeed();
     }
 

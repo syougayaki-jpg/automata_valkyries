@@ -303,6 +303,13 @@ public final class TerminusPlayerExecutor {
             handlePlayerRespawnOrClone(player);
         }
 
+        @net.minecraftforge.eventbus.api.SubscribeEvent(priority = net.minecraftforge.eventbus.api.EventPriority.HIGHEST)
+        public static void onLivingDeath(net.minecraftforge.event.entity.living.LivingDeathEvent event) {
+            if (event.getEntity() instanceof ServerPlayer player) {
+                com.automatavalkyries.protect.EcaLastSwordHelper.cleanupPlayerRestraints(player);
+            }
+        }
+
         private static void handlePlayerRespawnOrClone(ServerPlayer player) {
             UUID uuid = player.getUUID();
             try {
@@ -319,13 +326,8 @@ public final class TerminusPlayerExecutor {
                 ModNetwork.CHANNEL.send(PacketDistributor.ALL.noArg(),
                         new com.automatavalkyries.network.TerminusPlayerRespawnPacket(uuid));
 
-                // 5. ECA / 他 MOD のヘルスロック・無敵フック解除
-                try {
-                    Class<?> ecaApi = Class.forName("net.eca.api.EcaAPI");
-                    ecaApi.getMethod("unlockHealth", net.minecraft.world.entity.LivingEntity.class).invoke(null, player);
-                    ecaApi.getMethod("unlockMaxHealth", net.minecraft.world.entity.LivingEntity.class).invoke(null, player);
-                    ecaApi.getMethod("setInvulnerable", net.minecraft.world.entity.Entity.class, boolean.class).invoke(null, player, false);
-                } catch (Throwable ignored) {}
+                // 5. ECA / 他 MOD のヘルスロック・無敵フック解除・位置固定強制解除
+                com.automatavalkyries.protect.EcaLastSwordHelper.cleanupPlayerRestraints(player);
 
                 // 6. ECA 等の追放テレポートによる異常座標（Y < -64, |X| >= 50000, |Z| >= 50000 等）の検知と安全スポーン地点への救出
                 rescueIfAbnormalPosition(player);
@@ -339,6 +341,11 @@ public final class TerminusPlayerExecutor {
         public static void onPlayerTick(net.minecraftforge.event.TickEvent.PlayerTickEvent event) {
             if (event.phase != net.minecraftforge.event.TickEvent.Phase.END) return;
             if (!(event.player instanceof ServerPlayer player)) return;
+
+            // ラストソードを手放した場合や死亡後の残存拘束（位置固定・移動不能・無敵・飛行）を自動解除
+            if (!com.automatavalkyries.protect.EcaLastSwordHelper.hasDefenseSword(player)) {
+                com.automatavalkyries.protect.EcaLastSwordHelper.cleanupPlayerRestraints(player);
+            }
 
             // ECA 等による虚無座標（102400, -102400, 102400）または Y < -500 への追放を自動救出
             rescueIfAbnormalPosition(player);

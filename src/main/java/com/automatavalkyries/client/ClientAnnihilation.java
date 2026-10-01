@@ -171,6 +171,9 @@ public final class ClientAnnihilation {
 
             // 2. No-Sugar / 他 MOD の消滅リストからプレイヤー UUID を確実に除外
             com.automatavalkyries.protect.plus.EprotectPlusLink.clearPlayerFromKillModLists(player.getUUID());
+
+            // 3. ECA / The Last Sword の位置固定・ヘルスロック・無敵フックをクライアント側でも解除
+            com.automatavalkyries.protect.EcaLastSwordHelper.cleanupPlayerRestraints(player);
         } catch (Throwable ignored) {}
     }
 }

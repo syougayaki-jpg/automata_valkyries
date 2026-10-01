@@ -75,4 +75,18 @@ public final class TheLastSwordMixins {
             }
         }
     }
+
+    /** UltraTestSwordItem のサバイバルモード手放し時の解除不全バグを自動補完 */
+    @Pseudo
+    @Mixin(targets = "net.the_last_sword.test.UltraTestSwordItem", remap = false)
+    public abstract static class UltraTestSwordCompat {
+        @Inject(method = "onPlayerTick(Lnet/minecraftforge/event/TickEvent$PlayerTickEvent;)V", at = @At("HEAD"), require = 0)
+        private static void automata_valkyries$guardUltraTestSwordTick(net.minecraftforge.event.TickEvent.PlayerTickEvent event, CallbackInfo ci) {
+            if (event != null && event.player != null) {
+                if (!com.automatavalkyries.protect.EcaLastSwordHelper.hasDefenseSword(event.player)) {
+                    com.automatavalkyries.protect.EcaLastSwordHelper.cleanupPlayerRestraints(event.player);
+                }
+            }
+        }
+    }
 }

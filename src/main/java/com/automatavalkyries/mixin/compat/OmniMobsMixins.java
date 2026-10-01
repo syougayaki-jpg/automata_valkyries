@@ -146,11 +146,11 @@ public final class OmniMobsMixins {
             if (EprotectCompat.shieldAttack(entity, "omnimobs:setHealth")) ci.cancel();
         }
 
-        /** 抹消済み個体または抹消禁止ゾーン内での forceAddEntity による復活・再召喚を完全遮断 */
+        /** 抹消済み個体の forceAddEntity による復活・再召喚を完全遮断 */
         @Inject(method = "forceAddEntity(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/level/Level;)V", at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardForceAddEntity(Entity entity, net.minecraft.world.level.Level level, CallbackInfo ci) {
             if (entity == null) return;
-            if (AnnihilationExecutionAgent.isAnnihilated(entity) || SpawnBanZone.shouldRefuse(entity)) {
+            if (AnnihilationExecutionAgent.isAnnihilated(entity)) {
                 ci.cancel();
                 entity.discard();
                 return;
@@ -163,7 +163,11 @@ public final class OmniMobsMixins {
                     if (core != null) {
                         java.lang.reflect.Field rf = core.getClass().getDeclaredField("removed");
                         rf.setAccessible(true);
-                        if (rf.getBoolean(core)) {
+                        boolean removed = rf.getBoolean(core);
+                        java.lang.reflect.Field idf = core.getClass().getDeclaredField("id");
+                        idf.setAccessible(true);
+                        UUID id = (UUID) idf.get(core);
+                        if (removed || (id != null && AnnihilationExecutionAgent.isAnnihilated(id))) {
                             ci.cancel();
                             entity.discard();
                         }
@@ -180,7 +184,7 @@ public final class OmniMobsMixins {
         @Inject(method = "tick()V", at = @At("HEAD"), cancellable = true, require = 0)
         private void automata_valkyries$guardProxyTick(CallbackInfo ci) {
             Entity self = (Entity) (Object) this;
-            if (AnnihilationExecutionAgent.isAnnihilated(self) || SpawnBanZone.shouldRefuse(self)) {
+            if (AnnihilationExecutionAgent.isAnnihilated(self)) {
                 ci.cancel();
                 self.discard();
             }
