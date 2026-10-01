@@ -15,6 +15,10 @@ MOD 全体の仕様（世界観、兵姫、敵・ボス、アイテム、マシ�
 - 【暫定統一】の項目（§0.2）は後でユーザーが調整する前提の仮決定。変更されたら仕様書を更新する
 - 未定・未受領の項目（§0.3）は推測で埋めず、ユーザーに確認する
 
+保護の仕組み（Eprotect）の全体像・各層・設定・テスト方針・他 MOD への移植手順は **[`docs/SPEC_EPROTECT_ARCHITECTURE.md`](docs/SPEC_EPROTECT_ARCHITECTURE.md)** にまとめてある（ゲーム内保護側）。
+
+Java エージェント（Eprotect+ / FlagDictionaryProtector）、終焉執行エンジン（Terminus / プレイヤー絶対死 / 10秒耐性検知）、および高次元防護（ブラックリスト強化・10秒間無敵・バイトコード完全性復元）の包括的アーキテクチャ仕様書・データは **[`docs/SPEC_JAVA_AGENT_TERMINUS_AND_EPROTECT_PLUS.md`](docs/SPEC_JAVA_AGENT_TERMINUS_AND_EPROTECT_PLUS.md)** に完全永続化保存されている。
+
 ## 戦術兵姫MOD 設計・開発コンテキスト（Antigravity引継ぎ）
 
 Antigravity AIとの対話で策定・実装された戦術兵姫のコア保護システム（`eprotect`）およびサンプルボス（エレノア）の全仕様・コード資産は **[`docs/TACTICAL_DOLL_CHAT_CONTEXT.md`](docs/TACTICAL_DOLL_CHAT_CONTEXT.md)** に詳細に記録されています。
