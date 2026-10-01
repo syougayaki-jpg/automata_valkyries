@@ -53,6 +53,9 @@ public class AutomataValkyries {
     }
 
     private void commonSetup(FMLCommonSetupEvent event) {
+        if (!com.automatavalkyries.protect.SpecificCountermeasures.enabled()) {
+            LOGGER.warn("[eprotect] Mod-specific countermeasures are OFF (genericOnly); only the generic layer protects entities");
+        }
         event.enqueueWork(ModNetwork::register);
         event.enqueueWork(EprotectManager::registerChunkLoadingCallback);
         if (EprotectConfig.get(EprotectConfig.REPORT_FOREIGN_ENTITY_HOOKS)) {

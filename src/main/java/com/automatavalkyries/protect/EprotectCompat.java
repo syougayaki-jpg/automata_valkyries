@@ -15,6 +15,7 @@ public final class EprotectCompat {
 
     /** この対象へのキル処理を拒否すべきか */
     public static boolean shouldShield(@Nullable Entity entity) {
+        if (!SpecificCountermeasures.enabled()) return false; // 準汎用の層だけを測る設定
         if (entity instanceof PartEntity<?> part) entity = part.getParent();
         if (PlayerWard.isActive(entity)) return true; // 守護の護符を持つプレイヤー
 

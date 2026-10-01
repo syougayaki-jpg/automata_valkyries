@@ -33,7 +33,7 @@ public final class OmniMobsMixins {
     public abstract static class Hooks {
         @Inject(method = "checkDespawnImmunity(Lnet/minecraft/world/entity/Entity;)Z", at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardDespawnImmunity(Entity entity, CallbackInfoReturnable<Boolean> cir) {
-            if (AnnihilationExecutionAgent.isAnnihilated(entity)) {
+            if (com.automatavalkyries.protect.SpecificCountermeasures.annihilatedForCompat(entity)) {
                 cir.setReturnValue(false);
             }
         }

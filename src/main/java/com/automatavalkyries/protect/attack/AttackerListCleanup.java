@@ -1,6 +1,7 @@
 package com.automatavalkyries.protect.attack;
 
 import com.automatavalkyries.protect.IEprotected;
+import com.automatavalkyries.protect.flag.KillLists;
 import com.automatavalkyries.util.StaticReferencePurger;
 import net.minecraft.world.entity.Entity;
 
@@ -27,6 +28,9 @@ final class AttackerListCleanup {
 
     static void afterAttack(Entity target, CallerAttribution.Attribution attribution) {
         if (!(target instanceof IEprotected) || target.level().isClientSide) return;
+        // 攻撃したクラスが参照する別のクラスの抹殺予定の一覧も覚え、以後は毎 Tick 外す（フラグ辞書で名前から見分ける）
+        KillLists.discoverFrom(attribution.callerClass());
+        KillLists.discoverFrom(attribution.foreignClass());
         long now = target.level().getGameTime();
         Set<Class<?>> classes = new LinkedHashSet<>();
         addForeign(attribution.callerClass(), now, classes);

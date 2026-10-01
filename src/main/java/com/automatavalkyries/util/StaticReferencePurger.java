@@ -56,6 +56,21 @@ public final class StaticReferencePurger {
         return total;
     }
 
+    /** 指定した static フィールドだけから取り除く（覚えておいた抹殺予定の一覧を毎 Tick 掃除する用。ログは呼び出し側が出す）。@return 取り除いた件数 */
+    public static int purgeFields(Collection<Field> fields, Set<Object> victims, UUID uuid, String targetName) {
+        int total = 0;
+        for (Field field : fields) {
+            try {
+                Object value = field.get(null);
+                int removed = 0;
+                if (value instanceof Collection<?> collection) removed = purgeCollection(collection, victims, uuid);
+                else if (value instanceof Map<?, ?> map) removed = purgeMap(map, victims, uuid);
+                total += removed;
+            } catch (Throwable ignored) {}
+        }
+        return total;
+    }
+
     private static int purgeCollection(Collection<?> collection, Set<Object> victims, UUID uuid) {
         if (collection.size() > MAX_SIZE) return 0;
         List<Object> matches = new ArrayList<>();

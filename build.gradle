@@ -75,6 +75,9 @@ minecraft {
             // Please read: https://stackoverflow.com/questions/2031163/when-to-use-the-different-log-levels
             property 'forge.logging.console.level', 'debug'
 
+            // -PgenericOnly（runGameTestServer / runClient）: MOD ごとの個別対策を切り、準汎用の層だけでどこまで守れるかを測る
+            if (project.hasProperty('genericOnly')) property 'automata_valkyries.genericOnly', 'true'
+
             mods {
                 "${mod_id}" {
                     source sourceSets.main

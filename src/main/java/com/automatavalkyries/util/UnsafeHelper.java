@@ -40,6 +40,20 @@ public final class UnsafeHelper {
 
     private UnsafeHelper() {}
 
+    /**
+     * そのクラスの初期化（static 初期化子）が済んでいるか。済んでいないクラスの static を読むと初期化が走ってしまうので、
+     * 他 MOD のクラスを覗く前に確かめる。判定できなければ false（覗かない側に倒す）。
+     */
+    public static boolean isInitialized(Class<?> type) {
+        if (THE_UNSAFE == null) return false;
+        try {
+            java.lang.reflect.Method method = Unsafe.class.getMethod("shouldBeInitialized", Class.class);
+            return !(Boolean) method.invoke(THE_UNSAFE, type);
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
     public static Unsafe getUnsafe() {
         return THE_UNSAFE;
     }

@@ -165,6 +165,7 @@ public class Eprotect {
         if (!(owner.level() instanceof ServerLevel)) return;
         EprotectManager.getInstance().register(this);
         lastTickGameTime = owner.level().getGameTime(); // 追加直後に Tick 停止されても検出できるよう、ここを起点にする
+        rememberHealthyState(); // 最初の Tick より前に飛ばされても戻す先があるように
     }
 
     public void onRemovedFromWorld() {
@@ -442,6 +443,8 @@ public class Eprotect {
             AutomataValkyries.LOGGER.warn("[eprotect] Neutralized kill-mod flags on {}", owner);
             anomalies++;
         }
+        // 他 MOD の抹殺予定の一覧から先に外す（載ったままだと、その MOD の Mixin が入り直し・座標の戻しを拒否・隠蔽する。ECA の隔離など）
+        if (com.automatavalkyries.protect.flag.KillLists.purge(owner) > 0) anomalies++;
         if (restoreMaxHealth()) anomalies++;
         if (restoreHealth()) anomalies++;
         if (clearDeadFlag()) anomalies++;
@@ -540,7 +543,9 @@ public class Eprotect {
         if (presenceHealthy) return 0;
 
         AttackLog.repaired(owner, "presence");
-        WorldPresence.Outcome outcome = WorldPresence.rejoin(level, owner, lastSafePos);
+        // 戻す先が無い（一度も正常な座標を見ていない）ときはワールドの出現地点へ
+        Vec3 safe = lastSafePos != null ? lastSafePos : net.minecraft.world.phys.Vec3.atBottomCenterOf(level.getSharedSpawnPos());
+        WorldPresence.Outcome outcome = WorldPresence.rejoin(level, owner, safe);
         switch (outcome) {
             case REJOINED -> {
                 AutomataValkyries.LOGGER.warn("[eprotect] Rejoined {} via the vanilla route (broken: {})", owner, issues);

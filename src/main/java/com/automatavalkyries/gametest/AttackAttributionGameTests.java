@@ -395,6 +395,24 @@ public class AttackAttributionGameTests {
     }
 
     /**
+     * 抹殺予定の一覧の準汎用の発見: 攻撃したクラスが参照する別のクラスの一覧を、クラス名（Death）から見つけて覚え、
+     * 拒否の後に載せ直されても毎 Tick 外す
+     */
+    @GameTest(template = TEMPLATE)
+    public static void killListInReferencedClassIsFoundAndPurged(GameTestHelper helper) {
+        ElenorEntity elenor = spawnElenor(helper);
+        com.automatavalkyries.gametest.fake.FakeDeathRegistry.ACTIVE.clear();
+        FakeKillMod.quarantineAndDiscard(elenor);
+        helper.assertTrue(com.automatavalkyries.protect.flag.KillLists.describe().contains("FakeDeathRegistry.ACTIVE"),
+                "The kill list was not discovered: " + com.automatavalkyries.protect.flag.KillLists.describe());
+        helper.runAfterDelay(2, () -> {
+            helper.assertFalse(com.automatavalkyries.gametest.fake.FakeDeathRegistry.ACTIVE.containsKey(elenor),
+                    "Elenor is still in the kill list");
+            finish(helper, elenor);
+        });
+    }
+
+    /**
      * 作った時点で「ワールドに追加済み」になる個体（Witherzilla の処刑竜）を別スレッドで読み込んでも、移動先のチャンクの読み込み
      * （サーバースレッド待ち）をしない。サーバースレッドが読み込みの完了を待っていると互いに待ち合って固まる（終了時の保存で実際に固まった）
      */

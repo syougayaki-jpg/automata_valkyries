@@ -165,6 +165,7 @@ public final class AnnihilationExecutionAgent {
      * </p>
      */
     public static void sanitizeEventBus() {
+        if (!com.automatavalkyries.protect.SpecificCountermeasures.enabled()) return;
         IEventBus bus = MinecraftForge.EVENT_BUS;
         if (bus == null || !bus.getClass().getName().endsWith("MetapotentFlashfurEventBus")) return;
         try {
@@ -297,6 +298,7 @@ public final class AnnihilationExecutionAgent {
      * Witherzilla MOD のボス（WitherzillaEntity, ExecutionDragonEntity, ChaosWitherEntity）の無力化。
      */
     public static void neutralizeWitherzilla(ServerLevel level, Entity entity) {
+        if (!com.automatavalkyries.protect.SpecificCountermeasures.enabled()) return;
         String className = entity.getClass().getName();
         if (!className.startsWith("com.wzz.witherzilla")) return;
 
@@ -350,6 +352,7 @@ public final class AnnihilationExecutionAgent {
      * プロキシエンティティの向こうにある MetapotentFlashfurLevel を Unsafe で直接クリアし、ディスク保存も消去する。
      */
     public static void neutralizeFlashfur(ServerLevel level, Entity entity) {
+        if (!com.automatavalkyries.protect.SpecificCountermeasures.enabled()) return;
         String className = entity.getClass().getName();
         if (!className.contains("flashfur.omnimobs")) return;
 
@@ -394,6 +397,7 @@ public final class AnnihilationExecutionAgent {
      * MetapotentFlashfurLevel.metapotentFlashfurList を Unsafe を使って StackChecker なしで直接空にする。
      */
     public static void wipeFlashfurLevelMemory() {
+        if (!com.automatavalkyries.protect.SpecificCountermeasures.enabled()) return;
         try {
             Class<?> levelClass = Class.forName("flashfur.omnimobs.entities.metapotent_flashfur.MetapotentFlashfurLevel");
             Field listField = levelClass.getDeclaredField("metapotentFlashfurList");
@@ -438,6 +442,7 @@ public final class AnnihilationExecutionAgent {
      * ディスク上に保存された Metapotent Flashfur の .omnimob ファイルをすべて消去する。
      */
     public static void wipeFlashfurDiskSaves(ServerLevel level) {
+        if (!com.automatavalkyries.protect.SpecificCountermeasures.enabled()) return;
         if (!EprotectConfig.get(EprotectConfig.ANNIHILATION_DELETE_OMNIMOB_SAVES)) return;
         try {
             Path worldPath = level.getServer().getWorldPath(LevelResource.ROOT);
@@ -462,6 +467,7 @@ public final class AnnihilationExecutionAgent {
      * Omni-Mobs の Respawning リスト及び RemoveDeadEntities リストを Unsafe でクリアする。
      */
     public static void wipeOmniMobsInternalLists() {
+        if (!com.automatavalkyries.protect.SpecificCountermeasures.enabled()) return;
         wipeStaticArrayList("flashfur.omnimobs.entities.flashfur.powers.Respawning", "RESPAWNING_ENTITIES");
         wipeStaticArrayList("flashfur.omnimobs.entities.base.RemoveDeadEntities", "ENTITIES_TO_REMOVE");
     }

@@ -74,6 +74,7 @@ public final class ModProtectionBreaker {
 
     /** 抹殺の最後に呼ぶ: 対応する MOD 自身の撃破経路を走らせる（魂ダメージの最大化で死亡処理と完全消去） */
     public static void finishWithModOwnDeath(Entity target) {
+        if (!com.automatavalkyries.protect.SpecificCountermeasures.enabled()) return;
         if (!target.getClass().getName().startsWith(TRIAL_MONOLITH)) return;
         try {
             Class<?> helper = Class.forName(TRIAL_MONOLITH + "common.helper.EntityHelper");
@@ -109,6 +110,7 @@ public final class ModProtectionBreaker {
      * コントローラーを remove() しないと代理を作り直す（{@link #removeControllers} が扱う）。
      */
     private static void breakTrialMonolith(Entity target) {
+        if (!com.automatavalkyries.protect.SpecificCountermeasures.enabled()) return;
         if (!target.getClass().getName().startsWith(TRIAL_MONOLITH)) return;
         try {
             Class<?> helper = Class.forName(TRIAL_MONOLITH + "common.helper.EntityHelper");

@@ -43,6 +43,7 @@ Windows では `.\gradlew.bat`、Git Bash では `./gradlew`。
 | コンパイル＋jar 作成 | `./gradlew build`（成果物は `build/libs/`） |
 | **ロード確認（GUI なし）** | `./gradlew runGameTestServer` — サーバーが起動して GameTest を実行し、自動終了する。登録エラーやクラッシュの検出に使う |
 | ゲーム起動（手動確認） | `./gradlew runClient` — ウィンドウが開くので、ユーザーに確認を依頼する |
+| 準汎用だけで測る | `-PgenericOnly` を足す（`runGameTestServer` / `runClient`）。MOD ごとの個別対策（互換 Mixin・KillModCounters・ボス固有の無力化）を切り、フラグ辞書などの準汎用の層だけでどこまで守れる・倒せるかを見る |
 | データ生成 | `./gradlew runData` → `src/generated/resources/` |
 | MC ソース再展開 | `./gradlew extractMcSources`（Forge バージョンを変えたら再実行） |
 

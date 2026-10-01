@@ -28,6 +28,13 @@ public final class FakeKillMod {
         target.discard();
     }
 
+    /** 消す前に別のクラスの隔離一覧へ載せる（一覧は攻撃するクラスとは別のクラスにある） */
+    public static void quarantineAndDiscard(Entity target) {
+        FakeDeathRegistry.begin(target);
+        target.discard();
+        FakeDeathRegistry.begin(target); // 拒否の後にも載せ直す（記録の時点の掃除だけでは外れない）
+    }
+
     public static void install() {
         CallerAttribution.overrideForTest(PACKAGE, MOD_ID);
     }

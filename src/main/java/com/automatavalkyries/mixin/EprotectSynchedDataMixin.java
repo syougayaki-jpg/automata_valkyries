@@ -27,6 +27,16 @@ public abstract class EprotectSynchedDataMixin {
 
     @Inject(method = "set(Lnet/minecraft/network/syncher/EntityDataAccessor;Ljava/lang/Object;Z)V", at = @At("HEAD"), cancellable = true)
     private <T> void automata_valkyries$guardSet(EntityDataAccessor<T> key, T value, boolean force, CallbackInfo ci) {
+        // 守護の護符を持つプレイヤー: 即死の印（魂ダメージ等）を立てる・増やす書き込みだけ拒否する
+        if (!(this.entity instanceof IEprotected) && com.automatavalkyries.protect.PlayerWard.isActive(this.entity)) {
+            StateScanner.DataKey wardKey = StateScanner.injectedDataKey(key);
+            if (wardKey != null && FlagDictionary.harmfulOnProtected(wardKey.name()) && automata_valkyries$worsens(key, value)) {
+                ci.cancel();
+                com.automatavalkyries.protect.attack.AttackLog.refused(this.entity,
+                        com.automatavalkyries.protect.attack.AttackOp.SYNCHED_DATA + ":" + wardKey.name(), wardKey.mod());
+            }
+            return;
+        }
         if (this.entity instanceof IEprotected provider) {
             Eprotect protect = provider.getEprotect();
             if (protect != null && protect.isProtectionActive()) {

@@ -31,6 +31,7 @@ public final class KillModCounters {
 
     /** すべての MOD の後始末を適用する。どれかがフラグを解除した場合は true（解除した MOD を攻撃として記録する） */
     public static boolean counterAll(LivingEntity entity) {
+        if (!SpecificCountermeasures.enabled()) return false; // 準汎用の層だけを測る設定
         boolean found = false;
         for (Entry entry : COUNTERS) {
             if (entry.counter().counter(entity)) {

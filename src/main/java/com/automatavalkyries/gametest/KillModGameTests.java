@@ -400,8 +400,13 @@ public class KillModGameTests {
 
     // ---- 共通 ----------------------------------------------------------------
 
+    /** 出現位置（攻撃で飛ばされる前の座標。戻ったかの判定に使う） */
+    private static final java.util.Map<ElenorEntity, net.minecraft.world.phys.Vec3> SPAWN_POSITIONS = new java.util.WeakHashMap<>();
+
     private static ElenorEntity spawnElenor(GameTestHelper helper) {
-        return helper.spawnWithNoFreeWill(ModEntities.ELENOR.get(), new BlockPos(2, 2, 2));
+        ElenorEntity elenor = helper.spawnWithNoFreeWill(ModEntities.ELENOR.get(), new BlockPos(2, 2, 2));
+        SPAWN_POSITIONS.put(elenor, elenor.position());
+        return elenor;
     }
 
     /** 対象 MOD が無ければ成功扱いで終える */
@@ -424,12 +429,14 @@ public class KillModGameTests {
 
     /** 攻撃の記録に、その MOD の名前で止めた記録が残っていること（どの MOD の攻撃かを割り出せているか） */
     private static void assertAttackRecorded(GameTestHelper helper, String modId) {
+        // 準汎用の層だけを測る設定では、攻撃の記録（互換 Mixin が付ける）は無いことがある。守れたかだけを見る
+        if (!com.automatavalkyries.protect.SpecificCountermeasures.enabled()) return;
         helper.assertTrue(com.automatavalkyries.protect.attack.AttackLog.entries().stream().anyMatch(e -> e.mod.equals(modId)),
                 "No attack from " + modId + " was recorded");
     }
 
     private static void assertSurvivesAfterRepair(GameTestHelper helper, ElenorEntity elenor) {
-        net.minecraft.world.phys.Vec3 spawnPos = elenor.position();
+        net.minecraft.world.phys.Vec3 spawnPos = SPAWN_POSITIONS.getOrDefault(elenor, elenor.position());
         helper.runAfterDelay(REPAIR_TICKS, () -> {
             // (-999, -999, -999) などへの飛ばしから戻っているか
             helper.assertTrue(elenor.position().distanceTo(spawnPos) < 16.0D, "Elenor was displaced to " + elenor.position());

@@ -33,7 +33,7 @@ public final class WitherzillaMixins {
 
         @Inject(method = "safeEntity(Lnet/minecraft/world/entity/Entity;)Z", at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardSafeEntity(Entity entity, CallbackInfoReturnable<Boolean> cir) {
-            if (com.automatavalkyries.annihilate.AnnihilationExecutionAgent.isAnnihilated(entity)) {
+            if (com.automatavalkyries.protect.SpecificCountermeasures.annihilatedForCompat(entity)) {
                 cir.setReturnValue(false);
             }
         }
@@ -50,7 +50,7 @@ public final class WitherzillaMixins {
         @Inject(method = "getWitherzillaLife()Z", at = @At("HEAD"), cancellable = true, require = 0)
         private void automata_valkyries$overrideDragonLife(CallbackInfoReturnable<Boolean> cir) {
             Entity self = (Entity) (Object) this;
-            if (com.automatavalkyries.annihilate.AnnihilationExecutionAgent.isAnnihilated(self)) {
+            if (com.automatavalkyries.protect.SpecificCountermeasures.annihilatedForCompat(self)) {
                 cir.setReturnValue(false);
             }
         }
@@ -63,7 +63,7 @@ public final class WitherzillaMixins {
         @Inject(method = "getWitherzillaLife()Z", at = @At("HEAD"), cancellable = true, require = 0)
         private void automata_valkyries$overrideWitherzillaLife(CallbackInfoReturnable<Boolean> cir) {
             Entity self = (Entity) (Object) this;
-            if (com.automatavalkyries.annihilate.AnnihilationExecutionAgent.isAnnihilated(self)) {
+            if (com.automatavalkyries.protect.SpecificCountermeasures.annihilatedForCompat(self)) {
                 cir.setReturnValue(false);
             }
         }
