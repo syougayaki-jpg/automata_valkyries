@@ -171,10 +171,12 @@ public class EprotectManager {
     @SubscribeEvent
     public void onServerStopping(ServerStoppingEvent event) {
         EprotectWatchdogAgent.getInstance().stop();
+        ShutdownDiagnostics.onStopping();
     }
 
     @SubscribeEvent
     public void onServerStopped(ServerStoppedEvent event) {
+        ShutdownDiagnostics.onStopped();
         protectedEntities.clear();
         tickCounter = 0;
         AttackLog.flush();
