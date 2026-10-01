@@ -82,6 +82,9 @@ public class FlagDictionaryGameTests {
         }
         helper.assertFalse(FlagDictionary.protectiveOnTarget("bypassProtection"), "A bypass was treated as a guard");
         helper.assertFalse(FlagDictionary.protectiveOnTarget("respawnDelay"), "A timer was treated as a guard");
+        helper.assertFalse(FlagDictionary.protectiveOnTarget("GUARDIAN_TYPE"), "guardian was treated as a guard");
+        helper.assertFalse(FlagDictionary.protectiveOnTarget("shieldDisabledUntil"), "A shield timer was treated as a guard");
+        helper.assertTrue(FlagDictionary.protectiveOnTarget("isGuarded"), "isGuarded was not treated as a guard");
         for (String name : new String[]{"reviveCount", "livesLeft", "lives", "remainingRespawns"}) {
             helper.assertTrue(FlagDictionary.livesCounter(name), name + " should be a remaining-lives counter");
         }
@@ -156,6 +159,23 @@ public class FlagDictionaryGameTests {
         helper.assertTrue(cap.data.livesLeft == 0, "Remaining lives were not zeroed: " + cap.data.livesLeft);
         helper.assertTrue(cap.soulMarked, "A death mark in the capability was touched");
         helper.assertFalse(mob.getPersistentData().contains("fakemod_immortal"), "Persistent guard was not removed");
+        helper.succeed();
+    }
+
+    /** 同期データ: 保護対象の掃除では死亡の印だけ戻り、抹殺では守りが外れ残り復活回数が 0 になる */
+    @GameTest(template = TEMPLATE)
+    public static void synchedDataIsResetAndBroken(GameTestHelper helper) {
+        FakeStatefulMob protectedSide = statefulMob(helper);
+        ForeignStateCleaner.clean(protectedSide);
+        helper.assertFalse(protectedSide.getEntityData().get(FakeStatefulMob.DATA_CONDEMNED), "Synched death mark was not reset");
+        helper.assertTrue(protectedSide.getEntityData().get(FakeStatefulMob.DATA_INVULNERABLE), "Synched guard was touched");
+        helper.assertTrue(protectedSide.getEntityData().get(FakeStatefulMob.DATA_REVIVE_COUNT) == 3, "An unrelated synched value was touched");
+
+        FakeStatefulMob target = statefulMob(helper);
+        StateScanner.apply(target, StateScanner.BREAK_TARGET, EnumSet.allOf(StateScanner.Source.class));
+        helper.assertFalse(target.getEntityData().get(FakeStatefulMob.DATA_INVULNERABLE), "Synched guard was not broken");
+        helper.assertTrue(target.getEntityData().get(FakeStatefulMob.DATA_REVIVE_COUNT) == 0, "Synched remaining revivals were not zeroed");
+        helper.assertTrue(target.getEntityData().get(FakeStatefulMob.DATA_CONDEMNED), "A synched death mark was touched by annihilation");
         helper.succeed();
     }
 

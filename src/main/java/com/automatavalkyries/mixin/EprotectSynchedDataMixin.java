@@ -3,6 +3,8 @@ package com.automatavalkyries.mixin;
 import com.automatavalkyries.protect.Eprotect;
 import com.automatavalkyries.protect.EprotectHyperlinkCounter;
 import com.automatavalkyries.protect.IEprotected;
+import com.automatavalkyries.protect.flag.FlagDictionary;
+import com.automatavalkyries.protect.flag.StateScanner;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.world.entity.Entity;
@@ -32,8 +34,31 @@ public abstract class EprotectSynchedDataMixin {
                     ci.cancel();
                     com.automatavalkyries.protect.attack.AttackLog.refused(this.entity,
                             com.automatavalkyries.protect.attack.AttackOp.NOVELIZE + ":data");
+                    return;
+                }
+                // 他 MOD が vanilla に足した同期データのうち、フラグ辞書で死亡・停止・迂回の印と分かるものを悪化させる書き込み
+                StateScanner.DataKey dataKey = StateScanner.injectedDataKey(key);
+                if (dataKey != null && FlagDictionary.harmfulOnProtected(dataKey.name()) && automata_valkyries$worsens(key, value)) {
+                    ci.cancel();
+                    com.automatavalkyries.protect.attack.AttackLog.refused(this.entity,
+                            com.automatavalkyries.protect.attack.AttackOp.SYNCHED_DATA + ":" + dataKey.name(), dataKey.mod());
                 }
             }
+        }
+    }
+
+    /** 印を立てる・増やす書き込みか（下げる・外す書き込みは通す） */
+    @org.spongepowered.asm.mixin.Unique
+    private <T> boolean automata_valkyries$worsens(EntityDataAccessor<T> key, T value) {
+        if (value instanceof Boolean flag) return flag;
+        if (!(value instanceof Number number)) return false;
+        double next = number.doubleValue();
+        if (!Double.isFinite(next)) return true;
+        try {
+            Object current = ((SynchedEntityData) (Object) this).get(key);
+            return current instanceof Number now ? next > now.doubleValue() : next != 0.0D;
+        } catch (Throwable t) {
+            return next != 0.0D;
         }
     }
 

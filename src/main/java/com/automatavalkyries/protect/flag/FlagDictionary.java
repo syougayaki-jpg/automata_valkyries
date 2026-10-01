@@ -65,13 +65,13 @@ public final class FlagDictionary {
                 "*healthdelta", "*hpdelta", "*healthoffset", "*healthlock", "*lockhealth", "*lockedhealth", "*fixedhealth",
                 "*healthoverride", "*forcedhealth", "*forcehealth"));
         BUILT_IN.put(Category.GUARD, List.of(
-                "protect", "immun", "invuln", "guard", "shield", "resist", "immortal", "invinc", "=god", "godmode", "muteki",
+                "protect", "immun", "invuln", "=guard", "guarded", "guarding", "shield", "resist", "immortal", "invinc", "=god", "godmode", "muteki",
                 "undying", "barrier", "exempt", "whitelist", "=ward", "warded", "fumetsu", "deathless", "unkillable",
-                "indestruct", "*dimensionalcore"));
+                "indestruct", "*dimensionalcore", "phasing", "intangib"));
         BUILT_IN.put(Category.BYPASS, List.of("bypass", "*ignoreprotect", "*ignoreinvul", "*ignoreimmun"));
         BUILT_IN.put(Category.REVIVE, List.of("reviv", "respawn", "resurrect", "rebirth", "reincarnat", "=lives", "extralives"));
         BUILT_IN.put(Category.COUNT, List.of("count", "=left", "remaining", "=times", "charges", "=lives", "=num", "=amount"));
-        BUILT_IN.put(Category.TIMER, List.of("delay", "timer", "cooldown", "tick", "=time", "wait", "interval", "duration"));
+        BUILT_IN.put(Category.TIMER, List.of("delay", "timer", "cooldown", "tick", "=time", "wait", "interval", "duration", "until", "expir"));
     }
 
     private static volatile Map<Category, List<String>> active = BUILT_IN;

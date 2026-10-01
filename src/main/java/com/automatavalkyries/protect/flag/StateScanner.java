@@ -4,6 +4,8 @@ import com.automatavalkyries.AutomataValkyries;
 import com.automatavalkyries.protect.attack.CallerAttribution;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
+import net.minecraft.network.syncher.EntityDataAccessor;
+import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.world.entity.Entity;
 import net.minecraftforge.common.capabilities.CapabilityDispatcher;
 import net.minecraftforge.common.capabilities.CapabilityProvider;
@@ -30,13 +32,15 @@ import java.util.Set;
  *   <li>{@link Source#OWN_FIELD}: 他 MOD のエンティティのクラスが自分で宣言したフィールド</li>
  *   <li>{@link Source#CAPABILITY}: 他 MOD の Capability（Forge の追加データ）の提供元と、それが直接持つ他 MOD のオブジェクトのフィールド</li>
  *   <li>{@link Source#PERSISTENT}: Forge の永続データ（persistentData）のキー（1 段下の入れ子まで）</li>
+ *   <li>{@link Source#SYNCHED_DATA}: 他 MOD の同期データ（EntityDataAccessor。既存クラスに足されたものと、他 MOD のエンティティの
+ *       クラスが自分で宣言したもの）の真偽・数値（IMDS の神無敵・Trial Monolith の魂ダメージ・Hyperlink のノベル化はここにある）</li>
  * </ul>
  * 扱う値は boolean と数値だけ。参照・一覧は触らない（静的な一覧は {@link com.automatavalkyries.util.StaticReferencePurger}）。
  * このMOD が足したもの・vanilla 本来のフィールドには触れない。
  */
 public final class StateScanner {
 
-    public enum Source { INTERFACE, INJECTED_FIELD, OWN_FIELD, CAPABILITY, PERSISTENT }
+    public enum Source { INTERFACE, INJECTED_FIELD, OWN_FIELD, CAPABILITY, PERSISTENT, SYNCHED_DATA }
 
     /** 何をどう書き換えるか */
     public interface Policy {
@@ -142,6 +146,7 @@ public final class StateScanner {
         }
         if (sources.contains(Source.CAPABILITY)) applyCapabilities(entity, policy, changes);
         if (sources.contains(Source.PERSISTENT)) applyPersistent(entity, policy, changes);
+        if (sources.contains(Source.SYNCHED_DATA)) applySynchedData(entity, policy, changes);
         return changes;
     }
 
@@ -281,6 +286,83 @@ public final class StateScanner {
             }
         }
         return null;
+    }
+
+    // ---- 同期データ --------------------------------------------------------------
+
+    /** 他 MOD の同期データの鍵（static な EntityDataAccessor）と、その名前・MOD */
+    public record DataKey(EntityDataAccessor<?> accessor, String name, String mod) {}
+
+    private static final ClassValue<List<DataKey>> DATA_KEYS = new ClassValue<>() {
+        @Override
+        protected List<DataKey> computeValue(Class<?> type) {
+            return findDataKeys(type);
+        }
+    };
+
+    /** vanilla のエンティティのクラスに足された同期データの鍵（入口で書き込みを拒否する判定用。全エンティティ共通） */
+    @Nullable
+    private static volatile Map<EntityDataAccessor<?>, DataKey> injectedKeys;
+
+    private static void applySynchedData(Entity entity, Policy policy, List<Change> changes) {
+        SynchedEntityData data = entity.getEntityData();
+        for (DataKey key : DATA_KEYS.get(entity.getClass())) {
+            if (!policy.relevant(key.name())) continue;
+            try {
+                @SuppressWarnings("unchecked")
+                EntityDataAccessor<Object> accessor = (EntityDataAccessor<Object>) key.accessor();
+                Object current = data.get(accessor); // この個体に無い鍵なら例外（無視する）
+                Class<?> type = current instanceof Boolean ? boolean.class : current instanceof Float ? float.class
+                        : current instanceof Integer ? int.class : null;
+                if (type == null) continue;
+                Object value = policy.decide(key.name(), type, current);
+                if (value == null) continue;
+                data.set(accessor, value);
+                changes.add(new Change(Source.SYNCHED_DATA, "data", key.name(), key.mod()));
+            } catch (Throwable ignored) {}
+        }
+    }
+
+    /** そのクラス階層の、他 MOD の同期データの鍵（既存クラスに足されたもの＋他 MOD のクラスが宣言したもの） */
+    private static List<DataKey> findDataKeys(Class<?> type) {
+        List<DataKey> keys = new ArrayList<>();
+        for (Class<?> c = type; c != null && c != Object.class; c = c.getSuperclass()) {
+            if (isForeign(c)) {
+                String mod = CallerAttribution.modOf(c);
+                for (Field field : c.getDeclaredFields()) addDataKey(field, mod, keys);
+            } else {
+                for (InjectedMembers.InjectedField injected : InjectedMembers.fields(c)) {
+                    if (!CallerAttribution.SELF.equals(injected.mod())) addDataKey(injected.field(), injected.mod(), keys);
+                }
+            }
+        }
+        return List.copyOf(keys);
+    }
+
+    private static void addDataKey(Field field, String mod, List<DataKey> out) {
+        if (!Modifier.isStatic(field.getModifiers()) || field.getType() != EntityDataAccessor.class) return;
+        try {
+            field.setAccessible(true);
+            if (field.get(null) instanceof EntityDataAccessor<?> key) out.add(new DataKey(key, field.getName(), mod));
+        } catch (Throwable ignored) {}
+    }
+
+    /** 他 MOD が vanilla のエンティティのクラスに足した同期データの鍵なら、その情報（入口での拒否の判定用） */
+    @Nullable
+    public static DataKey injectedDataKey(EntityDataAccessor<?> accessor) {
+        Map<EntityDataAccessor<?>, DataKey> keys = injectedKeys;
+        if (keys == null) {
+            Map<EntityDataAccessor<?>, DataKey> built = new java.util.IdentityHashMap<>();
+            for (Class<?> c : new Class<?>[]{Entity.class, net.minecraft.world.entity.LivingEntity.class, net.minecraft.world.entity.Mob.class}) {
+                List<DataKey> found = new ArrayList<>();
+                for (InjectedMembers.InjectedField injected : InjectedMembers.fields(c)) {
+                    if (!CallerAttribution.SELF.equals(injected.mod())) addDataKey(injected.field(), injected.mod(), found);
+                }
+                for (DataKey key : found) built.put(key.accessor(), key);
+            }
+            injectedKeys = keys = built;
+        }
+        return keys.get(accessor);
     }
 
     // ---- 永続データ --------------------------------------------------------------

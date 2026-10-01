@@ -323,6 +323,32 @@ public class KillModGameTests {
         helper.succeed();
     }
 
+    /**
+     * フラグ辞書による同期データの入口での拒否: The Trial Monolith が vanilla に足した魂ダメージの同期データを、
+     * 専用の関数（EntityHelper）を通さず直接書いても保護対象には溜まらない。下げる書き込みは通す
+     */
+    @GameTest(template = TEMPLATE, timeoutTicks = 100)
+    @SuppressWarnings("unchecked")
+    public static void injectedSynchedKillMarkIsRefused(GameTestHelper helper) {
+        if (!loaded(helper, "the_trial_monolith")) return;
+        ElenorEntity elenor = helper.spawnWithNoFreeWill(ModEntities.ELENOR.get(), new BlockPos(2, 2, 2));
+        try {
+            java.lang.reflect.Field field = net.minecraft.world.entity.Entity.class.getDeclaredField("the_trial_monolith$DATA_SOUL_DAMAGE_ID");
+            field.setAccessible(true);
+            var accessor = (net.minecraft.network.syncher.EntityDataAccessor<Float>) field.get(null);
+            helper.assertTrue(com.automatavalkyries.protect.flag.StateScanner.injectedDataKey(accessor) != null,
+                    "The injected soul damage key was not recognised");
+            elenor.getEntityData().set(accessor, 50.0F);
+            helper.assertTrue(elenor.getEntityData().get(accessor) == 0.0F, "Soul damage was written: " + elenor.getEntityData().get(accessor));
+            helper.assertTrue(com.automatavalkyries.protect.attack.AttackLog.entries().stream()
+                    .anyMatch(e -> e.op.startsWith("synched_data:") && e.mod.equals("the_trial_monolith")), "The refusal was not recorded");
+        } catch (ReflectiveOperationException e) {
+            helper.fail("Could not reach the soul damage key: " + e);
+        }
+        elenor.getEprotect().triggerDespawn();
+        helper.succeed();
+    }
+
     private static void annihilateTrialMonolithBoss(GameTestHelper helper, String path) {
         if (!loaded(helper, "the_trial_monolith")) return;
         var type = net.minecraftforge.registries.ForgeRegistries.ENTITY_TYPES.getValue(

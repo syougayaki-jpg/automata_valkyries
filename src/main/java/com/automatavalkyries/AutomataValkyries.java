@@ -57,6 +57,7 @@ public class AutomataValkyries {
         event.enqueueWork(EprotectManager::registerChunkLoadingCallback);
         if (EprotectConfig.get(EprotectConfig.REPORT_FOREIGN_ENTITY_HOOKS)) {
             event.enqueueWork(ForeignHookReport::log);
+            event.enqueueWork(com.automatavalkyries.protect.flag.FlagReport::writeAsync);
         }
     }
 }
