@@ -57,6 +57,10 @@ public final class ObserverAgent {
     private static final Map<String, Map<String, Set<String>>> CAPABILITIES = new ConcurrentHashMap<>();
     /** まだ記録していない（置き場所, 能力, 最初のクラス） */
     private static final java.util.concurrent.ConcurrentLinkedQueue<String[]> NEW_CAPABILITIES = new java.util.concurrent.ConcurrentLinkedQueue<>();
+    /** 能力のあったクラスが使う名前（フィールド・メソッド名と、識別子らしい文字列定数）。置き場所ごとに {@link #MAX_NAMES} 件まで。
+     *  MOD 側がフラグ辞書で分類する（エージェントは Minecraft・辞書に依存できないので名前を渡すだけ） */
+    private static final Map<String, Set<String>> NAMES = new ConcurrentHashMap<>();
+    private static final int MAX_NAMES = 512;
 
     private static final ClassFileTransformer TRANSFORMER = new ClassFileTransformer() {
         @Override
@@ -150,13 +154,16 @@ public final class ObserverAgent {
     private static void scanCapabilities(String className, ProtectionDomain domain, byte[] bytes) {
         if (Capabilities.skipped(className) || !Capabilities.worthParsing(bytes)) return;
         List<String> found;
+        ClassSummary summary;
         try {
-            found = Capabilities.of(ClassSummary.parse(bytes));
+            summary = ClassSummary.parse(bytes);
+            found = Capabilities.of(summary);
         } catch (Throwable t) {
             return;
         }
         if (found.isEmpty()) return;
         String location = location(domain);
+        rememberNames(location, summary);
         // 読み込みの最中にラムダ（隠しクラスの生成）を使わない
         Map<String, Set<String>> byCapability = CAPABILITIES.get(location);
         if (byCapability == null) {
@@ -175,6 +182,32 @@ public final class ObserverAgent {
             }
             classes.add(className);
         }
+    }
+
+    /** 能力のあったクラスの名前を控える（JDK の名前は除く。ラムダは使わない） */
+    private static void rememberNames(String location, ClassSummary summary) {
+        Set<String> names = NAMES.get(location);
+        if (names == null) {
+            NAMES.putIfAbsent(location, ConcurrentHashMap.newKeySet());
+            names = NAMES.get(location);
+        }
+        for (String ref : summary.refs) {
+            if (names.size() >= MAX_NAMES) return;
+            if (ref.startsWith("java/") || ref.startsWith("jdk/") || ref.startsWith("sun/")) continue;
+            int dot = ref.lastIndexOf('.');
+            if (dot > 0 && identifier(ref.substring(dot + 1))) names.add(ref.substring(dot + 1));
+        }
+        for (String s : summary.strings) {
+            if (names.size() >= MAX_NAMES) return;
+            if (identifier(s)) names.add(s);
+        }
+    }
+
+    private static boolean identifier(String s) {
+        if (s.length() < 3 || s.length() > 40 || s.startsWith("<") || s.startsWith("lambda$")) return false;
+        if (!Character.isJavaIdentifierStart(s.charAt(0))) return false;
+        for (int i = 1; i < s.length(); i++) if (!Character.isJavaIdentifierPart(s.charAt(i))) return false;
+        return true;
     }
 
     private static void enqueue(Task task) {
@@ -300,6 +333,8 @@ public final class ObserverAgent {
                 row.put("capability", capability.getKey());
                 row.put("classes", String.valueOf(capability.getValue().size()));
                 row.put("samples", String.join(", ", samples));
+                Set<String> names = NAMES.get(jar.getKey());
+                row.put("names", names != null ? String.join(",", names) : "");
                 rows.add(row);
             }
         }

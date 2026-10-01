@@ -27,6 +27,19 @@ public final class ObserverLink {
             return raw.getOrDefault(key, "");
         }
 
+        /** 新しく呼ぶようになったメソッド・フィールドのうち、フラグ辞書の分類に当たる名前（"名前=分類"。BANISH 等の新しい分類も含む） */
+        public List<String> knownAddedNames() {
+            Set<String> names = new LinkedHashSet<>();
+            for (String ref : get("addedRefs").split(", ")) {
+                int dot = ref.lastIndexOf('.');
+                if (dot < 0 || dot == ref.length() - 1) continue;
+                String name = ref.substring(dot + 1);
+                Set<FlagDictionary.Category> categories = FlagDictionary.classify(name);
+                if (!name.startsWith("<") && !categories.isEmpty()) names.add(name + "=" + categories);
+            }
+            return List.copyOf(names);
+        }
+
         /** 新しく呼ぶようになったメソッド・フィールドのうち、フラグ辞書に当たらない名前（辞書に足す手がかり） */
         public List<String> unknownAddedNames() {
             Set<String> names = new LinkedHashSet<>();
@@ -85,7 +98,20 @@ public final class ObserverLink {
     }
 
     /** 能力の地図の 1 行（その MOD のクラスが何をできる作りか。実際にしたかは別） */
-    public record Capability(String mod, String capability, int classes, String samples, String location) {}
+    public record Capability(String mod, String capability, int classes, String samples, String location, Set<String> names) {
+        /** その MOD のクラスが使う名前のうち、フラグ辞書の分類に当たるもの（分類 → 名前。KILL・BANISH 等） */
+        public Map<FlagDictionary.Category, List<String>> dictionaryHits() {
+            Map<FlagDictionary.Category, List<String>> hits = new java.util.EnumMap<>(FlagDictionary.Category.class);
+            for (String name : names) {
+                for (FlagDictionary.Category category : FlagDictionary.classify(name)) {
+                    if (category == FlagDictionary.Category.TIMER) continue; // 単独では手がかりにならない
+                    hits.computeIfAbsent(category, k -> new ArrayList<>()).add(name);
+                }
+            }
+            hits.values().forEach(java.util.Collections::sort);
+            return hits;
+        }
+    }
 
     /** 能力の地図（MOD・能力の順）。MOD は例のクラスのパッケージから引く */
     @SuppressWarnings("unchecked")
@@ -108,9 +134,15 @@ public final class ObserverLink {
             String mod = first.isEmpty() ? CallerAttribution.UNKNOWN : CallerAttribution.modOfClassName(first);
             String capability = raw.getOrDefault("capability", "?");
             String location = raw.getOrDefault("location", "?");
-            Capability row = new Capability(mod, capability, count, samples, location);
-            merged.merge(mod + "|" + capability, row, (a, b) -> new Capability(mod, capability, a.classes() + b.classes(),
-                    joinSamples(a.samples(), b.samples()), a.location() + " " + b.location()));
+            Set<String> names = new java.util.TreeSet<>();
+            for (String name : raw.getOrDefault("names", "").split(",")) if (!name.isEmpty()) names.add(name);
+            Capability row = new Capability(mod, capability, count, samples, location, names);
+            merged.merge(mod + "|" + capability, row, (a, b) -> {
+                Set<String> both = new java.util.TreeSet<>(a.names());
+                both.addAll(b.names());
+                return new Capability(mod, capability, a.classes() + b.classes(), joinSamples(a.samples(), b.samples()),
+                        a.location() + " " + b.location(), both);
+            });
         }
         return new ArrayList<>(merged.values());
     }
@@ -127,10 +159,14 @@ public final class ObserverLink {
     public static void logStatus() {
         if (active()) {
             AutomataValkyries.LOGGER.info("[observer] The observation Java agent is attached: {}", status());
+            Set<String> hitsLogged = new java.util.HashSet<>();
             for (Capability row : capabilities()) {
                 if (!CallerAttribution.isForeign(row.mod())) continue;
                 AutomataValkyries.LOGGER.info("[observer]   capability {}: {} ({} classes, e.g. {})", row.mod(), row.capability(),
                         row.classes(), row.samples());
+                if (!hitsLogged.add(row.mod())) continue;
+                row.dictionaryHits().forEach((category, names) ->
+                        AutomataValkyries.LOGGER.info("[observer]     dictionary {} {}: {}", row.mod(), category, names));
             }
         } else {
             AutomataValkyries.LOGGER.debug("[observer] The observation Java agent is not attached");

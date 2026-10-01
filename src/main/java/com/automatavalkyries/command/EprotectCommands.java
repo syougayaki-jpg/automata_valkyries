@@ -158,9 +158,15 @@ public final class EprotectCommands {
         }
         var rows = com.automatavalkyries.protect.ObserverLink.capabilities();
         source.sendSuccess(() -> Component.translatable(KEY + "observer.capabilities.header", rows.size()).withStyle(ChatFormatting.GOLD), false);
+        java.util.Set<String> hitsShown = new java.util.HashSet<>();
         for (var row : rows) {
             source.sendSuccess(() -> Component.translatable(KEY + "observer.capabilities.entry", row.mod(), row.capability(),
                     row.classes(), row.samples()), false);
+            // その MOD の名前がフラグ辞書のどの分類に当たるか（MOD ごとに 1 度）
+            if (!hitsShown.add(row.mod())) continue;
+            row.dictionaryHits().forEach((category, names) -> source.sendSuccess(() -> Component.translatable(
+                    KEY + "observer.capabilities.hits", category.name(),
+                    String.join(", ", names.subList(0, Math.min(8, names.size())))).withStyle(ChatFormatting.AQUA), false));
         }
         return rows.size();
     }
@@ -186,6 +192,10 @@ public final class EprotectCommands {
             }
             if (!e.get("changed").isEmpty()) {
                 source.sendSuccess(() -> Component.translatable(KEY + "observer.changed", e.get("changed")).withStyle(ChatFormatting.GRAY), false);
+            }
+            var known = e.knownAddedNames();
+            if (!known.isEmpty()) {
+                source.sendSuccess(() -> Component.translatable(KEY + "observer.known", String.join(", ", known)).withStyle(ChatFormatting.YELLOW), false);
             }
             var unknown = e.unknownAddedNames();
             if (!unknown.isEmpty()) {

@@ -93,6 +93,8 @@
   "commands.automata_valkyries.observer.unknown": "  新しく呼ぶようになった、辞書に無い名前: %s",
   "commands.automata_valkyries.observer.capabilities.header": "能力の地図（他 MOD のクラスが何をできる作りか。実際にしたかは別）: %s 件",
   "commands.automata_valkyries.observer.capabilities.entry": "%s: %s（%s クラス。例: %s）",
+  "commands.automata_valkyries.observer.capabilities.hits": "  フラグ辞書 %s に当たる名前: %s",
+  "commands.automata_valkyries.observer.known": "  新しく呼ぶようになった、辞書の分類に当たる名前: %s",
   "commands.automata_valkyries.blacklist.protected": "%s はブラックリストに載せられません",
   "commands.automata_valkyries.blacklist.invalid": "%s は MOD ID として正しくありません",
   "commands.automata_valkyries.blacklist.not_loaded": "注意: %s は導入されていません（登録はしました）",
