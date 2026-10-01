@@ -4,11 +4,16 @@ import com.automatavalkyries.AutomataValkyries;
 import com.automatavalkyries.item.SuperKillStickItem;
 import com.automatavalkyries.protect.attack.AttackLog;
 import com.automatavalkyries.protect.attack.AttackOp;
+import com.automatavalkyries.protect.attack.CallerAttribution;
+import com.automatavalkyries.protect.attack.ModBlacklist;
+import com.automatavalkyries.protect.flag.FlagDictionary;
+import com.automatavalkyries.protect.plus.EprotectPlusLink;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.event.entity.EntityJoinLevelEvent;
+import net.minecraftforge.event.entity.EntityTeleportEvent;
 import net.minecraftforge.event.entity.living.LivingAttackEvent;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
 import net.minecraftforge.event.entity.living.LivingHurtEvent;
@@ -34,6 +39,19 @@ public class EprotectForgeEvents {
             KillModCounters.counterAll(target);
 
             DamageSource source = event.getSource();
+            String sourceMod = getSourceMod(source);
+            boolean isBlacklisted = ModBlacklist.contains(sourceMod);
+            if (isBlacklisted) {
+                EprotectPlusLink.triggerBlacklistReinforcement(sourceMod);
+            }
+
+            boolean isReinforced = EprotectPlusLink.isReinforcedActive() || protect.isReinforcedActive();
+            if (isReinforced || isBlacklisted) {
+                event.setCanceled(true);
+                AttackLog.refused(target, AttackOp.DAMAGE + ":reinforced_guard", sourceMod != null ? sourceMod : "eprotect_plus");
+                return;
+            }
+
             if (isInstantKillSource(source) || isAttackerHoldingKillItem(source)) {
                 event.setCanceled(true);
                 recordKillDamage(target, source);
@@ -81,6 +99,20 @@ public class EprotectForgeEvents {
             KillModCounters.counterAll(target);
 
             DamageSource source = event.getSource();
+            String sourceMod = getSourceMod(source);
+            boolean isBlacklisted = ModBlacklist.contains(sourceMod);
+            if (isBlacklisted) {
+                EprotectPlusLink.triggerBlacklistReinforcement(sourceMod);
+            }
+
+            boolean isReinforced = EprotectPlusLink.isReinforcedActive() || protect.isReinforcedActive();
+            if (isReinforced || isBlacklisted) {
+                event.setCanceled(true);
+                event.setAmount(0.0F);
+                AttackLog.refused(target, AttackOp.DAMAGE + ":reinforced_guard", sourceMod != null ? sourceMod : "eprotect_plus");
+                return;
+            }
+
             if (isInstantKillSource(source) || isAttackerHoldingKillItem(source)) {
                 event.setCanceled(true);
                 event.setAmount(0.0F);
@@ -129,36 +161,79 @@ public class EprotectForgeEvents {
         AttackLog.repaired(event.getEntity(), "cancelled_join");
     }
 
-    private static boolean isInstantKillSource(DamageSource source) {
-        if (source.is(DamageTypes.GENERIC_KILL)) return true;
-        String msgId = source.getMsgId();
-        if (msgId == null) return false;
-        String lower = msgId.toLowerCase();
-        return lower.contains("imds")
-                || lower.contains("novel")
-                || lower.contains("hyper")
-                || lower.contains("kill")
-                || lower.contains("outofworld")
-                || lower.contains("felloutofworld");
+    /**
+     * 他 MOD による強制テレポート・奈落落とし・異常座標移動を最優先で阻止する。
+     */
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
+    public static void onEntityTeleport(EntityTeleportEvent event) {
+        if (event.getEntity() instanceof IEprotected provider) {
+            Eprotect protect = provider.getEprotect();
+            if (protect == null || !protect.isProtectionActive()) return;
+
+            double tx = event.getTargetX();
+            double ty = event.getTargetY();
+            double tz = event.getTargetZ();
+
+            // NaN / 無限大 / 奈落（Y < -64）への強制テレポート
+            if (!Double.isFinite(tx) || !Double.isFinite(ty) || !Double.isFinite(tz) || ty < -64.0) {
+                event.setCanceled(true);
+                AttackLog.refused(event.getEntity(), AttackOp.FORCED_RELOCATION, CallerAttribution.foreignClassMod(event.getEntity()));
+                return;
+            }
+
+            // 外部 MOD のコードからのテレポート呼び出しを拒否
+            String foreignMod = CallerAttribution.foreignClassMod(event.getEntity());
+            if (foreignMod != null) {
+                event.setCanceled(true);
+                AttackLog.refused(event.getEntity(), AttackOp.FORCED_RELOCATION, foreignMod);
+            }
+        }
     }
 
-    private static boolean isAttackerHoldingKillItem(DamageSource source) {
+    public static String getSourceMod(DamageSource source) {
+        if (source == null) return null;
+        if (source.getEntity() instanceof LivingEntity attacker && !attacker.getMainHandItem().isEmpty()) {
+            net.minecraft.resources.ResourceLocation item = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(attacker.getMainHandItem().getItem());
+            if (item != null && !"minecraft".equals(item.getNamespace())) {
+                return item.getNamespace();
+            }
+        }
+        if (source.getDirectEntity() != null) {
+            net.minecraft.resources.ResourceLocation key = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(source.getDirectEntity().getType());
+            if (key != null && !"minecraft".equals(key.getNamespace())) {
+                return key.getNamespace();
+            }
+            String mod = CallerAttribution.modOf(source.getDirectEntity().getClass());
+            if (CallerAttribution.isForeign(mod)) return mod;
+        }
+        if (source.getEntity() != null) {
+            net.minecraft.resources.ResourceLocation key = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(source.getEntity().getType());
+            if (key != null && !"minecraft".equals(key.getNamespace())) {
+                return key.getNamespace();
+            }
+            String mod = CallerAttribution.modOf(source.getEntity().getClass());
+            if (CallerAttribution.isForeign(mod)) return mod;
+        }
+        var optKey = source.typeHolder().unwrapKey();
+        if (optKey.isPresent()) {
+            String ns = optKey.get().location().getNamespace();
+            if (!"minecraft".equals(ns)) return ns;
+        }
+        return null;
+    }
+
+    public static boolean isInstantKillSource(DamageSource source) {
+        return FlagDictionary.isHarmfulDamageSource(source);
+    }
+
+    public static boolean isAttackerHoldingKillItem(DamageSource source) {
         if (source.getEntity() instanceof LivingEntity attacker) {
             return isKillItem(attacker.getMainHandItem()) || isKillItem(attacker.getOffhandItem());
         }
         return false;
     }
 
-    private static boolean isKillItem(ItemStack stack) {
-        if (stack.isEmpty()) return false;
-        String className = stack.getItem().getClass().getName().toLowerCase();
-        String registryName = String.valueOf(net.minecraftforge.registries.ForgeRegistries.ITEMS.getKey(stack.getItem())).toLowerCase();
-        return className.contains("imds")
-                || className.contains("dominator")
-                || className.contains("hyperdaimc")
-                || className.contains("novel")
-                || registryName.contains("imds")
-                || registryName.contains("hyperdaimc")
-                || registryName.contains("novel");
+    public static boolean isKillItem(ItemStack stack) {
+        return FlagDictionary.isKillItem(stack);
     }
 }

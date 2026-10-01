@@ -119,7 +119,7 @@ public final class StateScanner {
     };
 
     private static final Set<Class<?>> VALUE_TYPES = Set.of(boolean.class, int.class, long.class, float.class, double.class,
-            short.class, byte.class);
+            short.class, byte.class, String.class, java.util.UUID.class);
 
     private record Accessor(@Nullable Method getter, Method setter, Class<?> type, String name, String mod) {}
 
@@ -217,15 +217,45 @@ public final class StateScanner {
 
     private static void applyField(Object holder, Field field, String mod, Source source, Policy policy, List<Change> changes) {
         int modifiers = field.getModifiers();
-        if (Modifier.isStatic(modifiers) || Modifier.isFinal(modifiers) || !VALUE_TYPES.contains(field.getType())) return;
+        if (Modifier.isStatic(modifiers)) return;
+
+        // コレクション・マップのクリア対応（finalであっても中身をクリア可能）
+        if (Collection.class.isAssignableFrom(field.getType())) {
+            if (!policy.relevant(field.getName())) return;
+            try {
+                field.setAccessible(true);
+                Collection<?> col = (Collection<?>) field.get(holder);
+                if (col != null && !col.isEmpty()) {
+                    col.clear();
+                    changes.add(new Change(source, field.getDeclaringClass().getSimpleName(), field.getName(), mod));
+                }
+            } catch (Throwable ignored) {}
+            return;
+        }
+        if (Map.class.isAssignableFrom(field.getType())) {
+            if (!policy.relevant(field.getName())) return;
+            try {
+                field.setAccessible(true);
+                Map<?, ?> map = (Map<?, ?>) field.get(holder);
+                if (map != null && !map.isEmpty()) {
+                    map.clear();
+                    changes.add(new Change(source, field.getDeclaringClass().getSimpleName(), field.getName(), mod));
+                }
+            } catch (Throwable ignored) {}
+            return;
+        }
+
+        if (Modifier.isFinal(modifiers) || (!VALUE_TYPES.contains(field.getType()) && !Entity.class.isAssignableFrom(field.getType()))) return;
         if (!policy.relevant(field.getName())) return;
         try {
             field.setAccessible(true);
             Object current = field.get(holder);
             Object value = policy.decide(field.getName(), field.getType(), current);
-            if (value == null) return;
-            field.set(holder, value);
-            changes.add(new Change(source, field.getDeclaringClass().getSimpleName(), field.getName(), mod));
+            if (value == null && current == null) return;
+            if (value != null || current != null) {
+                field.set(holder, value);
+                changes.add(new Change(source, field.getDeclaringClass().getSimpleName(), field.getName(), mod));
+            }
         } catch (Throwable ignored) {}
     }
 
@@ -377,7 +407,9 @@ public final class StateScanner {
             if (key.startsWith(AutomataValkyries.MODID)) continue;
             if (policy.removeKey(key)) {
                 remove.add(key);
-            } else if (depth == 0 && tag.getTagType(key) == Tag.TAG_COMPOUND) {
+            } else if (tag.getTagType(key) == Tag.TAG_STRING && policy.relevant(tag.getString(key))) {
+                remove.add(key);
+            } else if (depth <= 2 && tag.getTagType(key) == Tag.TAG_COMPOUND) {
                 applyCompound(tag.getCompound(key), path + "." + key, policy, changes, depth + 1);
             }
         }
@@ -514,6 +546,9 @@ public final class StateScanner {
         if (type == double.class) return 0.0D;
         if (type == short.class) return (short) 0;
         if (type == byte.class) return (byte) 0;
+        if (type == String.class) return (current == null || "".equals(current)) ? null : "";
+        if (type == java.util.UUID.class) return null;
+        if (Entity.class.isAssignableFrom(type)) return null;
         return null;
     }
 

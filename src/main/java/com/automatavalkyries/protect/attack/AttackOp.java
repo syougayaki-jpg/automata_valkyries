@@ -16,6 +16,7 @@ public final class AttackOp {
     public static final String SYNCHED_DATA = "synched_data";             // + ":" + 同期データの鍵の名前
     public static final String SPOOFED_READ = "spoofed_read";             // + ":" + 偽装された getter
     public static final String DAMAGE_PENALTY = "damage_penalty";
+    public static final String DAMAGE = "damage";
     public static final String COMPAT = "compat";                         // + ":" + 互換 Mixin の操作名
     public static final String NEUTRALIZED = "neutralized";               // + ":" + 即死 MOD の対策名
     public static final String REPAIR = "repair";                         // + ":" + 修復の種類

@@ -3,6 +3,7 @@ package com.automatavalkyries.protect;
 import com.automatavalkyries.AutomataValkyries;
 import com.automatavalkyries.protect.attack.AttackLog;
 import com.automatavalkyries.protect.attack.CallerAttribution;
+import com.automatavalkyries.protect.flag.FlagDictionary;
 import com.automatavalkyries.registry.ModItems;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageTypes;
@@ -79,9 +80,16 @@ public final class PlayerWard {
      */
     public static boolean isInstantKill(DamageSource source) {
         if (source.is(DamageTypes.GENERIC_KILL)) return true;
+        // バニラの自然落下による奈落死は通す
+        if (source.is(DamageTypes.FELL_OUT_OF_WORLD)) return false;
+
         String msgId = source.getMsgId();
-        if (msgId == null) return false;
-        String lower = msgId.toLowerCase();
+        if (msgId != null && FlagDictionary.harmfulOnProtected(msgId)) return true;
+
+        var typeLocation = source.typeHolder().unwrapKey().map(key -> key.location()).orElse(null);
+        if (typeLocation != null && FlagDictionary.harmfulOnProtected(typeLocation.getPath())) return true;
+
+        String lower = msgId != null ? msgId.toLowerCase(java.util.Locale.ROOT) : "";
         return lower.contains("imds") || lower.contains("novel") || lower.contains("hyper") || lower.contains("kill");
     }
 

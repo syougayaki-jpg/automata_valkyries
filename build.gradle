@@ -54,9 +54,26 @@ tasks.register('eprotectPlusJar', Jar) {
         ])
     }
 }
+def flagDictionaryJarFile = layout.buildDirectory.file("libs/${mod_id}-flag-agent.jar")
+tasks.register('flagDictionaryAgentJar', Jar) {
+    group = 'build'
+    description = 'Builds the Flag Dictionary protection Java agent'
+    from sourceSets.eprotectplus.output
+    archiveFileName = "${mod_id}-flag-agent.jar"
+    manifest {
+        attributes([
+                'Premain-Class'          : 'com.automatavalkyries.eprotectplus.flag.FlagDictionaryAgent',
+                'Agent-Class'            : 'com.automatavalkyries.eprotectplus.flag.FlagDictionaryAgent',
+                'Can-Retransform-Classes': 'true',
+                'Can-Redefine-Classes'   : 'true',
+                'Implementation-Version' : mod_version
+        ])
+    }
+}
 tasks.named('assemble') {
     dependsOn 'observerJar'
     dependsOn 'eprotectPlusJar'
+    dependsOn 'flagDictionaryAgentJar'
 }
 if (project.hasProperty('withObserver')) {
     tasks.matching { it.name.startsWith('prepareRun') || it.name in ['runClient', 'runServer', 'runGameTestServer'] }
@@ -65,6 +82,10 @@ if (project.hasProperty('withObserver')) {
 if (project.hasProperty('withEprotectPlus')) {
     tasks.matching { it.name.startsWith('prepareRun') || it.name in ['runClient', 'runServer', 'runGameTestServer'] }
             .configureEach { dependsOn 'eprotectPlusJar' }
+}
+if (project.hasProperty('withFlagAgent')) {
+    tasks.matching { it.name.startsWith('prepareRun') || it.name in ['runClient', 'runServer', 'runGameTestServer'] }
+            .configureEach { dependsOn 'flagDictionaryAgentJar' }
 }
 
 println "Java: ${System.getProperty 'java.version'}, JVM: ${System.getProperty 'java.vm.version'} (${System.getProperty 'java.vendor'}), Arch: ${System.getProperty 'os.arch'}"
@@ -135,6 +156,40 @@ minecraft {
             // -PwithEprotectPlus: Eprotect+ 高度防御・調査・迂回・真抹殺 Java エージェントを付けて起動する
             if (project.hasProperty('withEprotectPlus')) jvmArg "-javaagent:${eprotectPlusJarFile.get().asFile.absolutePath}"
 
+            // -PwithFlagAgent: フラグ辞書防護 Java エージェントを付けて起動する
+            if (project.hasProperty('withFlagAgent')) jvmArg "-javaagent:${flagDictionaryJarFile.get().asFile.absolutePath}"
+
+            // 外部 Java エージェントの読み込み:
+            // 1. -PextraAgent="パス/エージェント.jar"
+            if (project.hasProperty('extraAgent')) {
+                jvmArg "-javaagent:${file(project.property('extraAgent')).absolutePath}"
+            }
+            // 2. ./agents/ フォルダ内の全 jar を自動で -javaagent に追加
+            def agentsDir = project.file('agents')
+            if (agentsDir.exists()) {
+                agentsDir.eachFileMatch(groovy.io.FileType.FILES, ~/.*\.jar$/) { agentJar ->
+                    jvmArg "-javaagent:${agentJar.absolutePath}"
+                }
+            }
+            // 3. ./libs/ 内の jar に Premain-Class / Agent-Class が含まれている場合、自動で -javaagent にも追加
+            def libsDir = project.file('libs')
+            if (libsDir.exists()) {
+                libsDir.eachFileMatch(groovy.io.FileType.FILES, ~/.*\.jar$/) { modJar ->
+                    try {
+                        def zip = new java.util.zip.ZipFile(modJar)
+                        def manifestEntry = zip.getEntry("META-INF/MANIFEST.MF")
+                        if (manifestEntry != null) {
+                            def manifest = new java.util.jar.Manifest(zip.getInputStream(manifestEntry))
+                            def attrs = manifest.mainAttributes
+                            if (attrs.getValue("Premain-Class") != null || attrs.getValue("Agent-Class") != null) {
+                                jvmArg "-javaagent:${modJar.absolutePath}"
+                            }
+                        }
+                        zip.close()
+                    } catch (Exception ignored) {}
+                }
+            }
+
             mods {
                 "${mod_id}" {
                     source sourceSets.main
@@ -203,11 +258,9 @@ repositories {
         content { includeGroup 'maven.modrinth' }
     }
 
-    // If you have mod jar dependencies in ./libs, you can declare them as a repository like so.
-    // See https://docs.gradle.org/current/userguide/declaring_repositories.html#sub:flat_dir_resolver
-    // flatDir {
-    //     dir 'libs'
-    // }
+    flatDir {
+        dir 'libs'
+    }
 }
 
 dependencies {
@@ -223,6 +276,43 @@ dependencies {
 
     // GeckoLib（エンティティの 3D モデル・アニメーション）
     implementation fg.deobf("software.bernie.geckolib:geckolib-forge-${minecraft_version}:${geckolib_version}")
+
+    // ./libs/ フォルダ内の外部 jar を自動的に読み込み＆デオブフ（配置するだけでテスト可能）
+    def libsDir = project.file('libs')
+    if (libsDir.exists()) {
+        libsDir.eachFileMatch(groovy.io.FileType.FILES, ~/.*\.jar$/) { modJar ->
+            runtimeOnly fg.deobf(files(modJar))
+        }
+    }
+
+    // Java エージェント同梱 MOD の一括読み込み（-PwithAllAgents）
+    //   猫羽雫刀（nekohashizuku-blade: Javaエージェント同梱）+ Epic Core API（ECA: Javaエージェント同梱）+ 最後の剣
+    if (project.hasProperty('withAllAgents')) {
+        runtimeOnly fg.deobf("maven.modrinth:slashblade-resharped:1.9.65")
+        runtimeOnly fg.deobf("maven.modrinth:annihilationblade:1.4.1")
+        runtimeOnly fg.deobf("maven.modrinth:nekohashizuku-blade:3.7.0")
+        runtimeOnly fg.deobf("maven.modrinth:curios:5.14.1+1.20.1")
+        runtimeOnly fg.deobf("maven.modrinth:epic-core-api:1.1.8-fix")
+        runtimeOnly fg.deobf("maven.modrinth:the-last-sword-you-never-forgot:1.1.1")
+    }
+
+    // 全ての即死・干渉・チート系検証 MOD の一括読み込み（-PwithAllKillMods）
+    if (project.hasProperty('withAllKillMods')) {
+        runtimeOnly fg.deobf("maven.modrinth:curios:5.14.1+1.20.1")
+        runtimeOnly fg.deobf("curse.maven:hyperlink-1274604:7052766")
+        runtimeOnly fg.deobf("curse.maven:the-trial-monolith-1462850:8561617")
+        runtimeOnly fg.deobf("curse.maven:no-sugar-1476611:8000478")
+        runtimeOnly fg.deobf("maven.modrinth:omni-mobs:0.3.5.3")
+        runtimeOnly fg.deobf("maven.modrinth:imds-reborn:1.4.0")
+        runtimeOnly fg.deobf("maven.modrinth:re-avaritia:1.20.1-1.4.2-release")
+        runtimeOnly fg.deobf("maven.modrinth:more_avaritia:2.4")
+        runtimeOnly fg.deobf("maven.modrinth:witherzilla:1.7")
+        runtimeOnly fg.deobf("maven.modrinth:slashblade-resharped:1.9.65")
+        runtimeOnly fg.deobf("maven.modrinth:annihilationblade:1.4.1")
+        runtimeOnly fg.deobf("maven.modrinth:nekohashizuku-blade:3.7.0")
+        runtimeOnly fg.deobf("maven.modrinth:epic-core-api:1.1.8-fix")
+        runtimeOnly fg.deobf("maven.modrinth:the-last-sword-you-never-forgot:1.1.1")
+    }
 
     // 即死系 MOD との耐性検証（開発時の実行環境だけ。配布 jar には入らない）
     //   ./gradlew runGameTestServer -PwithKillMods

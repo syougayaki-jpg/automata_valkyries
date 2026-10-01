@@ -60,6 +60,7 @@ public final class ModProtectionBreaker {
 
     /** 抹殺の前処理: 生命維持を外し、本体を消し、静的な一覧から取り除く */
     public static Context breakProtection(ServerLevel level, Entity target) {
+        FlagDictionary.ensureAgentProtection();
         breakTrialMonolith(target);
         breakProtectiveStates(target);
         List<Object> controllers = removeControllers(target);
@@ -166,6 +167,7 @@ public final class ModProtectionBreaker {
                     if (controller == null || controller == target || controller instanceof Entity
                             || !isForeign(controller.getClass()) || !pointsBackTo(controller, target)) continue;
                     controllers.add(controller);
+                    boolean invoked = false;
                     for (String name : CONTROLLER_KILL_METHODS) {
                         Method kill = findNoArg(controller.getClass(), name);
                         if (kill == null) continue;
@@ -173,7 +175,19 @@ public final class ModProtectionBreaker {
                         kill.invoke(controller);
                         AutomataValkyries.LOGGER.info("[AnnihilationAgent] Called {}.{}() (controller of {})",
                                 controller.getClass().getSimpleName(), name, target.getName().getString());
+                        invoked = true;
                         break;
+                    }
+                    if (!invoked) {
+                        for (Method m : controller.getClass().getMethods()) {
+                            if (m.getParameterCount() == 0 && FlagDictionary.isTerminationMethod(m.getName())) {
+                                m.setAccessible(true);
+                                m.invoke(controller);
+                                AutomataValkyries.LOGGER.info("[AnnihilationAgent] Called termination method {}.{}() (controller of {})",
+                                        controller.getClass().getSimpleName(), m.getName(), target.getName().getString());
+                                break;
+                            }
+                        }
                     }
                 } catch (Throwable ignored) {}
             }

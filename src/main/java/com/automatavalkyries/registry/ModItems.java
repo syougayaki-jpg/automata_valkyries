@@ -43,6 +43,8 @@ public class ModItems {
             new UltraKillStickItem(UltraKillStickItem.defaultProperties()));
     public static final RegistryObject<Item> TRUE_KILL_STICK = ITEMS.register("true_kill_stick", () ->
             new com.automatavalkyries.item.TrueKillStickItem(com.automatavalkyries.item.TrueKillStickItem.defaultProperties()));
+    public static final RegistryObject<Item> TERMINUS_STICK = ITEMS.register("terminus_stick", () ->
+            new com.automatavalkyries.item.TerminusStickItem(com.automatavalkyries.item.TerminusStickItem.defaultProperties()));
     public static final RegistryObject<Item> VERIFY_STICK = ITEMS.register("verify_stick", () ->
             new VerifyStickItem(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC)));
 

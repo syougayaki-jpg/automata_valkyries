@@ -47,6 +47,8 @@ Windows では `.\gradlew.bat`、Git Bash では `./gradlew`。
 | 準汎用だけで測る | `-PgenericOnly` を足す（`runGameTestServer` / `runClient`）。MOD ごとの個別対策（互換 Mixin・KillModCounters・ボス固有の無力化）を切り、フラグ辞書などの準汎用の層だけでどこまで守れる・倒せるかを見る |
 | 観察用 Java エージェントを付ける | `-PwithObserver` を足す（`runGameTestServer` / `runClient`）。`build/libs/automata_valkyries-observer.jar`（`src/observer`、JDK だけに依存）を `-javaagent` で読ませる。他の Java エージェントによる実行中の書き換え（再変換・再定義）と呼んだ側を `logs/automata_valkyries-observer.log` と `/eprotect observer` に出す。能力の地図（他 MOD のクラスが Unsafe での書き込み・クラスの書き換え・自己 attach・JVM の終了・ワールドの一覧への手出し等をできる作りか。定数プールを読むだけ）を `/eprotect observer capabilities` に出す。他 MOD のクラスは書き換えないが、このMOD 自身のクラスを他のエージェントが書き換えたら読み込んだときの形に戻す（改ざん防止 `IntegrityGuard`。`-javaagent:...observer.jar=noguard` で切れる）。後から読み込まれたエージェントの再変換の中身は見えないので、見たいときはそのエージェントの後で `jcmd <pid> JVMTI.agent_load <jar>` で attach する |
 | **Eprotect+ Java エージェントを付ける** | `-PwithEprotectPlus` を足す（`runGameTestServer` / `runClient`）。`build/libs/automata_valkyries-eprotect-plus.jar`（`src/eprotectplus`、JDK だけに依存）を `-javaagent` で読ませる。Witherzilla・ACE・Omni-Mobs・No-Sugar 等の干渉を調査・迂回・保護し、真抹殺の棒による特権抹殺（生命維持フラグ剥奪・StackChecker迂回）を実行する。`/eprotect plus` で診断・ログを確認可能 |
+| **Java エージェント同梱 MOD をまとめて検証** | `-PwithAllAgents`（Shizuku Blade + ECA/The Last Sword）または `-PwithSlashBlade`, `-PwithLastSword`。エージェント同士の競合・干渉・防壁突破を検証 |
+| **外部 Java エージェント / 外部 MOD を追加** | `./libs/` に MOD jar を置くと自動でデオブフ読込＆内包エージェントを自動登録。単体エージェントは `./agents/` に置くか `-PextraAgent="パス"` で `-javaagent` 追加 |
 | データ生成 | `./gradlew runData` → `src/generated/resources/` |
 | MC ソース再展開 | `./gradlew extractMcSources`（Forge バージョンを変えたら再実行） |
 

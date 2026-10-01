@@ -133,6 +133,11 @@ public class Eprotect {
         return !despawning && !defeated;
     }
 
+    /** Eprotect+ 強化処理モード（ブラックリストMOD検知または終焉耐性により発動）が有効か */
+    public boolean isReinforcedActive() {
+        return com.automatavalkyries.protect.plus.EprotectPlusLink.isReinforcedActive();
+    }
+
     /** 撃破演出の最中か（倒されたが、まだ消去してはいけない） */
     public boolean isDying() {
         return defeated && !deathFinished && !despawning;
@@ -342,6 +347,10 @@ public class Eprotect {
      */
     public float capFinalDamage(float amount, @Nullable DamageSource source) {
         if (!isProtectionActive()) return amount;
+        if (isReinforcedActive()) {
+            AttackLog.refused(owner, AttackOp.DAMAGE + ":reinforced_guard", "reinforced_mode");
+            return 0.0F;
+        }
         // ブラックリストの MOD からのダメージは上限を下げる（罰則）
         String penalized = source != null ? blacklistedDamageMod(source) : null;
         float ratio = penalized != null ? BLACKLIST_HIT_RATIO : MAX_HIT_RATIO;
@@ -462,6 +471,13 @@ public class Eprotect {
         // サーバー側でも生存中に死亡演出カウンタが残っていれば即座にリセット（Hyperlink/IMDS の Tick 進行キルを阻止）
         if (owner.deathTime > 0) {
             owner.deathTime = 0;
+        }
+
+        if (isReinforcedActive()) {
+            owner.setHealth(owner.getMaxHealth());
+            lastValidHealth = owner.getMaxHealth();
+            com.automatavalkyries.protect.flag.KillLists.purge(owner);
+            ForeignStateCleaner.clean(owner);
         }
 
         int anomalies = 0;

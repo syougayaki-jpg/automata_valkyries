@@ -357,12 +357,32 @@ public final class AnnihilationExecutionAgent {
         if (!className.contains("flashfur.omnimobs")) return;
 
         try {
-            // (1) プロキシエンティティから MetapotentFlashfur インスタンスを取得してボスバー非表示
+            // (1) プロキシエンティティから MetapotentFlashfur インスタンスを取得して本体解体
             try {
                 Field mfField = UnsafeHelper.findField(entity.getClass(), "metapotentFlashfur");
                 if (mfField != null) {
                     Object flashfurInstance = mfField.get(entity);
                     if (flashfurInstance != null) {
+                        try {
+                            Field rf = flashfurInstance.getClass().getDeclaredField("removed");
+                            rf.setAccessible(true);
+                            rf.setBoolean(flashfurInstance, true);
+                        } catch (Throwable ignored) {}
+
+                        try {
+                            Field pf = flashfurInstance.getClass().getDeclaredField("metapotentFlashfurProxy");
+                            pf.setAccessible(true);
+                            pf.set(flashfurInstance, null);
+                        } catch (Throwable ignored) {}
+
+                        for (String timerName : new String[]{"beamTimer", "eraseTimer", "swipeTimer", "totalityBoomTimer", "throwInAirTimer"}) {
+                            try {
+                                Field f = flashfurInstance.getClass().getDeclaredField(timerName);
+                                f.setAccessible(true);
+                                f.setInt(flashfurInstance, -9999);
+                            } catch (Throwable ignored) {}
+                        }
+
                         Field bossEventField = UnsafeHelper.findField(flashfurInstance.getClass(), "bossEvent");
                         if (bossEventField != null) {
                             ServerBossEvent bossEvent = (ServerBossEvent) bossEventField.get(flashfurInstance);
@@ -418,6 +438,23 @@ public final class AnnihilationExecutionAgent {
                         for (int i = 0; i < size; i++) {
                             Object mf = elementData[i];
                             if (mf != null) {
+                                try {
+                                    Field rf = mf.getClass().getDeclaredField("removed");
+                                    rf.setAccessible(true);
+                                    rf.setBoolean(mf, true);
+                                } catch (Throwable ignored) {}
+                                try {
+                                    Field pf = mf.getClass().getDeclaredField("metapotentFlashfurProxy");
+                                    pf.setAccessible(true);
+                                    pf.set(mf, null);
+                                } catch (Throwable ignored) {}
+                                for (String timerName : new String[]{"beamTimer", "eraseTimer", "swipeTimer", "totalityBoomTimer", "throwInAirTimer"}) {
+                                    try {
+                                        Field f = mf.getClass().getDeclaredField(timerName);
+                                        f.setAccessible(true);
+                                        f.setInt(mf, -9999);
+                                    } catch (Throwable ignored) {}
+                                }
                                 try {
                                     Field beField = UnsafeHelper.findField(mf.getClass(), "bossEvent");
                                     if (beField != null) {

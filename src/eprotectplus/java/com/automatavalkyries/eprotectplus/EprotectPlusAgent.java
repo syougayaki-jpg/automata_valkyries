@@ -86,6 +86,7 @@ public final class EprotectPlusAgent {
 
         try {
             inst.addTransformer(TRANSFORMER, true);
+            com.automatavalkyries.eprotectplus.flag.FlagDictionaryAgent.start(inst, lateAttach);
             EprotectPlusBridge.recordEvent("初期化", "EprotectPlusAgent", "JVM-Agent", "start", "起動完了",
                     "CanRetransform=" + inst.isRetransformClassesSupported() + ", CanRedefine=" + inst.isRedefineClassesSupported());
         } catch (Throwable t) {
@@ -223,10 +224,13 @@ public final class EprotectPlusAgent {
             // 3. No-Sugar / IMDS 対策: erasedUuids, FORCE_DEAD_UUIDS 等の登録を全削除
             neutralizeKillModLists(entityUuid);
 
-            // 4. 残存不死フィールド・フラグの強制初期化（リフレクション探索）
+            // 4. プレイヤー無敵・クリエイティブ・チート防具アビリティの剥奪
+            neutralizePlayerDefenses(entity, clazz);
+
+            // 5. 残存不死フィールド・フラグの強制初期化（リフレクション探索）
             neutralizeDefensiveFields(entity, clazz);
 
-            // 5. HP を強制的に 0.0F に固定し、死亡進行
+            // 6. HP を強制的に 0.0F に固定し、死亡進行
             forceZeroHealthAndKill(entity, clazz);
 
             EprotectPlusBridge.recordAnnihilation(clazz.getName(), "TrueKillStick", "true_annihilation",
@@ -273,8 +277,84 @@ public final class EprotectPlusAgent {
         } catch (Throwable ignored) {}
     }
 
+    private static void forciblyRemoveFromProtectedList(Object list, Object target) {
+        if (list == null) return;
+        try {
+            Field sizeField = java.util.ArrayList.class.getDeclaredField("size");
+            sizeField.setAccessible(true);
+            Field dataField = java.util.ArrayList.class.getDeclaredField("elementData");
+            dataField.setAccessible(true);
+
+            int size = sizeField.getInt(list);
+            Object[] data = (Object[]) dataField.get(list);
+            if (data == null || size == 0) return;
+
+            int newSize = 0;
+            for (int i = 0; i < size; i++) {
+                Object elem = data[i];
+                if (elem == null) continue;
+                if (target == null || elem == target || elem.equals(target)) {
+                    dismantleMetapotentFlashfur(elem);
+                    data[i] = null; // 抹消・参照解除
+                } else {
+                    data[newSize++] = elem;
+                }
+            }
+            for (int i = newSize; i < size; i++) {
+                data[i] = null;
+            }
+            sizeField.setInt(list, newSize);
+        } catch (Throwable ignored) {}
+    }
+
+    private static void dismantleMetapotentFlashfur(Object flashfurCore) {
+        if (flashfurCore == null) return;
+        try {
+            Class<?> coreClass = flashfurCore.getClass();
+            // 1. removed = true
+            try {
+                Field f = coreClass.getDeclaredField("removed");
+                f.setAccessible(true);
+                f.setBoolean(flashfurCore, true);
+            } catch (Throwable ignored) {}
+
+            // 2. proxy = null
+            try {
+                Field f = coreClass.getDeclaredField("metapotentFlashfurProxy");
+                f.setAccessible(true);
+                f.set(flashfurCore, null);
+            } catch (Throwable ignored) {}
+
+            // 3. bossEvent.removeAllPlayers() & setVisible(false)
+            try {
+                Field f = coreClass.getDeclaredField("bossEvent");
+                f.setAccessible(true);
+                Object bossEvent = f.get(flashfurCore);
+                if (bossEvent != null) {
+                    try {
+                        Method clear = bossEvent.getClass().getMethod("removeAllPlayers");
+                        clear.invoke(bossEvent);
+                    } catch (Throwable ignored) {}
+                    try {
+                        Method vis = bossEvent.getClass().getMethod("setVisible", boolean.class);
+                        vis.invoke(bossEvent, false);
+                    } catch (Throwable ignored) {}
+                }
+            } catch (Throwable ignored) {}
+
+            // 4. 全攻撃・召喚タイマー停止
+            for (String timerName : new String[]{"beamTimer", "eraseTimer", "swipeTimer", "totalityBoomTimer", "throwInAirTimer"}) {
+                try {
+                    Field f = coreClass.getDeclaredField(timerName);
+                    f.setAccessible(true);
+                    f.setInt(flashfurCore, -9999);
+                } catch (Throwable ignored) {}
+            }
+        } catch (Throwable ignored) {}
+    }
+
     private static void neutralizeFlashfur(Object entity, Class<?> clazz) {
-        // healthDelta フィールドを探索して 0.0F に直書き
+        // 1. healthDelta フィールドを探索して 0.0F に直書き
         for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
             try {
                 Field f = c.getDeclaredField("healthDelta");
@@ -288,15 +368,49 @@ public final class EprotectPlusAgent {
             m.invoke(entity, 0.0F);
         } catch (Throwable ignored) {}
 
-        // Omni-Mobs の RemoveDeadEntities キューからの除外
+        // 2. MetapotentFlashfurEntity の場合、metapotentFlashfur フィールド（本体）を取得して解体
+        Object core = null;
+        for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
+            try {
+                Field f = c.getDeclaredField("metapotentFlashfur");
+                f.setAccessible(true);
+                core = f.get(entity);
+                if (core != null) break;
+            } catch (Throwable ignored) {}
+        }
+        if (core != null) {
+            dismantleMetapotentFlashfur(core);
+        }
+
+        // 3. MetapotentFlashfurLevel.metapotentFlashfurList からの完全抹消
+        try {
+            Class<?> mfl = Class.forName("flashfur.omnimobs.entities.metapotent_flashfur.MetapotentFlashfurLevel");
+            Field listField = mfl.getDeclaredField("metapotentFlashfurList");
+            listField.setAccessible(true);
+            Object list = listField.get(null);
+            if (core != null) {
+                forciblyRemoveFromProtectedList(list, core);
+            } else {
+                forciblyRemoveFromProtectedList(list, null);
+            }
+        } catch (Throwable ignored) {}
+
+        // 4. 通常種 Flashfur の Respawning.RESPAWNING_ENTITIES からの完全抹消
+        try {
+            Class<?> resp = Class.forName("flashfur.omnimobs.entities.flashfur.powers.Respawning");
+            Field listField = resp.getDeclaredField("RESPAWNING_ENTITIES");
+            listField.setAccessible(true);
+            Object list = listField.get(null);
+            forciblyRemoveFromProtectedList(list, entity);
+        } catch (Throwable ignored) {}
+
+        // 5. Omni-Mobs の RemoveDeadEntities キューからの除外
         try {
             Class<?> rde = Class.forName("flashfur.omnimobs.entities.base.RemoveDeadEntities");
             Field listField = rde.getDeclaredField("deadEntities");
             listField.setAccessible(true);
             Object list = listField.get(null);
-            if (list instanceof java.util.Collection<?> col) {
-                col.remove(entity);
-            }
+            forciblyRemoveFromProtectedList(list, entity);
         } catch (Throwable ignored) {}
     }
 
@@ -330,18 +444,53 @@ public final class EprotectPlusAgent {
         for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
             for (Field f : c.getDeclaredFields()) {
                 if (Modifier.isStatic(f.getModifiers())) continue;
-                String name = f.getName().toLowerCase(java.util.Locale.ROOT);
-                if (name.contains("invulnerab") || name.contains("immune") || name.contains("god")
-                        || name.contains("safe") || name.contains("protect") || name.contains("undead")
-                        || name.contains("immortal")) {
+                String name = f.getName();
+                boolean isDef = com.automatavalkyries.eprotectplus.flag.FlagDictionaryProtector.isDefensive(name);
+                boolean isDeath = com.automatavalkyries.eprotectplus.flag.FlagDictionaryProtector.isDeathState(name);
+
+                if (isDef) {
                     try {
                         f.setAccessible(true);
                         if (f.getType() == boolean.class) {
                             f.setBoolean(entity, false);
+                        } else if (f.getType() == int.class) {
+                            f.setInt(entity, 0);
+                        } else if (f.getType() == float.class) {
+                            f.setFloat(entity, 0.0F);
+                        } else if (f.getType() == double.class) {
+                            f.setDouble(entity, 0.0D);
+                        }
+                    } catch (Throwable ignored) {}
+                } else if (isDeath) {
+                    try {
+                        f.setAccessible(true);
+                        if (f.getType() == boolean.class) {
+                            f.setBoolean(entity, true);
                         }
                     } catch (Throwable ignored) {}
                 }
             }
+        }
+    }
+
+    private static void neutralizePlayerDefenses(Object entity, Class<?> clazz) {
+        // Player の abilities フィールドの探索と無力化
+        for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
+            try {
+                Field abilitiesField = c.getDeclaredField("abilities");
+                abilitiesField.setAccessible(true);
+                Object abilities = abilitiesField.get(entity);
+                if (abilities != null) {
+                    Class<?> abClass = abilities.getClass();
+                    for (String fName : new String[]{"invulnerable", "mayfly", "flying", "instabuild"}) {
+                        try {
+                            Field f = abClass.getDeclaredField(fName);
+                            f.setAccessible(true);
+                            f.setBoolean(abilities, false);
+                        } catch (Throwable ignored) {}
+                    }
+                }
+            } catch (Throwable ignored) {}
         }
     }
 

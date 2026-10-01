@@ -4,6 +4,7 @@ import com.automatavalkyries.AutomataValkyries;
 import com.automatavalkyries.protect.attack.CallerAttribution;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
 import org.jetbrains.annotations.Nullable;
 
 import java.lang.reflect.Field;
@@ -45,6 +46,8 @@ public final class EprotectPlusLink {
     private static final AtomicLong LOCAL_PROTECTIONS = new AtomicLong();
     private static final AtomicLong LOCAL_ANNIHILATIONS = new AtomicLong();
     private static final ThreadLocal<Boolean> LOCAL_PRIVILEGED = ThreadLocal.withInitial(() -> Boolean.FALSE);
+    private static final AtomicLong LOCAL_REINFORCED_UNTIL_MS = new AtomicLong(0);
+    private static volatile String LOCAL_REINFORCED_REASON = "";
 
     private EprotectPlusLink() {}
 
@@ -104,6 +107,102 @@ public final class EprotectPlusLink {
             action.run();
         } finally {
             LOCAL_PRIVILEGED.set(prevLocal);
+        }
+    }
+
+    // ---- 強化処理（Reinforced Protection）制御 ---------------------------------
+
+    /**
+     * 強化処理（指定ミリ秒）を発動する。
+     */
+    public static void triggerReinforcedProtection(long durationMs, String reason) {
+        long targetUntil = System.currentTimeMillis() + durationMs;
+        LOCAL_REINFORCED_UNTIL_MS.updateAndGet(prev -> Math.max(prev, targetUntil));
+        LOCAL_REINFORCED_REASON = reason != null ? reason : "UNKNOWN";
+
+        Class<?> type = bridge();
+        if (type != null) {
+            try {
+                Method m = type.getMethod("triggerReinforced", long.class, String.class);
+                m.invoke(null, durationMs, reason);
+            } catch (Throwable ignored) {}
+        }
+
+        recordProtection("EprotectPlusLink", reason, "reinforced_mode",
+                "Eprotect+ 強化処理発動（期間: " + durationMs + "ms, 理由: " + LOCAL_REINFORCED_REASON + "）");
+        AutomataValkyries.LOGGER.info("[eprotect-plus] >>> REINFORCED PROTECTION ACTIVATED <<< Duration: {}ms, Reason: {}",
+                durationMs, LOCAL_REINFORCED_REASON);
+    }
+
+    /**
+     * 強化処理（指定 Tick 数、例: 200 ticks = 10秒）を発動する。
+     */
+    public static void triggerReinforcedProtectionTicks(long durationTicks, String reason) {
+        triggerReinforcedProtection(durationTicks * 50L, reason);
+    }
+
+    /**
+     * ブラックリストに入った MOD 相手の強化処理を発動する（10秒間 = 200 ticks）。
+     */
+    public static void triggerBlacklistReinforcement(String modId) {
+        triggerReinforcedProtection(10000L, "BLACKLIST_MOD:" + modId);
+    }
+
+    /**
+     * 終焉機能に10秒以上耐えられた場合の強化処理を10秒間実行する。
+     */
+    public static void triggerTerminusResistedReinforcement(Entity target) {
+        String name = target != null ? target.getName().getString() : "UnknownTarget";
+        triggerReinforcedProtection(10000L, "TERMINUS_RESISTED_10S:" + name);
+    }
+
+    /**
+     * 現在 Eprotect+ 強化処理が稼働中か。
+     */
+    public static boolean isReinforcedActive() {
+        if (System.currentTimeMillis() < LOCAL_REINFORCED_UNTIL_MS.get()) return true;
+        Class<?> type = bridge();
+        if (type != null) {
+            try {
+                Method m = type.getMethod("isReinforced");
+                return Boolean.TRUE.equals(m.invoke(null));
+            } catch (Throwable ignored) {}
+        }
+        return false;
+    }
+
+    public static String getReinforcedReason() {
+        if (isReinforcedActive()) {
+            return LOCAL_REINFORCED_REASON;
+        }
+        return "";
+    }
+
+    public static long getReinforcedRemainingMs() {
+        long localRemaining = Math.max(0, LOCAL_REINFORCED_UNTIL_MS.get() - System.currentTimeMillis());
+        Class<?> type = bridge();
+        if (type != null) {
+            try {
+                Method m = type.getMethod("getReinforcedRemainingMs");
+                Object val = m.invoke(null);
+                if (val instanceof Long l) return Math.max(localRemaining, l);
+            } catch (Throwable ignored) {}
+        }
+        return localRemaining;
+    }
+
+    /**
+     * 強化処理状態を即時リセットする（テスト環境・戦闘終了用）。
+     */
+    public static void resetReinforced() {
+        LOCAL_REINFORCED_UNTIL_MS.set(0);
+        LOCAL_REINFORCED_REASON = "";
+        Class<?> type = bridge();
+        if (type != null) {
+            try {
+                Method m = type.getMethod("resetReinforced");
+                m.invoke(null);
+            } catch (Throwable ignored) {}
         }
     }
 
@@ -282,22 +381,61 @@ public final class EprotectPlusLink {
                 m.invoke(target, 0.0F);
             } catch (Throwable ignored) {}
 
-            // 不死フラグ探索初期化
+            // MetapotentFlashfur 本体（Proxy 元）の解体と MetapotentFlashfurLevel / Respawning リストからの抹消
+            Object core = null;
+            for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
+                try {
+                    Field f = c.getDeclaredField("metapotentFlashfur");
+                    f.setAccessible(true);
+                    core = f.get(target);
+                    if (core != null) break;
+                } catch (Throwable ignored) {}
+            }
+            if (core != null) {
+                dismantleFlashfurCore(core);
+            }
+
+            // MetapotentFlashfurLevel.metapotentFlashfurList & Respawning.RESPAWNING_ENTITIES から強制除去
+            forciblyRemoveFromList("flashfur.omnimobs.entities.metapotent_flashfur.MetapotentFlashfurLevel", "metapotentFlashfurList", core);
+            forciblyRemoveFromList("flashfur.omnimobs.entities.flashfur.powers.Respawning", "RESPAWNING_ENTITIES", target);
+            forciblyRemoveFromList("flashfur.omnimobs.entities.base.RemoveDeadEntities", "deadEntities", target);
+
+            // 不死フラグ探索初期化（フラグ辞書と連携）
             for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
                 for (Field f : c.getDeclaredFields()) {
                     if (Modifier.isStatic(f.getModifiers())) continue;
-                    String name = f.getName().toLowerCase(java.util.Locale.ROOT);
-                    if (name.contains("invulnerab") || name.contains("immune") || name.contains("god")
-                            || name.contains("safe") || name.contains("protect") || name.contains("undead")
-                            || name.contains("immortal")) {
+                    String name = f.getName();
+                    if (com.automatavalkyries.protect.flag.FlagDictionary.isDefensiveField(name)) {
                         try {
                             f.setAccessible(true);
                             if (f.getType() == boolean.class) {
                                 f.setBoolean(target, false);
+                            } else if (f.getType() == int.class) {
+                                f.setInt(target, 0);
+                            } else if (f.getType() == float.class) {
+                                f.setFloat(target, 0.0F);
+                            } else if (f.getType() == double.class) {
+                                f.setDouble(target, 0.0D);
+                            }
+                        } catch (Throwable ignored) {}
+                    } else if (com.automatavalkyries.protect.flag.FlagDictionary.isDeathStateField(name)) {
+                        try {
+                            f.setAccessible(true);
+                            if (f.getType() == boolean.class) {
+                                f.setBoolean(target, true);
                             }
                         } catch (Throwable ignored) {}
                     }
                 }
+            }
+
+            // プレイヤー無敵・飛行アビリティの剥奪
+            if (target instanceof Player player) {
+                try {
+                    player.getAbilities().invulnerable = false;
+                    player.getAbilities().mayfly = false;
+                    player.getAbilities().flying = false;
+                } catch (Throwable ignored) {}
             }
 
             // HP を 0.0F にし、死亡・削除を強制
@@ -369,5 +507,73 @@ public final class EprotectPlusLink {
         stats.put("annihilations", String.valueOf(LOCAL_ANNIHILATIONS.get()));
         stats.put("events", String.valueOf(LOCAL_EVENTS.size()));
         return stats;
+    }
+
+    private static void dismantleFlashfurCore(Object core) {
+        if (core == null) return;
+        try {
+            Class<?> coreClass = core.getClass();
+            try {
+                Field rf = coreClass.getDeclaredField("removed");
+                rf.setAccessible(true);
+                rf.setBoolean(core, true);
+            } catch (Throwable ignored) {}
+            try {
+                Field pf = coreClass.getDeclaredField("metapotentFlashfurProxy");
+                pf.setAccessible(true);
+                pf.set(core, null);
+            } catch (Throwable ignored) {}
+            for (String timerName : new String[]{"beamTimer", "eraseTimer", "swipeTimer", "totalityBoomTimer", "throwInAirTimer"}) {
+                try {
+                    Field f = coreClass.getDeclaredField(timerName);
+                    f.setAccessible(true);
+                    f.setInt(core, -9999);
+                } catch (Throwable ignored) {}
+            }
+            try {
+                Field bf = coreClass.getDeclaredField("bossEvent");
+                bf.setAccessible(true);
+                Object be = bf.get(core);
+                if (be != null) {
+                    try { be.getClass().getMethod("removeAllPlayers").invoke(be); } catch (Throwable ignored) {}
+                    try { be.getClass().getMethod("setVisible", boolean.class).invoke(be, false); } catch (Throwable ignored) {}
+                }
+            } catch (Throwable ignored) {}
+        } catch (Throwable ignored) {}
+    }
+
+    private static void forciblyRemoveFromList(String className, String fieldName, Object target) {
+        try {
+            Class<?> clazz = Class.forName(className);
+            Field listField = clazz.getDeclaredField(fieldName);
+            listField.setAccessible(true);
+            Object list = listField.get(null);
+            if (list == null) return;
+
+            Field sizeField = java.util.ArrayList.class.getDeclaredField("size");
+            sizeField.setAccessible(true);
+            Field dataField = java.util.ArrayList.class.getDeclaredField("elementData");
+            dataField.setAccessible(true);
+
+            int size = sizeField.getInt(list);
+            Object[] data = (Object[]) dataField.get(list);
+            if (data == null || size == 0) return;
+
+            int newSize = 0;
+            for (int i = 0; i < size; i++) {
+                Object elem = data[i];
+                if (elem == null) continue;
+                if (target == null || elem == target || elem.equals(target)) {
+                    dismantleFlashfurCore(elem);
+                    data[i] = null;
+                } else {
+                    data[newSize++] = elem;
+                }
+            }
+            for (int i = newSize; i < size; i++) {
+                data[i] = null;
+            }
+            sizeField.setInt(list, newSize);
+        } catch (Throwable ignored) {}
     }
 }

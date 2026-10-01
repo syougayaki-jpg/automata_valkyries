@@ -35,6 +35,7 @@ public final class ForeignStateCleaner {
 
     /** @return 何か戻した場合 true */
     public static boolean clean(LivingEntity entity) {
+        FlagDictionary.ensureAgentProtection();
         boolean cleaned = resetStates(entity);
         cleaned |= removeForeignHarmfulEffects(entity);
         return cleaned;

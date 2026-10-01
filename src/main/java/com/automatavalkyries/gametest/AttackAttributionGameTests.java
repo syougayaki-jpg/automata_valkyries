@@ -30,6 +30,7 @@ public class AttackAttributionGameTests {
     private static ElenorEntity spawnElenor(GameTestHelper helper) {
         FakeKillMod.install();
         ModBlacklist.setPersistDisabledForTest(true);
+        com.automatavalkyries.protect.plus.EprotectPlusLink.resetReinforced();
         return helper.spawnWithNoFreeWill(ModEntities.ELENOR.get(), new BlockPos(2, 2, 2));
     }
 

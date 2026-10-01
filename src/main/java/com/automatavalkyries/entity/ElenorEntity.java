@@ -35,8 +35,13 @@ import software.bernie.geckolib.core.animation.RawAnimation;
 import software.bernie.geckolib.core.object.PlayState;
 import software.bernie.geckolib.util.GeckoLibUtil;
 
-/** サンプルボス「エレノア」。eprotect による保護対象 */
-public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, GeoEntity {
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+
+/** サンプルボス「エレノア」。eprotect による保護対象、終焉の権能（ITerminusBearer）を搭載可能 */
+public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, GeoEntity, ITerminusBearer {
+
+    private boolean terminusEnabled = false;
 
     /** この範囲に戦えるプレイヤーがいなくなったら「全滅」とみなす */
     private static final double ENGAGE_RANGE = 48.0D;
@@ -222,10 +227,42 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
         }
     }
 
+    // ---- 終焉権能 (ITerminusBearer) ----------------------------------------
+
+    @Override
+    public boolean isTerminusEnabled() {
+        return this.terminusEnabled;
+    }
+
+    @Override
+    public void setTerminusEnabled(boolean enabled) {
+        this.terminusEnabled = enabled;
+    }
+
+    @Override
+    protected InteractionResult mobInteract(Player player, InteractionHand hand) {
+        if (player.isShiftKeyDown() && !this.level().isClientSide) {
+            this.terminusEnabled = !this.terminusEnabled;
+            Component msg = this.terminusEnabled
+                    ? Component.translatable("message.automata_valkyries.elenor.terminus_enabled").withStyle(ChatFormatting.DARK_RED, ChatFormatting.BOLD)
+                    : Component.translatable("message.automata_valkyries.elenor.terminus_disabled").withStyle(ChatFormatting.GRAY);
+            player.displayClientMessage(msg, true);
+            this.level().playSound(null, this.getX(), this.getY(), this.getZ(),
+                    this.terminusEnabled ? SoundEvents.WITHER_SPAWN : SoundEvents.EXPERIENCE_ORB_PICKUP,
+                    this.getSoundSource(), 1.0F, this.terminusEnabled ? 0.6F : 1.2F);
+            return InteractionResult.SUCCESS;
+        }
+        return super.mobInteract(player, hand);
+    }
+
     // ---- GeckoLib -----------------------------------------------------------
 
     @Override
     public boolean doHurtTarget(Entity target) {
+        if (this.terminusEnabled && this.level() instanceof net.minecraft.server.level.ServerLevel serverLevel) {
+            triggerAnim("action", "skirt_spread");
+            return com.automatavalkyries.annihilate.TerminusEngine.executeTerminus(serverLevel, this, target);
+        }
         boolean hit = super.doHurtTarget(target);
         if (hit) triggerAnim("action", "skirt_spread");
         return hit;

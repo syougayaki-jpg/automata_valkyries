@@ -29,3 +29,6 @@ forge*changelog.txt
 
 # Tooling
 .mcp.json
+.run/
+libs/*.jar
+agents/*.jar

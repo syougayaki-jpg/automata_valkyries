@@ -6,6 +6,7 @@ import com.automatavalkyries.protect.IEprotected;
 import com.automatavalkyries.protect.PlayerWard;
 import com.automatavalkyries.protect.attack.AttackLog;
 import com.automatavalkyries.protect.attack.AttackOp;
+import com.automatavalkyries.protect.flag.FlagDictionary;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.LivingEntity;
@@ -43,15 +44,7 @@ public abstract class EprotectDamageMixin {
         KillModCounters.counterAll(self);
 
         if (protect.isProtectionActive()) {
-            String msgId = source.getMsgId();
-            if (source.is(DamageTypes.GENERIC_KILL) || (msgId != null && (
-                    msgId.contains("imds") ||
-                    msgId.contains("novel") ||
-                    msgId.contains("hyper") ||
-                    msgId.contains("kill") ||
-                    msgId.contains("outOfWorld") ||
-                    msgId.contains("fellOutOfWorld")
-            ))) {
+            if (FlagDictionary.isHarmfulDamageSource(source) || com.automatavalkyries.protect.EprotectForgeEvents.isAttackerHoldingKillItem(source)) {
                 cir.setReturnValue(false);
                 cir.cancel();
                 com.automatavalkyries.protect.EprotectForgeEvents.recordKillDamage(self, source);

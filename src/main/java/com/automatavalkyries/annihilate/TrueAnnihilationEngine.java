@@ -7,6 +7,7 @@ import com.automatavalkyries.mixin.EntityLookupAccessor;
 import com.automatavalkyries.mixin.EntityManagerAccessor;
 import com.automatavalkyries.mixin.EntityTickListAccessor;
 import com.automatavalkyries.mixin.ServerLevelTickListAccessor;
+import com.automatavalkyries.mixin.LivingEntityAccessor;
 import com.automatavalkyries.network.AnnihilatedEntitiesPacket;
 import com.automatavalkyries.network.ModNetwork;
 import com.automatavalkyries.protect.IEprotected;
@@ -65,29 +66,12 @@ public final class TrueAnnihilationEngine {
         int targetId = target.getId();
         Vec3 pos = target.position();
 
-        // 1. Eprotect+ Java エージェント（または内蔵特権空間）による JVM レベルの不死剥奪
+        // 1. Eprotect+ Java エージェント（または内蔵特権空間）による JVM レベルの不死剥奪・本体解体
         EprotectPlusLink.annihilateTargetWithAgent(target);
 
-        // 2. AnnihilationExecutionAgent のブラックリスト登録 & スポーン拒否
+        // 2. AnnihilationExecutionAgent のブラックリスト登録 & スポーン拒否 & ボス固有解体
         AnnihilationExecutionAgent.runWithEventSuppression(() -> {
-            // LevelCallback の無効化（削除イベント通知を阻止し、防衛トラップを発動させない）
-            EntityAccessor accessor = (EntityAccessor) target;
-            accessor.automata_valkyries$setLevelCallback(new EntityInLevelCallback() {
-                @Override public void onMove() {}
-                @Override public void onRemove(Entity.RemovalReason reason) {}
-            });
-
-            // 削除理由を強制設定
-            accessor.automata_valkyries$setRemovalReason(Entity.RemovalReason.KILLED);
-            target.setRemoved(Entity.RemovalReason.KILLED);
-
-            // 3. ワールド・チャンク・検索表・Tick リストからの物理的強制排除
-            evictFromLevel(level, target, targetId, targetUuid);
-
-            // 4. 周囲の再出現禁止（復活対策: 他MODボスの再出現をブロック）
-            SpawnBanZone.banNear(level, target, pos);
-
-            // 5. 抹殺リストへの登録（AnnihilationExecutionAgent）
+            // (1) ブラックリスト登録
             try {
                 java.lang.reflect.Field fieldUuids = AnnihilationExecutionAgent.class.getDeclaredField("ANNIHILATED_UUIDS");
                 fieldUuids.setAccessible(true);
@@ -102,14 +86,71 @@ public final class TrueAnnihilationEngine {
                 if (instances != null) instances.add(target);
             } catch (Throwable ignored) {}
 
-            // 6. クライアント側への消滅パケット送信
+            // (2) Witherzilla / Omni-Mobs 等のボス固有無力化（Unsafe 解体 & メモリ直接消去）
+            AnnihilationExecutionAgent.neutralizeWitherzilla(level, target);
+            AnnihilationExecutionAgent.neutralizeFlashfur(level, target);
+
+            // (3) 他 MOD の独自の生命維持（保護の切り替え・フラグ・代理の本体）を解除
+            ModProtectionBreaker.Context context = ModProtectionBreaker.breakProtection(level, target);
+            ModProtectionBreaker.finishWithModOwnDeath(target);
+            target.ejectPassengers();
+            target.stopRiding();
+
+            // (4) バニラ即死・デスフラグ・無敵リセット
+            target.invulnerableTime = 0;
+            if (target instanceof LivingEntity living) {
+                living.setHealth(0.0F);
+                ((LivingEntityAccessor) living).automata_valkyries$setDead(true);
+                living.die(level.damageSources().playerAttack(player));
+            }
+            target.kill();
+
+            // (5) 追跡偽装・区画・一覧からの完全切り離し
+            AnnihilationExecutionAgent.spoofAndDisconnectTracking(level, target);
+
+            // LevelCallback の無効化（削除イベント通知を阻止し、防衛トラップを発動させない）
+            EntityAccessor accessor = (EntityAccessor) target;
+            accessor.automata_valkyries$setLevelCallback(new EntityInLevelCallback() {
+                @Override public void onMove() {}
+                @Override public void onRemove(Entity.RemovalReason reason) {}
+            });
+
+            // 削除理由を強制設定
+            accessor.automata_valkyries$setRemovalReason(Entity.RemovalReason.KILLED);
+            target.setRemoved(Entity.RemovalReason.KILLED);
+
+            // (6) ワールド・チャンク・検索表・Tick リストからの物理的強制排除
+            evictFromLevel(level, target, targetId, targetUuid);
+
+            // (7) 破棄通知・Capability 無効化
+            target.discard();
+            target.invalidateCaps();
+            target.onRemovedFromWorld();
+
+            ModProtectionBreaker.afterErase(target, context);
+
+            // (8) 周囲の再出現禁止（復活対策: 同種MODボスの再出現をブロック）
+            SpawnBanZone.banNear(level, target, pos);
+
+            // (9) クライアント側への消滅パケット送信
             try {
                 ModNetwork.CHANNEL.send(PacketDistributor.ALL.noArg(),
                         new AnnihilatedEntitiesPacket(List.of(targetUuid), List.of(targetId)));
             } catch (Throwable ignored) {}
+
+            // (10) フラッシュファー（Omni-Mobs）のディスク永続保存ファイルの完全抹消
+            try {
+                java.nio.file.Path saveDir = level.getServer().getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT).resolve("metapotent_flashfurs");
+                if (java.nio.file.Files.isDirectory(saveDir)) {
+                    try (var stream = java.nio.file.Files.walk(saveDir)) {
+                        stream.sorted(java.util.Comparator.reverseOrder())
+                                .forEach(p -> { try { java.nio.file.Files.deleteIfExists(p); } catch (Throwable ignored) {} });
+                    }
+                }
+            } catch (Throwable ignored) {}
         });
 
-        // 7. 演出エフェクト
+        // 演出エフェクト
         spawnVisualEffects(level, pos);
 
         AutomataValkyries.LOGGER.info("[TrueAnnihilation] Eradicated {} ({}) with Eprotect+ Java Agent", targetName, targetUuid);
@@ -135,6 +176,17 @@ public final class TrueAnnihilationEngine {
                 count++;
             }
         }
+
+        // 範囲抹殺時の一括クリーンアップ（Metapotent Flashfur 本体のメモリ・ディスク・EventBus）
+        AnnihilationExecutionAgent.wipeFlashfurLevelMemory();
+        AnnihilationExecutionAgent.wipeFlashfurDiskSaves(level);
+        AnnihilationExecutionAgent.wipeOmniMobsInternalLists();
+        AnnihilationExecutionAgent.sanitizeEventBus();
+
+        // 天候の正常化
+        level.getLevelData().setRaining(false);
+        level.setRainLevel(0.0F);
+        level.setThunderLevel(0.0F);
 
         if (count > 0) {
             level.playSound(null, player.getX(), player.getY(), player.getZ(),

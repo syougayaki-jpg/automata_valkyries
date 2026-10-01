@@ -42,6 +42,10 @@ public final class EprotectPlusBridge {
     /** 特権実行（StackChecker などの発信元チェックを迂回するコンテキスト）フラグ */
     private static final ThreadLocal<Boolean> PRIVILEGED_EXECUTION = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
+    /** 強化処理（Reinforced Protection）モード終了時刻（ミリ秒）と理由 */
+    private static final AtomicLong REINFORCED_UNTIL_MS = new AtomicLong(0);
+    private static volatile String REINFORCED_REASON = "";
+
     private EprotectPlusBridge() {}
 
     static synchronized void init(boolean late) {
@@ -123,6 +127,34 @@ public final class EprotectPlusBridge {
         }
     }
 
+    // ---- 強化処理（Reinforced Protection）制御 ---------------------------------
+
+    public static void triggerReinforced(long durationMs, String reason) {
+        long targetUntil = System.currentTimeMillis() + durationMs;
+        REINFORCED_UNTIL_MS.updateAndGet(prev -> Math.max(prev, targetUntil));
+        REINFORCED_REASON = reason != null ? reason : "UNKNOWN";
+        recordProtection("EprotectPlusBridge", reason, "reinforced_mode",
+                "強化処理発動（期間: " + durationMs + "ms, 理由: " + REINFORCED_REASON + "）");
+    }
+
+    public static boolean isReinforced() {
+        return System.currentTimeMillis() < REINFORCED_UNTIL_MS.get();
+    }
+
+    public static String getReinforcedReason() {
+        return isReinforced() ? REINFORCED_REASON : "";
+    }
+
+    public static long getReinforcedRemainingMs() {
+        long diff = REINFORCED_UNTIL_MS.get() - System.currentTimeMillis();
+        return Math.max(0, diff);
+    }
+
+    public static void resetReinforced() {
+        REINFORCED_UNTIL_MS.set(0);
+        REINFORCED_REASON = "";
+    }
+
     // ---- 真抹殺エージェント実行への委譲 -----------------------------------------
 
     public static boolean annihilateTarget(Object entity) {
@@ -161,7 +193,28 @@ public final class EprotectPlusBridge {
         stats.put("bypasses", String.valueOf(BYPASS_COUNT.get()));
         stats.put("protections", String.valueOf(PROTECTION_COUNT.get()));
         stats.put("annihilations", String.valueOf(ANNIHILATION_COUNT.get()));
+        stats.put("reinforced", String.valueOf(isReinforced()));
         stats.put("events", String.valueOf(EVENTS.size()));
+        stats.put("flagDictionaryProtector", "active");
+        stats.putAll(com.automatavalkyries.eprotectplus.flag.FlagDictionaryProtector.getStats());
         return stats;
+    }
+
+    // ---- フラグ辞書（FlagDictionary）保護連携 ----------------------------------
+
+    public static boolean verifyAndRepairFlagDictionary(Class<?> flagDictClass) {
+        return com.automatavalkyries.eprotectplus.flag.FlagDictionaryProtector.verifyAndRepair(flagDictClass);
+    }
+
+    public static Map<String, List<String>> getFlagMasterDictionary() {
+        return com.automatavalkyries.eprotectplus.flag.FlagDictionaryProtector.getMasterDictionary();
+    }
+
+    public static List<String> getFlagMasterEntries(String category) {
+        return com.automatavalkyries.eprotectplus.flag.FlagDictionaryProtector.getMasterEntries(category);
+    }
+
+    public static Map<String, String> getFlagProtectorStats() {
+        return com.automatavalkyries.eprotectplus.flag.FlagDictionaryProtector.getStats();
     }
 }

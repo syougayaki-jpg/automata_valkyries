@@ -1,6 +1,7 @@
 package com.automatavalkyries.mixin.compat;
 
 import com.automatavalkyries.annihilate.AnnihilationExecutionAgent;
+import com.automatavalkyries.annihilate.SpawnBanZone;
 import com.automatavalkyries.protect.EprotectCompat;
 import com.automatavalkyries.protect.IEprotected;
 import net.minecraft.world.entity.Entity;
@@ -8,6 +9,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Pseudo;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Coerce;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -43,6 +45,24 @@ public final class OmniMobsMixins {
     @Pseudo
     @Mixin(targets = "flashfur.omnimobs.entities.metapotent_flashfur.MetapotentFlashfur", remap = false)
     public abstract static class Flashfur {
+        @Shadow private boolean removed;
+
+        /** 抹消済み（removed=true）の本体の Tick 処理および再召喚を完全遮断 */
+        @Inject(method = "tick()V", at = @At("HEAD"), cancellable = true, require = 0)
+        private void automata_valkyries$guardTick(CallbackInfo ci) {
+            if (this.removed) {
+                ci.cancel();
+            }
+        }
+
+        /** 抹消済みの本体のカスタム Tick（全消去・攻撃ルーチン）を完全遮断 */
+        @Inject(method = "customTick()V", at = @At("HEAD"), cancellable = true, require = 0)
+        private void automata_valkyries$guardCustomTick(CallbackInfo ci) {
+            if (this.removed) {
+                ci.cancel();
+            }
+        }
+
         /** Omni-Mobs 自身の「免除」判定（自 MOD のボスだけが対象）に兵姫も含める */
         @Inject(method = "isImmune(Lnet/minecraft/world/entity/Entity;)Z", at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$immune(Entity entity, CallbackInfoReturnable<Boolean> cir) {
@@ -116,6 +136,46 @@ public final class OmniMobsMixins {
                 at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardSetHealth(LivingEntity entity, float health, CallbackInfo ci) {
             if (EprotectCompat.shieldAttack(entity, "omnimobs:setHealth")) ci.cancel();
+        }
+
+        /** 抹消済み個体または抹消禁止ゾーン内での forceAddEntity による復活・再召喚を完全遮断 */
+        @Inject(method = "forceAddEntity(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/level/Level;)V", at = @At("HEAD"), cancellable = true, require = 0)
+        private static void automata_valkyries$guardForceAddEntity(Entity entity, net.minecraft.world.level.Level level, CallbackInfo ci) {
+            if (entity == null) return;
+            if (AnnihilationExecutionAgent.isAnnihilated(entity) || SpawnBanZone.shouldRefuse(entity)) {
+                ci.cancel();
+                entity.discard();
+                return;
+            }
+            if (entity.getClass().getName().contains("MetapotentFlashfurEntity")) {
+                try {
+                    java.lang.reflect.Field f = entity.getClass().getDeclaredField("metapotentFlashfur");
+                    f.setAccessible(true);
+                    Object core = f.get(entity);
+                    if (core != null) {
+                        java.lang.reflect.Field rf = core.getClass().getDeclaredField("removed");
+                        rf.setAccessible(true);
+                        if (rf.getBoolean(core)) {
+                            ci.cancel();
+                            entity.discard();
+                        }
+                    }
+                } catch (Throwable ignored) {}
+            }
+        }
+    }
+
+    /** Metapotent Flashfur Proxy エンティティ（ワールド上に現れる影）の完全制圧 */
+    @Pseudo
+    @Mixin(targets = "flashfur.omnimobs.entities.metapotent_flashfur.MetapotentFlashfurEntity", remap = false)
+    public abstract static class FlashfurProxy {
+        @Inject(method = "tick()V", at = @At("HEAD"), cancellable = true, require = 0)
+        private void automata_valkyries$guardProxyTick(CallbackInfo ci) {
+            Entity self = (Entity) (Object) this;
+            if (AnnihilationExecutionAgent.isAnnihilated(self) || SpawnBanZone.shouldRefuse(self)) {
+                ci.cancel();
+                self.discard();
+            }
         }
     }
 }
