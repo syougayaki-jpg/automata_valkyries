@@ -17,6 +17,7 @@
     "EprotectSynchedDataMixin",
     "EprotectSectionCallbackMixin",
     "PlayerWardMixin",
+    "OffThreadPositionMixin",
     "compat.ImdsKillProcedureMixin",
     "compat.ImdsKillManagerMixin",
     "compat.ImdsUtilMixins$UtilProcedure",

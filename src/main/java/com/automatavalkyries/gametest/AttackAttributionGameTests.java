@@ -394,6 +394,25 @@ public class AttackAttributionGameTests {
         finish(helper, elenor);
     }
 
+    /**
+     * 作った時点で「ワールドに追加済み」になる個体（Witherzilla の処刑竜）を別スレッドで読み込んでも、移動先のチャンクの読み込み
+     * （サーバースレッド待ち）をしない。サーバースレッドが読み込みの完了を待っていると互いに待ち合って固まる（終了時の保存で実際に固まった）
+     */
+    @GameTest(template = TEMPLATE, timeoutTicks = 200)
+    public static void offThreadEntityLoadDoesNotWaitForChunks(GameTestHelper helper) throws InterruptedException {
+        net.minecraft.world.entity.monster.Zombie zombie = new net.minecraft.world.entity.monster.Zombie(
+                net.minecraft.world.entity.EntityType.ZOMBIE, helper.getLevel());
+        ((com.automatavalkyries.mixin.EntityAccessor) zombie).automata_valkyries$setAddedToWorld(true);
+        Thread loader = new Thread(() -> zombie.setPos(1_000_000.5D, 64.0D, 1_000_000.5D), "test-entity-deserializer");
+        loader.setDaemon(true);
+        loader.start();
+        loader.join(3000); // サーバースレッドはここで待っているので、チャンクの読み込みを待つと 3 秒で終わらない
+        helper.assertFalse(loader.isAlive(), "Off-thread setPos waited for a chunk load on the server thread");
+        helper.assertTrue(zombie.isAddedToWorld(), "isAddedToWorld was not restored");
+        helper.assertTrue(zombie.getX() == 1_000_000.5D, "The position was not set: " + zombie.getX());
+        helper.succeed();
+    }
+
     /** Mixin を経ない直書きの修復は、呼び出し元不明（unknown）として記録される */
     @GameTest(template = TEMPLATE)
     public static void directWriteRepairIsRecordedAsUnknown(GameTestHelper helper) {
