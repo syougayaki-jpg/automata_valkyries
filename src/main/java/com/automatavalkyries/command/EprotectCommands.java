@@ -26,7 +26,7 @@ import java.util.Set;
  * 攻撃の記録とブラックリストの管理（権限 2）。
  * <ul>
  *   <li>/eprotect attacks [clear]</li>
- *   <li>/eprotect blacklist list | add &lt;modid&gt; | remove &lt;modid&gt;</li>
+ *   <li>/eprotect blacklist list | clear | add &lt;modid&gt; | remove &lt;modid&gt;</li>
  * </ul>
  */
 @Mod.EventBusSubscriber(modid = AutomataValkyries.MODID)
@@ -50,6 +50,7 @@ public final class EprotectCommands {
                         .then(Commands.literal("clear").executes(EprotectCommands::clearAttacks)))
                 .then(Commands.literal("blacklist")
                         .then(Commands.literal("list").executes(EprotectCommands::listBlacklist))
+                        .then(Commands.literal("clear").executes(EprotectCommands::clearBlacklist))
                         .then(Commands.literal("add")
                                 .then(Commands.argument("modid", StringArgumentType.word())
                                         .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(addCandidates(), builder))
@@ -141,6 +142,12 @@ public final class EprotectCommands {
         }
         source.sendFailure(Component.translatable(KEY + "blacklist.not_listed", mod));
         return 0;
+    }
+
+    private static int clearBlacklist(CommandContext<CommandSourceStack> ctx) {
+        int count = ModBlacklist.clear(true);
+        ctx.getSource().sendSuccess(() -> Component.translatable(KEY + "blacklist.cleared", count), true);
+        return count;
     }
 
     /** 追加の候補: 攻撃の記録に出てきた MOD を先に、次に読み込まれている MOD（保護された ID と登録済みは除く） */

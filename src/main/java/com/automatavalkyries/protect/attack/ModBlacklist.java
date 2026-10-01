@@ -98,6 +98,17 @@ public final class ModBlacklist {
         return Result.REMOVED;
     }
 
+    /** すべて外す（自動登録の回数も数え直す）。@return 外した数 */
+    public static synchronized int clear(boolean persist) {
+        int count = active.size();
+        active = Set.of();
+        SOURCES.clear();
+        AUTO_COUNTS.clear();
+        if (persist) save();
+        if (count > 0) AttackLogFile.write("blacklist clear (" + count + ")");
+        return count;
+    }
+
     /** 即死攻撃を拒否したとき、直接の呼び出し元の MOD を数える（1 Tick に 1 回まで）。しきい値を超えたら自動で載せる */
     public static void noteAttack(Entity target, String mod) {
         noteAttackAt(target.level().getServer(), mod, target.level().getGameTime());

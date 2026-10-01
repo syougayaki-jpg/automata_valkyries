@@ -165,6 +165,28 @@ public class AttackAttributionGameTests {
         helper.succeed();
     }
 
+    /** 一括で外す: すべて外れ、自動登録の回数も数え直す */
+    @GameTest(template = TEMPLATE)
+    public static void blacklistClearRemovesEverything(GameTestHelper helper) {
+        ModBlacklist.setPersistDisabledForTest(true);
+        java.util.Set<String> saved = ModBlacklist.list();
+        try {
+            ModBlacklist.add(FakeKillMod.MOD_ID, ModBlacklist.Source.MANUAL, false);
+            String mod = "test_fake_clear";
+            long base = helper.getLevel().getGameTime() + 2_000_000L;
+            for (int i = 0; i < 19; i++) ModBlacklist.noteAttackAt(null, mod, base + i);
+            int cleared = ModBlacklist.clear(false);
+            helper.assertTrue(cleared == saved.size() + 1, "Cleared " + cleared + " instead of " + (saved.size() + 1));
+            helper.assertFalse(ModBlacklist.isActive(), "The blacklist is not empty: " + ModBlacklist.list());
+            ModBlacklist.noteAttackAt(null, mod, base + 19);
+            helper.assertFalse(ModBlacklist.contains(mod), "Auto counters were not reset");
+        } finally {
+            ModBlacklist.clear(false);
+            for (String mod : saved) ModBlacklist.add(mod, ModBlacklist.Source.MANUAL, false);
+        }
+        helper.succeed();
+    }
+
     /** ブラックリストがあっても、通常の移動（短い距離）ではスタックを辿らない */
     @GameTest(template = TEMPLATE)
     public static void ordinaryMovementDoesNotWalkTheStack(GameTestHelper helper) {

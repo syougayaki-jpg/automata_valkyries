@@ -68,6 +68,7 @@
   "commands.automata_valkyries.blacklist.already": "%s は既にブラックリストに載っています",
   "commands.automata_valkyries.blacklist.removed": "%s をブラックリストから外しました",
   "commands.automata_valkyries.blacklist.not_listed": "%s はブラックリストに載っていません",
+  "commands.automata_valkyries.blacklist.cleared": "ブラックリストを空にしました（%s 件）",
   "commands.automata_valkyries.blacklist.protected": "%s はブラックリストに載せられません",
   "commands.automata_valkyries.blacklist.invalid": "%s は MOD ID として正しくありません",
   "commands.automata_valkyries.blacklist.not_loaded": "注意: %s は導入されていません（登録はしました）",

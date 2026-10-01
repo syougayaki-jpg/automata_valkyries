@@ -68,6 +68,7 @@
   "commands.automata_valkyries.blacklist.already": "%s is already blacklisted",
   "commands.automata_valkyries.blacklist.removed": "Removed %s from the blacklist",
   "commands.automata_valkyries.blacklist.not_listed": "%s is not blacklisted",
+  "commands.automata_valkyries.blacklist.cleared": "Cleared the blacklist (%s mods)",
   "commands.automata_valkyries.blacklist.protected": "%s cannot be blacklisted",
   "commands.automata_valkyries.blacklist.invalid": "%s is not a valid mod id",
   "commands.automata_valkyries.blacklist.not_loaded": "Warning: %s is not loaded (added anyway)",
