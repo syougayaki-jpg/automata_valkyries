@@ -92,6 +92,12 @@ public final class AnnihilationExecutionAgent {
         return ANNIHILATED_INSTANCES.contains(entity) || ANNIHILATED_UUIDS.contains(entity.getUUID());
     }
 
+    /** UUID が抹消対象として登録されているか */
+    public static boolean isAnnihilated(UUID uuid) {
+        if (uuid == null) return false;
+        return ANNIHILATED_UUIDS.contains(uuid);
+    }
+
     public static boolean isThreadAnnihilating() {
         return Boolean.TRUE.equals(THREAD_ANNIHILATING.get());
     }
@@ -354,6 +360,21 @@ public final class AnnihilationExecutionAgent {
         }
     }
 
+    private static final ThreadLocal<Boolean> CLEANING_FLASHFUR = ThreadLocal.withInitial(() -> Boolean.FALSE);
+
+    public static boolean isCleaningFlashfur() {
+        return Boolean.TRUE.equals(CLEANING_FLASHFUR.get());
+    }
+
+    public static void runWithFlashfurPrivilege(Runnable action) {
+        CLEANING_FLASHFUR.set(Boolean.TRUE);
+        try {
+            action.run();
+        } finally {
+            CLEANING_FLASHFUR.set(Boolean.FALSE);
+        }
+    }
+
     /**
      * Metapotent Flashfur（Omni-Mobs）の無力化。
      * プロキシエンティティの向こうにある MetapotentFlashfurLevel を Unsafe で直接クリアし、ディスク保存も消去する。
@@ -370,6 +391,15 @@ public final class AnnihilationExecutionAgent {
                 if (mfField != null) {
                     Object flashfurInstance = mfField.get(entity);
                     if (flashfurInstance != null) {
+                        try {
+                            Field idField = flashfurInstance.getClass().getDeclaredField("id");
+                            idField.setAccessible(true);
+                            UUID flashfurUuid = (UUID) idField.get(flashfurInstance);
+                            if (flashfurUuid != null) {
+                                markAnnihilated(flashfurUuid);
+                            }
+                        } catch (Throwable ignored) {}
+
                         try {
                             Field rf = flashfurInstance.getClass().getDeclaredField("removed");
                             rf.setAccessible(true);
@@ -421,65 +451,138 @@ public final class AnnihilationExecutionAgent {
     }
 
     /**
+     * MetapotentFlashfurLevel.metapotentFlashfurList 内の死亡・抹消済み個体を安全に除去・縮約する。
+     * クライアント・サーバー双方の描画ループ前やパケット受信時に呼ばれ、残骸レンダラーの居残りを防ぐ。
+     */
+    public static void purgeDeadFlashfurs() {
+        if (!com.automatavalkyries.protect.SpecificCountermeasures.enabled()) return;
+        runWithFlashfurPrivilege(() -> {
+            try {
+                Class<?> levelClass = Class.forName("flashfur.omnimobs.entities.metapotent_flashfur.MetapotentFlashfurLevel");
+                Field listField = levelClass.getDeclaredField("metapotentFlashfurList");
+                listField.setAccessible(true);
+                Object protectedList = listField.get(null);
+                if (protectedList instanceof ArrayList<?> list) {
+                    Field sizeField = ArrayList.class.getDeclaredField("size");
+                    long sizeOffset = UnsafeHelper.objectFieldOffset(sizeField);
+                    Field dataField = ArrayList.class.getDeclaredField("elementData");
+                    long dataOffset = UnsafeHelper.objectFieldOffset(dataField);
+
+                    if (sizeOffset >= 0 && dataOffset >= 0) {
+                        Object[] elementData = (Object[]) UnsafeHelper.getObject(list, dataOffset);
+                        int size = UnsafeHelper.getInt(list, sizeOffset);
+                        if (elementData != null && size > 0) {
+                            int newSize = 0;
+                            for (int i = 0; i < size; i++) {
+                                Object mf = elementData[i];
+                                boolean shouldRemove = false;
+                                if (mf == null) {
+                                    shouldRemove = true;
+                                } else {
+                                    try {
+                                        Field rf = mf.getClass().getDeclaredField("removed");
+                                        rf.setAccessible(true);
+                                        if (rf.getBoolean(mf)) shouldRemove = true;
+                                        Field idf = mf.getClass().getDeclaredField("id");
+                                        idf.setAccessible(true);
+                                        UUID id = (UUID) idf.get(mf);
+                                        if (id != null && isAnnihilated(id)) shouldRemove = true;
+                                    } catch (Throwable ignored) {}
+                                }
+                                if (shouldRemove) {
+                                    if (mf != null) {
+                                        try {
+                                            Field pf = mf.getClass().getDeclaredField("metapotentFlashfurProxy");
+                                            pf.setAccessible(true);
+                                            pf.set(mf, null);
+                                        } catch (Throwable ignored) {}
+                                    }
+                                    elementData[i] = null;
+                                } else {
+                                    elementData[newSize++] = mf;
+                                }
+                            }
+                            for (int i = newSize; i < size; i++) {
+                                elementData[i] = null;
+                            }
+                            UnsafeHelper.putInt(list, sizeOffset, newSize);
+                        }
+                    }
+                }
+            } catch (Throwable ignored) {}
+        });
+    }
+
+    /**
      * MetapotentFlashfurLevel.metapotentFlashfurList を Unsafe を使って StackChecker なしで直接空にする。
      */
     public static void wipeFlashfurLevelMemory() {
         if (!com.automatavalkyries.protect.SpecificCountermeasures.enabled()) return;
-        try {
-            Class<?> levelClass = Class.forName("flashfur.omnimobs.entities.metapotent_flashfur.MetapotentFlashfurLevel");
-            Field listField = levelClass.getDeclaredField("metapotentFlashfurList");
-            listField.setAccessible(true);
-            Object protectedList = listField.get(null);
-            // ArrayList のオフセットで書くので、ArrayList 以外（将来の Omni-Mobs の変更）には絶対に書かない（メモリ破壊になる）
-            if (protectedList instanceof ArrayList<?>) {
-                // ArrayList の elementData 配列と size フィールドを Unsafe で直接クリア
-                Field sizeField = ArrayList.class.getDeclaredField("size");
-                long sizeOffset = UnsafeHelper.objectFieldOffset(sizeField);
-                Field dataField = ArrayList.class.getDeclaredField("elementData");
-                long dataOffset = UnsafeHelper.objectFieldOffset(dataField);
+        runWithFlashfurPrivilege(() -> {
+            try {
+                Class<?> levelClass = Class.forName("flashfur.omnimobs.entities.metapotent_flashfur.MetapotentFlashfurLevel");
+                Field listField = levelClass.getDeclaredField("metapotentFlashfurList");
+                listField.setAccessible(true);
+                Object protectedList = listField.get(null);
+                // ArrayList のオフセットで書くので、ArrayList 以外（将来の Omni-Mobs の変更）には絶対に書かない（メモリ破壊になる）
+                if (protectedList instanceof ArrayList<?> list) {
+                    // ArrayList の elementData 配列と size フィールドを Unsafe で直接クリア
+                    Field sizeField = ArrayList.class.getDeclaredField("size");
+                    long sizeOffset = UnsafeHelper.objectFieldOffset(sizeField);
+                    Field dataField = ArrayList.class.getDeclaredField("elementData");
+                    long dataOffset = UnsafeHelper.objectFieldOffset(dataField);
 
-                if (sizeOffset >= 0 && dataOffset >= 0) {
-                    Object[] elementData = (Object[]) UnsafeHelper.getObject(protectedList, dataOffset);
-                    int size = UnsafeHelper.getInt(protectedList, sizeOffset);
-                    if (elementData != null) {
-                        for (int i = 0; i < size; i++) {
-                            Object mf = elementData[i];
-                            if (mf != null) {
-                                try {
-                                    Field rf = mf.getClass().getDeclaredField("removed");
-                                    rf.setAccessible(true);
-                                    rf.setBoolean(mf, true);
-                                } catch (Throwable ignored) {}
-                                try {
-                                    Field pf = mf.getClass().getDeclaredField("metapotentFlashfurProxy");
-                                    pf.setAccessible(true);
-                                    pf.set(mf, null);
-                                } catch (Throwable ignored) {}
-                                for (String timerName : new String[]{"beamTimer", "eraseTimer", "swipeTimer", "totalityBoomTimer", "throwInAirTimer"}) {
+                    if (sizeOffset >= 0 && dataOffset >= 0) {
+                        Object[] elementData = (Object[]) UnsafeHelper.getObject(list, dataOffset);
+                        int size = UnsafeHelper.getInt(list, sizeOffset);
+                        if (elementData != null) {
+                            for (int i = 0; i < size; i++) {
+                                Object mf = elementData[i];
+                                if (mf != null) {
                                     try {
-                                        Field f = mf.getClass().getDeclaredField(timerName);
-                                        f.setAccessible(true);
-                                        f.setInt(mf, -9999);
+                                        Field idField = mf.getClass().getDeclaredField("id");
+                                        idField.setAccessible(true);
+                                        UUID flashfurUuid = (UUID) idField.get(mf);
+                                        if (flashfurUuid != null) {
+                                            markAnnihilated(flashfurUuid);
+                                        }
+                                    } catch (Throwable ignored) {}
+                                    try {
+                                        Field rf = mf.getClass().getDeclaredField("removed");
+                                        rf.setAccessible(true);
+                                        rf.setBoolean(mf, true);
+                                    } catch (Throwable ignored) {}
+                                    try {
+                                        Field pf = mf.getClass().getDeclaredField("metapotentFlashfurProxy");
+                                        pf.setAccessible(true);
+                                        pf.set(mf, null);
+                                    } catch (Throwable ignored) {}
+                                    for (String timerName : new String[]{"beamTimer", "eraseTimer", "swipeTimer", "totalityBoomTimer", "throwInAirTimer"}) {
+                                        try {
+                                            Field f = mf.getClass().getDeclaredField(timerName);
+                                            f.setAccessible(true);
+                                            f.setInt(mf, -9999);
+                                        } catch (Throwable ignored) {}
+                                    }
+                                    try {
+                                        Field beField = UnsafeHelper.findField(mf.getClass(), "bossEvent");
+                                        if (beField != null) {
+                                            ServerBossEvent be = (ServerBossEvent) beField.get(mf);
+                                            if (be != null) {
+                                                be.removeAllPlayers();
+                                                be.setVisible(false);
+                                            }
+                                        }
                                     } catch (Throwable ignored) {}
                                 }
-                                try {
-                                    Field beField = UnsafeHelper.findField(mf.getClass(), "bossEvent");
-                                    if (beField != null) {
-                                        ServerBossEvent be = (ServerBossEvent) beField.get(mf);
-                                        if (be != null) {
-                                            be.removeAllPlayers();
-                                            be.setVisible(false);
-                                        }
-                                    }
-                                } catch (Throwable ignored) {}
+                                elementData[i] = null;
                             }
-                            elementData[i] = null;
                         }
+                        UnsafeHelper.putInt(list, sizeOffset, 0);
                     }
-                    UnsafeHelper.putInt(protectedList, sizeOffset, 0);
                 }
-            }
-        } catch (Throwable ignored) {}
+            } catch (Throwable ignored) {}
+        });
     }
 
     /**

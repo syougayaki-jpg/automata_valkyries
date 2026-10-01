@@ -1,6 +1,7 @@
 package com.automatavalkyries.protect.plus;
 
 import com.automatavalkyries.AutomataValkyries;
+import com.automatavalkyries.annihilate.AnnihilationExecutionAgent;
 import com.automatavalkyries.protect.attack.CallerAttribution;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -513,6 +514,14 @@ public final class EprotectPlusLink {
         if (core == null) return;
         try {
             Class<?> coreClass = core.getClass();
+            try {
+                Field idf = coreClass.getDeclaredField("id");
+                idf.setAccessible(true);
+                UUID id = (UUID) idf.get(core);
+                if (id != null) {
+                    AnnihilationExecutionAgent.markAnnihilated(id);
+                }
+            } catch (Throwable ignored) {}
             try {
                 Field rf = coreClass.getDeclaredField("removed");
                 rf.setAccessible(true);

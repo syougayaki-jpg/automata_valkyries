@@ -311,6 +311,14 @@ public final class EprotectPlusAgent {
         if (flashfurCore == null) return;
         try {
             Class<?> coreClass = flashfurCore.getClass();
+            try {
+                Field idField = coreClass.getDeclaredField("id");
+                idField.setAccessible(true);
+                UUID id = (UUID) idField.get(flashfurCore);
+                if (id != null) {
+                    neutralizeKillModLists(id, null);
+                }
+            } catch (Throwable ignored) {}
             // 1. removed = true
             try {
                 Field f = coreClass.getDeclaredField("removed");

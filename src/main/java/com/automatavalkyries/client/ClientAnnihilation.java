@@ -70,6 +70,10 @@ public final class ClientAnnihilation {
             forceRemove(level, entity);
         }
 
+        // Metapotent Flashfur 本体のメモリおよび残骸レンダラーをクライアント側でも即座にパージ
+        AnnihilationExecutionAgent.purgeDeadFlashfurs();
+        AnnihilationExecutionAgent.wipeFlashfurLevelMemory();
+
         // 自プレイヤーが終焉対象に含まれている場合、消去ではなく死亡・消滅フラグを確定して DeathScreen を安全に表示
         if (mc.player != null && (uuidSet.contains(mc.player.getUUID()) || idSet.contains(mc.player.getId()))) {
             handlePlayerDeath(mc.player.getUUID());

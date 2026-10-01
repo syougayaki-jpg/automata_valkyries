@@ -16,6 +16,9 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+import java.lang.reflect.Field;
+import java.util.UUID;
+
 /**
  * Omni-Mobs への対策。
  * <ul>
@@ -38,6 +41,11 @@ public final class OmniMobsMixins {
             if (com.automatavalkyries.protect.SpecificCountermeasures.annihilatedForCompat(entity)) {
                 cir.setReturnValue(false);
             }
+        }
+
+        @Inject(method = "renderAfterEntities(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/Camera;)V", at = @At("HEAD"), require = 0)
+        private static void automata_valkyries$cleanBeforeHooksRender(com.mojang.blaze3d.vertex.PoseStack poseStack, net.minecraft.client.Camera camera, CallbackInfo ci) {
+            AnnihilationExecutionAgent.purgeDeadFlashfurs();
         }
     }
 
@@ -175,6 +183,82 @@ public final class OmniMobsMixins {
             if (AnnihilationExecutionAgent.isAnnihilated(self) || SpawnBanZone.shouldRefuse(self)) {
                 ci.cancel();
                 self.discard();
+            }
+        }
+
+        @Inject(method = "isAlive()Z", at = @At("HEAD"), cancellable = true, require = 0)
+        private void automata_valkyries$guardProxyIsAlive(CallbackInfoReturnable<Boolean> cir) {
+            Entity self = (Entity) (Object) this;
+            if (AnnihilationExecutionAgent.isAnnihilated(self) || self.isRemoved()) {
+                cir.setReturnValue(false);
+            }
+        }
+    }
+
+    /** Metapotent Flashfur Level 管理（描画ループ前の残骸パージ） */
+    @Pseudo
+    @Mixin(targets = "flashfur.omnimobs.entities.metapotent_flashfur.MetapotentFlashfurLevel", remap = false)
+    public abstract static class Level {
+        @Inject(method = "renderMetapotentFlashfurs(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/Camera;)V", at = @At("HEAD"), require = 0)
+        private static void automata_valkyries$cleanBeforeRender(com.mojang.blaze3d.vertex.PoseStack poseStack, net.minecraft.client.Camera camera, CallbackInfo ci) {
+            AnnihilationExecutionAgent.purgeDeadFlashfurs();
+        }
+    }
+
+    /** Metapotent Flashfur レンダラー居残り完全阻止 */
+    @Pseudo
+    @Mixin(targets = "flashfur.omnimobs.entities.metapotent_flashfur.MetapotentFlashfurRenderer", remap = false)
+    public abstract static class Renderer {
+        @Inject(method = "render(Lflashfur/omnimobs/entities/metapotent_flashfur/MetapotentFlashfurEntity;FFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V",
+                at = @At("HEAD"), cancellable = true, require = 0)
+        private void automata_valkyries$guardRender(
+                @Coerce Object entityObj, float entityYaw, float partialTick,
+                com.mojang.blaze3d.vertex.PoseStack poseStack,
+                net.minecraft.client.renderer.MultiBufferSource bufferSource,
+                int packedLight, CallbackInfo ci) {
+            if (entityObj == null) {
+                ci.cancel();
+                return;
+            }
+            if (entityObj instanceof Entity entity) {
+                if (entity.isRemoved() || AnnihilationExecutionAgent.isAnnihilated(entity.getUUID())) {
+                    ci.cancel();
+                    return;
+                }
+            }
+            try {
+                Field f = entityObj.getClass().getDeclaredField("metapotentFlashfur");
+                f.setAccessible(true);
+                Object mf = f.get(entityObj);
+                if (mf == null) {
+                    ci.cancel();
+                    return;
+                }
+                Field rf = mf.getClass().getDeclaredField("removed");
+                rf.setAccessible(true);
+                if (rf.getBoolean(mf)) {
+                    ci.cancel();
+                    return;
+                }
+                Field idf = mf.getClass().getDeclaredField("id");
+                idf.setAccessible(true);
+                UUID id = (UUID) idf.get(mf);
+                if (id != null && AnnihilationExecutionAgent.isAnnihilated(id)) {
+                    ci.cancel();
+                    return;
+                }
+            } catch (Throwable ignored) {}
+        }
+    }
+
+    /** Omni-Mobs Anticheat AccessChecker の特権許可 */
+    @Pseudo
+    @Mixin(targets = "flashfur.omnimobs.entities.anticheat.AccessChecker", remap = false)
+    public abstract static class Access {
+        @Inject(method = "checkAccess()Z", at = @At("HEAD"), cancellable = true, require = 0)
+        private static void automata_valkyries$allowAccess(CallbackInfoReturnable<Boolean> cir) {
+            if (AnnihilationExecutionAgent.isCleaningFlashfur()) {
+                cir.setReturnValue(true);
             }
         }
     }

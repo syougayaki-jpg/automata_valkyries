@@ -122,6 +122,17 @@ public final class GenericCheatMobNeutralizer {
         if (core == null) return;
         Class<?> clazz = core.getClass();
 
+        try {
+            Field idField = UnsafeHelper.findField(clazz, "id");
+            if (idField != null && idField.getType() == UUID.class) {
+                idField.setAccessible(true);
+                UUID id = (UUID) idField.get(core);
+                if (id != null) {
+                    AnnihilationExecutionAgent.markAnnihilated(id);
+                }
+            }
+        } catch (Throwable ignored) {}
+
         for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
             for (Field f : c.getDeclaredFields()) {
                 if (Modifier.isStatic(f.getModifiers())) continue;
@@ -306,6 +317,10 @@ public final class GenericCheatMobNeutralizer {
         for (Object ctrl : controllers) {
             addClassHierarchy(ctrl.getClass(), targetClasses);
         }
+        try {
+            Class<?> mfl = Class.forName("flashfur.omnimobs.entities.metapotent_flashfur.MetapotentFlashfurLevel");
+            targetClasses.add(mfl);
+        } catch (Throwable ignored) {}
 
         Set<Object> victims = Collections.newSetFromMap(new IdentityHashMap<>());
         victims.add(target);

@@ -501,6 +501,46 @@ public class KillModGameTests {
         return elenor;
     }
 
+    /** Hyperlink: NovelHandler が null エンティティで呼ばれても NPE で落ちずに安全に false を返すこと */
+    @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    public static void hyperlinkNovelHandlerNullSafety(GameTestHelper helper) {
+        if (!loaded(helper, "hyperdaimc")) return;
+        try {
+            Class<?> nhClass = Class.forName("com.sakurafuld.hyperdaimc.content.hyper.novel.NovelHandler");
+            Method novelizedMethod = nhClass.getDeclaredMethod("novelized", net.minecraft.world.entity.Entity.class);
+            novelizedMethod.setAccessible(true);
+            Object res = novelizedMethod.invoke(null, (Object) null);
+            helper.assertTrue(Boolean.FALSE.equals(res), "NovelHandler.novelized(null) should return false");
+
+            Method specialMethod = nhClass.getDeclaredMethod("special", net.minecraft.world.entity.Entity.class);
+            specialMethod.setAccessible(true);
+            Object specialRes = specialMethod.invoke(null, (Object) null);
+            helper.assertTrue(Boolean.FALSE.equals(specialRes), "NovelHandler.special(null) should return false");
+
+            Method novelizeMethod = nhClass.getDeclaredMethod("novelize", net.minecraft.world.entity.LivingEntity.class, net.minecraft.world.entity.Entity.class, boolean.class);
+            novelizeMethod.setAccessible(true);
+            novelizeMethod.invoke(null, null, null, false);
+        } catch (Throwable t) {
+            helper.fail("NovelHandler threw exception on null: " + t.getMessage());
+            return;
+        }
+        helper.succeed();
+    }
+
+    /** Omni-Mobs: 解体後の Flashfur メモリパージおよび UUID 抹消照合が正常に動作すること */
+    @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    public static void omniMobsFlashfurPurgeTest(GameTestHelper helper) {
+        UUID testUuid = UUID.randomUUID();
+        AnnihilationExecutionAgent.markAnnihilated(testUuid);
+        helper.assertTrue(AnnihilationExecutionAgent.isAnnihilated(testUuid), "UUID should be marked as annihilated");
+
+        // purgeDeadFlashfurs() および wipeFlashfurLevelMemory() が安全に例外なく完了すること
+        AnnihilationExecutionAgent.purgeDeadFlashfurs();
+        AnnihilationExecutionAgent.wipeFlashfurLevelMemory();
+
+        helper.succeed();
+    }
+
     /** 対象 MOD が無ければ成功扱いで終える */
     private static boolean loaded(GameTestHelper helper, String modId) {
         if (ModList.get().isLoaded(modId)) return true;

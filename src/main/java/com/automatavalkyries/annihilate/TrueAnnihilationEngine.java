@@ -32,6 +32,9 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.network.PacketDistributor;
 
+import com.automatavalkyries.util.UnsafeHelper;
+
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -134,8 +137,25 @@ public final class TrueAnnihilationEngine {
 
             // (9) クライアント側への消滅パケット送信
             try {
+                List<UUID> packetUuids = new ArrayList<>();
+                packetUuids.add(targetUuid);
+                try {
+                    Field mfField = UnsafeHelper.findField(target.getClass(), "metapotentFlashfur");
+                    if (mfField != null) {
+                        Object flashfurInstance = mfField.get(target);
+                        if (flashfurInstance != null) {
+                            Field idField = flashfurInstance.getClass().getDeclaredField("id");
+                            idField.setAccessible(true);
+                            UUID flashfurUuid = (UUID) idField.get(flashfurInstance);
+                            if (flashfurUuid != null) {
+                                packetUuids.add(flashfurUuid);
+                            }
+                        }
+                    }
+                } catch (Throwable ignored) {}
+
                 ModNetwork.CHANNEL.send(PacketDistributor.ALL.noArg(),
-                        new AnnihilatedEntitiesPacket(List.of(targetUuid), List.of(targetId)));
+                        new AnnihilatedEntitiesPacket(packetUuids, List.of(targetId)));
             } catch (Throwable ignored) {}
 
             // (10) フラッシュファー（Omni-Mobs）のディスク永続保存ファイルの完全抹消
