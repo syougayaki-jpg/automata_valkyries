@@ -51,18 +51,6 @@ public class FarthestElenorEntity extends ElenorEntity {
         return true;
     }
 
-    /** 最果てのエレノアはチート武器等の過剰攻撃による異常修復過多でも絶対に退避・消滅しない */
-    @Override
-    public boolean canRetreatOnExcessiveAnomalies() {
-        return false;
-    }
-
-    /** 最果てのエレノアはプレイヤーが倒されても勝手に撤収（ディスポーン）しない */
-    @Override
-    protected void tickRetreat() {
-        // 退避・ディスポーンを行わない
-    }
-
     /** スニーク右クリックでも終焉は止められない */
     @Override
     protected InteractionResult mobInteract(Player player, InteractionHand hand) {
