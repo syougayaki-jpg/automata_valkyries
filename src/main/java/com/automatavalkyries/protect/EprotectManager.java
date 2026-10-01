@@ -165,12 +165,14 @@ public class EprotectManager {
     @SubscribeEvent
     public void onServerStarted(ServerStartedEvent event) {
         EprotectWatchdogAgent.getInstance().start(event.getServer());
+        com.automatavalkyries.protect.flag.FlagWatchAgent.getInstance().start(event.getServer());
         if (EprotectConfig.get(EprotectConfig.ATTACK_LOG_WRITE_FILE)) AttackLogFile.open();
     }
 
     @SubscribeEvent
     public void onServerStopping(ServerStoppingEvent event) {
         EprotectWatchdogAgent.getInstance().stop();
+        com.automatavalkyries.protect.flag.FlagWatchAgent.getInstance().stop();
         ShutdownDiagnostics.onStopping();
     }
 

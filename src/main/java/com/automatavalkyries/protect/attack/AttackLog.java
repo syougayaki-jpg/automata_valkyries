@@ -238,6 +238,8 @@ public final class AttackLog {
         entry.frame = frame;
         entry.via = via;
 
+        if (outcome != Outcome.DETECTED) com.automatavalkyries.protect.flag.FlagWatchAgent.noteAttack(target, op);
+
         if (outcome.countsTowardAuto && chargeMod != null) {
             ModBlacklist.noteAttack(target, chargeMod);
         }

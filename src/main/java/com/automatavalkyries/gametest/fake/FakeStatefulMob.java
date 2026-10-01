@@ -18,6 +18,9 @@ public class FakeStatefulMob extends Zombie implements FakeKillState {
     private boolean markedForDeath = true;
     private float doomLevel = 5.0F;
     private boolean protectedFlag = true;
+    /** 辞書に無い名前（辞書補助の監視の検証用）: 事件の直前にだけ変わる印と、普段から動く値 */
+    public boolean hexed;
+    public int swayPhase;
     /** 読み出しの偽装（Java エージェントが呼び出し箇所ごと isAlive を書き換えた状態の再現） */
     public boolean spoofDead;
 

@@ -392,6 +392,115 @@ public final class StateScanner {
         return colon > 0 ? key.substring(0, colon) : CallerAttribution.UNKNOWN;
     }
 
+    // ---- 読むだけ（辞書の監視用） ----------------------------------------------------
+
+    /** 読んだ 1 件。値は Boolean か Number */
+    public record Observed(Source source, String holder, String name, String mod, Object value) {
+        /** 同じ状態を指す鍵（個体をまたいで集計する） */
+        public String key() {
+            return mod + " " + source.name().toLowerCase(java.util.Locale.ROOT) + ":" + holder + "." + name;
+        }
+    }
+
+    @Nullable
+    private static final Field PERSISTENT_DATA = findField(Entity.class, "persistentData");
+
+    /**
+     * 他 MOD の状態を読むだけ（{@link FlagWatchAgent} 用）。書き込まず、他 MOD のコード（getter）も呼ばない。
+     * 読む場所は {@link #apply} と同じだが、インターフェースは getter を呼ぶことになるので読まない。
+     * 永続データは {@code getPersistentData()} が空の入れ物を作ってしまうので、フィールドを直接読む。
+     */
+    public static void observe(Entity entity, java.util.function.Consumer<Observed> out) {
+        Class<?> type = entity.getClass();
+        for (Class<?> c = type; c != null && c != Object.class; c = c.getSuperclass()) {
+            for (InjectedMembers.InjectedField injected : InjectedMembers.fields(c)) {
+                if (CallerAttribution.SELF.equals(injected.mod())) continue;
+                observeField(entity, injected.field(), injected.mod(), Source.INJECTED_FIELD, out);
+            }
+        }
+        for (Class<?> c = type; c != null && isForeign(c); c = c.getSuperclass()) {
+            String mod = CallerAttribution.modOf(c);
+            for (Field field : c.getDeclaredFields()) observeField(entity, field, mod, Source.OWN_FIELD, out);
+        }
+        observeCapabilities(entity, out);
+        try {
+            if (PERSISTENT_DATA != null && PERSISTENT_DATA.get(entity) instanceof CompoundTag tag) {
+                observeCompound(tag, "persistentData", out, 0);
+            }
+        } catch (Throwable ignored) {}
+        SynchedEntityData data = entity.getEntityData();
+        for (DataKey key : DATA_KEYS.get(type)) {
+            try {
+                Object value = data.get(key.accessor());
+                if (value instanceof Boolean || value instanceof Number) {
+                    out.accept(new Observed(Source.SYNCHED_DATA, "data", key.name(), key.mod(), value));
+                }
+            } catch (Throwable ignored) {}
+        }
+    }
+
+    private static void observeField(Object holder, Field field, String mod, Source source, java.util.function.Consumer<Observed> out) {
+        if (Modifier.isStatic(field.getModifiers()) || !VALUE_TYPES.contains(field.getType())) return;
+        try {
+            field.setAccessible(true);
+            out.accept(new Observed(source, field.getDeclaringClass().getSimpleName(), field.getName(), mod, field.get(holder)));
+        } catch (Throwable ignored) {}
+    }
+
+    private static void observeObjectFields(Object holder, java.util.function.Consumer<Observed> out) {
+        for (Class<?> c = holder.getClass(); c != null && isForeign(c); c = c.getSuperclass()) {
+            String mod = CallerAttribution.modOf(c);
+            for (Field field : c.getDeclaredFields()) observeField(holder, field, mod, Source.CAPABILITY, out);
+        }
+    }
+
+    private static void observeCapabilities(Entity entity, java.util.function.Consumer<Observed> out) {
+        if (CAPABILITIES == null || PROVIDERS == null) return;
+        try {
+            Object dispatcher = CAPABILITIES.get(entity);
+            if (dispatcher == null) return;
+            Object[] providers = (Object[]) PROVIDERS.get(dispatcher);
+            if (providers == null) return;
+            for (Object provider : providers) {
+                if (provider == null || !isForeign(provider.getClass())) continue;
+                observeObjectFields(provider, out);
+                for (Class<?> c = provider.getClass(); c != null && isForeign(c); c = c.getSuperclass()) {
+                    for (Field field : c.getDeclaredFields()) {
+                        if (Modifier.isStatic(field.getModifiers()) || field.getType().isPrimitive()) continue;
+                        field.setAccessible(true);
+                        Object data = field.get(provider);
+                        if (data == null || data == provider || data instanceof Entity || data instanceof Collection<?>
+                                || data instanceof Map<?, ?> || !isForeign(data.getClass())) continue;
+                        observeObjectFields(data, out);
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+    }
+
+    private static void observeCompound(CompoundTag tag, String path, java.util.function.Consumer<Observed> out, int depth) {
+        for (String key : tag.getAllKeys()) {
+            if (key.startsWith(AutomataValkyries.MODID)) continue;
+            Tag value = tag.get(key);
+            if (value instanceof net.minecraft.nbt.NumericTag number) {
+                out.accept(new Observed(Source.PERSISTENT, path, key, modOfKey(key), number.getAsNumber()));
+            } else if (depth == 0 && value instanceof CompoundTag nested) {
+                observeCompound(nested, path + "." + key, out, depth + 1);
+            }
+        }
+    }
+
+    @Nullable
+    private static Field findField(Class<?> owner, String name) {
+        try {
+            Field field = owner.getDeclaredField(name);
+            field.setAccessible(true);
+            return field;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
     // ---- 共通 --------------------------------------------------------------
 
     /** 害の無い値（boolean は false、数値は 0）。既にそうなら null */

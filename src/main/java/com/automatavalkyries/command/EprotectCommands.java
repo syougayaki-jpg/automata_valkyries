@@ -78,7 +78,10 @@ public final class EprotectCommands {
                         .executes(EprotectCommands::showFlagDictionary)
                         .then(Commands.literal("test")
                                 .then(Commands.argument("name", StringArgumentType.greedyString())
-                                        .executes(ctx -> testFlagName(ctx, StringArgumentType.getString(ctx, "name")))))));
+                                        .executes(ctx -> testFlagName(ctx, StringArgumentType.getString(ctx, "name")))))
+                        .then(Commands.literal("watch")
+                                .executes(EprotectCommands::showFlagWatch)
+                                .then(Commands.literal("clear").executes(EprotectCommands::clearFlagWatch)))));
     }
 
     /** 辞書の分類ごとの項目数 */
@@ -102,6 +105,33 @@ public final class EprotectCommands {
                 yesNo(FlagDictionary.harmfulOnProtected(name)), yesNo(FlagDictionary.protectiveOnTarget(name)),
                 yesNo(FlagDictionary.livesCounter(name))), false);
         return categories.size();
+    }
+
+    /** 辞書補助の監視が挙げた候補（点数の高い順に 10 件） */
+    private static int showFlagWatch(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        com.automatavalkyries.protect.flag.FlagWatchAgent agent = com.automatavalkyries.protect.flag.FlagWatchAgent.getInstance();
+        agent.drain();
+        var candidates = agent.candidates();
+        source.sendSuccess(() -> Component.translatable(KEY + "flags.watch.header", agent.isRunning() ? "on" : "off",
+                agent.sampleCount(), agent.eventCount(), candidates.size()).withStyle(ChatFormatting.GOLD), false);
+        if (candidates.isEmpty()) {
+            source.sendSuccess(() -> Component.translatable(KEY + "flags.watch.none").withStyle(ChatFormatting.GRAY), false);
+        }
+        for (var c : candidates.subList(0, Math.min(10, candidates.size()))) {
+            source.sendSuccess(() -> Component.translatable(KEY + "flags.watch.entry", String.format("%.2f", c.score()), c.key(),
+                    c.eventChanges(), c.eventsSeen(), c.normalChanges(), c.samples(), c.kinds(), c.example()), false);
+            source.sendSuccess(() -> Component.translatable(KEY + "flags.watch.suggestion", c.suggestion()).withStyle(ChatFormatting.AQUA), false);
+        }
+        source.sendSuccess(() -> Component.translatable(KEY + "flags.watch.file",
+                com.automatavalkyries.protect.flag.FlagWatchAgent.path().toString()).withStyle(ChatFormatting.GRAY), false);
+        return candidates.size();
+    }
+
+    private static int clearFlagWatch(CommandContext<CommandSourceStack> ctx) {
+        com.automatavalkyries.protect.flag.FlagWatchAgent.getInstance().clear();
+        ctx.getSource().sendSuccess(() -> Component.translatable(KEY + "flags.watch.cleared"), true);
+        return 1;
     }
 
     private static Component yesNo(boolean value) {

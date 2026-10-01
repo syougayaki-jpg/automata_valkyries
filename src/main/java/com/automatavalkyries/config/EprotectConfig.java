@@ -94,6 +94,23 @@ public final class EprotectConfig {
             .comment("フラグ辞書で扱わない名前（取り違えの除外。例 \"soulBound\"）。大文字小文字・区切りは無視して比べる")
             .defineListAllowEmpty("flagDictionary.ignore", List.of(), o -> o instanceof String);
 
+    public static final ForgeConfigSpec.BooleanValue FLAG_WATCH_ENABLED = BUILDER
+            .comment("辞書補助の監視: 他 MOD の状態を読むだけで見張り、死亡・消去・保護対象への攻撃の直前に変わったのに辞書に無い名前を",
+                    "候補として logs/automata_valkyries-flag-candidates.txt と /eprotect flags watch に出す（何も書き換えない）")
+            .define("flagDictionary.watch.enabled", true);
+
+    public static final ForgeConfigSpec.IntValue FLAG_WATCH_SAMPLE_INTERVAL_TICKS = BUILDER
+            .comment("普段の値を読み取る間隔（Tick）。死亡・攻撃の時点の値はこの前回の読み取りと比べる")
+            .defineInRange("flagDictionary.watch.sampleIntervalTicks", 20, 1, 1200);
+
+    public static final ForgeConfigSpec.IntValue FLAG_WATCH_MAX_ENTITIES = BUILDER
+            .comment("見張るエンティティの上限（他 MOD の状態を持つ生き物だけ数える。保護対象は常に見張る）")
+            .defineInRange("flagDictionary.watch.maxEntities", 256, 1, 4096);
+
+    public static final ForgeConfigSpec.IntValue FLAG_WATCH_MIN_EVENTS = BUILDER
+            .comment("死亡・攻撃の直前にこの回数以上変わった名前だけを候補にする")
+            .defineInRange("flagDictionary.watch.minEvents", 2, 1, 1000);
+
     public static final ForgeConfigSpec SPEC = BUILDER.build();
 
     private EprotectConfig() {}

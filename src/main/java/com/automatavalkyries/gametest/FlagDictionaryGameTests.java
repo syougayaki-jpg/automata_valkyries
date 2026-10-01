@@ -11,6 +11,7 @@ import com.automatavalkyries.protect.ForeignStateCleaner;
 import com.automatavalkyries.protect.attack.AttackLog;
 import com.automatavalkyries.protect.attack.CallerAttribution;
 import com.automatavalkyries.protect.flag.FlagDictionary;
+import com.automatavalkyries.protect.flag.FlagWatchAgent;
 import com.automatavalkyries.protect.flag.InjectedMembers;
 import com.automatavalkyries.protect.flag.StateScanner;
 import com.automatavalkyries.registry.ModEntities;
@@ -211,5 +212,39 @@ public class FlagDictionaryGameTests {
             elenor.getEprotect().triggerDespawn();
             helper.succeed();
         });
+    }
+
+    /**
+     * 辞書補助の監視: 事件（死亡）の直前にだけ変わる、辞書に無い名前を候補に挙げる。普段から動く名前・辞書にある名前は挙げない。
+     * 読むだけで、エンティティの値は変えない
+     */
+    @GameTest(template = TEMPLATE)
+    public static void flagWatchSuggestsNamesThatChangeOnlyBeforeEvents(GameTestHelper helper) {
+        FlagWatchAgent agent = FlagWatchAgent.getInstance();
+        agent.clear();
+        for (int i = 0; i < 3; i++) {
+            FakeStatefulMob mob = statefulMob(helper);
+            helper.assertTrue(agent.sample(mob), "The fake mod's state was not observed");
+            mob.swayPhase++;
+            agent.sample(mob);
+            mob.swayPhase++;
+            agent.sample(mob);
+            mob.swayPhase++;
+            mob.hexed = true;
+            mob.fakemod$setDoomLevel(9.0F);
+            agent.event(mob, "death");
+            helper.assertTrue(mob.hexed && mob.swayPhase == 3 && mob.fakemod$getDoomLevel() == 9.0F, "The watch wrote to the entity");
+        }
+        agent.drain();
+        List<FlagWatchAgent.Candidate> candidates = agent.candidates();
+        FlagWatchAgent.Candidate hexed = candidates.stream().filter(c -> c.name().equals("hexed")).findFirst().orElse(null);
+        helper.assertTrue(hexed != null, "A name that changes only before deaths was not suggested: " + candidates);
+        helper.assertTrue(hexed.mod().equals(FakeKillMod.MOD_ID), "Wrong mod: " + hexed.mod());
+        helper.assertTrue(hexed.eventChanges() == 3 && hexed.rising(), "Wrong statistics: " + hexed);
+        helper.assertTrue(hexed.suggestion().equals("kill:*hexed"), "Wrong suggestion: " + hexed.suggestion());
+        helper.assertFalse(candidates.stream().anyMatch(c -> c.name().equals("swayPhase")), "A value that always moves was suggested");
+        helper.assertFalse(candidates.stream().anyMatch(c -> c.name().equals("doomLevel")), "A name already in the dictionary was suggested");
+        agent.clear();
+        helper.succeed();
     }
 }

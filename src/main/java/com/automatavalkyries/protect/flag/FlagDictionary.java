@@ -134,6 +134,11 @@ public final class FlagDictionary {
         return result.isEmpty() ? Set.of() : java.util.Collections.unmodifiableSet(result);
     }
 
+    /** 設定 {@code flagDictionary.ignore} で除外した名前か */
+    public static boolean ignored(String name) {
+        return ignored.contains(compact(name));
+    }
+
     public static boolean is(String name, Category category) {
         return classify(name).contains(category);
     }
