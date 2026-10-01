@@ -103,9 +103,11 @@ public final class TerminusEngine {
      * @return 終焉執行したエンティティ数
      */
     public static int executeAreaTerminus(ServerLevel level, Entity attacker, double radius, boolean includePlayers) {
+        UUID attackerUuid = attacker.getUUID();
         AABB box = attacker.getBoundingBox().inflate(radius);
         List<Entity> targets = level.getEntities(attacker, box, e -> {
             if (e == attacker) return false;
+            if (e.getUUID().equals(attackerUuid)) return false;
             if (e instanceof IEprotected) return false;
             if (e instanceof Player && !includePlayers) return false;
             return e.isAlive() || e instanceof LivingEntity;
@@ -113,6 +115,7 @@ public final class TerminusEngine {
 
         int count = 0;
         for (Entity target : targets) {
+            if (target.getUUID().equals(attackerUuid)) continue;
             if (executeTerminus(level, attacker, target)) {
                 count++;
             }

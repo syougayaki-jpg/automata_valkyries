@@ -40,7 +40,7 @@ public class TerminusStickItem extends Item {
     }
 
     public static boolean isIncludePlayers(ItemStack stack) {
-        if (!stack.hasTag() || !stack.getTag().contains(TAG_INCLUDE_PLAYERS)) return true; // デフォルトでプレイヤーも対象
+        if (!stack.hasTag() || !stack.getTag().contains(TAG_INCLUDE_PLAYERS)) return false; // デフォルトは安全のためプレイヤー除外（MOBのみ対象）
         return stack.getTag().getBoolean(TAG_INCLUDE_PLAYERS);
     }
 

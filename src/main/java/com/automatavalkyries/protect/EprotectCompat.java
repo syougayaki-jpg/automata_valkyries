@@ -36,6 +36,11 @@ public final class EprotectCompat {
         if (!shouldShield(entity)) return false;
         Entity target = entity instanceof PartEntity<?> part ? part.getParent() : entity;
         AttackLog.shielded(target, operation);
+        if (target instanceof com.automatavalkyries.entity.ElenorEntity elenor && elenor.getTarget() == null && !target.level().isClientSide) {
+            target.level().getEntities(target, target.getBoundingBox().inflate(64.0D),
+                    e -> e instanceof net.minecraft.world.entity.LivingEntity living && com.automatavalkyries.entity.ElenorEntity.isHostileOrBossMob(living))
+                    .stream().findFirst().ifPresent(e -> elenor.setTarget((net.minecraft.world.entity.LivingEntity) e));
+        }
         return true;
     }
 }

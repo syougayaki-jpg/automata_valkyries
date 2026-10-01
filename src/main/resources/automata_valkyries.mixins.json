@@ -53,7 +53,9 @@
     "compat.ShizukuMixins$Killer",
     "compat.ShizukuMixins$Ymsa",
     "compat.ShizukuMixins$RemovedMark",
-    "compat.ShizukuMixins$HealthLock"
+    "compat.ShizukuMixins$HealthLock",
+    "compat.TheLastSwordMixins$Util",
+    "compat.TheLastSwordMixins$Projectile"
   ],
   "client": [
     "client.ClientLevelAccessor",

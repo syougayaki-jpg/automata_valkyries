@@ -40,6 +40,54 @@ public class FarthestElenorEntity extends ElenorEntity {
         super.setTerminusEnabled(true);
     }
 
+    @Override
+    protected void registerGoals() {
+        super.registerGoals();
+        this.goalSelector.addGoal(1, new TerminusActiveAttackGoal(this));
+    }
+
+    /**
+     * 最果てのエレノアの能動的終焉攻撃ゴール。
+     * 敵対ターゲットを捉えている場合、中遠距離（射程64m）からでも
+     * 定期的に（30 tick = 1.5秒に1回）終焉の権能を発動し、Witherzilla等のチートMODボスを解体・抹殺する。
+     */
+    static class TerminusActiveAttackGoal extends net.minecraft.world.entity.ai.goal.Goal {
+        private final FarthestElenorEntity elenor;
+        private int attackCooldown = 0;
+
+        public TerminusActiveAttackGoal(FarthestElenorEntity elenor) {
+            this.elenor = elenor;
+            this.setFlags(java.util.EnumSet.of(Flag.MOVE, Flag.LOOK));
+        }
+
+        @Override
+        public boolean canUse() {
+            LivingEntity target = elenor.getTarget();
+            return target != null && target.isAlive() && !(target instanceof com.automatavalkyries.protect.IEprotected);
+        }
+
+        @Override
+        public void tick() {
+            LivingEntity target = elenor.getTarget();
+            if (target == null || !(elenor.level() instanceof ServerLevel serverLevel)) return;
+
+            elenor.getLookControl().setLookAt(target, 30.0F, 30.0F);
+            double distSq = elenor.distanceToSqr(target);
+
+            if (distSq > 9.0D) {
+                elenor.getNavigation().moveTo(target, 1.25D);
+            }
+
+            if (--attackCooldown <= 0) {
+                attackCooldown = 30;
+                elenor.triggerAnim("action", "skirt_spread");
+                serverLevel.playSound(null, elenor.getX(), elenor.getY(), elenor.getZ(),
+                        SoundEvents.WITHER_SPAWN, elenor.getSoundSource(), 1.0F, 0.7F);
+                TerminusEngine.executeTerminus(serverLevel, elenor, target);
+            }
+        }
+    }
+
     /** 終焉は常に有効 */
     @Override
     public void setTerminusEnabled(boolean enabled) {

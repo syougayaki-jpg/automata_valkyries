@@ -13,6 +13,8 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.EntitySelector;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -88,6 +90,25 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
 
         this.targetSelector.addGoal(1, new HurtByTargetGoal(this));
         this.targetSelector.addGoal(2, new NearestAttackableTargetGoal<>(this, Player.class, true));
+        this.targetSelector.addGoal(3, new NearestAttackableTargetGoal<>(this, Monster.class, true));
+        this.targetSelector.addGoal(4, new NearestAttackableTargetGoal<>(this, Mob.class, 10, true, false,
+                ElenorEntity::isHostileOrBossMob));
+    }
+
+    /**
+     * 兵姫が索敵・交戦すべき敵対エンティティ（モンスター・ボス・チートMOD敵等）の判定。
+     * 家畜・村人・環境生物・味方兵姫・プレイヤーは除外。
+     */
+    public static boolean isHostileOrBossMob(LivingEntity entity) {
+        if (entity == null || !entity.isAlive()) return false;
+        if (entity instanceof com.automatavalkyries.protect.IEprotected || entity instanceof Player) return false;
+        if (entity instanceof net.minecraft.world.entity.animal.Animal
+                || entity instanceof net.minecraft.world.entity.npc.AbstractVillager
+                || entity instanceof net.minecraft.world.entity.animal.WaterAnimal
+                || entity instanceof net.minecraft.world.entity.ambient.AmbientCreature) {
+            return false;
+        }
+        return true;
     }
 
     @Override
