@@ -4,7 +4,9 @@ import com.automatavalkyries.AutomataValkyries;
 import com.automatavalkyries.protect.attack.AttackLog;
 import com.automatavalkyries.protect.attack.AttackLogFile;
 import com.automatavalkyries.protect.attack.ModBlacklist;
+import com.automatavalkyries.config.EprotectConfig;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import net.minecraft.ChatFormatting;
@@ -12,6 +14,7 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.network.chat.Component;
+import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.ModList;
@@ -27,6 +30,7 @@ import java.util.Set;
  * <ul>
  *   <li>/eprotect attacks [clear]</li>
  *   <li>/eprotect blacklist list | clear | add &lt;modid&gt; | remove &lt;modid&gt;</li>
+ *   <li>/eprotect blacklist auto [on | off | threshold &lt;回数&gt; | window &lt;Tick&gt;]（設定ファイルへ保存）</li>
  * </ul>
  */
 @Mod.EventBusSubscriber(modid = AutomataValkyries.MODID)
@@ -51,6 +55,16 @@ public final class EprotectCommands {
                 .then(Commands.literal("blacklist")
                         .then(Commands.literal("list").executes(EprotectCommands::listBlacklist))
                         .then(Commands.literal("clear").executes(EprotectCommands::clearBlacklist))
+                        .then(Commands.literal("auto")
+                                .executes(EprotectCommands::showAuto)
+                                .then(Commands.literal("on").executes(ctx -> setAuto(ctx, EprotectConfig.BLACKLIST_AUTO_ENABLED, true)))
+                                .then(Commands.literal("off").executes(ctx -> setAuto(ctx, EprotectConfig.BLACKLIST_AUTO_ENABLED, false)))
+                                .then(Commands.literal("threshold")
+                                        .then(Commands.argument("count", IntegerArgumentType.integer(1, 10000))
+                                                .executes(ctx -> setAuto(ctx, EprotectConfig.BLACKLIST_AUTO_THRESHOLD, IntegerArgumentType.getInteger(ctx, "count")))))
+                                .then(Commands.literal("window")
+                                        .then(Commands.argument("ticks", IntegerArgumentType.integer(20, 72000))
+                                                .executes(ctx -> setAuto(ctx, EprotectConfig.BLACKLIST_AUTO_WINDOW_TICKS, IntegerArgumentType.getInteger(ctx, "ticks"))))))
                         .then(Commands.literal("add")
                                 .then(Commands.argument("modid", StringArgumentType.word())
                                         .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(addCandidates(), builder))
@@ -148,6 +162,30 @@ public final class EprotectCommands {
         int count = ModBlacklist.clear(true);
         ctx.getSource().sendSuccess(() -> Component.translatable(KEY + "blacklist.cleared", count), true);
         return count;
+    }
+
+    private static int showAuto(CommandContext<CommandSourceStack> ctx) {
+        boolean enabled = EprotectConfig.get(EprotectConfig.BLACKLIST_AUTO_ENABLED);
+        Component state = Component.translatable(KEY + "blacklist.auto." + (enabled ? "on" : "off"))
+                .withStyle(enabled ? ChatFormatting.GREEN : ChatFormatting.RED);
+        ctx.getSource().sendSuccess(() -> Component.translatable(KEY + "blacklist.auto.status", state,
+                EprotectConfig.get(EprotectConfig.BLACKLIST_AUTO_THRESHOLD),
+                EprotectConfig.get(EprotectConfig.BLACKLIST_AUTO_WINDOW_TICKS)), false);
+        return enabled ? 1 : 0;
+    }
+
+    /** 自動登録の設定を変えて設定ファイルへ保存する（回数は数え直す） */
+    private static <T> int setAuto(CommandContext<CommandSourceStack> ctx, ForgeConfigSpec.ConfigValue<T> value, T newValue) {
+        try {
+            value.set(newValue);
+            value.save();
+        } catch (IllegalStateException e) {
+            ctx.getSource().sendFailure(Component.translatable(KEY + "blacklist.auto.not_loaded"));
+            return 0;
+        }
+        ModBlacklist.resetAutoCounters();
+        showAuto(ctx);
+        return 1;
     }
 
     /** 追加の候補: 攻撃の記録に出てきた MOD を先に、次に読み込まれている MOD（保護された ID と登録済みは除く） */
