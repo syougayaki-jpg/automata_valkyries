@@ -152,7 +152,11 @@ public final class CallerAttribution {
                 if (isOwnPlumbing(type, method)) continue;
 
                 String mod = null;
-                if (method.indexOf('$') >= 0) mod = mergedMod(type, method, frame.getDescriptor());
+                boolean merged = false;
+                if (method.indexOf('$') >= 0) {
+                    mod = mergedMod(type, method, frame.getDescriptor());
+                    merged = mod != null;
+                }
                 if (mod == null) {
                     // 守っているエンティティ自身のクラス（Entity / LivingEntity / 兵姫のクラス等）は、そこを呼んだ側を探すため飛ばす
                     if (targetClass != null && type.isAssignableFrom(targetClass)) continue;
@@ -164,7 +168,12 @@ public final class CallerAttribution {
                     callerMod = mod;
                     callerFrame = type.getName() + "." + method + ":" + frame.getLineNumber();
                     if (callerOnly) break;
+                    if (isForeign(mod)) foreign = mod;
+                    continue;
                 }
+                // 直接の呼び出し元より先では、vanilla へ差し込まれたメソッドは数えない（Hyperlink のように全エンティティの Tick に
+                // 差し込む MOD が、どの攻撃の経路にも現れて攻撃者と取り違えられるため）
+                if (merged) continue;
                 if (isForeign(mod)) {
                     if (foreign == null) foreign = mod;
                     if (other == null && !mod.equals(callerMod)) other = mod;

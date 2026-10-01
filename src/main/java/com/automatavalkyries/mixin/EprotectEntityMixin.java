@@ -105,7 +105,8 @@ public abstract class EprotectEntityMixin {
             Entity.RemovalReason reason = self.getRemovalReason();
             if (protect != null && protect.isGuardingRemoval() && (reason == null || Eprotect.isIllegalRemoval(self, reason))) {
                 ci.cancel();
-                AttackLog.refused(self, AttackOp.REMOVED_FROM_WORLD);
+                // 消去理由が無いのはチャンクの可視性低下（正規の追跡終了）。拒否はするが攻撃としては記録しない
+                if (reason != null) AttackLog.refused(self, AttackOp.REMOVED_FROM_WORLD);
                 if (self instanceof LivingEntity living) {
                     KillModCounters.counterAll(living);
                 }
