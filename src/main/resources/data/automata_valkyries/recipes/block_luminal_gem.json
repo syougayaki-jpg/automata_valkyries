@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [ "###", "###", "###" ],
+  "key": { "#": { "item": "automata_valkyries:crystal_luminal" } },
+  "result": { "item": "automata_valkyries:block_luminal_gem" },
+  "show_notification": true
+}

@@ -1,0 +1,12 @@
+{
+  "replace": false,
+  "values": [
+    "#forge:storage_blocks/astrite",
+    "#forge:storage_blocks/phononium",
+    "#forge:storage_blocks/ceruleas",
+    "#forge:storage_blocks/raw_astrite",
+    "#forge:storage_blocks/raw_phononium",
+    "#forge:storage_blocks/raw_ceruleas",
+    "#forge:storage_blocks/luminal"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "type": "minecraft:smelting",
+  "category": "misc",
+  "cookingtime": 200,
+  "experience": 0.7,
+  "group": "ingot_astrite",
+  "ingredient": { "tag": "forge:ores/astrite" },
+  "result": "automata_valkyries:ingot_astrite"
+}

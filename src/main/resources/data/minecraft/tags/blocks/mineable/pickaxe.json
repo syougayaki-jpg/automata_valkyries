@@ -1,0 +1,20 @@
+{
+  "replace": false,
+  "values": [
+    "automata_valkyries:ore_astrite",
+    "automata_valkyries:deepslate_ore_astrite",
+    "automata_valkyries:ore_phononium",
+    "automata_valkyries:deepslate_ore_phononium",
+    "automata_valkyries:ore_ceruleas",
+    "automata_valkyries:deepslate_ore_ceruleas",
+    "automata_valkyries:ore_luminal",
+    "automata_valkyries:deepslate_ore_luminal",
+    "automata_valkyries:block_raw_astrite",
+    "automata_valkyries:block_raw_phononium",
+    "automata_valkyries:block_raw_ceruleas",
+    "automata_valkyries:block_astrite",
+    "automata_valkyries:block_phononium",
+    "automata_valkyries:block_ceruleas",
+    "automata_valkyries:block_luminal_gem"
+  ]
+}

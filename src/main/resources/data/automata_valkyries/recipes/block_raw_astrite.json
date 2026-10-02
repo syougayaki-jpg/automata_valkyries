@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [ "###", "###", "###" ],
+  "key": { "#": { "item": "automata_valkyries:raw_astrite" } },
+  "result": { "item": "automata_valkyries:block_raw_astrite" },
+  "show_notification": true
+}

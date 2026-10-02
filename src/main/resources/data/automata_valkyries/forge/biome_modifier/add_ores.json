@@ -1,0 +1,11 @@
+{
+  "type": "forge:add_features",
+  "biomes": "#minecraft:is_overworld",
+  "features": [
+    "automata_valkyries:ore_astrite",
+    "automata_valkyries:ore_phononium",
+    "automata_valkyries:ore_ceruleas",
+    "automata_valkyries:ore_luminal"
+  ],
+  "step": "underground_ores"
+}

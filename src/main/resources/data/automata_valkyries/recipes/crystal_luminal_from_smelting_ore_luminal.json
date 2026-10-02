@@ -1,0 +1,9 @@
+{
+  "type": "minecraft:smelting",
+  "category": "misc",
+  "cookingtime": 200,
+  "experience": 1.0,
+  "group": "crystal_luminal",
+  "ingredient": { "tag": "forge:ores/luminal" },
+  "result": "automata_valkyries:crystal_luminal"
+}

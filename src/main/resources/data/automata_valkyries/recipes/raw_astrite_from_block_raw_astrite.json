@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "group": "raw_astrite",
+  "ingredients": [ { "item": "automata_valkyries:block_raw_astrite" } ],
+  "result": { "item": "automata_valkyries:raw_astrite", "count": 9 }
+}

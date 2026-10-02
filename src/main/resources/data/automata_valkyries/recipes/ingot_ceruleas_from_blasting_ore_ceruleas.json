@@ -1,0 +1,9 @@
+{
+  "type": "minecraft:blasting",
+  "category": "misc",
+  "cookingtime": 100,
+  "experience": 1.0,
+  "group": "ingot_ceruleas",
+  "ingredient": { "tag": "forge:ores/ceruleas" },
+  "result": "automata_valkyries:ingot_ceruleas"
+}

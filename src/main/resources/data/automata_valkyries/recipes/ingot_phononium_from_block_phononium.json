@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "group": "ingot_phononium",
+  "ingredients": [ { "item": "automata_valkyries:block_phononium" } ],
+  "result": { "item": "automata_valkyries:ingot_phononium", "count": 9 }
+}

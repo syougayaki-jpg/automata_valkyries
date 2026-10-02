@@ -1,0 +1,12 @@
+{
+  "replace": false,
+  "values": [
+    "automata_valkyries:ore_ceruleas",
+    "automata_valkyries:deepslate_ore_ceruleas",
+    "automata_valkyries:ore_luminal",
+    "automata_valkyries:deepslate_ore_luminal",
+    "automata_valkyries:block_raw_ceruleas",
+    "automata_valkyries:block_ceruleas",
+    "automata_valkyries:block_luminal_gem"
+  ]
+}

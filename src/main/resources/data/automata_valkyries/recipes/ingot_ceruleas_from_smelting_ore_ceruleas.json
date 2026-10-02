@@ -1,0 +1,9 @@
+{
+  "type": "minecraft:smelting",
+  "category": "misc",
+  "cookingtime": 200,
+  "experience": 1.0,
+  "group": "ingot_ceruleas",
+  "ingredient": { "tag": "forge:ores/ceruleas" },
+  "result": "automata_valkyries:ingot_ceruleas"
+}

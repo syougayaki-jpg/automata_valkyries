@@ -23,6 +23,12 @@ public class ModItems {
     public static final RegistryObject<Item> INGOT_PHONONIUM = simple("ingot_phononium");
     public static final RegistryObject<Item> RAW_CERULEAS = simple("raw_ceruleas");
     public static final RegistryObject<Item> INGOT_CERULEAS = simple("ingot_ceruleas");
+    public static final RegistryObject<Item> CRYSTAL_LUMINAL = ITEMS.register("crystal_luminal", () ->
+            new com.automatavalkyries.item.LuminalCrystalItem(new Item.Properties()));
+
+    // ---- 圧縮階層 Tier 2（追加拡張仕様書 §9）: ルミナルブロック 9 個 ↔ 1 個。5,000,000 FE の瞬時充填は電力の仕組みを作ってから ----
+    public static final RegistryObject<Item> ORB_LUMINAL = ITEMS.register("orb_luminal", () ->
+            new com.automatavalkyries.item.LuminalCrystalItem(new Item.Properties().rarity(Rarity.RARE)));
 
     // ---- スポーンエッグ ----
     public static final RegistryObject<Item> ELENOR_SPAWN_EGG = ITEMS.register("elenor_spawn_egg", () ->

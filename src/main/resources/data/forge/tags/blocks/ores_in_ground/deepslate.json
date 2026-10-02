@@ -1,0 +1,9 @@
+{
+  "replace": false,
+  "values": [
+    "automata_valkyries:deepslate_ore_astrite",
+    "automata_valkyries:deepslate_ore_phononium",
+    "automata_valkyries:deepslate_ore_ceruleas",
+    "automata_valkyries:deepslate_ore_luminal"
+  ]
+}

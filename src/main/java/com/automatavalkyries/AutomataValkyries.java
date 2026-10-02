@@ -29,6 +29,8 @@ public class AutomataValkyries {
         IEventBus modEventBus = context.getModEventBus();
 
         ModEntities.ENTITY_TYPES.register(modEventBus);
+        // ブロックを先に読み込む（ブロックアイテムを ModItems.ITEMS に足すので、ITEMS より前に登録する）
+        com.automatavalkyries.registry.ModBlocks.BLOCKS.register(modEventBus);
         ModItems.ITEMS.register(modEventBus);
         ModCreativeTabs.CREATIVE_MODE_TABS.register(modEventBus);
 

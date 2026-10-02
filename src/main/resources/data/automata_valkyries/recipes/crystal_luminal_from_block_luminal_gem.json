@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "group": "crystal_luminal",
+  "ingredients": [ { "item": "automata_valkyries:block_luminal_gem" } ],
+  "result": { "item": "automata_valkyries:crystal_luminal", "count": 9 }
+}
