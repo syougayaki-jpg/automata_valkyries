@@ -607,6 +607,31 @@ public class KillModGameTests {
         helper.succeed();
     }
 
+    /**
+     * 後始末は必要なときだけ（2026-10-02 のリスポーン直後の再死亡の再発防止）:
+     * 防御剣を持ったことの無いプレイヤーは「手放した」と見なされず（毎 Tick の後始末は走らない）、
+     * 後始末をかけても HP は変わらず、The Last Sword の飛行の印が無ければ他 MOD の飛行（mayfly）は消さない
+     */
+    @GameTest(template = TEMPLATE, timeoutTicks = 50)
+    public static void restraintCleanupLeavesUnrestrainedPlayersAlone(GameTestHelper helper) {
+        Player player = helper.makeMockSurvivalPlayer(); // 飛行の外しはサバイバルだけ
+        for (int i = 0; i < 3; i++) {
+            helper.assertFalse(com.automatavalkyries.protect.EcaLastSwordHelper.releasedDefenseSword(player),
+                    "a player who never held the sword was treated as having released it");
+        }
+        player.getAbilities().mayfly = true;
+        float health = player.getHealth();
+        com.automatavalkyries.protect.EcaLastSwordHelper.cleanupPlayerRestraints(player);
+        helper.assertTrue(player.getHealth() == health, "cleanup changed the health from " + health + " to " + player.getHealth());
+        helper.assertTrue(player.getAbilities().mayfly, "cleanup removed flight that The Last Sword did not grant");
+        // The Last Sword の飛行の印があれば、その飛行は外す
+        player.getPersistentData().putBoolean("TheLastSwordFly", true);
+        com.automatavalkyries.protect.EcaLastSwordHelper.cleanupPlayerRestraints(player);
+        helper.assertFalse(player.getAbilities().mayfly, "flight granted by The Last Sword was not removed");
+        com.automatavalkyries.protect.EcaLastSwordHelper.forget(player.getUUID());
+        helper.succeed();
+    }
+
     /** 対象 MOD が無ければ成功扱いで終える */
     private static boolean loaded(GameTestHelper helper, String modId) {
         if (ModList.get().isLoaded(modId)) return true;

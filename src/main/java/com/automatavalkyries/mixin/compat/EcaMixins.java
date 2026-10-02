@@ -143,7 +143,8 @@ public final class EcaMixins {
         private static void automata_valkyries$guardIsLocationLocked(Entity entity, CallbackInfoReturnable<Boolean> cir) {
             if (entity instanceof net.minecraft.world.entity.player.Player player) {
                 if (!com.automatavalkyries.protect.DirectRead.hasHealth(player) || !com.automatavalkyries.protect.EcaLastSwordHelper.hasDefenseSword(player)) {
-                    com.automatavalkyries.protect.EcaLastSwordHelper.cleanupPlayerRestraints(player);
+                    // 問い合わせの中で全部の後始末（他 MOD の呼び出し・HP の書き戻し）はしない。位置固定だけ外す
+                    com.automatavalkyries.protect.EcaLastSwordHelper.clearLocationLock(player.getUUID());
                     cir.setReturnValue(false);
                 }
             }

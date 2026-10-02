@@ -42,6 +42,24 @@ public final class EcaLastSwordHelper {
         return false;
     }
 
+    /** 最後に見たときに防御剣を持っていたか（プレイヤーの UUID → 持っていた） */
+    private static final Map<UUID, Boolean> HELD = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * 防御剣を「手放した瞬間」か（前に見たときは持っていて、今は持っていない）。手放した後の後始末を 1 回だけにするために使う。
+     * 初めて見るプレイヤーは「持っていた」扱いにしない（ログイン・リスポーンの後始末は別に行う）
+     */
+    public static boolean releasedDefenseSword(Player player) {
+        boolean now = hasDefenseSword(player);
+        Boolean before = HELD.put(player.getUUID(), now);
+        return Boolean.TRUE.equals(before) && !now;
+    }
+
+    /** 切断時に覚えた状態を消す */
+    public static void forget(UUID uuid) {
+        HELD.remove(uuid);
+    }
+
     /**
      * UUID を指定して ECA の EntityLocationManager の位置ロックから強制解除する。
      * リスポーン時やプレイヤー切断時に呼び出す。
@@ -98,6 +116,10 @@ public final class EcaLastSwordHelper {
     public static void cleanupPlayerRestraints(Player player) {
         if (player == null) return;
         UUID uuid = player.getUUID();
+        // The Last Sword が付けた飛行の印（手順 9 で消す前に見ておく。印が無ければ他 MOD の飛行なので手順 10 で触らない）
+        CompoundTag before = player.getPersistentData();
+        boolean swordFlight = before.contains("TheLastSwordFly") || before.contains("TheLastSwordYouNeverForgotFly")
+                || before.contains("PlayerFlightIntent");
 
         // 1. 位置固定マップからの解除
         clearLocationLock(uuid);
@@ -239,9 +261,9 @@ public final class EcaLastSwordHelper {
             tag.remove("imds_reborn:isImdsInvulnerable");
         } catch (Throwable ignored) {}
 
-        // 10. サバイバル時の飛行能力および重力の正常化
+        // 10. サバイバル時の飛行能力（The Last Sword の飛行の印があったときだけ）および重力の正常化
         try {
-            if (!player.isCreative() && !player.isSpectator()) {
+            if (swordFlight && !player.isCreative() && !player.isSpectator()) {
                 if (player.getAbilities().mayfly || player.getAbilities().flying) {
                     player.getAbilities().mayfly = false;
                     player.getAbilities().flying = false;

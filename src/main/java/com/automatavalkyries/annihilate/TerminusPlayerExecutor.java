@@ -342,18 +342,29 @@ public final class TerminusPlayerExecutor {
             if (event.phase != net.minecraftforge.event.TickEvent.Phase.END) return;
             if (!(event.player instanceof ServerPlayer player)) return;
 
-            // ラストソードを手放した場合や死亡後の残存拘束（位置固定・移動不能・無敵・飛行）を自動解除
-            if (!com.automatavalkyries.protect.EcaLastSwordHelper.hasDefenseSword(player)) {
+            // ラストソードを手放した瞬間（持っている → 持っていない）にだけ、残存拘束（位置固定・移動不能・無敵・飛行）を解除する。
+            // 毎 Tick 全員に後始末をかけると、他 MOD の正当な状態（飛行・無敵の装備など）まで消し、The Last Sword の clearDefence が
+            // HP を 0 に書くなどの事故が起きる（2026-10-02 のリスポーン直後の再死亡）。死亡・リスポーン・ログインの時は別に後始末する
+            if (player.tickCount % 10 == 0 && com.automatavalkyries.protect.EcaLastSwordHelper.releasedDefenseSword(player)) {
                 com.automatavalkyries.protect.EcaLastSwordHelper.cleanupPlayerRestraints(player);
             }
 
-            // ECA 等による虚無座標（102400, -102400, 102400）または Y < -500 への追放を自動救出
+            // ECA 等による虚無座標（102400, -102400, 102400）または Y < -500 への追放を自動救出（異常なときだけ動く）
             rescueIfAbnormalPosition(player);
 
-            // 移動速度がゼロやマイナスに固定されている場合の自動修復
+            // 移動速度がゼロやマイナスに固定されている場合の自動修復（異常なときだけ動く。重力は触らない）
             if (player.tickCount % 20 == 0) {
-                normalizePlayerMovement(player);
+                fixFrozenSpeed(player);
             }
+        }
+
+        private static void fixFrozenSpeed(ServerPlayer player) {
+            try {
+                var speedAttr = player.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED);
+                if (speedAttr != null && speedAttr.getValue() <= 0.005D) {
+                    speedAttr.setBaseValue(0.1D);
+                }
+            } catch (Throwable ignored) {}
         }
 
         private static void rescueIfAbnormalPosition(ServerPlayer player) {

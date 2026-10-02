@@ -49,8 +49,17 @@ public final class PlayerRespawnHandler {
         EcaLastSwordHelper.cleanupPlayerRestraints(player);
     }
 
+    /** ログイン時: 保存に残った拘束（The Last Sword・ECA の印）を、防御剣を持っていなければ 1 回だけ解除する */
+    @SubscribeEvent
+    public static void onLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
+        Player player = event.getEntity();
+        if (player.level().isClientSide || EcaLastSwordHelper.hasDefenseSword(player)) return;
+        EcaLastSwordHelper.cleanupPlayerRestraints(player);
+    }
+
     @SubscribeEvent
     public static void onLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
         EcaLastSwordHelper.clearLocationLock(event.getEntity().getUUID());
+        EcaLastSwordHelper.forget(event.getEntity().getUUID());
     }
 }
