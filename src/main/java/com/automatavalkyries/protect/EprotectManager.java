@@ -10,6 +10,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraftforge.common.world.ForgeChunkManager;
 import net.minecraftforge.event.TickEvent;
@@ -60,6 +61,74 @@ public class EprotectManager {
         return protectedEntities.get(protect.getOwner().getUUID()) == protect;
     }
 
+    /** 指定エンティティが生存中の保護対象の半径 radius ブロック以内にいるか */
+    public boolean isNearActiveProtected(Entity entity, double radius) {
+        if (entity == null || protectedEntities.isEmpty()) return false;
+        double rSq = radius * radius;
+        for (Eprotect protect : protectedEntities.values()) {
+            if (protect == null || !protect.isProtectionActive()) continue;
+            LivingEntity owner = protect.getOwner();
+            if (owner == null || !owner.isAlive() || owner.level() != entity.level()) continue;
+            if (owner.distanceToSqr(entity) <= rSq) return true;
+        }
+        return false;
+    }
+
+    /** 指定エンティティが保護対象の乗り物・同乗者（ツリー全体）であるか */
+    public boolean isVehicleOrPassengerOfProtected(Entity entity) {
+        if (entity == null) return false;
+        if (entity instanceof IEprotected) return true;
+        if (!EprotectConfig.isProtectVehiclesAndPassengersEnabled()) {
+            return false;
+        }
+        Entity vehicle = entity.getVehicle();
+        while (vehicle != null) {
+            if (vehicle instanceof IEprotected) return true;
+            vehicle = vehicle.getVehicle();
+        }
+        for (Entity passenger : entity.getPassengers()) {
+            if (passenger instanceof IEprotected) return true;
+            if (isVehicleOrPassengerOfProtected(passenger)) return true;
+        }
+        return false;
+    }
+
+    /** 登録されている保護対象のいずれかで強化防護が稼働中か */
+    public boolean isAnyProtectedReinforced() {
+        if (com.automatavalkyries.protect.plus.EprotectPlusLink.isReinforcedActive()) return true;
+        for (Eprotect protect : protectedEntities.values()) {
+            if (protect != null && protect.isReinforcedActive()) return true;
+        }
+        return false;
+    }
+
+    /** 強化モード（結界発動中）において、オーラ範囲内の周囲エンティティとして防護対象であるか */
+    public boolean isProtectedByAura(Entity entity) {
+        if (!EprotectConfig.isReinforcedAuraEnabled()) {
+            return false;
+        }
+        double radius = EprotectConfig.get(EprotectConfig.REINFORCED_AURA_RADIUS);
+        return isAnyProtectedReinforced() && isNearActiveProtected(entity, radius);
+    }
+
+    /**
+     * エンティティが Eprotect+ の保護範囲（直接対象、搭乗関係、結界オーラ範囲）に含まれるか。
+     * 設定（EprotectConfig.isExpandedScopeEnabled() 等）が無効の場合は保護対象単体のみ防護。
+     */
+    public boolean isUnderProtectionScope(Entity entity) {
+        if (entity == null) return false;
+        if (entity instanceof IEprotected provider) {
+            Eprotect p = provider.getEprotect();
+            return p != null && p.isProtectionActive();
+        }
+        if (!EprotectConfig.isExpandedScopeEnabled()
+                && !EprotectConfig.isProtectVehiclesAndPassengersEnabled()
+                && !EprotectConfig.isReinforcedAuraEnabled()) {
+            return false;
+        }
+        return isVehicleOrPassengerOfProtected(entity) || isProtectedByAura(entity);
+    }
+
     /**
      * 本体の Tick が止まっていても（消去フラグが立って Tick 対象から外れた、ワールドから外された等）
      * 周期的に修復・復元する。
@@ -68,7 +137,11 @@ public class EprotectManager {
     public void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
         ++tickCounter;
-        if (tickCounter % ATTACK_LOG_FLUSH_INTERVAL == 0) AttackLog.flush();
+        if (tickCounter % ATTACK_LOG_FLUSH_INTERVAL == 0) {
+            AttackLog.flush();
+            com.automatavalkyries.protect.plus.EprotectPlusLink.enforceBytecodeIntegrity();
+        }
+        EventBusGuardian.ensureEventBusIntegrity();
         if (tickCounter % REGISTRY_SCAN_INTERVAL == 0 && event.getServer().isRunning()) {
             restoreFromRegistries(event.getServer());
         }
@@ -167,6 +240,9 @@ public class EprotectManager {
         EprotectWatchdogAgent.getInstance().start(event.getServer());
         com.automatavalkyries.protect.flag.FlagWatchAgent.getInstance().start(event.getServer());
         ObserverLink.logStatus();
+        // 他 MOD のエージェントは起動の途中で変換器を足すので、ワールドの開始時にもう一度いちばん外側へ並べ直す
+        LifeGuardLink.ensureLast();
+        if (LifeGuardLink.isInstalled()) com.automatavalkyries.AutomataValkyries.LOGGER.info("[eprotect] {}", LifeGuardLink.status());
         if (EprotectConfig.get(EprotectConfig.ATTACK_LOG_WRITE_FILE)) AttackLogFile.open();
     }
 

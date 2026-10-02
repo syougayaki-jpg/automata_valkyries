@@ -14,6 +14,10 @@ public final class FakeKillMod {
 
     public static final String MOD_ID = "test_fake_killer";
     public static final String PACKAGE = "com.automatavalkyries.gametest.fake.";
+    /** この印の付いた個体の生死の getter を偽装する（{@code FakeLifeSpoofMixin}） */
+    public static final String LIFE_SPOOF_TAG = "automata_valkyries_test_life_spoof";
+    /** この印の付いた個体の Tick を包み（guardEntityTick）の入口で打ち切る（{@code FakeTimeStopMixin}） */
+    public static final String TIME_STOP_TAG = "automata_valkyries_test_time_stop";
 
     private FakeKillMod() {}
 
@@ -33,6 +37,13 @@ public final class FakeKillMod {
         FakeDeathRegistry.begin(target);
         target.discard();
         FakeDeathRegistry.begin(target); // 拒否の後にも載せ直す（記録の時点の掃除だけでは外れない）
+    }
+
+    /** 時間停止の一覧に載せてから消そうとする（一覧は攻撃するクラスとは別のクラスにある） */
+    public static void freezeAndDiscard(Entity target) {
+        FakeTimeStopRegistry.freeze(target.getUUID());
+        target.discard();
+        FakeTimeStopRegistry.freeze(target.getUUID()); // 拒否の後にも載せ直す
     }
 
     public static void install() {

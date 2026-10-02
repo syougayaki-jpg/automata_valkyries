@@ -247,4 +247,138 @@ public class FlagDictionaryGameTests {
         agent.clear();
         helper.succeed();
     }
+
+    /** リスポーンまわりの名前: 剣の持ち主の守り・復活の見張り・位置固定・HP の錨・リスポーンの禁止を見分け、記録は印と取り違えない */
+    @GameTest(template = TEMPLATE)
+    public static void dictionaryClassifiesRespawnNames(GameTestHelper helper) {
+        String[][] expected = {
+                {"TheLastSwordYouNeverForgotInvul", "GUARD"}, {"TheLastSwordYouNeverForgotDefence", "GUARD"},
+                {"ecaResurrectionTracked", "REVIVE"}, {"enableAllReturn", "REVIVE"},
+                {"isLocationLocked", "CONTROL"}, {"lockLocation", "CONTROL"}, {"movementLocked", "CONTROL"},
+                {"tlsWorldAnchor", "HEALTH_TAMPER"},
+                {"noRespawn", "RESPAWN_BLOCK"}, {"allowAntiRespawn", "RESPAWN_BLOCK"}, {"othermod:permaDeath", "RESPAWN_BLOCK"}};
+        for (String[] pair : expected) {
+            helper.assertTrue(FlagDictionary.is(pair[0], FlagDictionary.Category.valueOf(pair[1])),
+                    pair[0] + " should be " + pair[1] + " but was " + FlagDictionary.classify(pair[0]));
+        }
+        for (String name : new String[]{"tlsIsProtected", "ecaResurrectionTracked", "isLocationLocked", "noRespawn", "godMode"}) {
+            helper.assertTrue(FlagDictionary.heldOnDeadPlayer(name), name + " should be released from a dead player");
+        }
+        for (String name : new String[]{"deathTime", "isDead", "erased", "respawnCooldown"}) {
+            helper.assertFalse(FlagDictionary.heldOnDeadPlayer(name), name + " should stay on a dead player");
+        }
+        for (String name : new String[]{"erased", "imds$forceDead", "frozen", "noRespawn", "deathLock"}) {
+            helper.assertTrue(FlagDictionary.hazardOnRespawned(name), name + " should be reset on a respawned player");
+        }
+        for (String name : new String[]{"lastDeathPos", "deathCount", "invulnerable", "respawnCooldown", "deathLocation", "killerName"}) {
+            helper.assertFalse(FlagDictionary.hazardOnRespawned(name), name + " should not be reset on a respawned player");
+        }
+        helper.succeed();
+    }
+
+    /** リスポーンした個体: 引き継がれた永続データ（PlayerPersisted の中も）の死亡・停止・リスポーン禁止の印は消え、記録と守りは残る */
+    @GameTest(template = TEMPLATE)
+    public static void respawnSanitizerCleansCarriedOverFlags(GameTestHelper helper) {
+        var player = helper.makeMockSurvivalPlayer();
+        CompoundTag data = player.getPersistentData();
+        data.putBoolean("othermod:noRespawn", true);
+        data.putBoolean("othermod:frozen", true);
+        data.putLong("othermod:lastDeathPos", 12345L);
+        data.putInt("othermod:deathCount", 3);
+        data.putBoolean("othermod:invulnerable", true);
+        CompoundTag persisted = new CompoundTag();
+        persisted.putBoolean("othermod:erased", true);
+        persisted.putBoolean("othermod:keepInventory", true);
+        data.put("PlayerPersisted", persisted);
+
+        com.automatavalkyries.protect.RespawnSanitizer.cleanRespawnedPlayer(player, false);
+
+        helper.assertFalse(data.contains("othermod:noRespawn"), "The respawn ban was not removed");
+        helper.assertFalse(data.contains("othermod:frozen"), "The freeze mark was not removed");
+        helper.assertFalse(data.getCompound("PlayerPersisted").contains("othermod:erased"), "The carried-over erased mark was not removed");
+        helper.assertTrue(data.contains("othermod:lastDeathPos") && data.contains("othermod:deathCount"), "Records were removed");
+        helper.assertTrue(data.contains("othermod:invulnerable"), "A guard was removed from the respawned player");
+        helper.assertTrue(data.getCompound("PlayerPersisted").contains("othermod:keepInventory"), "An unrelated persisted setting was removed");
+        helper.succeed();
+    }
+
+    /** 死亡が確定した後に HP を戻されたプレイヤーのリスポーンの要求は通す（HP を 0 に戻す）。生きているプレイヤーには何もしない */
+    @GameTest(template = TEMPLATE)
+    public static void respawnRequestOfRevivedDeadPlayerIsAllowed(GameTestHelper helper) {
+        var alive = helper.makeMockSurvivalPlayer();
+        helper.assertFalse(com.automatavalkyries.protect.RespawnSanitizer.allowRespawnOfDeadPlayer(alive), "A living player was touched");
+        helper.assertTrue(alive.getHealth() > 0.0F, "A living player's health was changed");
+
+        var revived = helper.makeMockSurvivalPlayer();
+        ((LivingEntityAccessor) revived).automata_valkyries$setDead(true);
+        revived.getEntityData().set(LivingEntityAccessor.automata_valkyries$getDataHealthId(), 20.0F);
+        helper.assertTrue(com.automatavalkyries.protect.RespawnSanitizer.allowRespawnOfDeadPlayer(revived), "The revived dead player was not released");
+        helper.assertTrue(revived.getHealth() <= 0.0F, "The revived dead player's health was not reset");
+        helper.succeed();
+    }
+
+    /**
+     * 足されたフィールドの中の入れ物（isDead）と、補助クラスに置かれた同期データの鍵（getHealth の差分）も見つけて戻す
+     * （Fantasy Ending の uom$ecData・FE_GET_HEALTH_DATA の再現。2026-10-03）
+     */
+    @GameTest(template = TEMPLATE)
+    public static void nestedInjectedStateAndHelperClassKeysAreReset(GameTestHelper helper) throws ReflectiveOperationException {
+        FakeStatefulMob mob = statefulMob(helper);
+        Field ecField = injected("fakemod$ecData");
+        com.automatavalkyries.gametest.fake.FakeExpandedContext ec = (com.automatavalkyries.gametest.fake.FakeExpandedContext) ecField.get(mob);
+        ec.isDead = true;
+        var delta = com.automatavalkyries.gametest.fake.FakeHealthKeys.FAKE_GET_HEALTH_DATA;
+        helper.assertTrue(delta != null, "The fake helper-class key was not defined");
+        mob.getEntityData().set(delta, -1000.0F);
+
+        StateScanner.apply(mob, StateScanner.CLEAN_PROTECTED, EnumSet.allOf(StateScanner.Source.class));
+
+        helper.assertFalse(ec.isDead, "isDead inside the injected context object was not reset");
+        helper.assertTrue(ec.invulnerableTime == 7, "A timer inside the context object was touched");
+        helper.assertTrue(mob.getEntityData().get(delta) == 0.0F, "The health delta key on a helper class was not reset: " + mob.getEntityData().get(delta));
+        mob.discard();
+        helper.succeed();
+    }
+
+    /** 時間停止・隠す（透明化・描画やボスバーの取り消し）・vanilla の状態の名前を見分ける（2026-10-03） */
+    @GameTest(template = TEMPLATE)
+    public static void dictionaryClassifiesTimeAndConcealNames(GameTestHelper helper) {
+        for (String name : new String[]{"isTimeStop", "timeStopDimensions", "TimeStopManager", "frozenWorld", "worldStopped", "tickFreeze"}) {
+            helper.assertTrue(FlagDictionary.is(name, FlagDictionary.Category.CONTROL), name + " should be CONTROL but was " + FlagDictionary.classify(name));
+        }
+        for (String name : new String[]{"invisible", "forceInvisible", "hideBossBar", "cancelRender", "clientDelete"}) {
+            helper.assertTrue(FlagDictionary.is(name, FlagDictionary.Category.CONCEAL), name + " should be CONCEAL but was " + FlagDictionary.classify(name));
+        }
+        for (String name : new String[]{"invisible", "noAi", "noGravity", "hideBossBar"}) {
+            helper.assertTrue(FlagDictionary.harmfulOnProtected(name), name + " should be reset on a protected entity");
+        }
+        for (String name : new String[]{"invisibilityDuration", "aiGoals", "gravityScale"}) {
+            helper.assertFalse(FlagDictionary.harmfulOnProtected(name), name + " should not be reset on a protected entity");
+        }
+        helper.succeed();
+    }
+
+    /** フラグ辞書エージェント（FlagDictionaryProtector）のマスターデータと MOD 側の完全同期を検証 */
+    @GameTest(template = TEMPLATE)
+    public static void flagDictionaryAgentMasterMatchesModDictionary(GameTestHelper helper) {
+        // エージェント側のマスターエントリの取得・検証
+        var conceal = com.automatavalkyries.protect.flag.FlagDictionaryLink.getMasterEntries("CONCEAL");
+        var control = com.automatavalkyries.protect.flag.FlagDictionaryLink.getMasterEntries("CONTROL");
+
+        if (!conceal.isEmpty()) {
+            helper.assertTrue(conceal.contains("=invisible") && conceal.contains("*hidebossbar"),
+                    "Agent master entries missing CONCEAL entries: " + conceal);
+        }
+        if (!control.isEmpty()) {
+            helper.assertTrue(control.contains("*timefreeze") && control.contains("*worldstop"),
+                    "Agent master entries missing time stop entries: " + control);
+        }
+
+        // ensureAgentProtection が安全に走ること
+        boolean repaired = FlagDictionary.ensureAgentProtection();
+        helper.assertTrue(!FlagDictionary.entries().isEmpty(), "Flag dictionary active entries is empty");
+        helper.assertTrue(FlagDictionary.entries().containsKey(FlagDictionary.Category.CONCEAL), "Flag dictionary missing CONCEAL");
+
+        helper.succeed();
+    }
 }

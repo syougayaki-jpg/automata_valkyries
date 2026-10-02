@@ -26,22 +26,79 @@ public abstract class EprotectDamageMixin {
     private void automata_valkyries$beginHurt(DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
         Eprotect protect = automata_valkyries$getProtect();
         LivingEntity self = (LivingEntity) (Object) this;
-        if (protect == null) {
+        boolean inScope = protect != null || com.automatavalkyries.protect.EprotectForgeEvents.isUnderProtectionScope(self);
+        if (!inScope) {
             return;
         }
 
         // 被弾の瞬間に IMDS / Hyperlink の抹消リスト除外・フラグ解除を実行
         KillModCounters.counterAll(self);
 
-        if (protect.isProtectionActive()) {
+        // EventBus が破壊された場合でも動作するよう EventBusGuardian を点検
+        com.automatavalkyries.protect.EventBusGuardian.ensureEventBusIntegrity();
+
+        if (protect != null && protect.isProtectionActive()) {
+            boolean isReinforced = com.automatavalkyries.protect.plus.EprotectPlusLink.isReinforcedActive() || protect.isReinforcedActive();
+            String sourceMod = com.automatavalkyries.protect.EprotectForgeEvents.getSourceMod(source);
+            boolean isBlacklisted = com.automatavalkyries.protect.attack.ModBlacklist.contains(sourceMod);
+            if (isBlacklisted) {
+                com.automatavalkyries.protect.plus.EprotectPlusLink.triggerBlacklistReinforcement(sourceMod);
+            }
+
+            // 強化モード中・ブラックリストMOD相手でも、HEAD で遮断するのは即死系の攻撃だけ（通常攻撃は通して上限に掛ける）
+            if ((isReinforced || isBlacklisted) && com.automatavalkyries.protect.EprotectForgeEvents.isLethalAttack(source, amount)) {
+                cir.setReturnValue(false);
+                cir.cancel();
+                protect.penalizeMaliciousAttack();
+                AttackLog.refused(self, AttackOp.DAMAGE + ":mixin_head_reinforced_guard", sourceMod);
+                return;
+            }
+
             if (FlagDictionary.isHarmfulDamageSource(source) || com.automatavalkyries.protect.EprotectForgeEvents.isAttackerHoldingKillItem(source)) {
                 cir.setReturnValue(false);
                 cir.cancel();
                 com.automatavalkyries.protect.EprotectForgeEvents.recordKillDamage(self, source);
                 return;
             }
+            protect.beginHurt();
+        } else if (protect == null) {
+            // 保護範囲内（同乗者・乗り物・オーラ防護）
+            String sourceMod = com.automatavalkyries.protect.EprotectForgeEvents.getSourceMod(source);
+            boolean isBlacklisted = com.automatavalkyries.protect.attack.ModBlacklist.contains(sourceMod);
+            if (isBlacklisted) {
+                com.automatavalkyries.protect.plus.EprotectPlusLink.triggerBlacklistReinforcement(sourceMod);
+            }
+            if (isBlacklisted || com.automatavalkyries.protect.EprotectForgeEvents.isLethalAttack(source, amount)
+                    || FlagDictionary.isHarmfulDamageSource(source) || com.automatavalkyries.protect.EprotectForgeEvents.isAttackerHoldingKillItem(source)) {
+                cir.setReturnValue(false);
+                cir.cancel();
+                AttackLog.refused(self, AttackOp.DAMAGE + ":scope_guard_mixin", sourceMod);
+            }
         }
-        protect.beginHurt();
+    }
+
+    /**
+     * hurt() を迂回して直接 actuallyHurt() を呼び出すチートに対抗し、
+     * 強化モード時や有害ダメージ時に HEAD で完全拒絶する（案4）。
+     */
+    @Inject(method = "actuallyHurt", at = @At("HEAD"), cancellable = true)
+    private void automata_valkyries$guardActuallyHurt(DamageSource damageSource, float damageAmount, CallbackInfo ci) {
+        LivingEntity self = (LivingEntity) (Object) this;
+        Eprotect protect = automata_valkyries$getProtect();
+        boolean inScope = protect != null ? protect.isProtectionActive() : com.automatavalkyries.protect.EprotectForgeEvents.isUnderProtectionScope(self);
+        if (inScope) {
+            boolean isReinforced = com.automatavalkyries.protect.plus.EprotectPlusLink.isReinforcedActive() || (protect != null && protect.isReinforcedActive());
+            String sourceMod = com.automatavalkyries.protect.EprotectForgeEvents.getSourceMod(damageSource);
+            boolean guarded = isReinforced || com.automatavalkyries.protect.attack.ModBlacklist.contains(sourceMod);
+            boolean malicious = guarded && com.automatavalkyries.protect.EprotectForgeEvents.isLethalAttack(damageSource, damageAmount);
+            if (malicious
+                    || FlagDictionary.isHarmfulDamageSource(damageSource)
+                    || com.automatavalkyries.protect.EprotectForgeEvents.isAttackerHoldingKillItem(damageSource)) {
+                ci.cancel();
+                if (malicious && protect != null) protect.penalizeMaliciousAttack();
+                KillModCounters.counterAll(self);
+            }
+        }
     }
 
     @Inject(method = "hurt", at = @At("RETURN"))
@@ -64,12 +121,20 @@ public abstract class EprotectDamageMixin {
     @ModifyVariable(method = "setHealth", at = @At("HEAD"), argsOnly = true)
     private float automata_valkyries$guardHealth(float health) {
         Eprotect protect = automata_valkyries$getProtect();
+        LivingEntity self = (LivingEntity) (Object) this;
         if (protect != null) {
-            LivingEntity self = (LivingEntity) (Object) this;
             if (health <= 0.0F || !Float.isFinite(health)) {
                 KillModCounters.counterAll(self);
             }
             return protect.filterHealth(health);
+        } else if (!(self instanceof net.minecraft.world.entity.player.Player) && com.automatavalkyries.protect.EprotectForgeEvents.isUnderProtectionScope(self)) {
+            // 同乗者・乗り物等の非プレイヤーの HP 異常改変（setHealth(0) や NaN）を防止
+            if (health <= 0.0F || !Float.isFinite(health)) {
+                KillModCounters.counterAll(self);
+                if (self.isAlive() && self.getHealth() > 0.0F) {
+                    return self.getHealth();
+                }
+            }
         }
         return health;
     }

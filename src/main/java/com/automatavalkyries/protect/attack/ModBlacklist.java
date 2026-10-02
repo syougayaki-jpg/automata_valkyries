@@ -134,7 +134,7 @@ public final class ModBlacklist {
         if (add(mod, Source.AUTO, !persistDisabled) != Result.ADDED) return;
 
         long finalCount = count;
-        AutomataValkyries.LOGGER.warn("[eprotect] Blacklisted {} automatically ({} attacks within {} ticks)", mod, finalCount, window);
+        AutomataValkyries.LOGGER.warn("[eprotect] Malicious technique detected: blacklisted {} automatically ({} attacks within {} ticks)", mod, finalCount, window);
         if (server != null) {
             server.execute(() -> {
                 Component message = Component.translatable("automata_valkyries.eprotect.auto_blacklisted", mod, finalCount, window)

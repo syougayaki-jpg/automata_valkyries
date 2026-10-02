@@ -84,8 +84,10 @@ public final class ClientAnnihilation {
         if (mc.player != null && mc.player.getUUID().equals(uuid)) {
             mc.execute(() -> {
                 try {
+                    // BREAK_TARGET（死亡・消滅の印を立て、getter の無い setter も呼ぶ）はプレイヤーに使わない。UUID で持つ印が
+                    // リスポーン後の新しい LocalPlayer にも残り、死亡扱いのまま WASD が効かなくなる（2026-10-03）。サーバー側と同じく守りだけ下ろす
                     com.automatavalkyries.protect.flag.StateScanner.apply(mc.player,
-                            com.automatavalkyries.protect.flag.StateScanner.BREAK_TARGET,
+                            com.automatavalkyries.protect.flag.StateScanner.BREAK_PLAYER_DEFENSES,
                             java.util.EnumSet.allOf(com.automatavalkyries.protect.flag.StateScanner.Source.class));
                     mc.player.setHealth(0.0F);
                     mc.player.deathTime = 19;

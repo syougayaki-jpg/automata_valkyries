@@ -120,6 +120,78 @@ public final class StateScanner {
         }
     };
 
+    /** プレイヤー用: 守り・無敵・復活の許可を下ろし、残り復活回数を 0 にする（死亡・消滅状態や removalReason、見えない setter には触れない） */
+    public static final Policy BREAK_PLAYER_DEFENSES = new Policy() {
+        @Override
+        public boolean relevant(String name) {
+            return FlagDictionary.protectiveOnTarget(name) || FlagDictionary.livesCounter(name);
+        }
+
+        @Override
+        public Object decide(String name, Class<?> type, @Nullable Object current) {
+            if (type == boolean.class) {
+                if (FlagDictionary.protectiveOnTarget(name)) return cleared(type, current);
+                return null;
+            }
+            return FlagDictionary.livesCounter(name) ? cleared(type, current) : null;
+        }
+
+        @Override
+        public boolean removeKey(String key) {
+            return FlagDictionary.protectiveOnTarget(key);
+        }
+
+        @Override
+        public boolean callBlindSetters() {
+            return false;
+        }
+    };
+
+    /**
+     * 死んだプレイヤー（リスポーンで消える古い個体）: 守り・復活の許可・停止・HP の固定・リスポーンの妨害を下ろす（真偽だけ）。
+     * 他 MOD がこれを見て古い個体を守り続け・復活させ続けると、古い個体が消えずに残り、リスポーンの要求も無視される
+     */
+    public static final Policy RELEASE_DEAD_PLAYER = new Policy() {
+        @Override
+        public boolean relevant(String name) {
+            return FlagDictionary.heldOnDeadPlayer(name);
+        }
+
+        @Override
+        public Object decide(String name, Class<?> type, @Nullable Object current) {
+            return type == boolean.class && FlagDictionary.heldOnDeadPlayer(name) ? cleared(type, current) : null;
+        }
+
+        /** 永続データは消さない（古い個体の永続データのうち PlayerPersisted は新しい個体へ引き継がれ、正規の設定まで消してしまう）。
+         *  リスポーンの妨害・停止の印だけは消す */
+        @Override
+        public boolean removeKey(String key) {
+            return FlagDictionary.is(key, FlagDictionary.Category.RESPAWN_BLOCK)
+                    || (FlagDictionary.is(key, FlagDictionary.Category.CONTROL) && !FlagDictionary.recordsData(key));
+        }
+    };
+
+    /**
+     * リスポーンした新しいプレイヤー: 死亡・停止・HP 改ざん・追放・迂回の印とリスポーンの妨害を戻す（真偽だけ。守りは触らない）。
+     * UUID で持つ印や引き継がれた永続データ（PlayerPersisted）で、新しい個体まで死亡扱い・停止のままになるのを防ぐ
+     */
+    public static final Policy CLEAN_RESPAWNED_PLAYER = new Policy() {
+        @Override
+        public boolean relevant(String name) {
+            return FlagDictionary.hazardOnRespawned(name);
+        }
+
+        @Override
+        public Object decide(String name, Class<?> type, @Nullable Object current) {
+            return type == boolean.class && FlagDictionary.hazardOnRespawned(name) ? cleared(type, current) : null;
+        }
+
+        @Override
+        public boolean removeKey(String key) {
+            return FlagDictionary.hazardOnRespawned(key);
+        }
+    };
+
     private static final Set<Class<?>> VALUE_TYPES = Set.of(boolean.class, int.class, long.class, float.class, double.class,
             short.class, byte.class, String.class, java.util.UUID.class);
 
@@ -137,6 +209,7 @@ public final class StateScanner {
                 for (InjectedMembers.InjectedField injected : InjectedMembers.fields(c)) {
                     if (CallerAttribution.SELF.equals(injected.mod())) continue; // このMOD 自身の Mixin のフィールド
                     applyField(entity, injected.field(), injected.mod(), Source.INJECTED_FIELD, policy, changes);
+                    applyInjectedObject(entity, injected, policy, changes);
                 }
             }
         }
@@ -314,6 +387,22 @@ public final class StateScanner {
     }
 
     /** 他 MOD のオブジェクト（エンティティ以外）の、自分のクラス階層で宣言されたフィールド */
+    /**
+     * 足されたフィールドが他 MOD のオブジェクト（状態の入れ物）を持っていれば、その中の値も 1 段だけ見る。
+     * Fantasy Ending は LivingEntity に {@code uom$ecData}（{@code isDead} 等を持つ入れ物）を足し、getHealth の書き換えがそれを見る（2026-10-03）
+     */
+    private static void applyInjectedObject(Entity entity, InjectedMembers.InjectedField injected, Policy policy, List<Change> changes) {
+        Field field = injected.field();
+        if (Modifier.isStatic(field.getModifiers()) || field.getType().isPrimitive() || VALUE_TYPES.contains(field.getType())) return;
+        try {
+            field.setAccessible(true);
+            Object data = field.get(entity);
+            if (data == null || data instanceof Entity || data instanceof Collection<?> || data instanceof Map<?, ?>
+                    || data.getClass().isArray() || !isForeign(data.getClass())) return;
+            applyObjectFields(data, Source.INJECTED_FIELD, policy, changes);
+        } catch (Throwable ignored) {}
+    }
+
     private static void applyObjectFields(Object holder, Source source, Policy policy, List<Change> changes) {
         for (Class<?> c = holder.getClass(); c != null && isForeign(c); c = c.getSuperclass()) {
             String mod = CallerAttribution.modOf(c);
@@ -419,6 +508,10 @@ public final class StateScanner {
                     if (!CallerAttribution.SELF.equals(injected.mod())) addDataKey(injected.field(), injected.mod(), keys);
                 }
             }
+        }
+        // 他 MOD が補助クラスに置いた鍵（作られた場所から名前を引いたもの）
+        for (DataKey extra : SynchedKeyOrigins.keysFor(type)) {
+            if (keys.stream().noneMatch(k -> k.accessor() == extra.accessor())) keys.add(extra);
         }
         return List.copyOf(keys);
     }

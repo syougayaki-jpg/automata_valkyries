@@ -7,6 +7,7 @@ import com.automatavalkyries.protect.attack.ModBlacklist;
 import com.automatavalkyries.protect.flag.FlagDictionary;
 import com.automatavalkyries.config.EprotectConfig;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.DoubleArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
@@ -82,12 +83,28 @@ public final class EprotectCommands {
                                         .executes(ctx -> removeFromBlacklist(ctx, StringArgumentType.getString(ctx, "modid"))))))
                 .then(Commands.literal("flags")
                         .executes(EprotectCommands::showFlagDictionary)
+                        .then(Commands.literal("status").executes(EprotectCommands::showFlagAgentStatus))
+                        .then(Commands.literal("sync").executes(EprotectCommands::syncFlagDictionary))
+                        .then(Commands.literal("repair").executes(EprotectCommands::syncFlagDictionary))
                         .then(Commands.literal("test")
                                 .then(Commands.argument("name", StringArgumentType.greedyString())
                                         .executes(ctx -> testFlagName(ctx, StringArgumentType.getString(ctx, "name")))))
                         .then(Commands.literal("watch")
                                 .executes(EprotectCommands::showFlagWatch)
-                                .then(Commands.literal("clear").executes(EprotectCommands::clearFlagWatch)))));
+                                .then(Commands.literal("clear").executes(EprotectCommands::clearFlagWatch))))
+                .then(Commands.literal("scope")
+                        .executes(EprotectCommands::showScope)
+                        .then(Commands.literal("on").executes(ctx -> setScope(ctx, true)))
+                        .then(Commands.literal("off").executes(ctx -> setScope(ctx, false)))
+                        .then(Commands.literal("vehicles")
+                                .then(Commands.literal("on").executes(ctx -> setScopeVehicles(ctx, true)))
+                                .then(Commands.literal("off").executes(ctx -> setScopeVehicles(ctx, false))))
+                        .then(Commands.literal("aura")
+                                .then(Commands.literal("on").executes(ctx -> setScopeAura(ctx, true)))
+                                .then(Commands.literal("off").executes(ctx -> setScopeAura(ctx, false))))
+                        .then(Commands.literal("radius")
+                                .then(Commands.argument("distance", DoubleArgumentType.doubleArg(1.0, 128.0))
+                                        .executes(ctx -> setScopeRadius(ctx, DoubleArgumentType.getDouble(ctx, "distance")))))));
     }
 
     /** 辞書の分類ごとの項目数 */
@@ -97,6 +114,28 @@ public final class EprotectCommands {
         FlagDictionary.entries().forEach((category, entries) -> source.sendSuccess(() -> Component.translatable(KEY + "flags.category",
                 category.name().toLowerCase(java.util.Locale.ROOT), entries.size(), String.join(", ", entries)), false));
         return FlagDictionary.entries().size();
+    }
+
+    /** フラグ辞書防護 Java エージェントのステータスと統計の表示 */
+    private static int showFlagAgentStatus(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        boolean active = com.automatavalkyries.protect.flag.FlagDictionaryLink.isAgentActive();
+        var stats = com.automatavalkyries.protect.flag.FlagDictionaryLink.getAgentStats();
+        source.sendSuccess(() -> Component.translatable(KEY + "flags.agent_status",
+                active ? Component.translatable(KEY + "flags.yes").withStyle(ChatFormatting.GREEN)
+                       : Component.translatable(KEY + "flags.no").withStyle(ChatFormatting.RED),
+                String.valueOf(stats)).withStyle(ChatFormatting.GOLD), false);
+        return active ? 1 : 0;
+    }
+
+    /** フラグ辞書と JVM エージェント不変マスターデータの整合性検証・修復 */
+    private static int syncFlagDictionary(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        boolean repaired = com.automatavalkyries.protect.flag.FlagDictionary.ensureAgentProtection();
+        source.sendSuccess(() -> Component.translatable(KEY + "flags.sync_result",
+                repaired ? Component.translatable(KEY + "flags.repaired").withStyle(ChatFormatting.GREEN)
+                         : Component.translatable(KEY + "flags.healthy").withStyle(ChatFormatting.AQUA)), true);
+        return repaired ? 1 : 0;
     }
 
     /** 名前を辞書で引いた結果（保護対象なら戻すか・抹殺なら外すか） */
@@ -359,5 +398,66 @@ public final class EprotectCommands {
         for (IModInfo info : ModList.get().getMods()) candidates.add(info.getModId());
         candidates.removeIf(id -> ModBlacklist.isProtected(id) || ModBlacklist.contains(id));
         return candidates;
+    }
+
+    private static int showScope(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        boolean expanded = EprotectConfig.isExpandedScopeEnabled();
+        boolean vehicles = EprotectConfig.isProtectVehiclesAndPassengersEnabled();
+        boolean aura = EprotectConfig.isReinforcedAuraEnabled();
+        double radius = EprotectConfig.get(EprotectConfig.REINFORCED_AURA_RADIUS);
+        source.sendSuccess(() -> Component.translatable(KEY + "scope.status",
+                yesNo(expanded), yesNo(vehicles), yesNo(aura), String.format("%.1f", radius)).withStyle(ChatFormatting.GOLD), false);
+        return expanded ? 1 : 0;
+    }
+
+    private static int setScope(CommandContext<CommandSourceStack> ctx, boolean enabled) {
+        try {
+            EprotectConfig.EXPANDED_SCOPE_ENABLED.set(enabled);
+            EprotectConfig.EXPANDED_SCOPE_ENABLED.save();
+        } catch (IllegalStateException e) {
+            ctx.getSource().sendFailure(Component.translatable(KEY + "scope.not_loaded"));
+            return 0;
+        }
+        ctx.getSource().sendSuccess(() -> Component.translatable(KEY + "scope.set", yesNo(enabled)), true);
+        showScope(ctx);
+        return 1;
+    }
+
+    private static int setScopeVehicles(CommandContext<CommandSourceStack> ctx, boolean enabled) {
+        try {
+            EprotectConfig.PROTECT_VEHICLES_AND_PASSENGERS.set(enabled);
+            EprotectConfig.PROTECT_VEHICLES_AND_PASSENGERS.save();
+        } catch (IllegalStateException e) {
+            ctx.getSource().sendFailure(Component.translatable(KEY + "scope.not_loaded"));
+            return 0;
+        }
+        showScope(ctx);
+        return 1;
+    }
+
+    private static int setScopeAura(CommandContext<CommandSourceStack> ctx, boolean enabled) {
+        try {
+            EprotectConfig.REINFORCED_AURA_ENABLED.set(enabled);
+            EprotectConfig.REINFORCED_AURA_ENABLED.save();
+        } catch (IllegalStateException e) {
+            ctx.getSource().sendFailure(Component.translatable(KEY + "scope.not_loaded"));
+            return 0;
+        }
+        showScope(ctx);
+        return 1;
+    }
+
+    private static int setScopeRadius(CommandContext<CommandSourceStack> ctx, double radius) {
+        try {
+            EprotectConfig.REINFORCED_AURA_RADIUS.set(radius);
+            EprotectConfig.REINFORCED_AURA_RADIUS.save();
+        } catch (IllegalStateException e) {
+            ctx.getSource().sendFailure(Component.translatable(KEY + "scope.not_loaded"));
+            return 0;
+        }
+        ctx.getSource().sendSuccess(() -> Component.translatable(KEY + "scope.radius_set", String.format("%.1f", radius)), true);
+        showScope(ctx);
+        return 1;
     }
 }

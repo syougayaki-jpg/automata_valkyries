@@ -62,7 +62,11 @@ public final class FlagDictionary {
         /** 時間・待ち時間を表す単語（0 にすると早まるので触らない） */
         TIMER,
         /** 追放・奈落落とし・強制テレポート */
-        BANISH
+        BANISH,
+        /** リスポーンの禁止・妨害（死亡画面から戻れなくする・リスポーンを取り消す印） */
+        RESPAWN_BLOCK,
+        /** 隠す（透明化・描画の取り消し・ボスバーの消去・クライアントだけの消去）。消したように見せる印 */
+        CONCEAL
     }
 
     private static final Map<Category, List<String>> BUILT_IN = new EnumMap<>(Category.class);
@@ -86,12 +90,20 @@ public final class FlagDictionary {
                 "=root", "=rooted", "rooting", "entangle", "=trap", "=trapped", "sleep", "silence", "sedat", "subdue",
                 "incapacitat", "*timestop", "*stoptime", "*timestopped", "*aidisabled", "*disableai", "*noai", "*cleanai",
                 "*notick", "*tickstopped", "*stoptick", "*skiptick", "*stopticking", "*disablegoal", "*cleargoal",
-                "*stopai", "*pauseai", "*suppressai", "*freezeai"));
+                "*stopai", "*pauseai", "*suppressai", "*freezeai",
+                "tether", "*locationlock", "*lockedlocation", "*locklocation", "*positionlock", "*lockedposition", "*lockposition",
+                "*movelock", "*lockmove", "*movementlock", "*lockmovement", "*nomove", "*cantmove", "*disablemove", "*inputlock",
+                "*lockinput", "*lockedinput", "*disableinput", "*pinned", "*pinposition",
+                // 時間停止・Tick 停止（2026-10-03: EndingLibrary の TimeStopUtils / timeStopDimensions 等）
+                "*timefreeze", "*freezetime", "*timepause", "*pausetime", "*worldstop", "*stopworld", "*tickfreeze",
+                "*freezetick", "*frozenworld", "*frozentime", "*timehalt", "*halttime", "*stoppedtime", "*timeisstop",
+                "*stoppeddimension", "*frozendimension", "*chronostasis", "*timeskip", "*nogravity", "*disablegravity"));
         BUILT_IN.put(Category.HEALTH_TAMPER, List.of(
                 "zerohp", "hpzero", "drainhp", "hpdrain", "damagecap", "healthlimit", "hpoverride", "sethp", "sethealth", "delta",
                 "*healthdelta", "*hpdelta", "*shielddelta", "*healthoffset", "*healthlock", "*lockhealth", "*lockedhealth", "*fixedhealth",
                 "*healthoverride", "*forcedhealth", "*forcehealth", "*forcezero", "*zerodamage", "*drainhealth",
-                "*nullhealth", "*hpcap", "*currenthp"));
+                "*nullhealth", "*hpcap", "*currenthp", "*worldanchor", "*healthanchor", "*anchorhealth", "*anchoredhealth",
+                "*healthlockenc", "*lockedhp", "*hplock", "*gethealth", "*healthmodif", "*hpmodif", "*hpoffset"));
         BUILT_IN.put(Category.GUARD, List.of(
                 "protect", "immun", "invuln", "=guard", "guarded", "guarding", "shield", "resist", "immortal", "invinc",
                 "=god", "godmode", "muteki", "undying", "barrier", "exempt", "whitelist", "=ward", "warded", "fumetsu",
@@ -100,12 +112,24 @@ public final class FlagDictionary {
                 "fullset", "=halo", "bless", "blessing", "snack",
                 "*forcefullset", "*wasfullset", "*forcehalo", "*hasfullset", "*snackprotector",
                 "*damagenegation", "*negatedamage", "*infinitehp", "*infinitehealth", "*infinitedefense", "*infinitelife",
-                "*immortalstate", "*invulnerablestate", "*godstate"));
+                "*immortalstate", "*invulnerablestate", "*godstate",
+                "=invul", "=invuls", "=defence", "=defense", "*defencemode", "*defensemode", "*godprotect", "*absoluteprotect"));
         BUILT_IN.put(Category.BYPASS, List.of(
                 "bypass", "penetrat", "pierc", "*ignoreprotect", "*ignoreinvul", "*ignoreimmun", "*truedamage",
                 "*unblockable", "*ignoredefense", "*overrideguard", "*antiinvul", "*antiprotect", "*directdamage",
                 "*absolutedamage", "*bypasstotem", "*ignorebarrier"));
-        BUILT_IN.put(Category.REVIVE, List.of("reviv", "respawn", "resurrect", "rebirth", "reincarnat", "=lives", "extralives", "*undyingcore", "*respawntick"));
+        BUILT_IN.put(Category.REVIVE, List.of("reviv", "respawn", "resurrect", "rebirth", "reincarnat", "=lives", "extralives", "*undyingcore", "*respawntick",
+                "*allreturn", "*returnall", "*autoreturn", "*autorevive", "*selfrevive", "*comeback", "*restorelife", "*lifeback"));
+        BUILT_IN.put(Category.CONCEAL, List.of(
+                "=invisible", "*forceinvisible", "*setinvisible", "*keepinvisible", "*invisiblemode", "=hidden", "*hideentity",
+                "*hiderender", "*norender", "*cancelrender", "*disablerender", "*skiprender", "*stoprender", "*hidebossbar",
+                "*nobossbar", "*removebossbar", "*clearbossbar", "*hidebar", "*cloaked", "*clientdelete", "*deleteclient",
+                "*clientremove", "*removeclient", "*hidefromclient", "*untracked", "*stoptracking"));
+        BUILT_IN.put(Category.RESPAWN_BLOCK, List.of(
+                "*norespawn", "*antirespawn", "*respawnlock", "*lockrespawn", "*blockrespawn", "*respawnblock", "*denyrespawn",
+                "*cancelrespawn", "*preventrespawn", "*respawnban", "*banrespawn", "*disablerespawn", "*respawndisabled",
+                "*disallowrespawn", "*respawnforbid", "*forbidrespawn", "*permadeath", "*permanentdeath", "*keepdead",
+                "*staydead", "*deathlock", "*lockdeath", "*lockeddeath", "*deathscreenlock", "*nodeathscreenclose"));
         BUILT_IN.put(Category.COUNT, List.of("count", "=left", "remaining", "=times", "charges", "=lives", "=num", "=amount"));
         BUILT_IN.put(Category.TIMER, List.of("delay", "timer", "cooldown", "tick", "=time", "wait", "interval", "duration", "until", "expir", "respawntick", "erasetime"));
         BUILT_IN.put(Category.BANISH, List.of(
@@ -227,7 +251,7 @@ public final class FlagDictionary {
         if (c.contains(Category.BYPASS)) return true;
         if (c.contains(Category.GUARD)) return false;
         return c.contains(Category.KILL) || c.contains(Category.CONTROL) || c.contains(Category.HEALTH_TAMPER)
-                || c.contains(Category.BANISH);
+                || c.contains(Category.BANISH) || c.contains(Category.CONCEAL);
     }
 
     /**
@@ -301,6 +325,46 @@ public final class FlagDictionary {
             }
         }
 
+        return false;
+    }
+
+    /**
+     * 死んだプレイヤー（リスポーンで消える古い個体）から外すべき状態か: 守り・復活の許可・停止・HP の固定・リスポーンの妨害。
+     * 古い個体が守られ続けたり他 MOD に復活させられたりすると、消えずに残って新しい個体と二重になる・リスポーンの要求が無視される。
+     * 死亡・消去の印は残す（死んでいるので正しい）。待ち時間・迂回は触らない。
+     */
+    public static boolean heldOnDeadPlayer(String name) {
+        Set<Category> c = classify(name);
+        if (c.contains(Category.BYPASS) || c.contains(Category.TIMER)) return false;
+        return c.contains(Category.GUARD) || c.contains(Category.REVIVE) || c.contains(Category.CONTROL)
+                || c.contains(Category.HEALTH_TAMPER) || c.contains(Category.RESPAWN_BLOCK);
+    }
+
+    /**
+     * リスポーンした新しいプレイヤーに付いていたら戻すべき状態か: 保護対象と同じ有害な印（死亡・停止・HP 改ざん・追放・迂回）と
+     * リスポーンの妨害。UUID で持つ印・引き継がれた永続データで、新しい個体まで死亡扱い・停止のままになるのを防ぐ。守りは触らない。
+     */
+    public static boolean hazardOnRespawned(String name) {
+        Set<Category> c = classify(name);
+        if (c.contains(Category.RESPAWN_BLOCK)) return true;
+        if (c.contains(Category.TIMER) || c.contains(Category.COUNT) || recordsData(name)) return false;
+        return harmfulOnProtected(name);
+    }
+
+    /**
+     * 印ではなく記録を表す名前か（最後に死んだ場所・死亡回数・統計等）。リスポーンのたびに消すと他 MOD の記録が失われるので、
+     * リスポーンの片付けでは触らない
+     */
+    public static boolean recordsData(String name) {
+        for (String w : words(name)) {
+            switch (w) {
+                case "pos", "position", "location", "loc", "point", "coord", "coords", "dimension", "dim", "stat", "stats",
+                     "history", "record", "records", "last", "total", "log", "message", "cause", "source", "killer", "attacker" -> {
+                    return true;
+                }
+                default -> {}
+            }
+        }
         return false;
     }
 

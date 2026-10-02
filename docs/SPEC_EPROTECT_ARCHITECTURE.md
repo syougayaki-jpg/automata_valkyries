@@ -130,8 +130,27 @@
 | BYPASS | 守りの迂回 | 戻す | - |
 | GUARD / REVIVE | 守り・復活 | 触らない | 外す |
 | TIMER / COUNT | 単独では手がかりにならない | 組み合わせで判断 | |
+| RESPAWN_BLOCK | リスポーンの禁止・妨害（`noRespawn`・`antiRespawn`・`permaDeath` 等） | リスポーンの片付けで戻す | - |
+| CONCEAL | 隠す（`invisible`・`hideBossBar`・`cancelRender`・`clientDelete` 等。消したように見せる） | 戻す | - |
+
+2026-10-03 に足した語: 位置・移動・入力の固定（CONTROL: `*locationlock`・`*movelock`・`*inputlock` 等）、HP の錨（HEALTH_TAMPER: `*worldanchor`・`*healthlockenc`）、
+短い守りの語（GUARD: `=invul`・`=defence`）、復活の見張り・自動復帰（REVIVE: `*allreturn`・`*autorevive` 等）。The Last Sword・ECA で実際に見た名前を一般化したもの。
+時間停止の語（CONTROL: `*timefreeze`・`*worldstop`・`*frozenworld`・`*stoppeddimension` 等）と `*nogravity` も 2026-10-03 に足した。
+止める・隠す一覧（名前かクラス名が CONTROL / CONCEAL の static な一覧。時間停止中の個体の一覧など）も、抹殺予定の一覧と同じく `KillLists` が見つけて保護対象を外す。
+エージェント（Eprotect+）のマスター辞書には未反映（改ざんの修復が走ると新しい語・分類 RESPAWN_BLOCK / CONCEAL が消える。Antigravity 側で足す）。
 
 設定 `flagDictionary.extra` / `ignore` と `/eprotect flags` で調整する。
+
+**リスポーンの片付け（`protect/RespawnSanitizer`、2026-10-03）**: プレイヤーのリスポーンを壊す他 MOD の状態を辞書で見分けて戻す（準汎用。`-PgenericOnly` でも有効）。
+
+| いつ | 誰に | 何を |
+|---|---|---|
+| 死亡時（`LivingDeathEvent` の最後）・リスポーンの直前（`PlayerList.respawn` の最初） | 死んだ古い個体 | 守り・復活の許可・停止・HP の固定・リスポーンの妨害の真偽を下ろす（`StateScanner.RELEASE_DEAD_PLAYER`。永続データはリスポーンの妨害・停止のキーだけ消す。PlayerPersisted が新しい個体へ引き継がれるため） |
+| リスポーン直後から 40 Tick、毎 Tick | 新しい個体 | 死亡・停止・HP 改ざん・追放・迂回の印とリスポーンの妨害を戻す（`CLEAN_RESPAWNED_PLAYER`）。抹殺予定の一覧（`KillLists`）から外す。守りと記録（最後に死んだ場所・死亡回数等。`FlagDictionary.recordsData`）は触らない |
+| リスポーンの要求（`RespawnCommandMixin`） | 死亡が確定した（`dead`）のに HP を戻された個体 | HP を 0 にして要求を通す（vanilla は HP > 0 だと無視する） |
+| 新しい LocalPlayer ができたとき（クライアント） | 自分 | `CLEAN_RESPAWNED_PLAYER` |
+| 毎 Tick（クライアント、`client/LocalPlayerRejoin`） | 自分 | クライアントのワールドに載っていなければ載せ直す（載っていないと Tick されず WASD が効かない） |
+| 毎 Tick（サーバー、`StalePlayerSweeper`）・リスポーン時（`PlayerRespawnReleaseMixin`） | 古い個体 | ワールドのプレイヤー一覧・追跡・検索表に残っていたら外す（残ると同じ ID の別プレイヤーとして本人の画面に送られる） |
 
 **状態の読み書き（`StateScanner`）**: 他 MOD が付けた状態を次の場所から見つけて辞書に従って戻す。
 他 MOD のインターフェースの getter/setter、既存のクラスに後から足されたフィールド（`InjectedMembers`: jar の元のクラスファイルと比べて見つける。名前の付け方に左右されない）、
@@ -141,6 +160,34 @@
 読み込み済み・初期化済みの他 MOD のクラスだけを覗いて一覧を見つけ、保護対象を毎 Tick 外す。攻撃を止めたときは、攻撃したクラスの一覧からも外す（同じクラス・同じ対象は 1 Tick に 1 回まで。同じ Tick に同じクラスが別の保護対象を攻撃しても、そちらも外す）。
 
 **実際の値（`DirectRead`）**: 生死の判定はすべて保存場所から直接読む。
+
+**真ライフ（LifeGuard エージェント、`-PwithLifeGuard`、2026-10-03）**: 他 MOD のエージェントが getHealth / isDeadOrDying / isAlive の戻り値を包んで偽装すると
+（Fantasy Ending は全 LivingEntity を再変換して包む）、vanilla がそれを信じて死亡演出を回し続ける。LifeGuard は vanilla の `LivingEntity` とこのMOD のクラスの
+各 return の直前に `LifeHooks`（ブートストラップ）を呼ばせ、MOD 側の `TrueLife` が保護対象だけ実際の値に直す（直したら `repair:true_life:<getter>` を記録）。
+変換器は足した順に回り後の方が外側になるので、他のエージェントの再変換を見たら自分の変換器を外して足し直し（最後へ）、対象を再変換する。
+ワールドの開始時にも並べ直す。他 MOD のクラスは書き換えない。
+
+**ダメージ処理を通らない HP の減少**（同期データの直書き等）は、毎 Tick の点検で普通の被弾と同じ上限（`capFinalDamage`、最大 HP の 10% / 200 Tick）に掛け、
+超えた分を戻す（`repair:health_cut`）。強化保護中（ブラックリストの MOD に攻撃された直後）は全部戻す。2026-10-03 までは HP 0 にならない直書きの削りは素通りだった。
+
+**強化保護・ブラックリストとダメージ（2026-10-03 にユーザー指定で変更）**: 強化保護中・ブラックリストの MOD からでも、止めるのは即死系の攻撃だけ
+（`EprotectForgeEvents.isLethalAttack`: 即死・有害なダメージの種類、即死アイテム、NaN・無限大・1000 以上の量。イベント 2 つと `hurt` / `actuallyHurt` の入口の 4 か所）。
+通常攻撃は通して被弾の上限に掛ける（ブラックリストの MOD は 1%、他は 10%）。以前は強化保護中は誰のダメージも 0 にし、毎 Tick HP を満タンに戻していた。
+凶悪技術の罰則として、止めた即死系の攻撃 1 回ごとに HP を最大まで戻す（`Eprotect.penalizeMaliciousAttack`、`repair:malicious_penalty:max_health`）。
+自動のブラックリスト入りは「凶悪技術を感知しました」と表示する（チャット・ログ）。
+
+**見せ直し（2026-10-03）**: 消去を拒否した・入り直させた次の Tick に、追跡（ChunkMap の TrackedEntity）を作り直して出現の情報を送り直す
+（`repair:viewers_resync`、同じ個体は 20 Tick に 1 回まで）。消去と一緒にクライアントへ「消した」と送る MOD（Fantasy Ending の DeleteEntityPacket）で
+画面から消えたまま・追跡の後片付け（stopSeenByPlayer）でボスバーが外れたままになるのを防ぐ。
+
+**時間停止の包みの入口（2026-10-03）**: 代わりに回す Tick（`driveTick`）は `guardEntityTick` を通すが、その入口で打ち切る MOD
+（EndingLibrary の `LevelMixin.guardEntityTick`）があるので、進まなければ包みを飛ばして `tickNonPassenger` を直接呼ぶ（`repair:frozen_tick:entrance_bypassed`）。
+クライアントでも同じく、保護対象の Tick が進まなければ `ClientLevel.tickNonPassenger` で代わりに回す（`client/ClientTickBypass`。止まると補間・演出が崩れる）。
+
+**vanilla の見た目・AI の状態（2026-10-03）**: 保護を始めたときの透明・AI 停止・重力無しを覚え、他 MOD に書き換えられたら戻す
+（`repair:vanilla:invisible` / `no_ai` / `no_gravity`。Fantasy Ending の DeleteCommand は消去と一緒に setInvisible(true)、クリエイティブの骨は AI を止める）。
+透明化の状態異常が付いている間の透明は戻さない。見張るかはフラグ辞書で決める（名前 `invisible` は CONCEAL、`noAi`・`noGravity` は CONTROL。
+設定 `flagDictionary.ignore` に名前を足せばその状態は見張らない）。
 
 **監視（`FlagWatchAgent`）**: 他 MOD の状態を読むだけで見張り、死亡・消去・攻撃の直前にだけ変わる辞書に無い名前を候補に挙げる（辞書には自分で足さない）。
 
@@ -199,6 +246,10 @@
 | `protection.retreatWhenUnrepairable` | true | 修復が追いつかなければ退避 |
 | `protection.retreatAnomalyThreshold` | 200 | 退避までの修復件数 |
 | `protection.retreatWindowTicks` | 1200 | その時間窓 |
+| `protection.expandedScope.enabled` | false | 保護範囲拡張のマスター設定（既定は範囲強化なしで単体保護のみ） |
+| `protection.expandedScope.protectVehiclesAndPassengers` | false | 搭乗物・乗客の連動保護（ボートやトロッコ等） |
+| `protection.expandedScope.reinforcedAura.enabled` | false | 強化オーラによる範囲内味方MOB/エンティティ保護 |
+| `protection.expandedScope.reinforcedAura.radius` | 16.0 | 強化オーラの防護半径（1.0〜128.0ブロック） |
 | `attackLog.enabled` / `writeFile` / `maxEntries` | true / true / 256 | 攻撃の記録 |
 | `blacklist.mods` / `neverBlacklist` | 空 | 手動のブラックリスト・除外 |
 | `blacklist.auto.enabled` / `threshold` / `windowTicks` | true / 20 / 1200 | 自動ブラックリスト |
@@ -215,6 +266,7 @@
 | 攻撃の記録 | `/eprotect attacks`、`logs/automata_valkyries-attacks.log` |
 | ブラックリスト | `/eprotect blacklist list / clear / auto ...` |
 | フラグ辞書 | `/eprotect flags`、`/eprotect flags watch`、`logs/automata_valkyries-flag-candidates.txt` |
+| 保護範囲設定 | `/eprotect scope`、`/eprotect scope on/off`、`/eprotect scope vehicles <on/off>`、`/eprotect scope aura <on/off>`、`/eprotect scope radius <distance>` |
 | 観察エージェント | `/eprotect observer`、`/eprotect observer capabilities`、`logs/automata_valkyries-observer.log` |
 | ゲーム全体のログ | `run/logs/latest.log`・`debug.log`（`[eprotect]`・`[eprotect-attack]`・`[observer]` の印） |
 

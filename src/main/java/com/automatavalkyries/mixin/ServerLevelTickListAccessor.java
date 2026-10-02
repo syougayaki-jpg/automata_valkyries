@@ -2,12 +2,15 @@ package com.automatavalkyries.mixin;
 
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.entity.EntityTickList;
 import net.minecraft.world.level.entity.PersistentEntitySectionManager;
 import net.minecraftforge.entity.PartEntity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
+
+import java.util.List;
 
 /**
  * {@code ServerLevel.entityTickList}（Tick 対象の一覧）と {@code entityManager}（UUID 登録の管理）、
@@ -23,4 +26,8 @@ public interface ServerLevelTickListAccessor {
 
     @Accessor("dragonParts")
     Int2ObjectMap<PartEntity<?>> automata_valkyries$getDragonParts();
+
+    /** プレイヤー一覧の実体（{@code players()} は他 MOD に差し替えられることがあるので、フィールドを直接見る） */
+    @Accessor("players")
+    List<ServerPlayer> automata_valkyries$getPlayers();
 }

@@ -274,7 +274,7 @@ public final class FlagWatchAgent implements Runnable {
         Map<String, Object> from = new HashMap<>();
         current.forEach((key, now) -> {
             StateScanner.Observed before = previous.get(key);
-            if (before != null && !before.value().equals(now.value())) from.put(key, before.value());
+            if (before != null && !java.util.Objects.equals(before.value(), now.value())) from.put(key, before.value());
         });
         return from;
     }

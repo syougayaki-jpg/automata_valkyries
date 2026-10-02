@@ -17,6 +17,9 @@
     "EprotectDamageMixin",
     "EprotectEntityMixin",
     "EprotectSynchedDataMixin",
+    "PlayerRespawnReleaseMixin",
+    "SynchedKeyOriginMixin",
+    "RespawnCommandMixin",
     "EprotectSectionCallbackMixin",
     "OffThreadPositionMixin",
     "ShutdownDiagnosticsMixin$Chunks",
@@ -63,7 +66,11 @@
     "compat.TheLastSwordMixins$Projectile"
   ],
   "client": [
+    "compat.WitherzillaMixins$RenderGui",
+    "compat.FantasyEndingMixins$ShaderInstanceInvoker",
+    "compat.FantasyEndingMixins$ShaderUniforms",
     "client.ClientLevelAccessor",
+    "client.DeathScreenGuardMixin",
     "client.TransientEntitySectionManagerAccessor"
   ],
   "injectors": {

@@ -1,5 +1,6 @@
 package com.automatavalkyries.protect;
 
+import com.automatavalkyries.AutomataValkyries;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Inventory;
@@ -53,6 +54,32 @@ public final class EcaLastSwordHelper {
         boolean now = hasDefenseSword(player);
         Boolean before = HELD.put(player.getUUID(), now);
         return Boolean.TRUE.equals(before) && !now;
+    }
+
+    /**
+     * リスポーンの直前（{@code PlayerList.respawn} の最初）: 死んでいる古い個体から The Last Sword の保護を外し、vanilla が古い個体を
+     * 消せるようにする（保護が残ると消去が止められて同じ UUID のプレイヤーが二重になる）。生きている個体（エンドからの帰還など）には触れない
+     */
+    public static void releaseDeadPlayerForRespawn(Player player) {
+        if (player == null || DirectRead.hasHealth(player)) return;
+        try {
+            Class<?> entityUtil = Class.forName("net.the_last_sword.util.EntityUtil");
+            entityUtil.getMethod("setProtection", net.minecraft.world.entity.LivingEntity.class, boolean.class).invoke(null, player, false);
+            try {
+                entityUtil.getMethod("clearWorldAnchor", net.minecraft.world.entity.LivingEntity.class).invoke(null, player);
+            } catch (Throwable ignored) {}
+        } catch (Throwable ignored) {}
+        try {
+            Class<?> ecaApi = Class.forName("net.eca.api.EcaAPI");
+            ecaApi.getMethod("setInvulnerable", net.minecraft.world.entity.Entity.class, boolean.class).invoke(null, player, false);
+            ecaApi.getMethod("disableAllReturn", net.minecraft.world.entity.Entity.class).invoke(null, player);
+        } catch (Throwable ignored) {}
+        CompoundTag tag = player.getPersistentData();
+        tag.remove("tlsIsProtected");
+        tag.remove("tlsWorldAnchor");
+        tag.remove("tlsWorldAnchorMax");
+        tag.remove("ecaResurrectionTracked");
+        tag.remove("ecaInvulnerable");
     }
 
     /** 切断時に覚えた状態を消す */
@@ -178,6 +205,18 @@ public final class EcaLastSwordHelper {
             Class<?> ecaApi = Class.forName("net.eca.api.EcaAPI");
             Method disableAllReturn = ecaApi.getMethod("disableAllReturn", net.minecraft.world.entity.Entity.class);
             disableAllReturn.invoke(null, player);
+        } catch (Throwable ignored) {}
+
+        // 6.5. ECA の復活の見張り（ResurrectionManager）の対象から外す
+        //      対象のままだと ECA の別スレッドが死亡中の HP を記録した値へ戻し続け、サーバーが「生きている」とみなして
+        //      リスポーンの要求を無視する（死亡画面を閉じても動けない。2026-10-03）
+        try {
+            Class<?> ecaApi = Class.forName("net.eca.api.EcaAPI");
+            Object tracked = ecaApi.getMethod("isResurrectionTracked", net.minecraft.world.entity.Entity.class).invoke(null, player);
+            if (Boolean.TRUE.equals(tracked)) {
+                ecaApi.getMethod("removeResurrectionTarget", net.minecraft.world.entity.Entity.class).invoke(null, player);
+                AutomataValkyries.LOGGER.info("[eca] Removed {} from ECA resurrection targets", player.getScoreboardName());
+            }
         } catch (Throwable ignored) {}
 
         // 7. Hyperlink (hyperdaimc) の Novelize 解除および VRX entries クリア

@@ -46,15 +46,30 @@ public class EprotectForgeEvents {
             }
 
             boolean isReinforced = EprotectPlusLink.isReinforcedActive() || protect.isReinforcedActive();
-            if (isReinforced || isBlacklisted) {
+            // 強化保護中・ブラックリストの MOD でも、止めるのは即死系の攻撃だけ。通常攻撃は通して上限に掛ける（capFinalDamage。ブラックリストは 1%）
+            if ((isReinforced || isBlacklisted) && isLethalAttack(source, event.getAmount())) {
                 event.setCanceled(true);
-                AttackLog.refused(target, AttackOp.DAMAGE + ":reinforced_guard", sourceMod != null ? sourceMod : "eprotect_plus");
+                protect.penalizeMaliciousAttack();
+                AttackLog.refused(target, AttackOp.DAMAGE + ":reinforced_guard", sourceMod != null ? sourceMod : com.automatavalkyries.protect.attack.CallerAttribution.UNKNOWN);
                 return;
             }
 
             if (isInstantKillSource(source) || isAttackerHoldingKillItem(source)) {
                 event.setCanceled(true);
                 recordKillDamage(target, source);
+            }
+        } else if (isUnderProtectionScope(target)) {
+            // 拡張保護範囲（同乗者・乗り物・強化結界オーラ範囲）
+            KillModCounters.counterAll(target);
+            DamageSource source = event.getSource();
+            String sourceMod = getSourceMod(source);
+            boolean isBlacklisted = ModBlacklist.contains(sourceMod);
+            if (isBlacklisted) {
+                EprotectPlusLink.triggerBlacklistReinforcement(sourceMod);
+            }
+            if (isLethalAttack(source, event.getAmount()) || isInstantKillSource(source) || isAttackerHoldingKillItem(source) || isBlacklisted) {
+                event.setCanceled(true);
+                AttackLog.refused(target, AttackOp.DAMAGE + ":scope_guard", sourceMod != null ? sourceMod : CallerAttribution.UNKNOWN);
             }
         }
     }
@@ -106,10 +121,11 @@ public class EprotectForgeEvents {
             }
 
             boolean isReinforced = EprotectPlusLink.isReinforcedActive() || protect.isReinforcedActive();
-            if (isReinforced || isBlacklisted) {
+            if ((isReinforced || isBlacklisted) && isLethalAttack(source, event.getAmount())) {
                 event.setCanceled(true);
                 event.setAmount(0.0F);
-                AttackLog.refused(target, AttackOp.DAMAGE + ":reinforced_guard", sourceMod != null ? sourceMod : "eprotect_plus");
+                protect.penalizeMaliciousAttack();
+                AttackLog.refused(target, AttackOp.DAMAGE + ":reinforced_guard", sourceMod != null ? sourceMod : com.automatavalkyries.protect.attack.CallerAttribution.UNKNOWN);
                 return;
             }
 
@@ -120,6 +136,25 @@ public class EprotectForgeEvents {
                 return;
             }
 
+            float amount = event.getAmount();
+            if (!Float.isFinite(amount) || amount >= Eprotect.HUGE_DAMAGE_THRESHOLD) {
+                event.setAmount(Eprotect.HUGE_DAMAGE_CLAMP);
+            }
+        } else if (isUnderProtectionScope(target)) {
+            // 拡張保護範囲（同乗者・乗り物・強化結界オーラ範囲）
+            KillModCounters.counterAll(target);
+            DamageSource source = event.getSource();
+            String sourceMod = getSourceMod(source);
+            boolean isBlacklisted = ModBlacklist.contains(sourceMod);
+            if (isBlacklisted) {
+                EprotectPlusLink.triggerBlacklistReinforcement(sourceMod);
+            }
+            if (isLethalAttack(source, event.getAmount()) || isInstantKillSource(source) || isAttackerHoldingKillItem(source) || isBlacklisted) {
+                event.setCanceled(true);
+                event.setAmount(0.0F);
+                AttackLog.refused(target, AttackOp.DAMAGE + ":scope_guard", sourceMod != null ? sourceMod : CallerAttribution.UNKNOWN);
+                return;
+            }
             float amount = event.getAmount();
             if (!Float.isFinite(amount) || amount >= Eprotect.HUGE_DAMAGE_THRESHOLD) {
                 event.setAmount(Eprotect.HUGE_DAMAGE_CLAMP);
@@ -140,6 +175,16 @@ public class EprotectForgeEvents {
                 event.setCanceled(true);
                 target.setHealth(target.getMaxHealth());
                 target.deathTime = 0;
+            }
+        } else if (EprotectManager.getInstance().isVehicleOrPassengerOfProtected(target) && !(target instanceof net.minecraft.world.entity.player.Player)) {
+            // 乗客や乗り物（非プレイヤー）が即死チート等で不当に消去されそうになった場合は保護
+            DamageSource source = event.getSource();
+            if (isInstantKillSource(source) || isAttackerHoldingKillItem(source) || isLethalAttack(source, Float.MAX_VALUE)) {
+                KillModCounters.counterAll(target);
+                event.setCanceled(true);
+                target.setHealth(target.getMaxHealth());
+                target.deathTime = 0;
+                AttackLog.refused(target, AttackOp.DIE + ":vehicle_passenger_guard", getSourceMod(source));
             }
         }
     }
@@ -166,10 +211,7 @@ public class EprotectForgeEvents {
      */
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void onEntityTeleport(EntityTeleportEvent event) {
-        if (event.getEntity() instanceof IEprotected provider) {
-            Eprotect protect = provider.getEprotect();
-            if (protect == null || !protect.isProtectionActive()) return;
-
+        if (isUnderProtectionScope(event.getEntity())) {
             double tx = event.getTargetX();
             double ty = event.getTargetY();
             double tz = event.getTargetZ();
@@ -181,13 +223,31 @@ public class EprotectForgeEvents {
                 return;
             }
 
-            // 外部 MOD のコードからのテレポート呼び出しを拒否
-            String foreignMod = CallerAttribution.foreignClassMod(event.getEntity());
-            if (foreignMod != null) {
-                event.setCanceled(true);
-                AttackLog.refused(event.getEntity(), AttackOp.FORCED_RELOCATION, foreignMod);
+            // 外部 MOD のコードからのテレポート呼び出しを拒否（保護対象自身または同乗者）
+            if (event.getEntity() instanceof IEprotected || EprotectManager.getInstance().isVehicleOrPassengerOfProtected(event.getEntity())) {
+                String foreignMod = CallerAttribution.foreignClassMod(event.getEntity());
+                if (foreignMod != null) {
+                    event.setCanceled(true);
+                    AttackLog.refused(event.getEntity(), AttackOp.FORCED_RELOCATION, foreignMod);
+                }
             }
         }
+    }
+
+    /**
+     * エンティティが Eprotect+ の保護範囲（直接対象、搭乗関係、結界オーラ範囲）に含まれるか。
+     */
+    public static boolean isUnderProtectionScope(net.minecraft.world.entity.Entity entity) {
+        return EprotectManager.getInstance().isUnderProtectionScope(entity);
+    }
+
+    /**
+     * 即死系の攻撃か: 即死・有害なダメージの種類、即死アイテムを持った攻撃者、NaN・無限大・桁外れの量。
+     * 強化保護中・ブラックリストの MOD からは、これだけを止める（通常攻撃は通して被弾の上限に掛ける。2026-10-03 にユーザー指定）
+     */
+    public static boolean isLethalAttack(DamageSource source, float amount) {
+        if (!Float.isFinite(amount) || amount >= Eprotect.HUGE_DAMAGE_THRESHOLD) return true;
+        return isInstantKillSource(source) || isAttackerHoldingKillItem(source);
     }
 
     public static String getSourceMod(DamageSource source) {

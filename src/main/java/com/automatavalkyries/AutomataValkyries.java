@@ -65,6 +65,7 @@ public class AutomataValkyries {
         if (config.getSpec() == EprotectConfig.SPEC) {
             ModBlacklist.reloadFromConfig();
             com.automatavalkyries.protect.flag.FlagDictionary.reloadFromConfig();
+            com.automatavalkyries.protect.flag.FlagDictionary.ensureAgentProtection();
         }
     }
 
@@ -73,6 +74,8 @@ public class AutomataValkyries {
             LOGGER.warn("[eprotect] Mod-specific countermeasures are OFF (genericOnly); only the generic layer protects entities");
         }
         event.enqueueWork(ModNetwork::register);
+        com.automatavalkyries.protect.LifeGuardLink.install();
+        com.automatavalkyries.protect.flag.FlagDictionary.ensureAgentProtection();
         event.enqueueWork(EprotectManager::registerChunkLoadingCallback);
         if (EprotectConfig.get(EprotectConfig.REPORT_FOREIGN_ENTITY_HOOKS)) {
             event.enqueueWork(ForeignHookReport::log);

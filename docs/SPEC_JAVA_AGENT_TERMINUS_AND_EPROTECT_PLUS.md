@@ -67,7 +67,7 @@ flowchart TD
 
 ### 2.2 FlagDictionaryAgent & FlagDictionaryProtector
 - **不変マスター辞書**:
-  - `FlagDictionaryProtector.MASTER_DICTIONARY` に、全 9 カテゴリー（`KILL`, `CONTROL`, `HEALTH_TAMPER`, `GUARD`, `BYPASS`, `REVIVE`, `COUNT`, `TIMER`, `BANISH`）の語彙を完全保持。
+  - `FlagDictionaryProtector.MASTER_DICTIONARY` に、全 10 カテゴリー（`KILL`, `CONTROL`, `HEALTH_TAMPER`, `GUARD`, `BYPASS`, `REVIVE`, `RESPAWN_BLOCK`, `COUNT`, `TIMER`, `BANISH`）の語彙を完全保持。
 - **バイトコード保護**:
   - `FlagDictionaryAgent` が `FlagDictionary` クラスへの ASM / Transformer 介入を遮断。
 - **自動整合性検証・自己修復（`verifyAndRepair`）**:
@@ -107,6 +107,8 @@ flowchart TD
    │
    ├─▶ 【第 3 段階】準汎用チート MOB 解体 (GenericCheatMobNeutralizer)
    │      - フラグ辞書走査により、未知フィールドの無敵・防御・HP固定を 0 / false 化
+   │      - 【案4】Unsafe によるメモリ直接ゼロクリア（非プレイヤーの全独自フィールド・コントローラーを null/0 化）
+   │      - 【案5】属性完全破壊（Attributes.MAX_HEALTH の 0.0D 化 ＆ DataWatcher DATA_HEALTH_ID 凍結）
    │      - 死亡フラグ (isDead, removed) を true 化
    │      - 終了・解体メソッド (close, dispose, cleanup) の強制実行
    │
@@ -115,11 +117,13 @@ flowchart TD
    │      - static な復活待機キュー (List / Set / Map) から UUID・インスタンスを抹消
    │      - 全タイマー (beamTimer, eraseTimer 等) を -9999 に凍結
    │
-   └─▶ 【第 5 段階】JVM Java エージェント特権真抹殺 (EprotectPlusAgent)
-          - 特権コンテキスト (runPrivileged) で StackChecker を完全迂回
+   └─▶ 【第 5 段階】JVM Java エージェント特権真抹殺 (EprotectPlusAgent / TrueAnnihilationEngine)
+          - 【案3】スタック偽装実行 (runWithCloakedStack) で StackChecker を完全迂回・無力化
+          - 【案2】死亡進行・Tick停止の強制突破 (deathTime=20, AI/Brain 凍結, 合成デス・ティック, TickListEviction 即時排除)
           - Witherzilla の witherzillaLife を強制剥奪
           - Metapotent FlashfurLevel の全体メモリから強制除外
           - No-Sugar / IMDS の抹殺登録テーブルから除外
+          - ※第3〜第5段階のメモリ消去・属性破壊・TickList強制排除はプレイヤーを厳格に除外し、安全なバニラリスポーンを保証
 ```
 
 ### 3.1 終焉の 10 秒耐性検知メカニズム
@@ -136,11 +140,13 @@ flowchart TD
 
 | 項目 | 通常の Eprotect | Eprotect+ 強化処理（Reinforced Mode） |
 |---|---|---|
-| **被ダメージ上限** | 10秒の窓で最大HPの10%まで | **完全 0.0F（完全遮断・イベントキャンセル）** |
+| **被ダメージ上限** | 10秒の窓で最大HPの10%まで | **完全 0.0F（完全遮断・イベントキャンセル ＆ Mixin HEAD 直接遮断）** |
 | **ブラックリストMOD相手** | 10秒の窓で最大HPの1%まで（罰則） | **完全 0.0F 遮断 ＋ 10 秒間強化モード自動起動** |
 | **毎 Tick 修復** | 崩れた状態を点検して修復 | **HP を最大値（getMaxHealth）に即時全快固定** |
 | **死亡演出タイマー** | 通常進行（正規撃破時のみ許可） | **`deathTime = 0` に毎 Tick 強制リセット** |
 | **外部状態・即死リスト** | 検出時にパージ | **`KillLists.purge` ＆ `ForeignStateCleaner.clean` を毎 Tick 強制執行** |
+| **EventBus破壊耐性** | イベントリスナー経由 | **`EventBusGuardian` による自動再登録 ＋ Mixin HEAD（`actuallyHurt`含む）によるイベント非依存遮断** |
+| **バイトコード能動監査** | 受動的監視 | **`retransformCriticalClasses` による能動的再監査・未改ざんバイトコード強制復元** |
 | **持続時間** | 常時稼働 | **発動から 10 秒間（10,000ms / 200 ticks）** |
 
 ### 4.2 強化処理の発動トリガー
@@ -151,6 +157,25 @@ flowchart TD
    - `TerminusEngine.checkResistanceAll()` で対象が 10 秒耐え続けた場合。
    - `triggerTerminusResistedReinforcement(target)` が発動。
 
+### 4.3 高度防御アーキテクチャ（案2・案3・案4 ＆ 保護範囲の拡張）
+1. **【案2: 能動的バイトコード整合性再監査 & ホットパッチ】**:
+   - `EprotectPlusAgent.retransformCriticalClasses()`: 強化モード起動時および 100 ticks（5秒）周期でロード済み保護クラスの整合性を能動監査。他 MOD の Transformer によるメソッド空化や改ざんを即時検知し、未改ざんのベースラインバイトコードへ強制復元。
+   - **監視・復元範囲（`CRITICAL_PREFIXES`）**: `com/automatavalkyries/`（MOD 全体）、`net/minecraft/world/entity/Entity`、`LivingEntity`、`Player`、`ServerPlayer`。
+2. **【案3: スタックトレース偽装・検閲欺瞞】**:
+   - `EprotectPlusLink.runWithCloakedStack()`: `AccessController.doPrivileged` による特権境界を構築。相手の `StackChecker` による呼び出し元スタック検閲を完全欺瞞。さらに `neutralizeStackChecker()` で敵性スタックチェッカーの判定フラグを無力化。
+3. **【案4: EventBus 破壊・全消去への完全二重防護】**:
+   - `EventBusGuardian`: Forge の `MinecraftForge.EVENT_BUS` が他 MOD の乗っ取りや `listeners.clear()` を受けた場合、毎 Tick 点検して即座に修復・再登録。
+   - `EprotectDamageMixin` HEAD 二重化: Forge イベントが全停止しても、バニラ `LivingEntity.hurt` および `actuallyHurt` の Mixin HEAD で Eprotect 強化ガード（完全 0.0F）を即時執行。
+4. **【保護範囲の拡張（乗り物・同乗者・結界オーラ、コンフィグ切替対応）】**:
+   - **コンフィグ制御（既定: OFF / 範囲強化なし）**:
+     - `protection.expandedScope.enabled`（既定 `false`）: 保護範囲拡張のマスター設定。既定では従来の兵姫（`IEprotected`）単体のみを保護し、意図しない周囲エンティティへの干渉を防ぐ。
+     - `protection.expandedScope.protectVehiclesAndPassengers`（既定 `false`）: 兵姫が搭乗中の乗り物（馬・ボート等）および同乗者の連動保護。
+     - `protection.expandedScope.reinforcedAura.enabled`（既定 `false`）: 強化モード時の結界オーラ有効化。
+     - `protection.expandedScope.reinforcedAura.radius`（既定 `16.0`、1.0〜128.0）: 結界オーラの防護半径。
+     - コマンド `/eprotect scope [on|off|vehicles|aura|radius]` でゲーム内から即時切替可能。
+   - **搭乗関係（乗り物・同乗者）**: 有効時、`IEprotected` を直接実装していないエンティティであっても、保護対象が騎乗している乗り物（馬・ボート等）または同乗しているエンティティは、即死・異常座標移動・奈落落としから保護される（`EprotectManager.isVehicleOrPassengerOfProtected`）。
+   - **結界オーラ**: 有効時、強化モード（結界発動中）では生存中の保護対象から指定半径（既定 16m）以内の周囲エンティティ・仲間に防護フィールドが波及。外部 MOD の即死攻撃・有害ダメージを自動遮断し、拘束フラグを解除（`KillModCounters.counterAll`）。プレイヤーに対しては通常死亡・リスポーンを一切妨害せず安全に保護。
+
 ---
 
 ## 5. フラグ辞書（FlagDictionary）の仕様と双方向連携
@@ -159,16 +184,25 @@ flowchart TD
 | カテゴリー | 意味・役割 | 代表的なキーワード |
 |---|---|---|
 | `KILL` | 死亡・消去・抹消・呪い | `dead`, `death`, `=die`, `eras`, `remov`, `kill`, `annihil`, `terminus` |
-| `CONTROL` | 停止・凍結・封印 | `freez`, `frozen`, `stun`, `timelock`, `chronolock`, `*timestop`, `*noai` |
-| `HEALTH_TAMPER` | HP の固定・不正増減 | `zerohp`, `damagecap`, `hpoverride`, `*healthlock`, `*shielddelta` |
+| `CONTROL` | 停止・凍結・封印・時間停止 | `freez`, `frozen`, `stun`, `timelock`, `*timestop`, `*noai`, `*timefreeze`, `*worldstop` |
+| `HEALTH_TAMPER` | HP の固定・不正増減 | `zerohp`, `damagecap`, `hpoverride`, `*healthlock`, `*shielddelta`, `*gethealth` |
 | `GUARD` | 無敵・保護・免除 | `protect`, `immun`, `invuln`, `shield`, `immortal`, `godmode`, `undying` |
 | `BYPASS` | 守りの迂回・貫通 | `bypass`, `penetrat`, `*truedamage`, `*ignoreprotect`, `*antiinvul` |
 | `REVIVE` | 復活の許可 | `reviv`, `respawn`, `resurrect`, `rebirth`, `*undyingcore` |
+| `CONCEAL` | 隠す（透明化・描画やボスバー消去） | `=invisible`, `*forceinvisible`, `*hidebossbar`, `*cancelrender`, `*clientdelete` |
+| `RESPAWN_BLOCK` | リスポーン阻害・再死亡拘束 | `*norespawn`, `*antirespawn`, `*respawnlock`, `*deathlock`, `*permadeath` |
 | `COUNT` | 残り回数・残機 | `count`, `remaining`, `=lives`, `charges` |
 | `TIMER` | 時間・待機時間 | `delay`, `timer`, `cooldown`, `duration` |
 | `BANISH` | 追放・奈落落とし | `banish`, `voidfall`, `relocat`, `*forcedimension` |
 
-### 5.2 単語分割・照合ルール
+### 5.2 辞書エージェントの自動登録・起動連携
+- **Gradle 自動付与**: `-PwithEprotectPlus`、`-PwithAllAgents`、`-PwithAllKillMods`、`-PwithFlagAgent` のいずれかを指定した場合、`flagDictionaryAgentJar`（`automata_valkyries-flag-agent.jar`）が自動ビルドされ、`-javaagent` に自動登録される。
+- **起動時・リロード時同期**: `AutomataValkyries.commonSetup()` およびコンフィグリロード時に `FlagDictionary.ensureAgentProtection()` を自動呼出し。
+- **コマンド**:
+  - `/eprotect flags status`: JVM エージェントの稼働状況およびマスター辞書の統計を表示。
+  - `/eprotect flags sync`（または `repair`）: MOD 側とエージェントマスター辞書の整合性点検・強制復元を実行。
+
+### 5.3 単語分割・照合ルール
 - **キャメルケース・スネークケース対応**: `markedForDeath` ➔ `["marked", "for", "death"]`
 - **接頭辞 `*`**: 単語をつなげた文字列に含まれる（例: `*timestop` ➔ `timestop`）
 - **接頭辞 `=`**: いずれかの単語と完全一致（例: `=die` ➔ 単語 `die` のみ合致、`soldier` や `studied` の取り違えを防止）

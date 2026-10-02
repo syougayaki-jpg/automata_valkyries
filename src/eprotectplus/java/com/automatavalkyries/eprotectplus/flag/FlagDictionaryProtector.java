@@ -55,13 +55,21 @@ public final class FlagDictionaryProtector {
                 "=root", "=rooted", "rooting", "entangle", "=trap", "=trapped", "sleep", "silence", "sedat", "subdue",
                 "incapacitat", "*timestop", "*stoptime", "*timestopped", "*aidisabled", "*disableai", "*noai", "*cleanai",
                 "*notick", "*tickstopped", "*stoptick", "*skiptick", "*stopticking", "*disablegoal", "*cleargoal",
-                "*stopai", "*pauseai", "*suppressai", "*freezeai"));
+                "*stopai", "*pauseai", "*suppressai", "*freezeai",
+                "tether", "*locationlock", "*lockedlocation", "*locklocation", "*positionlock", "*lockedposition", "*lockposition",
+                "*movelock", "*lockmove", "*movementlock", "*lockmovement", "*nomove", "*cantmove", "*disablemove", "*inputlock",
+                "*lockinput", "*lockedinput", "*disableinput", "*pinned", "*pinposition",
+                // 時間停止・Tick 停止（EndingLibrary の TimeStopUtils / timeStopDimensions 等）
+                "*timefreeze", "*freezetime", "*timepause", "*pausetime", "*worldstop", "*stopworld", "*tickfreeze",
+                "*freezetick", "*frozenworld", "*frozentime", "*timehalt", "*halttime", "*stoppedtime", "*timeisstop",
+                "*stoppeddimension", "*frozendimension", "*chronostasis", "*timeskip", "*nogravity", "*disablegravity"));
 
         master.put("HEALTH_TAMPER", List.of(
                 "zerohp", "hpzero", "drainhp", "hpdrain", "damagecap", "healthlimit", "hpoverride", "sethp", "sethealth", "delta",
                 "*healthdelta", "*hpdelta", "*shielddelta", "*healthoffset", "*healthlock", "*lockhealth", "*lockedhealth", "*fixedhealth",
                 "*healthoverride", "*forcedhealth", "*forcehealth", "*forcezero", "*zerodamage", "*drainhealth",
-                "*nullhealth", "*hpcap", "*currenthp"));
+                "*nullhealth", "*hpcap", "*currenthp", "*worldanchor", "*healthanchor", "*anchorhealth", "*anchoredhealth",
+                "*healthlockenc", "*lockedhp", "*hplock", "*gethealth", "*healthmodif", "*hpmodif", "*hpoffset"));
 
         master.put("GUARD", List.of(
                 "protect", "immun", "invuln", "=guard", "guarded", "guarding", "shield", "resist", "immortal", "invinc",
@@ -71,14 +79,28 @@ public final class FlagDictionaryProtector {
                 "fullset", "=halo", "bless", "blessing", "snack",
                 "*forcefullset", "*wasfullset", "*forcehalo", "*hasfullset", "*snackprotector",
                 "*damagenegation", "*negatedamage", "*infinitehp", "*infinitehealth", "*infinitedefense", "*infinitelife",
-                "*immortalstate", "*invulnerablestate", "*godstate"));
+                "*immortalstate", "*invulnerablestate", "*godstate",
+                "=invul", "=invuls", "=defence", "=defense", "*defencemode", "*defensemode", "*godprotect", "*absoluteprotect"));
 
         master.put("BYPASS", List.of(
                 "bypass", "penetrat", "pierc", "*ignoreprotect", "*ignoreinvul", "*ignoreimmun", "*truedamage",
                 "*unblockable", "*ignoredefense", "*overrideguard", "*antiinvul", "*antiprotect", "*directdamage",
                 "*absolutedamage", "*bypasstotem", "*ignorebarrier"));
 
-        master.put("REVIVE", List.of("reviv", "respawn", "resurrect", "rebirth", "reincarnat", "=lives", "extralives", "*undyingcore", "*respawntick"));
+        master.put("REVIVE", List.of("reviv", "respawn", "resurrect", "rebirth", "reincarnat", "=lives", "extralives", "*undyingcore", "*respawntick",
+                "*allreturn", "*returnall", "*autoreturn", "*autorevive", "*selfrevive", "*comeback", "*restorelife", "*lifeback"));
+
+        master.put("CONCEAL", List.of(
+                "=invisible", "*forceinvisible", "*setinvisible", "*keepinvisible", "*invisiblemode", "=hidden", "*hideentity",
+                "*hiderender", "*norender", "*cancelrender", "*disablerender", "*skiprender", "*stoprender", "*hidebossbar",
+                "*nobossbar", "*removebossbar", "*clearbossbar", "*hidebar", "*cloaked", "*clientdelete", "*deleteclient",
+                "*clientremove", "*removeclient", "*hidefromclient", "*untracked", "*stoptracking"));
+
+        master.put("RESPAWN_BLOCK", List.of(
+                "*norespawn", "*antirespawn", "*respawnlock", "*lockrespawn", "*blockrespawn", "*respawnblock", "*denyrespawn",
+                "*cancelrespawn", "*preventrespawn", "*respawnban", "*banrespawn", "*disablerespawn", "*respawndisabled",
+                "*disallowrespawn", "*respawnforbid", "*forbidrespawn", "*permadeath", "*permanentdeath", "*keepdead",
+                "*staydead", "*deathlock", "*lockdeath", "*lockeddeath", "*deathscreenlock", "*nodeathscreenclose"));
 
         master.put("COUNT", List.of("count", "=left", "remaining", "=times", "charges", "=lives", "=num", "=amount"));
 
@@ -246,13 +268,56 @@ public final class FlagDictionaryProtector {
         Set<String> c = classify(name);
         if (c.contains("BYPASS")) return true;
         if (c.contains("GUARD")) return false;
-        return c.contains("KILL") || c.contains("CONTROL") || c.contains("HEALTH_TAMPER") || c.contains("BANISH");
+        return c.contains("KILL") || c.contains("CONTROL") || c.contains("HEALTH_TAMPER") || c.contains("CONCEAL") || c.contains("BANISH");
     }
 
     public static boolean isDefensive(String name) {
         Set<String> c = classify(name);
         if (c.contains("BYPASS") || c.contains("TIMER")) return false;
         return c.contains("GUARD") || c.contains("REVIVE") || c.contains("HEALTH_TAMPER");
+    }
+
+    /**
+     * 死んだプレイヤー（リスポーンで消える古い個体）から外すべき状態か: 守り・復活の許可・停止・HP の固定・リスポーンの妨害。
+     */
+    public static boolean heldOnDeadPlayer(String name) {
+        Set<String> c = classify(name);
+        if (c.contains("BYPASS") || c.contains("TIMER")) return false;
+        return c.contains("GUARD") || c.contains("REVIVE") || c.contains("CONTROL")
+                || c.contains("HEALTH_TAMPER") || c.contains("RESPAWN_BLOCK");
+    }
+
+    /**
+     * リスポーンした新しいプレイヤーに付いていたら戻すべき状態か: 保護対象と同じ有害な印とリスポーン妨害。
+     */
+    public static boolean hazardOnRespawned(String name) {
+        Set<String> c = classify(name);
+        if (c.contains("RESPAWN_BLOCK")) return true;
+        if (c.contains("TIMER") || c.contains("COUNT") || recordsData(name)) return false;
+        return isHarmful(name);
+    }
+
+    /**
+     * リスポーン禁止・妨害の印か。
+     */
+    public static boolean isRespawnBlock(String name) {
+        return classify(name).contains("RESPAWN_BLOCK");
+    }
+
+    /**
+     * 印ではなく記録を表す名前か（最後に死んだ場所・死亡回数・統計等）。
+     */
+    public static boolean recordsData(String name) {
+        for (String w : words(name)) {
+            switch (w) {
+                case "pos", "position", "location", "loc", "point", "coord", "coords", "dimension", "dim", "stat", "stats",
+                     "history", "record", "records", "last", "total", "log", "message", "cause", "source", "killer", "attacker" -> {
+                    return true;
+                }
+                default -> {}
+            }
+        }
+        return false;
     }
 
     public static boolean isDeathState(String name) {

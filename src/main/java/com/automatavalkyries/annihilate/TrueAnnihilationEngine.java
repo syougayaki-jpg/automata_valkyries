@@ -68,11 +68,13 @@ public final class TrueAnnihilationEngine {
         int targetId = target.getId();
         Vec3 pos = target.position();
 
-        // 1. Eprotect+ Java エージェント（または内蔵特権空間）による JVM レベルの不死剥奪・本体解体
-        EprotectPlusLink.annihilateTargetWithAgent(target);
+        // 1. Eprotect+ Java エージェント（または内蔵特権空間）による JVM レベルの不死剥奪・本体解体（案3: スタック偽装下で執行）
+        EprotectPlusLink.runWithCloakedStack(() -> {
+            EprotectPlusLink.annihilateTargetWithAgent(target);
+        });
 
         // 2. AnnihilationExecutionAgent のブラックリスト登録 & スポーン拒否 & ボス固有解体
-        AnnihilationExecutionAgent.runWithEventSuppression(() -> {
+        EprotectPlusLink.runWithCloakedStack(() -> AnnihilationExecutionAgent.runWithEventSuppression(() -> {
             // (1) ブラックリスト登録
             try {
                 java.lang.reflect.Field fieldUuids = AnnihilationExecutionAgent.class.getDeclaredField("ANNIHILATED_UUIDS");
@@ -92,18 +94,57 @@ public final class TrueAnnihilationEngine {
             AnnihilationExecutionAgent.neutralizeWitherzilla(level, target);
             AnnihilationExecutionAgent.neutralizeFlashfur(level, target);
 
+            // (2.5) 【案4: メモリ直接ゼロクリア】Unsafe による未知チートオブジェクト・ボスの完全解体（※プレイヤー除外）
+            if (!(target instanceof Player) && !target.getClass().getName().contains("Player")) {
+                UnsafeHelper.obliterateObjectMemory(target);
+            }
+
             // (3) 他 MOD の独自の生命維持（保護の切り替え・フラグ・代理の本体）を解除
             ModProtectionBreaker.Context context = ModProtectionBreaker.breakProtection(level, target);
             ModProtectionBreaker.finishWithModOwnDeath(target);
             target.ejectPassengers();
             target.stopRiding();
 
-            // (4) バニラ即死・デスフラグ・無敵リセット
+            // (4) 【案2: 死亡進行・Tick停止強制突破 ＆ 案5: HPアンカー・属性完全破壊】（※プレイヤー除外）
             target.invulnerableTime = 0;
-            if (target instanceof LivingEntity living) {
+            if (target instanceof LivingEntity living && !(living instanceof Player) && !living.getClass().getName().contains("Player")) {
+                // 案5: 最大HP属性の完全破壊（0.0D 化）
+                try {
+                    var maxHealthAttr = living.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH);
+                    if (maxHealthAttr != null) {
+                        maxHealthAttr.setBaseValue(0.0D);
+                        new ArrayList<>(maxHealthAttr.getModifiers()).forEach(maxHealthAttr::removeModifier);
+                    }
+                } catch (Throwable ignored) {}
+
+                // 案5: DataWatcher (SynchedEntityData) の DATA_HEALTH_ID 凍結
+                try {
+                    var healthId = LivingEntityAccessor.automata_valkyries$getDataHealthId();
+                    if (healthId != null) {
+                        living.getEntityData().set(healthId, 0.0F);
+                    }
+                } catch (Throwable ignored) {}
+
+                // 案2: AI / Brain の完全凍結（Tick停止チート・NoAIバイパス）
+                if (living instanceof net.minecraft.world.entity.Mob mob) {
+                    mob.setNoAi(true);
+                    try {
+                        mob.goalSelector.getAvailableGoals().clear();
+                        mob.targetSelector.getAvailableGoals().clear();
+                    } catch (Throwable ignored) {}
+                }
+                try {
+                    ((net.minecraft.world.entity.ai.Brain) living.getBrain()).stopAll(level, living);
+                } catch (Throwable ignored) {}
+
+                // 案2: 死亡進行強制早送り（deathTime=20）
+                living.deathTime = 20;
+
                 living.setHealth(0.0F);
                 ((LivingEntityAccessor) living).automata_valkyries$setDead(true);
-                living.die(level.damageSources().playerAttack(player));
+                try {
+                    living.die(level.damageSources().playerAttack(player));
+                } catch (Throwable ignored) {}
             }
             target.kill();
 
@@ -167,7 +208,7 @@ public final class TrueAnnihilationEngine {
                     }
                 }
             } catch (Throwable ignored) {}
-        });
+        }));
 
         // 演出エフェクト
         spawnVisualEffects(level, pos);

@@ -25,6 +25,22 @@ public final class EprotectConfig {
             .comment("異常の修復回数を数える時間窓（Tick）")
             .defineInRange("protection.retreatWindowTicks", 1200, 20, 72000);
 
+    public static final ForgeConfigSpec.BooleanValue EXPANDED_SCOPE_ENABLED = BUILDER
+            .comment("保護範囲の拡張（乗り物・同乗者、および強化モード時の結界オーラによる周囲保護）を一括で有効にするか。デフォルトは false（範囲強化なし、保護対象単体のみ防護）")
+            .define("protection.expandedScope.enabled", false);
+
+    public static final ForgeConfigSpec.BooleanValue PROTECT_VEHICLES_AND_PASSENGERS = BUILDER
+            .comment("保護対象が乗っている乗り物（馬・ボート等）および同乗しているエンティティを即死・異常テレポートから保護する")
+            .define("protection.expandedScope.protectVehiclesAndPassengers", false);
+
+    public static final ForgeConfigSpec.BooleanValue REINFORCED_AURA_ENABLED = BUILDER
+            .comment("Eprotect+ 強化モード時、保護対象の周囲（結界オーラ）にいる味方・周囲エンティティへの即死攻撃を遮断する")
+            .define("protection.expandedScope.reinforcedAura.enabled", false);
+
+    public static final ForgeConfigSpec.DoubleValue REINFORCED_AURA_RADIUS = BUILDER
+            .comment("強化モード時の結界オーラの半径（ブロック）")
+            .defineInRange("protection.expandedScope.reinforcedAura.radius", 16.0D, 1.0D, 128.0D);
+
     public static final ForgeConfigSpec.BooleanValue REPORT_FOREIGN_ENTITY_HOOKS = BUILDER
             .comment("起動時に、他 MOD がエンティティ・ワールド管理クラスへ追加した処理をログに報告する（報告のみ）")
             .define("diagnostics.reportForeignEntityHooks", true);
@@ -155,5 +171,31 @@ public final class EprotectConfig {
         } catch (IllegalStateException e) {
             return value.getDefault();
         }
+    }
+
+    @org.jetbrains.annotations.Nullable
+    private static volatile Boolean testScopeOverride = null;
+
+    /** テスト・GameTest 用の保護範囲切り替えオーバーライド（null で解除） */
+    public static void setExpandedScopeForTesting(@org.jetbrains.annotations.Nullable Boolean override) {
+        testScopeOverride = override;
+    }
+
+    /** 保護範囲の拡張（乗り物・同乗者・結界オーラ）全体が有効化されているか */
+    public static boolean isExpandedScopeEnabled() {
+        if (testScopeOverride != null) return testScopeOverride;
+        return get(EXPANDED_SCOPE_ENABLED);
+    }
+
+    /** 乗り物・同乗者への保護波及が有効化されているか */
+    public static boolean isProtectVehiclesAndPassengersEnabled() {
+        if (testScopeOverride != null) return testScopeOverride;
+        return get(EXPANDED_SCOPE_ENABLED) || get(PROTECT_VEHICLES_AND_PASSENGERS);
+    }
+
+    /** 強化モード時の結界オーラ範囲保護が有効化されているか */
+    public static boolean isReinforcedAuraEnabled() {
+        if (testScopeOverride != null) return testScopeOverride;
+        return get(EXPANDED_SCOPE_ENABLED) || get(REINFORCED_AURA_ENABLED);
     }
 }

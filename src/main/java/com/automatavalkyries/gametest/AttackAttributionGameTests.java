@@ -350,6 +350,21 @@ public class AttackAttributionGameTests {
         });
     }
 
+    /** 止める一覧（時間停止中の個体の一覧）も、クラス名（TimeStop）から見つけて覚え、保護対象を毎 Tick 外す（2026-10-03） */
+    @GameTest(template = TEMPLATE)
+    public static void timeStopListInReferencedClassIsFoundAndPurged(GameTestHelper helper) {
+        ElenorEntity elenor = spawnElenor(helper);
+        com.automatavalkyries.gametest.fake.FakeTimeStopRegistry.FROZEN_IDS.clear();
+        FakeKillMod.freezeAndDiscard(elenor);
+        helper.assertTrue(com.automatavalkyries.protect.flag.KillLists.describe().contains("FakeTimeStopRegistry.FROZEN_IDS"),
+                "The time-stop list was not discovered: " + com.automatavalkyries.protect.flag.KillLists.describe());
+        helper.runAfterDelay(2, () -> {
+            helper.assertFalse(com.automatavalkyries.gametest.fake.FakeTimeStopRegistry.FROZEN_IDS.contains(elenor.getUUID()),
+                    "Elenor is still in the time-stop list");
+            finish(helper, elenor);
+        });
+    }
+
     /**
      * 作った時点で「ワールドに追加済み」になる個体（Witherzilla の処刑竜）を別スレッドで読み込んでも、移動先のチャンクの読み込み
      * （サーバースレッド待ち）をしない。サーバースレッドが読み込みの完了を待っていると互いに待ち合って固まる（終了時の保存で実際に固まった）

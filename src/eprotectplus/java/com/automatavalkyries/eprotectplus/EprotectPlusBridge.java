@@ -128,6 +128,29 @@ public final class EprotectPlusBridge {
         }
     }
 
+    /**
+     * スタックトレース偽装・検閲欺瞞コンテキストで処理を実行する（案3）。
+     */
+    public static void runCloaked(Runnable action) {
+        boolean prev = isPrivileged();
+        setPrivileged(true);
+        try {
+            java.security.AccessController.doPrivileged((java.security.PrivilegedAction<Void>) () -> {
+                action.run();
+                return null;
+            });
+        } finally {
+            setPrivileged(prev);
+        }
+    }
+
+    /**
+     * 保護対象および重要クラスの能動的バイトコード再監査・強制再変換（案2）。
+     */
+    public static int retransformCriticalClasses() {
+        return EprotectPlusAgent.retransformCriticalClasses();
+    }
+
     // ---- 強化処理（Reinforced Protection）制御 ---------------------------------
 
     public static void triggerReinforced(long durationMs, String reason) {

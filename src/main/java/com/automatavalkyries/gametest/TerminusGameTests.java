@@ -268,9 +268,14 @@ public class TerminusGameTests {
             helper.assertTrue(elenor.getEprotect().isReinforcedActive(), "Elenor's Eprotect did not report reinforced mode active");
             helper.assertTrue(EprotectPlusLink.getReinforcedReason().contains(enemyMod), "Reinforced reason does not contain blacklist mod ID");
 
-            // 強化モード中のダメージ遮断テスト
+            // 強化モード中も通常攻撃は上限どおりに通り、即死系だけが止まる（2026-10-03 にユーザー指定で変更。以前は全部 0）
+            elenor.getEprotect().resetDamageWindow();
             float cappedDamage = elenor.getEprotect().capFinalDamage(50.0F, hostileSource);
-            helper.assertTrue(cappedDamage == 0.0F, "Damage was not 0.0F during reinforced mode: " + cappedDamage);
+            float cap = elenor.getMaxHealth() * com.automatavalkyries.protect.Eprotect.MAX_HIT_RATIO;
+            helper.assertTrue(cappedDamage > 0.0F && cappedDamage <= Math.max(1.0F, cap),
+                    "A normal hit during reinforced mode was not let through under the cap: " + cappedDamage);
+            helper.assertTrue(com.automatavalkyries.protect.EprotectForgeEvents.isLethalAttack(helper.getLevel().damageSources().genericKill(), Float.MAX_VALUE),
+                    "A lethal attack was not recognized as lethal during reinforced mode");
 
             // 毎 Tick の修復で体力が全快維持されること
             elenor.setHealth(10.0F);
@@ -315,9 +320,13 @@ public class TerminusGameTests {
                     "Reinforced reason does not specify TERMINUS_RESISTED_10S: " + EprotectPlusLink.getReinforcedReason());
             helper.assertTrue(EprotectPlusLink.getReinforcedRemainingMs() > 0, "Reinforced remaining time is not positive");
 
-            // 強化モード中は即死・大ダメージも完全遮断されること
+            // 強化モード中は即死系の攻撃が遮断され、通常の大ダメージは被弾の上限に切り詰められること
+            elenor.getEprotect().resetDamageWindow();
             float cap = elenor.getEprotect().capFinalDamage(999.0F, level.damageSources().generic());
-            helper.assertTrue(cap == 0.0F, "Damage was not 0.0F during terminus-resisted reinforced mode: " + cap);
+            helper.assertTrue(cap <= Math.max(1.0F, elenor.getMaxHealth() * com.automatavalkyries.protect.Eprotect.MAX_HIT_RATIO),
+                    "A large normal hit was not capped during terminus-resisted reinforced mode: " + cap);
+            helper.assertFalse(elenor.hurt(level.damageSources().genericKill(), Float.POSITIVE_INFINITY),
+                    "A lethal attack was not blocked during terminus-resisted reinforced mode");
         } finally {
             TerminusEngine.clearTrackedTargets();
             EprotectPlusLink.resetReinforced();

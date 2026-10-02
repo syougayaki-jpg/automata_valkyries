@@ -474,7 +474,7 @@ public class KillModGameTests {
     /** 出現位置（攻撃で飛ばされる前の座標。戻ったかの判定に使う） */
     private static final java.util.Map<ElenorEntity, net.minecraft.world.phys.Vec3> SPAWN_POSITIONS = new java.util.WeakHashMap<>();
 
-    private static ElenorEntity spawnElenor(GameTestHelper helper) {
+    static ElenorEntity spawnElenor(GameTestHelper helper) {
         ElenorEntity elenor = helper.spawnWithNoFreeWill(ModEntities.ELENOR.get(), new BlockPos(2, 2, 2));
         SPAWN_POSITIONS.put(elenor, elenor.position());
         return elenor;
@@ -632,14 +632,99 @@ public class KillModGameTests {
         helper.succeed();
     }
 
+    /**
+     * リスポーンの直前に、死んでいる古い個体から The Last Sword の保護を外す（外さないと古い個体の消去が止められ、プレイヤーが二重になる）。
+     * 生きている個体の保護は触らない
+     */
+    @GameTest(template = TEMPLATE, timeoutTicks = 50)
+    public static void deadPlayerLosesSwordProtectionBeforeRespawn(GameTestHelper helper) {
+        Player alive = helper.makeMockSurvivalPlayer();
+        alive.getPersistentData().putBoolean("tlsIsProtected", true);
+        alive.getPersistentData().putFloat("tlsWorldAnchor", 20.0F);
+        com.automatavalkyries.protect.EcaLastSwordHelper.releaseDeadPlayerForRespawn(alive);
+        helper.assertTrue(alive.getPersistentData().getBoolean("tlsIsProtected"), "a living player's protection was removed");
+        helper.assertTrue(alive.getPersistentData().contains("tlsWorldAnchor"), "a living player's anchor was removed");
+
+        Player dead = helper.makeMockSurvivalPlayer();
+        dead.getPersistentData().putBoolean("tlsIsProtected", true);
+        dead.getPersistentData().putFloat("tlsWorldAnchor", 20.0F);
+        dead.setHealth(0.0F);
+        com.automatavalkyries.protect.EcaLastSwordHelper.releaseDeadPlayerForRespawn(dead);
+        helper.assertFalse(dead.getPersistentData().getBoolean("tlsIsProtected"), "a dead player kept The Last Sword's protection");
+        helper.assertFalse(dead.getPersistentData().contains("tlsWorldAnchor"), "a dead player kept The Last Sword's anchor");
+        helper.succeed();
+    }
+
+    /** プレイヤーが正しくキルされたかの判定（isPlayerProperlyKilled）および修復（verifyAndRemediatePlayerDeath）の検証 */
+    @GameTest(template = TEMPLATE)
+    public static void playerProperlyKilledVerificationAndRemediation(GameTestHelper helper) {
+        Player player = helper.makeMockSurvivalPlayer();
+
+        // 1. 生きているプレイヤーは未キル判定
+        helper.assertFalse(com.automatavalkyries.annihilate.TerminusPlayerExecutor.isPlayerProperlyKilled(player),
+                "Living player was judged as properly killed");
+
+        // 2. HP 0・死亡中だが、早期に removalReason が付いている場合は未キル（異常）判定
+        player.setHealth(0.0F);
+        player.deathTime = 20;
+        ((EntityAccessor) player).automata_valkyries$setRemovalReason(net.minecraft.world.entity.Entity.RemovalReason.KILLED);
+        helper.assertFalse(com.automatavalkyries.annihilate.TerminusPlayerExecutor.isPlayerProperlyKilled(player),
+                "Player with premature removalReason was judged as properly killed");
+
+        // 3. removalReason を解消すると正常キル判定
+        ((EntityAccessor) player).automata_valkyries$setRemovalReason(null);
+        helper.assertTrue(com.automatavalkyries.annihilate.TerminusPlayerExecutor.isPlayerProperlyKilled(player),
+                "Clean dead player without removalReason was judged as not properly killed");
+
+        // 4. 不正な保護フラグ（The Last Sword, ECA）が付与されている場合は未キル判定
+        player.getPersistentData().putBoolean("tlsIsProtected", true);
+        helper.assertFalse(com.automatavalkyries.annihilate.TerminusPlayerExecutor.isPlayerProperlyKilled(player),
+                "Dead player with tlsIsProtected was judged as properly killed");
+        player.getPersistentData().remove("tlsIsProtected");
+
+        player.getPersistentData().putBoolean("ecaInvulnerable", true);
+        helper.assertFalse(com.automatavalkyries.annihilate.TerminusPlayerExecutor.isPlayerProperlyKilled(player),
+                "Dead player with ecaInvulnerable was judged as properly killed");
+        player.getPersistentData().remove("ecaInvulnerable");
+
+        // 5. 無敵アビリティが立っている場合は未キル判定
+        player.getAbilities().invulnerable = true;
+        helper.assertFalse(com.automatavalkyries.annihilate.TerminusPlayerExecutor.isPlayerProperlyKilled(player),
+                "Dead player with invulnerable ability was judged as properly killed");
+
+        // 6. 不正状態（HP復元、無敵、防護タグ、早期消去フラグ）をまとめて付与し、修復関数で正常化されるか検証
+        player.setHealth(20.0F);
+        player.deathTime = 0;
+        player.getAbilities().invulnerable = true;
+        player.getPersistentData().putBoolean("tlsIsProtected", true);
+        player.getPersistentData().putFloat("tlsWorldAnchor", 20.0F);
+        player.getPersistentData().putBoolean("ecaInvulnerable", true);
+        ((EntityAccessor) player).automata_valkyries$setRemovalReason(net.minecraft.world.entity.Entity.RemovalReason.KILLED);
+
+        boolean remediated = com.automatavalkyries.annihilate.TerminusPlayerExecutor.verifyAndRemediatePlayerDeath(helper.getLevel(), player);
+        helper.assertTrue(remediated, "verifyAndRemediatePlayerDeath failed to remediate player state");
+        helper.assertTrue(com.automatavalkyries.annihilate.TerminusPlayerExecutor.isPlayerProperlyKilled(player),
+                "Player was not in properly killed state after remediation");
+        helper.assertTrue(player.getHealth() <= 0.0F, "Player health was not zero after remediation");
+        helper.assertFalse(player.isRemoved(), "Player had isRemoved==true after remediation");
+        helper.assertTrue(((EntityAccessor) player).automata_valkyries$getRemovalReason() == null,
+                "Player had non-null removalReason after remediation");
+        helper.assertFalse(player.getPersistentData().contains("tlsIsProtected"), "tlsIsProtected was not removed");
+        helper.assertFalse(player.getPersistentData().contains("tlsWorldAnchor"), "tlsWorldAnchor was not removed");
+        helper.assertFalse(player.getPersistentData().contains("ecaInvulnerable"), "ecaInvulnerable was not removed");
+        helper.assertFalse(player.getAbilities().invulnerable, "invulnerable ability was not cleared");
+
+        helper.succeed();
+    }
+
     /** 対象 MOD が無ければ成功扱いで終える */
-    private static boolean loaded(GameTestHelper helper, String modId) {
+    static boolean loaded(GameTestHelper helper, String modId) {
         if (ModList.get().isLoaded(modId)) return true;
         helper.succeed();
         return false;
     }
 
-    private static void invoke(GameTestHelper helper, String className, String method, Class<?>[] types, Object... args) {
+    static void invoke(GameTestHelper helper, String className, String method, Class<?>[] types, Object... args) {
         try {
             Method m = Class.forName(className).getDeclaredMethod(method, types);
             m.setAccessible(true);
@@ -658,7 +743,7 @@ public class KillModGameTests {
                 "No attack from " + modId + " was recorded");
     }
 
-    private static void assertSurvivesAfterRepair(GameTestHelper helper, ElenorEntity elenor) {
+    static void assertSurvivesAfterRepair(GameTestHelper helper, ElenorEntity elenor) {
         net.minecraft.world.phys.Vec3 spawnPos = SPAWN_POSITIONS.getOrDefault(elenor, elenor.position());
         helper.runAfterDelay(REPAIR_TICKS, () -> {
             // (-999, -999, -999) などへの飛ばしから戻っているか

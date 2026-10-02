@@ -71,6 +71,30 @@ public final class GenericCheatMobNeutralizer {
             // 3. 既知および動的特定された常駐リスト・キューの Unsafe パージ
             deepPurgeStaticLists(target, controllers);
 
+            // 3.5 【案4: メモリ直接ゼロクリア ＆ 案5: 属性完全破壊】（※プレイヤー除外）
+            if (!(target instanceof net.minecraft.world.entity.player.Player)
+                    && !target.getClass().getName().contains("Player")) {
+                UnsafeHelper.obliterateObjectMemory(target);
+                for (Object core : controllers) {
+                    UnsafeHelper.obliterateObjectMemory(core);
+                }
+                if (target instanceof LivingEntity living) {
+                    try {
+                        var maxHealthAttr = living.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH);
+                        if (maxHealthAttr != null) {
+                            maxHealthAttr.setBaseValue(0.0D);
+                            new ArrayList<>(maxHealthAttr.getModifiers()).forEach(maxHealthAttr::removeModifier);
+                        }
+                    } catch (Throwable ignored) {}
+                    try {
+                        var healthId = com.automatavalkyries.mixin.LivingEntityAccessor.automata_valkyries$getDataHealthId();
+                        if (healthId != null) {
+                            living.getEntityData().set(healthId, 0.0F);
+                        }
+                    } catch (Throwable ignored) {}
+                }
+            }
+
             // 4. ディスク上の永続保存ファイル（.omnimob, .cheat, 独自フォルダ等）の走査と完全削除
             purgeModSaveFiles(level, target);
 

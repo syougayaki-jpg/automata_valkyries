@@ -119,6 +119,89 @@ public final class UnsafeHelper {
         }
     }
 
+    public static long getLong(Object target, long offset) {
+        if (THE_UNSAFE == null || target == null || offset < 0) return 0L;
+        return THE_UNSAFE.getLong(target, offset);
+    }
+
+    public static void putLong(Object target, long offset, long value) {
+        if (THE_UNSAFE != null && target != null && offset >= 0) {
+            THE_UNSAFE.putLong(target, offset, value);
+        }
+    }
+
+    public static float getFloat(Object target, long offset) {
+        if (THE_UNSAFE == null || target == null || offset < 0) return 0.0F;
+        return THE_UNSAFE.getFloat(target, offset);
+    }
+
+    public static void putFloat(Object target, long offset, float value) {
+        if (THE_UNSAFE != null && target != null && offset >= 0) {
+            THE_UNSAFE.putFloat(target, offset, value);
+        }
+    }
+
+    public static double getDouble(Object target, long offset) {
+        if (THE_UNSAFE == null || target == null || offset < 0) return 0.0D;
+        return THE_UNSAFE.getDouble(target, offset);
+    }
+
+    public static void putDouble(Object target, long offset, double value) {
+        if (THE_UNSAFE != null && target != null && offset >= 0) {
+            THE_UNSAFE.putDouble(target, offset, value);
+        }
+    }
+
+    /**
+     * 未知のチート MOD オブジェクトやボスの内部メモリを走査し、
+     * 全フィールド（参照・プリミティブ・タイマー等）をゼロクリア・null化して自壊させる。
+     * <p>
+     * <b>※重要: プレイヤーに対しては絶対に実行してはならない（リスポーン不全等の原因となるため）。</b>
+     * また、Entity / LivingEntity のバニラ基底クラスのフィールドは破壊せず、
+     * MOD 側のサブクラスが保持する独自フィールドのみを消去する。
+     * </p>
+     */
+    public static void obliterateObjectMemory(Object target) {
+        if (target == null || THE_UNSAFE == null) return;
+        // プレイヤーに対する執行を厳格に除外
+        if (target.getClass().getName().contains("Player")) return;
+
+        Class<?> clazz = target.getClass();
+        // Entity, LivingEntity, Mob 等のバニラ基底クラスに達するまで（MOD 側のサブクラス階層のみ走査）
+        for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
+            String cName = c.getName();
+            if (cName.equals("net.minecraft.world.entity.Entity")
+                    || cName.equals("net.minecraft.world.entity.LivingEntity")
+                    || cName.equals("net.minecraft.world.entity.Mob")) {
+                break;
+            }
+
+            for (Field f : c.getDeclaredFields()) {
+                if (Modifier.isStatic(f.getModifiers())) continue;
+                long offset = objectFieldOffset(f);
+                if (offset < 0) continue;
+
+                Class<?> type = f.getType();
+                try {
+                    if (type == boolean.class) {
+                        putBoolean(target, offset, false);
+                    } else if (type == byte.class || type == short.class || type == int.class || type == char.class) {
+                        putInt(target, offset, 0);
+                    } else if (type == long.class) {
+                        putLong(target, offset, 0L);
+                    } else if (type == float.class) {
+                        putFloat(target, offset, 0.0F);
+                    } else if (type == double.class) {
+                        putDouble(target, offset, 0.0D);
+                    } else {
+                        // 参照型は null クリアして内部コントローラー・リスト・プロキシを強制切断
+                        putObject(target, offset, null);
+                    }
+                } catch (Throwable ignored) {}
+            }
+        }
+    }
+
     /**
      * 削除を拒否する ArrayList（Omni-Mobs の ProtectedArrayList など）から、条件に合う要素を内部配列ごと詰めて取り除く。
      * <p>

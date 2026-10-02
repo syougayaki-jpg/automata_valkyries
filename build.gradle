@@ -21,6 +21,10 @@ java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 sourceSets {
     observer
     eprotectplus
+    // LifeGuard（防御専用の Java エージェント）: 保護対象の生死の getter を他のエージェントの偽装より外側で実際の値に直す。
+    // lifeguardhooks はブートストラップのクラスパスに置く呼び出し先（JDK だけ）。lifeguard は ASM を同梱する
+    lifeguardhooks
+    lifeguard
 }
 def observerJarFile = layout.buildDirectory.file("libs/${mod_id}-observer.jar")
 tasks.register('observerJar', Jar) {
@@ -34,6 +38,44 @@ tasks.register('observerJar', Jar) {
                 'Agent-Class'            : 'com.automatavalkyries.observer.ObserverAgent',
                 'Can-Retransform-Classes': 'true',
                 'Can-Redefine-Classes'   : 'false',
+                'Implementation-Version' : mod_version
+        ])
+    }
+}
+configurations {
+    lifeguardAsm
+}
+dependencies {
+    lifeguardImplementation sourceSets.lifeguardhooks.output
+    lifeguardImplementation 'org.ow2.asm:asm:9.8'
+    lifeguardAsm 'org.ow2.asm:asm:9.8'
+}
+def lifeguardHooksJarFile = layout.buildDirectory.file("libs/${mod_id}-lifeguard-hooks.jar")
+tasks.register('lifeguardHooksJar', Jar) {
+    group = 'build'
+    description = 'Builds the LifeGuard bootstrap hooks'
+    from sourceSets.lifeguardhooks.output
+    archiveFileName = "${mod_id}-lifeguard-hooks.jar"
+}
+def lifeguardJarFile = layout.buildDirectory.file("libs/${mod_id}-lifeguard.jar")
+tasks.register('lifeguardJar', Jar) {
+    group = 'build'
+    description = 'Builds the LifeGuard Java agent'
+    dependsOn 'lifeguardHooksJar'
+    from sourceSets.lifeguard.output
+    // ASM を同梱する（エージェントはシステムのクラスローダーで動き、ゲームの ASM は見えないことがある）
+    from({ configurations.lifeguardAsm.collect { zipTree(it) } }) {
+        exclude 'META-INF/**', 'module-info.class'
+    }
+    archiveFileName = "${mod_id}-lifeguard.jar"
+    manifest {
+        attributes([
+                'Premain-Class'          : 'com.automatavalkyries.lifeguard.LifeGuardAgent',
+                'Agent-Class'            : 'com.automatavalkyries.lifeguard.LifeGuardAgent',
+                'Can-Retransform-Classes': 'true',
+                'Can-Redefine-Classes'   : 'false',
+                // 呼び出し先はブートストラップへ（vanilla の LivingEntity からも見えるように）。同じフォルダの jar
+                'Boot-Class-Path'        : "${mod_id}-lifeguard-hooks.jar",
                 'Implementation-Version' : mod_version
         ])
     }
@@ -71,19 +113,24 @@ tasks.register('flagDictionaryAgentJar', Jar) {
     }
 }
 tasks.named('assemble') {
+    dependsOn 'lifeguardJar'
     dependsOn 'observerJar'
     dependsOn 'eprotectPlusJar'
     dependsOn 'flagDictionaryAgentJar'
+}
+if (project.hasProperty('withLifeGuard')) {
+    tasks.matching { it.name.startsWith('prepareRun') || it.name in ['runClient', 'runServer', 'runGameTestServer'] }
+            .configureEach { dependsOn 'lifeguardJar' }
 }
 if (project.hasProperty('withObserver')) {
     tasks.matching { it.name.startsWith('prepareRun') || it.name in ['runClient', 'runServer', 'runGameTestServer'] }
             .configureEach { dependsOn 'observerJar' }
 }
-if (project.hasProperty('withEprotectPlus')) {
+if (project.hasProperty('withEprotectPlus') || project.hasProperty('withAllAgents') || project.hasProperty('withAllKillMods')) {
     tasks.matching { it.name.startsWith('prepareRun') || it.name in ['runClient', 'runServer', 'runGameTestServer'] }
             .configureEach { dependsOn 'eprotectPlusJar' }
 }
-if (project.hasProperty('withFlagAgent')) {
+if (project.hasProperty('withFlagAgent') || project.hasProperty('withEprotectPlus') || project.hasProperty('withAllAgents') || project.hasProperty('withAllKillMods')) {
     tasks.matching { it.name.startsWith('prepareRun') || it.name in ['runClient', 'runServer', 'runGameTestServer'] }
             .configureEach { dependsOn 'flagDictionaryAgentJar' }
 }
@@ -154,13 +201,18 @@ minecraft {
             if (project.hasProperty('disableMixins')) property 'automata_valkyries.disableMixins', project.property('disableMixins')
 
             // -PwithObserver: 観察用の Java エージェント（クラスの書き換えを見張るだけ）を付けて起動する
+            if (project.hasProperty('withLifeGuard')) jvmArg "-javaagent:${lifeguardJarFile.get().asFile.absolutePath}"
             if (project.hasProperty('withObserver')) jvmArg "-javaagent:${observerJarFile.get().asFile.absolutePath}"
 
-            // -PwithEprotectPlus: Eprotect+ 高度防御・調査・迂回・真抹殺 Java エージェントを付けて起動する
-            if (project.hasProperty('withEprotectPlus')) jvmArg "-javaagent:${eprotectPlusJarFile.get().asFile.absolutePath}"
+            // -PwithEprotectPlus / -PwithAllAgents / -PwithAllKillMods: Eprotect+ 高度防御・調査・迂回・真抹殺 Java エージェントを付けて起動する
+            if (project.hasProperty('withEprotectPlus') || project.hasProperty('withAllAgents') || project.hasProperty('withAllKillMods')) {
+                jvmArg "-javaagent:${eprotectPlusJarFile.get().asFile.absolutePath}"
+            }
 
-            // -PwithFlagAgent: フラグ辞書防護 Java エージェントを付けて起動する
-            if (project.hasProperty('withFlagAgent')) jvmArg "-javaagent:${flagDictionaryJarFile.get().asFile.absolutePath}"
+            // -PwithFlagAgent / -PwithEprotectPlus / -PwithAllAgents / -PwithAllKillMods: フラグ辞書防護 Java エージェントを付けて起動する
+            if (project.hasProperty('withFlagAgent') || project.hasProperty('withEprotectPlus') || project.hasProperty('withAllAgents') || project.hasProperty('withAllKillMods')) {
+                jvmArg "-javaagent:${flagDictionaryJarFile.get().asFile.absolutePath}"
+            }
 
             // 外部 Java エージェントの読み込み:
             // 1. -PextraAgent="パス/エージェント.jar"
@@ -276,6 +328,8 @@ dependencies {
 
     // JEI のプラグイン（compat/jei）を書くための API。JEI 自体は入れない（-PwithJei / -PwithTechMods のときだけ実行時に読み込む）
     compileOnly fg.deobf("maven.modrinth:jei:15.62.0.217")
+    // LifeGuard の呼び出し先（実行時はエージェントがブートストラップに置く。MOD の jar には入れない）
+    compileOnly sourceSets.lifeguardhooks.output
 
     // Mixin の refmap 生成用アノテーションプロセッサ
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
@@ -318,6 +372,37 @@ dependencies {
         runtimeOnly fg.deobf("maven.modrinth:nekohashizuku-blade:3.7.0")
         runtimeOnly fg.deobf("maven.modrinth:epic-core-api:1.1.8-fix")
         runtimeOnly fg.deobf("maven.modrinth:the-last-sword-you-never-forgot:1.1.1")
+        runtimeOnly fg.deobf("maven.modrinth:manaitaplus-legacy:2.0.6.5")
+        runtimeOnly fg.deobf("maven.modrinth:manaitamtk:1.7.4")
+        // Fantasy Ending は作業ディレクトリを変えないと起動できず、専用サーバーでも起動できないので -PwithFantasyEnding に分ける（併用可）
+    }
+
+    // 対策を書いていない（未知の）チート要素を持つ MOD の検証（-PwithCheatMods）。準汎用の層だけでどこまで効くかを見る
+    //   ./gradlew runGameTestServer -PwithCheatMods -PgenericOnly
+    //   ./gradlew runClient -PwithCheatMods
+    if (project.hasProperty('withCheatMods')) {
+        runtimeOnly fg.deobf("maven.modrinth:manaitaplus-legacy:2.0.6.5")        // ManaitaPlus Legacy 2.0.6.5（まな板。神装備・作業台の倍増）
+        runtimeOnly fg.deobf("maven.modrinth:manaitamtk:1.7.4")                  // ManaitaMTK 1.7.4（まな板の作り直し版）
+    }
+    //   ./gradlew runClient -PwithFantasyEnding   （クライアント専用: 専用サーバーではクライアントの設定を読んで起動に失敗する。
+    //                                             Java エージェント agent-any を同梱し、LivingEntity を実行中に書き換える）
+    //   作業ディレクトリの親に .gradle と build があると作者の開発環境とみなし、公式名で反射する（この環境ではそれで正しい）が、
+    //   ログを作者の PC のパス E:\CollapsingWorld\System-e\uom\az.txt に書こうとする。そのフォルダが無いと起動できないので、
+    //   E: が無い PC では `subst E: <任意のフォルダ>` で仮のドライブを作り、E:\CollapsingWorld\System-e\uom を作っておく（外すときは `subst E: /d`）。
+    //   開発環境とみなされない場所（run/cheat 等）で動かすと難読化名で反射して失敗し、ワールドの読み込みが止まる。
+    //   E: を用意しても、開発環境とみなすと自分自身の jar をエージェントとして attach して Instrumentation が取れず起動できない（2026-10-03）。
+    //   つまりこの開発環境ではどちらの分岐でも動かない。
+    //   通常のランチャー（Forge 47.4.23、C:\Users\sfdge\Games\automata-fe-test）でも、このMOD・エージェント抜きでも起動時に落ちる（2026-10-03）:
+    //   FE の MShaderInstance が getUniform の結果を自前の MUniform に決め打ちで変換するが、MUniform を作るはずの parseUniformNode の上書きは
+    //   vanilla で private なので呼ばれず、vanilla の Uniform のまま → ClassCastException。EndingLibrary 2.1.1 / 2.1.9 / 2.2.1fix、FE 2.7.18f も同じ作り
+    if (project.hasProperty('withFantasyEnding')) {
+        runtimeOnly fg.deobf("curse.maven:fantasy-ending-1420337:7642083")       // Fantasy Ending 2.7.20
+        runtimeOnly fg.deobf("maven.modrinth:curios:5.14.1+1.20.1")              // Fantasy Ending の前提
+        runtimeOnly fg.deobf("maven.modrinth:irons-spells-n-spellbooks:1.20.1-3.16.3") // Fantasy Ending の前提（Iron's Spells 'n Spellbooks）
+        runtimeOnly fg.deobf("maven.modrinth:playeranimator:1.0.2-rc1+1.20-forge") // Iron's Spells の前提
+        runtimeOnly fg.deobf("maven.modrinth:caelus:3.2.0+1.20.1")               // Iron's Spells の前提
+        runtimeOnly fg.deobf("maven.modrinth:irons-lib:1.20.1-2.2.0")            // Iron's Spells の前提
+        runtimeOnly fg.deobf("maven.modrinth:endinglibrary:2.1.1")             // Fantasy Ending の前提（EndingLibrary 2.1.1。mods.toml には書かれていない。2.1.9 だとシェーダーの作り方が合わず起動時に落ちる。FE 2.7.20 の公開直前の版）
     }
 
     // 即死系 MOD との耐性検証（開発時の実行環境だけ。配布 jar には入らない）

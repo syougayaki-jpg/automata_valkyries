@@ -368,4 +368,127 @@ public class EprotectGameTests {
             despawnAndSucceed(helper, elenor);
         });
     }
+
+    /** 同期データの HP を、set() も setHealth() も通さずに直接書き換える（Fantasy Ending の catchSetTrueHealth の再現） */
+    private static void writeHealthBehindTheScenes(ElenorEntity elenor, float health) {
+        try {
+            java.lang.reflect.Field itemsField = null;
+            for (java.lang.reflect.Field f : net.minecraft.network.syncher.SynchedEntityData.class.getDeclaredFields()) {
+                if (it.unimi.dsi.fastutil.ints.Int2ObjectMap.class.isAssignableFrom(f.getType())) itemsField = f;
+            }
+            itemsField.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            var items = (it.unimi.dsi.fastutil.ints.Int2ObjectMap<net.minecraft.network.syncher.SynchedEntityData.DataItem<Object>>) itemsField.get(elenor.getEntityData());
+            items.get(com.automatavalkyries.mixin.LivingEntityAccessor.automata_valkyries$getDataHealthId().getId()).setValue(health);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /**
+     * ダメージ処理を通らない HP の削り（直書き）も、普通の被弾と同じ上限に掛かる: 1 回目は上限（最大 HP の 10%）まで通り、
+     * 同じ時間窓の 2 回目は全部戻る（2026-10-03。これまでは HP 0 にならない削りは素通りだった）
+     */
+    @GameTest(template = TEMPLATE, timeoutTicks = 100)
+    public static void untrackedHealthLossIsCappedLikeDamage(GameTestHelper helper) {
+        ElenorEntity elenor = spawnElenor(helper);
+        elenor.getEprotect().resetDamageWindow();
+        float max = elenor.getMaxHealth();
+        helper.runAfterDelay(2, () -> {
+            writeHealthBehindTheScenes(elenor, max * 0.5F);
+            helper.runAfterDelay(3, () -> {
+                float afterFirst = com.automatavalkyries.protect.DirectRead.health(elenor);
+                float expected = max - max * 0.1F;
+                helper.assertTrue(Math.abs(afterFirst - expected) < 0.5F,
+                        "First untracked loss was not capped to 10% (health " + afterFirst + ", expected " + expected + ")");
+                writeHealthBehindTheScenes(elenor, max * 0.4F);
+                helper.runAfterDelay(3, () -> {
+                    float afterSecond = com.automatavalkyries.protect.DirectRead.health(elenor);
+                    helper.assertTrue(Math.abs(afterSecond - expected) < 0.5F,
+                            "Second untracked loss in the same window was not fully reverted (health " + afterSecond + ")");
+                    elenor.getEprotect().triggerDespawn();
+                    helper.succeed();
+                });
+            });
+        });
+    }
+
+    /**
+     * LifeGuard（-PwithLifeGuard）: 生死の getter を他 MOD が包んで偽装しても、保護対象だけはいちばん外側で実際の値に直る。
+     * 保護していない個体の偽装には触らない。エージェントが無ければ何もしない
+     */
+    @GameTest(template = TEMPLATE, timeoutTicks = 60)
+    public static void lifeGuardReportsTrueLifeOfProtectedEntities(GameTestHelper helper) {
+        if (!com.automatavalkyries.protect.LifeGuardLink.isInstalled()) {
+            helper.succeed();
+            return;
+        }
+        String tag = com.automatavalkyries.gametest.fake.FakeKillMod.LIFE_SPOOF_TAG;
+        ElenorEntity elenor = spawnElenor(helper);
+        net.minecraft.world.entity.monster.Zombie zombie = helper.spawnWithNoFreeWill(net.minecraft.world.entity.EntityType.ZOMBIE, new BlockPos(4, 2, 4));
+        elenor.addTag(tag);
+        zombie.addTag(tag);
+        float real = com.automatavalkyries.protect.DirectRead.health(elenor);
+        helper.assertTrue(elenor.getHealth() == real, "Protected entity's getHealth was not converted to the true value (" + elenor.getHealth() + " vs " + real + ")");
+        helper.assertFalse(elenor.isDeadOrDying(), "Protected entity's isDeadOrDying was not converted to the true value");
+        helper.assertTrue(zombie.getHealth() == 1.0F, "An unprotected entity's spoof was touched (" + zombie.getHealth() + ")");
+        helper.assertTrue(zombie.isDeadOrDying(), "An unprotected entity's isDeadOrDying spoof was touched");
+        zombie.removeTag(tag);
+        zombie.discard();
+        elenor.removeTag(tag);
+        elenor.getEprotect().triggerDespawn();
+        helper.succeed();
+    }
+
+    /** 時間停止で包み（guardEntityTick）の入口から Tick を打ち切られても、保護対象は入口を飛ばして動き続ける（EndingLibrary の再現） */
+    @GameTest(template = TEMPLATE, timeoutTicks = 100)
+    public static void timeStopAtTickWrapperIsBypassed(GameTestHelper helper) {
+        ElenorEntity elenor = spawnElenor(helper);
+        helper.runAfterDelay(3, () -> {
+            elenor.addTag(com.automatavalkyries.gametest.fake.FakeKillMod.TIME_STOP_TAG);
+            int before = elenor.tickCount;
+            helper.runAfterDelay(20, () -> {
+                helper.assertTrue(elenor.tickCount > before + 5, "Elenor stopped ticking under a guardEntityTick time stop (" + before + " -> " + elenor.tickCount + ")");
+                elenor.removeTag(com.automatavalkyries.gametest.fake.FakeKillMod.TIME_STOP_TAG);
+                elenor.getEprotect().triggerDespawn();
+                helper.succeed();
+            });
+        });
+    }
+
+    /** 消去を拒否したら、見ているプレイヤーへ見せ直す（追跡を作り直す。クライアントだけ消す MOD・外されたボスバーの対策） */
+    @GameTest(template = TEMPLATE, timeoutTicks = 100)
+    public static void refusedRemovalResyncsViewers(GameTestHelper helper) {
+        ElenorEntity elenor = spawnElenor(helper);
+        helper.runAfterDelay(25, () -> {
+            elenor.discard();
+            helper.runAfterDelay(3, () -> {
+                helper.assertFalse(elenor.isRemoved(), "Elenor was removed");
+                boolean resynced = com.automatavalkyries.protect.attack.AttackLog.entries().stream()
+                        .anyMatch(e -> e.op.equals(com.automatavalkyries.protect.attack.AttackOp.REPAIR + ":viewers_resync"));
+                helper.assertTrue(resynced, "Viewers were not resynced after a refused removal");
+                elenor.getEprotect().triggerDespawn();
+                helper.succeed();
+            });
+        });
+    }
+
+    /** vanilla の見た目・AI の状態（透明・AI 停止・重力無し）を他 MOD に書き換えられても、保護を始めたときの状態に戻る（Fantasy Ending の消去・AI 停止） */
+    @GameTest(template = TEMPLATE, timeoutTicks = 100)
+    public static void vanillaAppearanceAndAiFlagsAreRestored(GameTestHelper helper) {
+        ElenorEntity elenor = spawnElenor(helper);
+        helper.runAfterDelay(3, () -> {
+            boolean baselineNoAi = elenor.isNoAi();
+            elenor.setInvisible(true);
+            elenor.setNoAi(!baselineNoAi);
+            elenor.setNoGravity(true);
+            helper.runAfterDelay(3, () -> {
+                helper.assertFalse(elenor.isInvisible(), "Invisibility forced by another mod was not reverted");
+                helper.assertTrue(elenor.isNoAi() == baselineNoAi, "The AI flag changed by another mod was not restored");
+                helper.assertFalse(elenor.isNoGravity(), "No-gravity forced by another mod was not reverted");
+                elenor.getEprotect().triggerDespawn();
+                helper.succeed();
+            });
+        });
+    }
 }

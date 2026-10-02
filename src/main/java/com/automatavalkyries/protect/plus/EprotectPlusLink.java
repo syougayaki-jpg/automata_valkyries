@@ -111,6 +111,47 @@ public final class EprotectPlusLink {
         }
     }
 
+    /**
+     * スタックトレース偽装・検閲欺瞞コンテキストで処理を実行（案3）。
+     */
+    public static void runWithCloakedStack(Runnable action) {
+        boolean prevLocal = LOCAL_PRIVILEGED.get();
+        LOCAL_PRIVILEGED.set(true);
+
+        Class<?> type = bridge();
+        if (type != null) {
+            try {
+                Method m = type.getMethod("runCloaked", Runnable.class);
+                m.invoke(null, action);
+                return;
+            } catch (Throwable ignored) {}
+        }
+
+        try {
+            action.run();
+        } finally {
+            LOCAL_PRIVILEGED.set(prevLocal);
+        }
+    }
+
+    /**
+     * JVM エージェントによる能動的バイトコード再監査・強制復元（案2）。
+     * @return 再監査・復元したクラス数
+     */
+    public static int enforceBytecodeIntegrity() {
+        Class<?> type = bridge();
+        if (type != null) {
+            try {
+                Method m = type.getMethod("retransformCriticalClasses");
+                Object res = m.invoke(null);
+                if (res instanceof Integer count) {
+                    return count;
+                }
+            } catch (Throwable ignored) {}
+        }
+        return 0;
+    }
+
     // ---- 強化処理（Reinforced Protection）制御 ---------------------------------
 
     /**
@@ -128,6 +169,9 @@ public final class EprotectPlusLink {
                 m.invoke(null, durationMs, reason);
             } catch (Throwable ignored) {}
         }
+
+        // 強化処理開始時に能動的バイトコード点検を執行
+        enforceBytecodeIntegrity();
 
         recordProtection("EprotectPlusLink", reason, "reinforced_mode",
                 "Eprotect+ 強化処理発動（期間: " + durationMs + "ms, 理由: " + LOCAL_REINFORCED_REASON + "）");

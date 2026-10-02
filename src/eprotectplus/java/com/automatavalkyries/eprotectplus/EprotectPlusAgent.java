@@ -34,12 +34,13 @@ public final class EprotectPlusAgent {
     private static final Map<String, byte[]> BASELINE_BYTECODE = new ConcurrentHashMap<>();
     private static final Map<String, ClassSummary> BASELINES = new ConcurrentHashMap<>();
 
-    /** 監視対象の重要パッケージ・クラス prefix */
+    /** 監視・復元対象の重要パッケージ・クラス prefix */
     private static final String[] CRITICAL_PREFIXES = {
-            "com/automatavalkyries/protect/",
-            "com/automatavalkyries/entity/",
+            "com/automatavalkyries/",
             "net/minecraft/world/entity/Entity",
-            "net/minecraft/world/entity/LivingEntity"
+            "net/minecraft/world/entity/LivingEntity",
+            "net/minecraft/world/entity/player/Player",
+            "net/minecraft/server/level/ServerPlayer"
     };
 
     /** 既知の干渉 MOD パッケージ候補 */
@@ -148,8 +149,8 @@ public final class EprotectPlusAgent {
                     "Neutered=" + neuteredMethods + ", Critical=" + critical + ", Foreign=" + foreign);
         }
 
-        // 保護ロジック: eprotect 自身のクラスが空化・無力化されそうになった場合は元のバイトコードを強制返却
-        if (className.startsWith("com/automatavalkyries/protect/")) {
+        // 保護ロジック: eprotect 自身のクラスおよび重要エンティティクラスが空化・無力化されそうになった場合は元のバイトコードを強制返却
+        if (isCriticalClass(className)) {
             if (!neuteredMethods.isEmpty() || foreign) {
                 byte[] baseline = BASELINE_BYTECODE.get(className);
                 if (baseline != null) {
@@ -161,6 +162,38 @@ public final class EprotectPlusAgent {
         }
 
         return null;
+    }
+
+    /**
+     * 保護対象および重要クラスのバイトコード整合性を能動的に検査し、
+     * 外部 MOD による改ざんがあれば元の未改ざんバイトコードに強制再変換（Retransform）する（案2）。
+     */
+    public static int retransformCriticalClasses() {
+        if (instrumentation == null || !instrumentation.isRetransformClassesSupported()) {
+            return 0;
+        }
+
+        List<Class<?>> toRetransform = new ArrayList<>();
+        try {
+            Class<?>[] loaded = instrumentation.getAllLoadedClasses();
+            for (Class<?> clazz : loaded) {
+                if (clazz == null) continue;
+                String name = clazz.getName().replace('.', '/');
+                if (isCriticalClass(name) && instrumentation.isModifiableClass(clazz)) {
+                    toRetransform.add(clazz);
+                }
+            }
+
+            if (!toRetransform.isEmpty()) {
+                instrumentation.retransformClasses(toRetransform.toArray(new Class<?>[0]));
+                EprotectPlusBridge.recordProtection("JVM", "EprotectPlusAgent", "active_retransform",
+                        "重要クラス " + toRetransform.size() + " 件の能動的整合性再監査・復元を完了");
+                return toRetransform.size();
+            }
+        } catch (Throwable t) {
+            EprotectPlusBridge.recordEvent("警告", "EprotectPlusAgent", "retransform", "fail", "再変換例外", t.getMessage());
+        }
+        return 0;
     }
 
     private static boolean isCriticalClass(String className) {
@@ -420,6 +453,34 @@ public final class EprotectPlusAgent {
             Object list = listField.get(null);
             forciblyRemoveFromProtectedList(list, entity);
         } catch (Throwable ignored) {}
+
+        // 6. StackChecker 検閲機構の完全無力化（案3）
+        neutralizeStackChecker();
+    }
+
+    public static void neutralizeStackChecker() {
+        for (String className : new String[]{
+                "flashfur.omnimobs.util.StackChecker",
+                "flashfur.omnimobs.entities.metapotent_flashfur.StackChecker",
+                "flashfur.omnimobs.common.StackChecker"
+        }) {
+            try {
+                Class<?> cls = Class.forName(className);
+                for (Field f : cls.getDeclaredFields()) {
+                    if (Modifier.isStatic(f.getModifiers())) {
+                        f.setAccessible(true);
+                        String name = f.getName().toLowerCase(java.util.Locale.ROOT);
+                        if (f.getType() == boolean.class) {
+                            if (name.contains("bypass") || name.contains("allow") || name.contains("disable")) {
+                                f.setBoolean(null, true);
+                            } else if (name.contains("check") || name.contains("block") || name.contains("deny")) {
+                                f.setBoolean(null, false);
+                            }
+                        }
+                    }
+                }
+            } catch (Throwable ignored) {}
+        }
     }
 
     @SuppressWarnings("unchecked")

@@ -236,6 +236,9 @@ public class Eprotect {
         if (owner.level().isClientSide || !isGuardingRemoval()) return false;
         if (isIllegalRemoval(owner, reason)) {
             AttackLog.refused(owner, AttackOp.REMOVE + ":" + reason.name().toLowerCase(Locale.ROOT));
+            // 消去と一緒にクライアントへ「消した」と送る MOD がある（Fantasy Ending の DeleteEntityPacket）。サーバーでは残っても
+            // 画面から消え、追跡の後片付け（stopSeenByPlayer）でボスバーも外れるので、次の Tick に見せ直す
+            viewersResyncPending = true;
             return true;
         }
         // 次元移動を装った消去: 正規の次元移動（{@link #approveDimensionChange} 中）以外で、ブラックリストの MOD が直接呼んだもの
@@ -347,10 +350,7 @@ public class Eprotect {
      */
     public float capFinalDamage(float amount, @Nullable DamageSource source) {
         if (!isProtectionActive()) return amount;
-        if (isReinforcedActive()) {
-            AttackLog.refused(owner, AttackOp.DAMAGE + ":reinforced_guard", "reinforced_mode");
-            return 0.0F;
-        }
+        // 強化保護中でも通常攻撃は上限どおりに通す（即死系は入口で止める。EprotectForgeEvents.isLethalAttack）
         // ブラックリストの MOD からのダメージは上限を下げる（罰則）
         String penalized = source != null ? blacklistedDamageMod(source) : null;
         float ratio = penalized != null ? BLACKLIST_HIT_RATIO : MAX_HIT_RATIO;
@@ -387,6 +387,20 @@ public class Eprotect {
         }
         String caller = CallerAttribution.foreignClassMod(owner);
         return ModBlacklist.contains(caller) ? caller : null;
+    }
+
+    /**
+     * 凶悪技術の罰則: ブラックリストの MOD・強化保護中の即死系の攻撃を止めたとき、HP を最大まで戻す（1 回の攻撃につき 1 回。
+     * 通常攻撃で削られた分は、凶悪技術を使われたときだけ帳消しになる。2026-10-03 にユーザー指定）
+     */
+    public void penalizeMaliciousAttack() {
+        if (owner.level().isClientSide || !isProtectionActive()) return;
+        float max = owner.getMaxHealth();
+        if (DirectRead.health(owner) < max) {
+            owner.setHealth(max);
+            AttackLog.repaired(owner, "malicious_penalty:max_health");
+        }
+        lastValidHealth = max;
     }
 
     /** 被弾量の時間窓を数え直す（GameTest や、演出として正規に続けて大ダメージを与えたい場合に使う） */
@@ -474,8 +488,7 @@ public class Eprotect {
         }
 
         if (isReinforcedActive()) {
-            owner.setHealth(owner.getMaxHealth());
-            lastValidHealth = owner.getMaxHealth();
+            // HP は満タンに戻さない（通常攻撃で削られた分まで消えるため）。抹殺予定の一覧と他 MOD の印の掃除だけ
             com.automatavalkyries.protect.flag.KillLists.purge(owner);
             ForeignStateCleaner.clean(owner);
         }
@@ -490,12 +503,14 @@ public class Eprotect {
         if (restoreMaxHealth()) anomalies++;
         if (restoreHealth()) anomalies++;
         if (clearDeadFlag()) anomalies++;
+        if (restoreVanillaFlags()) anomalies++;
         anomalies += restorePresence();
         // vanilla の状態を戻した後に回す（vanilla のフィールドを見せるだけのアクセサ（nosugar の DeadFlag 等）を
         // 他 MOD 固有の状態と取り違えて、直書きの修復をその MOD の攻撃として記録しないため）
         if (ForeignStateCleaner.clean(owner)) anomalies++;
         noteSpoofedRead();
         if (restoreTickingIfStopped()) anomalies++;
+        resyncViewersIfPending();
 
         if (anomalies > 0) noteAnomalies(anomalies);
     }
@@ -552,8 +567,7 @@ public class Eprotect {
         // getHealth() はこのMOD の Mixin が HP 0 を直前の正常値に読み替えるので、同期データの実際の値を見る
         float hp = DirectRead.health(owner);
         if (Float.isFinite(hp) && hp > 0.0F) {
-            lastValidHealth = hp;
-            return false;
+            return cutUntrackedLoss(hp);
         }
         float restore = lastValidHealth > 0.0F ? lastValidHealth : owner.getMaxHealth();
         owner.setHealth(restore);
@@ -561,6 +575,105 @@ public class Eprotect {
         lastValidHealth = restore;
         AttackLog.repaired(owner, "health");
         return true;
+    }
+
+    /**
+     * ダメージ処理（hurt）を通らずに減った HP（同期データの直書き・getter の書き換え越しの削り等。Fantasy Ending の catchSetTrueHealth）を、
+     * 普通の被弾と同じ上限（{@link #capFinalDamage}: 時間窓の中で最大 HP の {@link #MAX_HIT_RATIO} まで）に掛け、超えた分を戻す。
+     * 強化保護中（ブラックリストの MOD に攻撃された直後）は上限が 0 なので全部戻る。これまでは HP 0 にならない削りは素通りだった（2026-10-03）
+     *
+     * @return 戻したか
+     */
+    private boolean cutUntrackedLoss(float hp) {
+        float previous = lastValidHealth;
+        if (hurtDepth > 0 || !(previous > 0.0F) || hp >= previous - 0.001F || hp >= owner.getMaxHealth() || !isProtectionActive()) {
+            lastValidHealth = hp;
+            return false;
+        }
+        float loss = previous - hp;
+        // ダメージ処理を通らない削りは通常攻撃ではないので、強化保護中は全部戻す
+        float allowed = isReinforcedActive() ? 0.0F : capFinalDamage(loss, null);
+        if (allowed >= loss - 0.001F) {
+            lastValidHealth = hp;
+            return false;
+        }
+        float target = Math.min(owner.getMaxHealth(), previous - allowed);
+        owner.setHealth(target);
+        lastValidHealth = target;
+        AttackLog.repaired(owner, "health_cut");
+        AutomataValkyries.LOGGER.debug("[eprotect] Cut untracked health loss on {}: {} -> {} (allowed {} of {})",
+                owner, previous, target, allowed, loss);
+        return true;
+    }
+
+    /**
+     * 見張る vanilla の状態（名前・読み・書き）。見張るかはフラグ辞書で決める（保護対象に付いていたら戻すべき名前か:
+     * invisible は CONCEAL、noAi・noGravity は CONTROL）。設定 {@code flagDictionary.ignore} に名前を足せば見張らない
+     */
+    private record VanillaFlag(String name, java.util.function.Predicate<LivingEntity> get,
+                               java.util.function.BiConsumer<LivingEntity, Boolean> set) {}
+
+    private static final List<VanillaFlag> VANILLA_FLAGS = List.of(
+            new VanillaFlag("invisible", Entity::isInvisible, Entity::setInvisible),
+            new VanillaFlag("noAi", e -> e instanceof net.minecraft.world.entity.Mob m && m.isNoAi(),
+                    (e, v) -> { if (e instanceof net.minecraft.world.entity.Mob m) m.setNoAi(v); }),
+            new VanillaFlag("noGravity", Entity::isNoGravity, Entity::setNoGravity));
+
+    /** 保護を始めたときの値（他 MOD に書き換えられたら戻す基準）。null はまだ覚えていない */
+    @Nullable
+    private boolean[] vanillaBaseline;
+
+    /**
+     * vanilla の状態のうち、即死・消去の MOD が「消した」「止めた」見せ方に使うもの（透明・AI 停止・重力無し）を、保護を始めたときの状態に戻す
+     * （Fantasy Ending の DeleteCommand は setInvisible(true)、クリエイティブの骨は AI を止める。2026-10-03）。どれを見張るかはフラグ辞書で決める。
+     * 透明化の状態異常が付いている間の透明は正規なので戻さない
+     *
+     * @return 戻したか
+     */
+    private boolean restoreVanillaFlags() {
+        if (!isProtectionActive()) return false;
+        if (vanillaBaseline == null) {
+            vanillaBaseline = new boolean[VANILLA_FLAGS.size()];
+            for (int i = 0; i < VANILLA_FLAGS.size(); i++) vanillaBaseline[i] = VANILLA_FLAGS.get(i).get().test(owner);
+            return false;
+        }
+        boolean changed = false;
+        for (int i = 0; i < VANILLA_FLAGS.size(); i++) {
+            VanillaFlag flag = VANILLA_FLAGS.get(i);
+            if (!com.automatavalkyries.protect.flag.FlagDictionary.harmfulOnProtected(flag.name())) continue;
+            boolean expected = vanillaBaseline[i];
+            if (flag.name().equals("invisible") && owner.hasEffect(net.minecraft.world.effect.MobEffects.INVISIBILITY)) expected = true;
+            if (flag.get().test(owner) == expected) continue;
+            flag.set().accept(owner, expected);
+            AttackLog.repaired(owner, "vanilla:" + flag.name());
+            changed = true;
+        }
+        return changed;
+    }
+
+    /** 消去を拒否した・入り直させた後に、見ているプレイヤーへ見せ直すか */
+    private boolean viewersResyncPending;
+    private long lastViewersResync = -1000L;
+
+    /**
+     * 見ているプレイヤーへ見せ直す: 追跡（ChunkMap の TrackedEntity）を作り直し、出現の情報を送り直す。追跡が始まるときの
+     * {@code startSeenByPlayer} も呼ばれ直すので、外されたボスバーも戻る。同じ個体は 20 Tick に 1 回まで
+     */
+    private boolean resyncViewersIfPending() {
+        if (!viewersResyncPending || !(owner.level() instanceof ServerLevel level) || owner.isRemoved()) return false;
+        long now = serverClock();
+        if (now - lastViewersResync < 20) return false;
+        viewersResyncPending = false;
+        lastViewersResync = now;
+        try {
+            level.getChunkSource().removeEntity(owner);
+            level.getChunkSource().addEntity(owner);
+            AttackLog.repaired(owner, "viewers_resync");
+            return true;
+        } catch (Throwable t) {
+            AutomataValkyries.LOGGER.debug("[eprotect] Could not resync viewers of {}: {}", owner, t.toString());
+            return false;
+        }
     }
 
     /** 強制デスフラグ（dead = true）が残ると以後の死亡処理・ドロップが壊れるので戻す */
@@ -590,6 +703,7 @@ public class Eprotect {
         WorldPresence.Outcome outcome = WorldPresence.rejoin(level, owner, safe);
         switch (outcome) {
             case REJOINED -> {
+                viewersResyncPending = true;
                 AutomataValkyries.LOGGER.warn("[eprotect] Rejoined {} via the vanilla route (broken: {})", owner, issues);
                 return 1;
             }
@@ -739,6 +853,9 @@ public class Eprotect {
     }
 
     /** 本体の Tick をワールドの代わりに 1 回回す（騎乗中は乗り物が回すので触らない） */
+    /** 包みの入口を飛ばして回したことを記録したか（記録は 1 個体 1 回） */
+    private boolean entranceBypassNoted;
+
     private void driveTick(ServerLevel level) {
         Entity vehicle = owner.getVehicle();
         if (vehicle != null && !vehicle.isRemoved() && vehicle.hasPassenger(owner)) return;
@@ -747,6 +864,15 @@ public class Eprotect {
         insideDrivenTick = true;
         try {
             level.guardEntityTick(level::tickNonPassenger, owner);
+            if (owner.tickCount == ticksBefore && !owner.isRemoved()) {
+                // 包み（guardEntityTick）の入口で他 MOD に止められた（EndingLibrary の時間停止の LevelMixin.guardEntityTick 等）。
+                // 包みを飛ばして中身を直接回す
+                level.tickNonPassenger(owner);
+                if (owner.tickCount != ticksBefore && !entranceBypassNoted) {
+                    entranceBypassNoted = true;
+                    AttackLog.repaired(owner, "frozen_tick:entrance_bypassed");
+                }
+            }
         } finally {
             insideDrivenTick = false;
         }

@@ -116,7 +116,7 @@ public final class KillLists {
             for (InjectedMembers.InjectedField injected : InjectedMembers.fields(c)) {
                 if (CallerAttribution.SELF.equals(injected.mod())) continue;
                 Field field = injected.field();
-                if (isListField(field) && isKillName(field.getName())) remember(field, injected.mod());
+                if (isListField(field) && (isKillName(field.getName()) || isStopName(field.getName()))) remember(field, injected.mod());
             }
         }
     }
@@ -126,7 +126,7 @@ public final class KillLists {
             if (PENDING.size() < 1024) PENDING.add(type);
             return;
         }
-        boolean killClass = isKillName(type.getSimpleName());
+        boolean killClass = isKillName(type.getSimpleName()) || isStopName(type.getSimpleName());
         Field[] fields;
         try {
             fields = type.getDeclaredFields();
@@ -137,7 +137,7 @@ public final class KillLists {
             if (!isListField(field)) continue;
             String name = field.getName();
             if (FlagDictionary.is(name, FlagDictionary.Category.GUARD) && !isKillName(name)) continue;
-            if (killClass || isKillName(name)) remember(field, CallerAttribution.modOf(type));
+            if (killClass || isKillName(name) || isStopName(name)) remember(field, CallerAttribution.modOf(type));
         }
     }
 
@@ -162,6 +162,16 @@ public final class KillLists {
     private static boolean isKillName(String name) {
         Set<FlagDictionary.Category> c = FlagDictionary.classify(name);
         return c.contains(FlagDictionary.Category.KILL) && !c.contains(FlagDictionary.Category.GUARD);
+    }
+
+    /**
+     * 止める・隠す一覧を表す名前か（時間停止中の個体・凍結した個体・隠した個体の一覧。守りを表すものは除く）。
+     * 載った保護対象をその MOD が止め続ける・隠し続けるので、死亡の一覧と同じく外す（2026-10-03）
+     */
+    private static boolean isStopName(String name) {
+        Set<FlagDictionary.Category> c = FlagDictionary.classify(name);
+        return (c.contains(FlagDictionary.Category.CONTROL) || c.contains(FlagDictionary.Category.CONCEAL))
+                && !c.contains(FlagDictionary.Category.GUARD);
     }
 
     /** そのクラスのバイトコードが参照しているクラス（static 呼び出し・static フィールド・new の相手） */

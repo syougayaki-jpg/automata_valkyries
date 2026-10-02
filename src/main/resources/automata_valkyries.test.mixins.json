@@ -3,8 +3,11 @@
   "minVersion": "0.8",
   "package": "com.automatavalkyries.gametest.fake.mixin",
   "compatibilityLevel": "JAVA_17",
+  "refmap": "automata_valkyries.refmap.json",
   "mixins": [
-    "FakeInjectedStateMixin"
+    "FakeInjectedStateMixin",
+    "FakeLifeSpoofMixin",
+    "FakeTimeStopMixin"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -101,4 +101,40 @@ public final class WitherzillaMixins {
             }
         }
     }
+
+    /**
+     * Witherzilla 自身の不具合の回避（クライアント）: {@code EventHandle.onRenderGUI} は {@code CopyOnWriteArrayList} の
+     * {@code livingEntities} を回しながら {@code Iterator.remove()} を呼ぶが、CopyOnWriteArrayList の反復子は remove できず
+     * {@code UnsupportedOperationException} で落ちる（死んだ・消えた個体が一覧に入ると、ワールドから出るときなどに落ちた。2026-10-02）。
+     * 反復子だけを「remove で一覧そのものから消す」物に差し替える。回る順と中身・Witherzilla の判定はそのまま
+     */
+    @Pseudo
+    @Mixin(targets = "com.wzz.witherzilla.event.EventHandle", remap = false)
+    public abstract static class RenderGui {
+        @org.spongepowered.asm.mixin.injection.Redirect(method = "onRenderGUI",
+                at = @At(value = "INVOKE", target = "Ljava/util/concurrent/CopyOnWriteArrayList;iterator()Ljava/util/Iterator;"), require = 0)
+        private static <E> java.util.Iterator<E> automata_valkyries$removableIterator(java.util.concurrent.CopyOnWriteArrayList<E> list) {
+            java.util.Iterator<E> snapshot = list.iterator();
+            return new java.util.Iterator<>() {
+                private E last;
+                private boolean canRemove;
+
+                @Override public boolean hasNext() { return snapshot.hasNext(); }
+
+                @Override
+                public E next() {
+                    last = snapshot.next();
+                    canRemove = true;
+                    return last;
+                }
+
+                @Override
+                public void remove() {
+                    if (!canRemove) throw new IllegalStateException();
+                    canRemove = false;
+                    list.remove(last);
+                }
+            };
+        }
+    }
 }
