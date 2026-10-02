@@ -16,6 +16,9 @@ public interface EntityTickListAccessor {
     @Accessor("active")
     Int2ObjectMap<Entity> automata_valkyries$getActive();
 
+    @Accessor("active")
+    void automata_valkyries$setActive(Int2ObjectMap<Entity> active);
+
     @Accessor("iterated")
     Int2ObjectMap<Entity> automata_valkyries$getIterated();
 }

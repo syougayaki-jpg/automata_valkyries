@@ -5,7 +5,6 @@ import com.automatavalkyries.mixin.ChunkMapAccessor;
 import com.automatavalkyries.mixin.EntityAccessor;
 import com.automatavalkyries.mixin.EntityLookupAccessor;
 import com.automatavalkyries.mixin.EntityManagerAccessor;
-import com.automatavalkyries.mixin.EntityTickListAccessor;
 import com.automatavalkyries.mixin.ServerLevelTickListAccessor;
 import com.automatavalkyries.mixin.LivingEntityAccessor;
 import com.automatavalkyries.network.AnnihilatedEntitiesPacket;
@@ -228,7 +227,8 @@ public final class TrueAnnihilationEngine {
             EntityTickList tickList = tickAccessor.automata_valkyries$getEntityTickList();
             if (tickList != null) {
                 tickList.remove(target);
-                ((EntityTickListAccessor) tickList).automata_valkyries$getIterated().remove(target);
+                // 他 MOD に remove を拒否されても外す（回されている最中のマップは直接いじらない。TickListEviction）
+                TickListEviction.remove(tickList, target);
             }
         } catch (Throwable ignored) {}
 

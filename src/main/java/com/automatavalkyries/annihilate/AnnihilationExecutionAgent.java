@@ -6,7 +6,6 @@ import com.automatavalkyries.mixin.ChunkMapAccessor;
 import com.automatavalkyries.mixin.EntityAccessor;
 import com.automatavalkyries.mixin.EntityLookupAccessor;
 import com.automatavalkyries.mixin.EntityManagerAccessor;
-import com.automatavalkyries.mixin.EntityTickListAccessor;
 import com.automatavalkyries.mixin.LivingEntityAccessor;
 import com.automatavalkyries.mixin.ServerLevelTickListAccessor;
 import com.automatavalkyries.network.AnnihilatedEntitiesPacket;
@@ -248,8 +247,7 @@ public final class AnnihilationExecutionAgent {
 
             // (3) Tick 対象一覧から直消去（MixinEntityTickList の拒否をバイパス）
             EntityTickList tickList = ((ServerLevelTickListAccessor) level).automata_valkyries$getEntityTickList();
-            EntityTickListAccessor tickListAccessor = (EntityTickListAccessor) tickList;
-            tickListAccessor.automata_valkyries$getActive().remove(entity.getId());
+            TickListEviction.remove(tickList, entity); // 回されている最中でも反復を壊さない
             tickList.remove(entity);
 
             // (4) 区画ストレージからの直接削除

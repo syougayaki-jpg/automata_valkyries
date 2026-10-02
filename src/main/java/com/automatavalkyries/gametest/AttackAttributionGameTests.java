@@ -380,4 +380,32 @@ public class AttackAttributionGameTests {
             finish(helper, elenor);
         });
     }
+    /**
+     * 抹殺で Tick 対象一覧から外すとき、一覧が回されている最中でも反復を壊さない（壊すと次の個体の代わりに null が渡り、
+     * No-Sugar の時間停止の Mixin が落ちた。2026-10-02）。回している途中で別の個体を外しても、null は来ず、残りは最後まで回る
+     */
+    @GameTest(template = TEMPLATE)
+    public static void tickListEvictionDuringIterationIsSafe(GameTestHelper helper) {
+        var level = helper.getLevel();
+        java.util.List<net.minecraft.world.entity.monster.Zombie> zombies = new java.util.ArrayList<>();
+        for (int i = 0; i < 6; i++) zombies.add(helper.spawn(net.minecraft.world.entity.EntityType.ZOMBIE, new net.minecraft.core.BlockPos(1 + i % 3, 2, 1 + i / 3)));
+        var tickList = ((com.automatavalkyries.mixin.ServerLevelTickListAccessor) level).automata_valkyries$getEntityTickList();
+        int[] nulls = {0}, seen = {0};
+        boolean[] evicted = {false};
+        tickList.forEach(entity -> {
+            if (entity == null) { nulls[0]++; return; }
+            seen[0]++;
+            if (!evicted[0] && zombies.contains(entity)) {
+                evicted[0] = true;
+                // 回している最中に、まだ回っていない別の個体を外す
+                for (var z : zombies) if (z != entity) com.automatavalkyries.annihilate.TickListEviction.remove(tickList, z);
+            }
+        });
+        helper.assertTrue(nulls[0] == 0, nulls[0] + " null entities were passed during iteration");
+        helper.assertTrue(evicted[0], "no zombie was iterated");
+        long left = zombies.stream().filter(tickList::contains).count();
+        helper.assertTrue(left == 1, "expected only the first iterated zombie to remain in the tick list, left " + left);
+        zombies.forEach(net.minecraft.world.entity.Entity::discard);
+        helper.succeed();
+    }
 }

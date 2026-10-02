@@ -4,7 +4,6 @@ import com.automatavalkyries.AutomataValkyries;
 import com.automatavalkyries.annihilate.AnnihilationExecutionAgent;
 import com.automatavalkyries.mixin.EntityAccessor;
 import com.automatavalkyries.mixin.EntityLookupAccessor;
-import com.automatavalkyries.mixin.EntityTickListAccessor;
 import com.automatavalkyries.mixin.client.ClientLevelAccessor;
 import com.automatavalkyries.mixin.client.TransientEntitySectionManagerAccessor;
 import net.minecraft.client.Minecraft;
@@ -122,8 +121,7 @@ public final class ClientAnnihilation {
             }
         }
 
-        boolean ticking = ((EntityTickListAccessor) clientLevel.automata_valkyries$getTickingEntities())
-                .automata_valkyries$getActive().remove(entity.getId()) != null;
+        boolean ticking = com.automatavalkyries.annihilate.TickListEviction.remove(clientLevel.automata_valkyries$getTickingEntities(), entity);
 
         if (entity.isMultipartEntity() && entity.getParts() != null) {
             for (PartEntity<?> part : entity.getParts()) {
