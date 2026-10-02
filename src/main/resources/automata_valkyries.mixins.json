@@ -4,6 +4,7 @@
   "package": "com.automatavalkyries.mixin",
   "compatibilityLevel": "JAVA_17",
   "refmap": "automata_valkyries.refmap.json",
+  "plugin": "com.automatavalkyries.mixin.AutomataMixinPlugin",
   "mixins": [
     "EntityAccessor",
     "LivingEntityAccessor",

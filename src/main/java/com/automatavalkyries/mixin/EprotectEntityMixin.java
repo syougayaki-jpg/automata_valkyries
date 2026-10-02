@@ -225,15 +225,4 @@ public abstract class EprotectEntityMixin {
             }
         }
     }
-
-    /**
-     * Hyperlink の novelize(LivingEntity) を保護対象に対して完全にブロックする
-     */
-    @Inject(method = "novelize(Lnet/minecraft/world/entity/LivingEntity;)V", at = @At("HEAD"), cancellable = true, remap = false, require = 0)
-    private void automata_valkyries$guardNovelize(LivingEntity living, CallbackInfo ci) {
-        if ((Object) this instanceof IEprotected) {
-            ci.cancel();
-            AttackLog.refused((Entity) (Object) this, AttackOp.NOVELIZE);
-        }
-    }
 }

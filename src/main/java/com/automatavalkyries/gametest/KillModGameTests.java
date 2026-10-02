@@ -558,6 +558,55 @@ public class KillModGameTests {
         helper.succeed();
     }
 
+    /**
+     * Hyperlink の小説化状態の解除検証:
+     * DATA_NOVELIZED が Entity クラスの static フィールドから正常に取得され、
+     * cleanupPlayerRestraints によって false にリセットされること。
+     * Mixin クラス（EntityMixin）の直接読み込みによる失敗が起きないこと。
+     */
+    @GameTest(template = TEMPLATE, timeoutTicks = 50)
+    public static void cleanupPlayerRestraintsClearsHyperlinkNovelized(GameTestHelper helper) {
+        Player player = helper.makeMockPlayer();
+        var accessor = com.automatavalkyries.protect.EcaLastSwordHelper.getHyperlinkNovelizedAccessor();
+        if (accessor != null) {
+            player.getEntityData().set(accessor, true);
+            helper.assertTrue(player.getEntityData().get(accessor), "DATA_NOVELIZED was not set to true initially");
+            com.automatavalkyries.protect.EcaLastSwordHelper.cleanupPlayerRestraints(player);
+            helper.assertFalse(player.getEntityData().get(accessor), "DATA_NOVELIZED was not cleared to false");
+        } else {
+            // Hyperlink が未導入の環境でも、直接呼び出して例外が出ないことを確認
+            com.automatavalkyries.protect.EcaLastSwordHelper.cleanupPlayerRestraints(player);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * AllReturn 解除のスコープ検証:
+     * cleanupPlayerRestraints がワールド全体の AllReturn をリセット（AllReturnToggle.clearAll()）せず、
+     * 当該プレイヤー（EcaAPI.disableAllReturn(player)）のみを対象とすること。
+     */
+    @GameTest(template = TEMPLATE, timeoutTicks = 50)
+    public static void cleanupPlayerRestraintsDoesNotResetWorldAllReturn(GameTestHelper helper) {
+        if (!loaded(helper, "eca")) return;
+        try {
+            Class<?> allReturnClass = Class.forName("net.eca.coremod.AllReturnToggle");
+            java.lang.reflect.Method setEnabled = allReturnClass.getMethod("setEnabled", boolean.class);
+            java.lang.reflect.Method isEnabled = allReturnClass.getMethod("isEnabled");
+            setEnabled.invoke(null, true);
+
+            Player player = helper.makeMockPlayer();
+            com.automatavalkyries.protect.EcaLastSwordHelper.cleanupPlayerRestraints(player);
+
+            boolean stillEnabled = (boolean) isEnabled.invoke(null);
+            setEnabled.invoke(null, false); // クリーンアップ
+            helper.assertTrue(stillEnabled, "cleanupPlayerRestraints globally cleared AllReturn");
+        } catch (Throwable t) {
+            helper.fail("Failed to test AllReturn scope: " + t.getMessage());
+            return;
+        }
+        helper.succeed();
+    }
+
     /** 対象 MOD が無ければ成功扱いで終える */
     private static boolean loaded(GameTestHelper helper, String modId) {
         if (ModList.get().isLoaded(modId)) return true;

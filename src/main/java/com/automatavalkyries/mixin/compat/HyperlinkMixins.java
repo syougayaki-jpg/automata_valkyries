@@ -51,8 +51,8 @@ public final class HyperlinkMixins {
 
         /**
          * 小説化攻撃実行のガード。
-         * 兵姫、護符所持プレイヤー、リスポーン保護中プレイヤーへの攻撃を遮断する。
-         * 通常プレイヤー（護符なし・リスポーン保護終了後）の戦闘による死亡は許容する。
+         * 兵姫（IEprotected）への攻撃を遮断する。
+         * プレイヤー保護（PlayerWard）は廃止されたため、プレイヤーに対する遮断は行わない（リスポーン時クリーンアップで対応）。
          */
         @Inject(method = "novelize(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/world/entity/Entity;Z)V", at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardNovelize(LivingEntity living, Entity entity, boolean flag, CallbackInfo ci) {

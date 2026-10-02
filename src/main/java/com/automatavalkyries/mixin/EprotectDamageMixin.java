@@ -156,15 +156,4 @@ public abstract class EprotectDamageMixin {
     private Eprotect automata_valkyries$getProtect() {
         return (Object) this instanceof IEprotected provider ? provider.getEprotect() : null;
     }
-
-    /**
-     * Hyperlink の LivingEntityMixin.novelize を保護対象に対して完全にブロックする
-     */
-    @Inject(method = "novelize(Lnet/minecraft/world/entity/LivingEntity;)V", at = @At("HEAD"), cancellable = true, remap = false, require = 0)
-    private void automata_valkyries$guardLivingNovelize(LivingEntity living, CallbackInfo ci) {
-        if ((Object) this instanceof IEprotected) {
-            ci.cancel();
-            AttackLog.refused((LivingEntity) (Object) this, AttackOp.NOVELIZE);
-        }
-    }
 }

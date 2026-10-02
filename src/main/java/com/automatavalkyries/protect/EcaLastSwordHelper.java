@@ -59,6 +59,38 @@ public final class EcaLastSwordHelper {
         } catch (Throwable ignored) {}
     }
 
+    @org.jetbrains.annotations.Nullable
+    private static volatile net.minecraft.network.syncher.EntityDataAccessor<Boolean> HYPERLINK_DATA_NOVELIZED = null;
+
+    /**
+     * Hyperlink (hyperdaimc) が Entity クラスに合成した DATA_NOVELIZED (EntityDataAccessor<Boolean>) を取得する。
+     * Mixin クラス (EntityMixin) は直接ロードできないため、合成先である Entity クラスの static フィールドから検索する。
+     */
+    @org.jetbrains.annotations.Nullable
+    @SuppressWarnings("unchecked")
+    public static net.minecraft.network.syncher.EntityDataAccessor<Boolean> getHyperlinkNovelizedAccessor() {
+        if (HYPERLINK_DATA_NOVELIZED != null) {
+            return HYPERLINK_DATA_NOVELIZED;
+        }
+        try {
+            for (Field field : Entity.class.getDeclaredFields()) {
+                if (java.lang.reflect.Modifier.isStatic(field.getModifiers())
+                        && net.minecraft.network.syncher.EntityDataAccessor.class.isAssignableFrom(field.getType())) {
+                    String name = field.getName();
+                    if (name.equals("DATA_NOVELIZED") || name.endsWith("$DATA_NOVELIZED") || name.contains("DATA_NOVELIZED")) {
+                        field.setAccessible(true);
+                        Object val = field.get(null);
+                        if (val instanceof net.minecraft.network.syncher.EntityDataAccessor<?> acc) {
+                            HYPERLINK_DATA_NOVELIZED = (net.minecraft.network.syncher.EntityDataAccessor<Boolean>) acc;
+                            return HYPERLINK_DATA_NOVELIZED;
+                        }
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
     /**
      * プレイヤーが死んでいる、またはラストソードを手放した場合、
      * 残存する位置固定・無敵・ヘルスロック・飛行状態を完全解除・初期化する。
@@ -95,32 +127,41 @@ public final class EcaLastSwordHelper {
             setInvul.invoke(null, player, false);
         } catch (Throwable ignored) {}
 
-        // 5. The Last Sword の clearDefence / clearWorldAnchor
+        // 5. The Last Sword の防御の解除
+        //    clearDefence は「世界の錨（tlsWorldAnchor）の HP」を ECA の setHealth で書き戻す。錨が無いプレイヤーでは錨が 0 なので、
+        //    呼ぶと HP が 0 に書かれて即死する（毎 Tick・リスポーン直後に死に続けた原因。2026-10-02）。錨が正のときだけ呼び、
+        //    それ以外は HP に触れない解除（錨の値・防御の印）だけ行う
         try {
             Class<?> entityUtil = Class.forName("net.the_last_sword.util.EntityUtil");
-            Method clearDef = entityUtil.getMethod("clearDefence", net.minecraft.world.entity.LivingEntity.class);
-            clearDef.invoke(null, player);
-            Method clearAnchor = entityUtil.getMethod("clearWorldAnchor", net.minecraft.world.entity.LivingEntity.class);
-            clearAnchor.invoke(null, player);
+            CompoundTag data = player.getPersistentData();
+            boolean hasAnchor = data.contains("tlsWorldAnchor");
+            float anchor = 0.0F;
+            if (hasAnchor) {
+                Method getAnchor = entityUtil.getMethod("getWorldAnchor", net.minecraft.world.entity.LivingEntity.class);
+                anchor = ((Number) getAnchor.invoke(null, player)).floatValue();
+            }
+            if (hasAnchor && Float.isFinite(anchor) && anchor > 0.0F) {
+                entityUtil.getMethod("clearDefence", net.minecraft.world.entity.LivingEntity.class).invoke(null, player);
+            } else {
+                data.remove("tlsWorldAnchor");
+                data.remove("tlsWorldAnchorMax");
+            }
+            if (hasAnchor) entityUtil.getMethod("clearWorldAnchor", net.minecraft.world.entity.LivingEntity.class).invoke(null, player);
             Method setProt = entityUtil.getMethod("setProtection", net.minecraft.world.entity.LivingEntity.class, boolean.class);
             setProt.invoke(null, player, false);
         } catch (Throwable ignored) {}
 
-        // 6. ECA AllReturn の解除
+        // 6. ECA AllReturn の解除（ワールド全体ではなく対象プレイヤーのみ）
         try {
-            Class<?> allReturnClass = Class.forName("net.eca.coremod.AllReturnToggle");
-            Method clearAll = allReturnClass.getMethod("clearAll");
-            clearAll.invoke(null);
+            Class<?> ecaApi = Class.forName("net.eca.api.EcaAPI");
+            Method disableAllReturn = ecaApi.getMethod("disableAllReturn", net.minecraft.world.entity.Entity.class);
+            disableAllReturn.invoke(null, player);
         } catch (Throwable ignored) {}
 
         // 7. Hyperlink (hyperdaimc) の Novelize 解除および VRX entries クリア
         try {
-            Class<?> entityMixinClass = Class.forName("com.sakurafuld.hyperdaimc.mixin.novel.EntityMixin");
-            Field dataNovelizedField = entityMixinClass.getDeclaredField("DATA_NOVELIZED");
-            dataNovelizedField.setAccessible(true);
-            Object accessor = dataNovelizedField.get(null);
-            if (accessor instanceof net.minecraft.network.syncher.EntityDataAccessor dataAccessor) {
-                //noinspection unchecked
+            var dataAccessor = getHyperlinkNovelizedAccessor();
+            if (dataAccessor != null) {
                 player.getEntityData().set(dataAccessor, false);
             }
         } catch (Throwable ignored) {}

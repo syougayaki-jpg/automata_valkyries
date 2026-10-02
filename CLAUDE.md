@@ -16,7 +16,7 @@ MOD 全体の仕様（世界観、兵姫、敵・ボス、アイテム、マシ�
 - 【暫定統一】の項目（§0.2）は後でユーザーが調整する前提の仮決定。変更されたら仕様書を更新する
 - 未定・未受領の項目（§0.3）は推測で埋めず、ユーザーに確認する
 
-**注意（2026-10-02 時点）**: Java エージェントのクラスや深いフックを持つ MOD（Hyperlink・ECA など）とは、保護同士・保護と即死がぶつかって干渉することがある。ECA ＋ The Last Sword の組み合わせでのプレイヤーの死亡は未解決のまま保留中（詳細は保護の仕様書 §8.1）。検証は組み合わせを絞って行う。
+**注意（2026-10-02 時点）**: Java エージェントのクラスや深いフックを持つ MOD（Hyperlink・ECA など）とは、保護同士・保護と即死がぶつかって干渉することがある。ECA ＋ The Last Sword の組み合わせでのプレイヤーのリスキル問題は解決済み。原因はこのMOD自身の後始末（`EcaLastSwordHelper.cleanupPlayerRestraints` が錨の無いプレイヤーに The Last Sword の `clearDefence` を呼び、HP を 0 に書いていた）（詳細は保護の仕様書 §8.1）。検証は組み合わせを絞って行う。
 
 保護の仕組み（Eprotect）の全体像・各層・設定・テスト方針・他 MOD への移植手順は **[`docs/SPEC_EPROTECT_ARCHITECTURE.md`](docs/SPEC_EPROTECT_ARCHITECTURE.md)** にまとめてある（ゲーム内保護側）。
 
@@ -52,6 +52,7 @@ Windows では `.\gradlew.bat`、Git Bash では `./gradlew`。
 | **ロード確認（GUI なし）** | `./gradlew runGameTestServer` — サーバーが起動して GameTest を実行し、自動終了する。登録エラーやクラッシュの検出に使う |
 | ゲーム起動（手動確認） | `./gradlew runClient` — ウィンドウが開くので、ユーザーに確認を依頼する |
 | 準汎用だけで測る | `-PgenericOnly` を足す（`runGameTestServer` / `runClient`）。MOD ごとの個別対策（互換 Mixin・KillModCounters・ボス固有の無力化）を切り、フラグ辞書などの準汎用の層だけでどこまで守れる・倒せるかを見る |
+| このMODの Mixin を外して起動 | `-PdisableMixins=compat.HyperlinkMixins,compat.EcaMixins`（カンマ区切り、`com.automatavalkyries.mixin` からの相対名で前方一致）。干渉の切り分け用（`mixin/AutomataMixinPlugin`） |
 | 観察用 Java エージェントを付ける | `-PwithObserver` を足す（`runGameTestServer` / `runClient`）。`build/libs/automata_valkyries-observer.jar`（`src/observer`、JDK だけに依存）を `-javaagent` で読ませる。他の Java エージェントによる実行中の書き換え（再変換・再定義）と呼んだ側を `logs/automata_valkyries-observer.log` と `/eprotect observer` に出す。能力の地図（他 MOD のクラスが Unsafe での書き込み・クラスの書き換え・自己 attach・JVM の終了・ワールドの一覧への手出し等をできる作りか。定数プールを読むだけ）を `/eprotect observer capabilities` に出す。他 MOD のクラスは書き換えないが、このMOD 自身のクラスを他のエージェントが書き換えたら読み込んだときの形に戻す（改ざん防止 `IntegrityGuard`。`-javaagent:...observer.jar=noguard` で切れる）。後から読み込まれたエージェントの再変換の中身は見えないので、見たいときはそのエージェントの後で `jcmd <pid> JVMTI.agent_load <jar>` で attach する |
 | **Eprotect+ Java エージェントを付ける** | `-PwithEprotectPlus` を足す（`runGameTestServer` / `runClient`）。`build/libs/automata_valkyries-eprotect-plus.jar`（`src/eprotectplus`、JDK だけに依存）を `-javaagent` で読ませる。Witherzilla・ACE・Omni-Mobs・No-Sugar 等の干渉を調査・迂回・保護し、真抹殺の棒による特権抹殺（生命維持フラグ剥奪・StackChecker迂回）を実行する。`/eprotect plus` で診断・ログを確認可能 |
 | **Java エージェント同梱 MOD をまとめて検証** | `-PwithAllAgents`（Shizuku Blade + ECA/The Last Sword）または `-PwithSlashBlade`, `-PwithLastSword`。エージェント同士の競合・干渉・防壁突破を検証 |

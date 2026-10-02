@@ -179,8 +179,9 @@ public class ChronoGameTests {
         powered(fabricator);
         fabricator.addLink(link(helper, new BlockPos(0, 2, 0), ChronoLink.Mode.IN));
         ItemStack card = new ItemStack(ModChrono.BLUEPRINT_CARD.get());
-        var recipe = com.automatavalkyries.item.BlueprintCardItem.findFor(helper.getLevel().getRecipeManager(), helper.getLevel(), new ItemStack(Items.STICK));
-        helper.assertTrue(recipe.isPresent(), "no recipe for sticks");
+        // 棒のレシピは複数ある（竹からの物・他 MOD の物）。板材から作る vanilla の物を名前で指す
+        var recipe = helper.getLevel().getRecipeManager().byKey(net.minecraft.resources.ResourceLocation.parse("minecraft:stick"));
+        helper.assertTrue(recipe.isPresent(), "no minecraft:stick recipe");
         card.getOrCreateTag().putString("Recipe", recipe.get().getId().toString());
         fabricator.items().setStackInSlot(0, card);
         helper.succeedWhen(() -> {

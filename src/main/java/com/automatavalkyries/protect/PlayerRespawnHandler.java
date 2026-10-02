@@ -36,6 +36,7 @@ public final class PlayerRespawnHandler {
         if (!event.isWasDeath()) return;
         Player player = event.getEntity();
         if (player.level().isClientSide) return;
+        EcaLastSwordHelper.cleanupPlayerRestraints(event.getOriginal());
         EcaLastSwordHelper.cleanupPlayerRestraints(player);
         EcaLastSwordHelper.clearLocationLock(event.getOriginal().getUUID());
     }

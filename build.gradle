@@ -150,6 +150,9 @@ minecraft {
             // -PgenericOnly（runGameTestServer / runClient）: MOD ごとの個別対策を切り、準汎用の層だけでどこまで守れるかを測る
             if (project.hasProperty('genericOnly')) property 'automata_valkyries.genericOnly', 'true'
 
+            // -PdisableMixins=compat.HyperlinkMixins,...: このMODの Mixin を名前で外して起動する（干渉の切り分け用。mixin/AutomataMixinPlugin）
+            if (project.hasProperty('disableMixins')) property 'automata_valkyries.disableMixins', project.property('disableMixins')
+
             // -PwithObserver: 観察用の Java エージェント（クラスの書き換えを見張るだけ）を付けて起動する
             if (project.hasProperty('withObserver')) jvmArg "-javaagent:${observerJarFile.get().asFile.absolutePath}"
 
