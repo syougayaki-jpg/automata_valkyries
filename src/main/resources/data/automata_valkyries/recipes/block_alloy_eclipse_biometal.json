@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [ "###", "###", "###" ],
+  "key": { "#": { "item": "automata_valkyries:alloy_eclipse_biometal" } },
+  "result": { "item": "automata_valkyries:block_alloy_eclipse_biometal" },
+  "show_notification": true
+}

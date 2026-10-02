@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ "###", "###", "###" ],
+  "key": { "#": { "tag": "forge:nuggets/steel" } },
+  "result": { "item": "automata_valkyries:ingot_steel", "count": 1 }
+}

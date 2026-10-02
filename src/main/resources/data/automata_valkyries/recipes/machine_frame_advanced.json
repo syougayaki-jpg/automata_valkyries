@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ "PGP", "FCF", "PGP" ],
+  "key": { "P": { "tag": "forge:plates/aluminum" }, "G": { "tag": "forge:gears/invar" }, "F": { "item": "automata_valkyries:machine_frame_basic" }, "C": { "item": "automata_valkyries:circuit_advanced" } },
+  "result": { "item": "automata_valkyries:machine_frame_advanced", "count": 1 }
+}

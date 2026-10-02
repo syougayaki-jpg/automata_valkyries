@@ -1,0 +1,5 @@
+{
+  "type": "automata_valkyries:pressing",
+  "ingredients": [ { "ingredient": { "tag": "forge:ingots/tin" } } ],
+  "result": { "item": "automata_valkyries:plate_tin", "count": 1 }
+}

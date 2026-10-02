@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:block",
+  "pools": [
+    {
+      "bonus_rolls": 0.0,
+      "conditions": [ { "condition": "minecraft:survives_explosion" } ],
+      "entries": [ { "type": "minecraft:item", "name": "automata_valkyries:improved_electric_furnace" } ],
+      "rolls": 1.0
+    }
+  ],
+  "random_sequence": "automata_valkyries:blocks/improved_electric_furnace"
+}

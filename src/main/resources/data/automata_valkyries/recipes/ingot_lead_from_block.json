@@ -1,0 +1,6 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [ { "tag": "forge:storage_blocks/lead" } ],
+  "result": { "item": "automata_valkyries:ingot_lead", "count": 9 }
+}

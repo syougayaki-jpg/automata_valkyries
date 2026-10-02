@@ -1,0 +1,5 @@
+{
+  "type": "automata_valkyries:pressing",
+  "ingredients": [ { "ingredient": { "tag": "forge:ingots/constantan" } } ],
+  "result": { "item": "automata_valkyries:plate_constantan", "count": 1 }
+}

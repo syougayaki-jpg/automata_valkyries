@@ -52,6 +52,30 @@ public class ModBlocks {
             .mapColor(MapColor.DIAMOND).requiresCorrectToolForDrops().strength(5.0F, 6.0F).sound(SoundType.AMETHYST)
             .lightLevel(state -> 15)));
 
+    // ---- 上位合金の貯蔵ブロック（9 個 ↔ 1 ブロック）。光り、表面から合金の粒子を出す。テクスチャは光の帯が走るアニメーション ----
+    public static final RegistryObject<Block> BLOCK_ALLOY_LUMINAL_STERLING = effectBlock("block_alloy_luminal_sterling", MapColor.COLOR_LIGHT_BLUE, 12, ModEffects.LUMINAL_STERLING, 0.35F);
+    public static final RegistryObject<Block> BLOCK_ALLOY_CHRONO_FORTRESS = effectBlock("block_alloy_chrono_fortress", MapColor.COLOR_PURPLE, 7, ModEffects.CHRONO_FORTRESS, 0.45F);
+    public static final RegistryObject<Block> BLOCK_ALLOY_TACHYON_ACCEL = effectBlock("block_alloy_tachyon_accel", MapColor.COLOR_ORANGE, 10, ModEffects.TACHYON_ACCEL, 0.5F);
+    public static final RegistryObject<Block> BLOCK_ALLOY_ECLIPSE_BIOMETAL = effectBlock("block_alloy_eclipse_biometal", MapColor.COLOR_GREEN, 6, ModEffects.ECLIPSE_BIOMETAL, 0.35F);
+    public static final RegistryObject<Block> BLOCK_STELLACHRONODYME = effectBlock("block_stellachronodyme", MapColor.COLOR_BLUE, 15, ModEffects.STELLACHRONODYME, 0.8F);
+
+    private static RegistryObject<Block> effectBlock(String name, MapColor color, int light,
+                                                     java.util.List<net.minecraft.core.particles.ParticleOptions> particles, float chance) {
+        return register(name, () -> new com.automatavalkyries.block.EffectStorageBlock(BlockBehaviour.Properties.of()
+                .mapColor(color).requiresCorrectToolForDrops().strength(8.0F, 1200.0F).sound(SoundType.NETHERITE_BLOCK)
+                .lightLevel(state -> light), particles, chance));
+    }
+
+    /** 工業 MOD 連携の金属（IndustrialMetals）用: 鉱石 */
+    static RegistryObject<Block> oreBlock(String name, boolean deepslate) {
+        return ore(name, deepslate);
+    }
+
+    /** 工業 MOD 連携の金属（IndustrialMetals）用: 貯蔵ブロック（金属ブロック・粗鉱ブロック） */
+    static RegistryObject<Block> storageBlock(String name, boolean needsIron) {
+        return storage(name, MapColor.METAL, name.startsWith("block_raw_") ? SoundType.STONE : SoundType.METAL);
+    }
+
     private static RegistryObject<Block> ore(String name, boolean deepslate) {
         return register(name, () -> new Block(oreProperties(deepslate)));
     }

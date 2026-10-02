@@ -1,0 +1,5 @@
+{
+  "type": "automata_valkyries:alloying",
+  "ingredients": [ { "ingredient": { "tag": "forge:ingots/copper" }, "count": 3 }, { "ingredient": { "tag": "forge:ingots/zinc" }, "count": 1 } ],
+  "result": { "item": "automata_valkyries:ingot_brass", "count": 4 }
+}

@@ -1,0 +1,6 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [ { "tag": "forge:storage_blocks/bronze" } ],
+  "result": { "item": "automata_valkyries:ingot_bronze", "count": 9 }
+}

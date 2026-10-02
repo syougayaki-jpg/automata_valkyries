@@ -3,6 +3,14 @@
   "values": [
     "#forge:raw_materials/astrite",
     "#forge:raw_materials/phononium",
-    "#forge:raw_materials/ceruleas"
+    "#forge:raw_materials/ceruleas",
+    "#forge:raw_materials/tin",
+    "#forge:raw_materials/lead",
+    "#forge:raw_materials/silver",
+    "#forge:raw_materials/nickel",
+    "#forge:raw_materials/zinc",
+    "#forge:raw_materials/aluminum",
+    "#forge:raw_materials/osmium",
+    "#forge:raw_materials/uranium"
   ]
 }

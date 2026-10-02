@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ "###", "###", "###" ],
+  "key": { "#": { "tag": "forge:nuggets/zinc" } },
+  "result": { "item": "automata_valkyries:ingot_zinc", "count": 1 }
+}

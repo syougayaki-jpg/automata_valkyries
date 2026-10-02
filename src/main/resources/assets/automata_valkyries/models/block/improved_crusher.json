@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/orientable",
+  "textures": {
+    "front": "automata_valkyries:block/improved_crusher_front",
+    "side": "automata_valkyries:block/machine_side_improved",
+    "top": "automata_valkyries:block/machine_top_improved"
+  }
+}

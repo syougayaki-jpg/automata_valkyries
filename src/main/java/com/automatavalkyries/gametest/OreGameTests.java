@@ -123,6 +123,85 @@ public class OreGameTests {
         helper.succeed();
     }
 
+    /**
+     * 工業 MOD 連携の金属（追加拡張仕様書 §11）: 鉱石は粗鉱を落として精錬でインゴット、9 個 ↔ 1 個が往復でき、
+     * 共通の形（塊・粉・板・歯車・棒）が forge: タグに入っている。鉱石の生成も登録されている
+     */
+    @GameTest(template = TEMPLATE)
+    public static void industrialMetalsWork(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos pos = helper.absolutePos(new BlockPos(1, 2, 1));
+        var recipes = level.getRecipeManager();
+        var placed = level.registryAccess().registryOrThrow(Registries.PLACED_FEATURE);
+        for (var metal : com.automatavalkyries.registry.IndustrialMetals.all()) {
+            String m = metal.name();
+            Item ingot = com.automatavalkyries.registry.IndustrialMetals.ITEMS.get("ingot").get(m).get();
+            compressRoundTrip(helper, com.automatavalkyries.registry.IndustrialMetals.ITEMS.get("nugget").get(m).get(), ingot);
+            compressRoundTrip(helper, ingot, com.automatavalkyries.registry.IndustrialMetals.BLOCKS.get("block").get(m).get());
+            for (String form : List.of("ingots", "nuggets", "dusts", "plates", "gears", "rods")) {
+                Item item = com.automatavalkyries.registry.IndustrialMetals.ITEMS.get(form.substring(0, form.length() - 1)).get(m).get();
+                helper.assertTrue(new ItemStack(item).is(ItemTags.create(ResourceLocation.fromNamespaceAndPath("forge", form + "/" + m))),
+                        item + " is missing from forge:" + form + "/" + m);
+            }
+            ItemStack fromDust = recipes.getRecipeFor(RecipeType.SMELTING,
+                            new SimpleContainer(new ItemStack(com.automatavalkyries.registry.IndustrialMetals.ITEMS.get("dust").get(m).get())), level)
+                    .map(r -> r.getResultItem(level.registryAccess())).orElse(ItemStack.EMPTY);
+            helper.assertTrue(sameKind(fromDust, ingot), m + " dust smelted into " + fromDust);
+            if (!metal.hasOre()) continue;
+            Block ore = com.automatavalkyries.registry.IndustrialMetals.BLOCKS.get("ore").get(m).get();
+            Item raw = com.automatavalkyries.registry.IndustrialMetals.ITEMS.get("raw").get(m).get();
+            List<ItemStack> drops = Block.getDrops(ore.defaultBlockState(), level, pos, null, null, new ItemStack(Items.DIAMOND_PICKAXE));
+            helper.assertTrue(!drops.isEmpty() && drops.stream().allMatch(s -> s.is(raw)), m + " ore dropped " + drops);
+            ItemStack fromRaw = recipes.getRecipeFor(RecipeType.SMELTING, new SimpleContainer(new ItemStack(raw)), level)
+                    .map(r -> r.getResultItem(level.registryAccess())).orElse(ItemStack.EMPTY);
+            helper.assertTrue(sameKind(fromRaw, ingot), "raw " + m + " smelted into " + fromRaw);
+            var key = ResourceKey.create(Registries.PLACED_FEATURE, ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "ore_" + m));
+            helper.assertTrue(placed.get(key) != null, "Placed feature ore_" + m + " is not registered");
+            helper.assertTrue(com.automatavalkyries.config.WorldgenConfig.oreEnabled(m), m + " ore generation is off by default");
+        }
+        helper.succeed();
+    }
+
+    /** 上位合金（SPEC §7.7）の貯蔵ブロック: 9 個 ↔ 1 ブロック、光る。ステラ・クロノダイムは付与のきらめき付き */
+    @GameTest(template = TEMPLATE)
+    public static void alloyBlocksCompressAndGlow(GameTestHelper helper) {
+        compressRoundTrip(helper, ModItems.ALLOY_LUMINAL_STERLING.get(), ModBlocks.BLOCK_ALLOY_LUMINAL_STERLING.get());
+        compressRoundTrip(helper, ModItems.ALLOY_CHRONO_FORTRESS.get(), ModBlocks.BLOCK_ALLOY_CHRONO_FORTRESS.get());
+        compressRoundTrip(helper, ModItems.ALLOY_TACHYON_ACCEL.get(), ModBlocks.BLOCK_ALLOY_TACHYON_ACCEL.get());
+        compressRoundTrip(helper, ModItems.ALLOY_ECLIPSE_BIOMETAL.get(), ModBlocks.BLOCK_ALLOY_ECLIPSE_BIOMETAL.get());
+        compressRoundTrip(helper, ModItems.INGOT_STELLACHRONODYME.get(), ModBlocks.BLOCK_STELLACHRONODYME.get());
+        for (Block block : List.of(ModBlocks.BLOCK_ALLOY_LUMINAL_STERLING.get(), ModBlocks.BLOCK_ALLOY_CHRONO_FORTRESS.get(),
+                ModBlocks.BLOCK_ALLOY_TACHYON_ACCEL.get(), ModBlocks.BLOCK_ALLOY_ECLIPSE_BIOMETAL.get(), ModBlocks.BLOCK_STELLACHRONODYME.get())) {
+            helper.assertTrue(block.defaultBlockState().getLightEmission() > 0, block + " does not glow");
+            helper.assertTrue(block.defaultBlockState().is(BlockTags.NEEDS_DIAMOND_TOOL), block + " does not need a diamond pickaxe");
+        }
+        helper.assertTrue(new ItemStack(ModItems.INGOT_STELLACHRONODYME.get()).hasFoil(), "Stellachronodyme has no glint");
+        helper.succeed();
+    }
+
+    /** 合金の粉の調合（暫定）: 青銅 = 銅 3 + スズ 1 → 4、鋼鉄 = 鉄 1 + 石炭 2 → 1 */
+    @GameTest(template = TEMPLATE)
+    public static void alloyDustsMix(GameTestHelper helper) {
+        var dusts = com.automatavalkyries.registry.IndustrialMetals.ITEMS.get("dust");
+        assertCrafts(helper, List.of(dusts.get("copper").get(), dusts.get("copper").get(), dusts.get("copper").get(), dusts.get("tin").get()),
+                dusts.get("bronze").get(), 4);
+        assertCrafts(helper, List.of(dusts.get("iron").get(), Items.COAL, Items.COAL), dusts.get("steel").get(), 1);
+        assertCrafts(helper, List.of(dusts.get("gold").get(), dusts.get("silver").get()), dusts.get("electrum").get(), 2);
+        helper.succeed();
+    }
+
+    private static void assertCrafts(GameTestHelper helper, List<Item> inputs, Item result, int count) {
+        ServerLevel level = helper.getLevel();
+        var grid = new net.minecraft.world.inventory.TransientCraftingContainer(new net.minecraft.world.inventory.AbstractContainerMenu(null, -1) {
+            @Override public ItemStack quickMoveStack(net.minecraft.world.entity.player.Player player, int slot) { return ItemStack.EMPTY; }
+            @Override public boolean stillValid(net.minecraft.world.entity.player.Player player) { return true; }
+        }, 3, 3);
+        for (int i = 0; i < inputs.size(); i++) grid.setItem(i, new ItemStack(inputs.get(i)));
+        ItemStack out = level.getRecipeManager().getRecipeFor(RecipeType.CRAFTING, grid, level)
+                .map(r -> r.assemble(grid, level.registryAccess())).orElse(ItemStack.EMPTY);
+        helper.assertTrue(out.is(result) && out.getCount() == count, inputs + " crafted into " + out);
+    }
+
     private static void compressRoundTrip(GameTestHelper helper, Item unit, net.minecraft.world.level.ItemLike storage) {
         ServerLevel level = helper.getLevel();
         var recipes = level.getRecipeManager();
@@ -139,7 +218,17 @@ public class OreGameTests {
         grid.setItem(0, new ItemStack(storage));
         ItemStack unpacked = recipes.getRecipeFor(RecipeType.CRAFTING, grid, level)
                 .map(r -> r.assemble(grid, level.registryAccess())).orElse(ItemStack.EMPTY);
-        helper.assertTrue(unpacked.is(unit) && unpacked.getCount() == 9, storage + " crafted into " + unpacked);
+        helper.assertTrue(sameKind(unpacked, unit) && unpacked.getCount() == 9, storage + " crafted into " + unpacked);
+    }
+
+    /**
+     * 同じ物か、同じ金属の同じ形（forge:ingots/tin 等の同じタグ）の物か。同じ金属を持つ他 MOD（Mekanism 等）が
+     * タグで受けるレシピを持っていると、作られるのがそちらの物になることがある（どちらでも互いに代わりに使える）
+     */
+    private static boolean sameKind(ItemStack actual, Item expected) {
+        return actual.is(expected) || expected.builtInRegistryHolder().tags()
+                .filter(t -> t.location().getNamespace().equals("forge") && t.location().getPath().contains("/"))
+                .anyMatch(actual::is);
     }
 
     private static net.minecraft.tags.TagKey<Block> blockTag(String namespace, String path) {

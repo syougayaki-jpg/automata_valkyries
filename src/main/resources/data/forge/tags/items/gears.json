@@ -1,0 +1,19 @@
+{
+  "replace": false,
+  "values": [
+    "#forge:gears/tin",
+    "#forge:gears/lead",
+    "#forge:gears/silver",
+    "#forge:gears/nickel",
+    "#forge:gears/zinc",
+    "#forge:gears/aluminum",
+    "#forge:gears/osmium",
+    "#forge:gears/uranium",
+    "#forge:gears/steel",
+    "#forge:gears/bronze",
+    "#forge:gears/brass",
+    "#forge:gears/electrum",
+    "#forge:gears/invar",
+    "#forge:gears/constantan"
+  ]
+}

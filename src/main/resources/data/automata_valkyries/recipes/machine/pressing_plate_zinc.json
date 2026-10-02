@@ -1,0 +1,5 @@
+{
+  "type": "automata_valkyries:pressing",
+  "ingredients": [ { "ingredient": { "tag": "forge:ingots/zinc" } } ],
+  "result": { "item": "automata_valkyries:plate_zinc", "count": 1 }
+}

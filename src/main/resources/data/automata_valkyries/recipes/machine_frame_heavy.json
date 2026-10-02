@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ "SCS", "MFM", "SCS" ],
+  "key": { "S": { "tag": "forge:storage_blocks/steel" }, "C": { "item": "automata_valkyries:circuit_advanced" }, "M": { "item": "automata_valkyries:motor" }, "F": { "item": "automata_valkyries:machine_frame_improved" } },
+  "result": { "item": "automata_valkyries:machine_frame_heavy", "count": 1 }
+}

@@ -1,0 +1,6 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [ { "tag": "forge:storage_blocks/zinc" } ],
+  "result": { "item": "automata_valkyries:ingot_zinc", "count": 9 }
+}

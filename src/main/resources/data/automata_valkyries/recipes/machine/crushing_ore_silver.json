@@ -1,0 +1,5 @@
+{
+  "type": "automata_valkyries:crushing",
+  "ingredients": [ { "ingredient": { "tag": "forge:ores/silver" } } ],
+  "result": { "item": "automata_valkyries:dust_silver", "count": 2 }
+}

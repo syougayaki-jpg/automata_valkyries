@@ -4,6 +4,14 @@
     "automata_valkyries:ore_astrite",
     "automata_valkyries:ore_phononium",
     "automata_valkyries:ore_ceruleas",
-    "automata_valkyries:ore_luminal"
+    "automata_valkyries:ore_luminal",
+    "automata_valkyries:ore_tin",
+    "automata_valkyries:ore_lead",
+    "automata_valkyries:ore_silver",
+    "automata_valkyries:ore_nickel",
+    "automata_valkyries:ore_zinc",
+    "automata_valkyries:ore_aluminum",
+    "automata_valkyries:ore_osmium",
+    "automata_valkyries:ore_uranium"
   ]
 }

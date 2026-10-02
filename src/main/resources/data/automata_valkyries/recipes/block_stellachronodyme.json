@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [ "###", "###", "###" ],
+  "key": { "#": { "item": "automata_valkyries:ingot_stellachronodyme" } },
+  "result": { "item": "automata_valkyries:block_stellachronodyme" },
+  "show_notification": true
+}

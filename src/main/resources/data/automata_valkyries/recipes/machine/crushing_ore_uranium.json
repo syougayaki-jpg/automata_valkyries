@@ -1,0 +1,5 @@
+{
+  "type": "automata_valkyries:crushing",
+  "ingredients": [ { "ingredient": { "tag": "forge:ores/uranium" } } ],
+  "result": { "item": "automata_valkyries:dust_uranium", "count": 2 }
+}

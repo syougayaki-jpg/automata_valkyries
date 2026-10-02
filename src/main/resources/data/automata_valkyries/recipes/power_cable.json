@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ "KKK", "WWW", "KKK" ],
+  "key": { "K": { "item": "minecraft:dried_kelp" }, "W": { "item": "automata_valkyries:wire_copper" } },
+  "result": { "item": "automata_valkyries:power_cable", "count": 8 }
+}

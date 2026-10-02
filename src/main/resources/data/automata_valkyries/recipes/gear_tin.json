@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ " # ", "#n#", " # " ],
+  "key": { "#": { "tag": "forge:ingots/tin" }, "n": { "tag": "forge:nuggets/tin" } },
+  "result": { "item": "automata_valkyries:gear_tin", "count": 1 }
+}

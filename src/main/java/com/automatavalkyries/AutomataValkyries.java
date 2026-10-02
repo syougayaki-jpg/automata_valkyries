@@ -31,11 +31,20 @@ public class AutomataValkyries {
         ModEntities.ENTITY_TYPES.register(modEventBus);
         // ブロックを先に読み込む（ブロックアイテムを ModItems.ITEMS に足すので、ITEMS より前に登録する）
         com.automatavalkyries.registry.ModBlocks.BLOCKS.register(modEventBus);
+        com.automatavalkyries.registry.IndustrialMetals.init(); // 工業 MOD 連携の金属（アイテム・ブロックを ITEMS / BLOCKS に足す）
+        com.automatavalkyries.world.ConfigurableOresBiomeModifier.SERIALIZERS.register(modEventBus);
+        // 基礎文明マシン（ブロック・アイテムを BLOCKS / ITEMS に足すので、ITEMS より前に読み込む）
+        com.automatavalkyries.registry.ModMachines.init();
+        com.automatavalkyries.registry.ModMachines.BLOCK_ENTITIES.register(modEventBus);
+        com.automatavalkyries.registry.ModMachines.MENUS.register(modEventBus);
+        com.automatavalkyries.registry.ModRecipes.TYPES.register(modEventBus);
+        com.automatavalkyries.registry.ModRecipes.SERIALIZERS.register(modEventBus);
         ModItems.ITEMS.register(modEventBus);
         ModCreativeTabs.CREATIVE_MODE_TABS.register(modEventBus);
 
         modEventBus.addListener(this::commonSetup);
         context.registerConfig(ModConfig.Type.COMMON, EprotectConfig.SPEC);
+        context.registerConfig(ModConfig.Type.COMMON, com.automatavalkyries.config.WorldgenConfig.SPEC, MODID + "-worldgen.toml");
         // ブラックリストは設定の読み込み・再読み込み（コマンドでの保存を含む）のたびに作り直す
         modEventBus.addListener((ModConfigEvent.Loading event) -> onConfigChanged(event.getConfig()));
         modEventBus.addListener((ModConfigEvent.Reloading event) -> onConfigChanged(event.getConfig()));

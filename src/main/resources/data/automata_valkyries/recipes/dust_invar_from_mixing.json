@@ -1,0 +1,6 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [ { "tag": "forge:dusts/iron" }, { "tag": "forge:dusts/iron" }, { "tag": "forge:dusts/nickel" } ],
+  "result": { "item": "automata_valkyries:dust_invar", "count": 3 }
+}

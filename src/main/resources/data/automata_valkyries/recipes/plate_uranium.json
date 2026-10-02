@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ "##" ],
+  "key": { "#": { "tag": "forge:ingots/uranium" } },
+  "result": { "item": "automata_valkyries:plate_uranium", "count": 1 }
+}

@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ "LWL", "LML", "LCL" ],
+  "key": { "L": { "tag": "forge:plates/lead" }, "W": { "item": "automata_valkyries:wire_gold" }, "M": { "item": "automata_valkyries:machine_frame_basic" }, "C": { "item": "automata_valkyries:circuit_basic" } },
+  "result": { "item": "automata_valkyries:battery", "count": 1 }
+}

@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ "#", "#" ],
+  "key": { "#": { "tag": "forge:ingots/brass" } },
+  "result": { "item": "automata_valkyries:rod_brass", "count": 4 }
+}

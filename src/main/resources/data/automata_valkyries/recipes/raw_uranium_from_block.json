@@ -1,0 +1,6 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [ { "tag": "forge:storage_blocks/raw_uranium" } ],
+  "result": { "item": "automata_valkyries:raw_uranium", "count": 9 }
+}

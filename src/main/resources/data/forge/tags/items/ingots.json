@@ -3,6 +3,20 @@
   "values": [
     "#forge:ingots/astrite",
     "#forge:ingots/phononium",
-    "#forge:ingots/ceruleas"
+    "#forge:ingots/ceruleas",
+    "#forge:ingots/tin",
+    "#forge:ingots/lead",
+    "#forge:ingots/silver",
+    "#forge:ingots/nickel",
+    "#forge:ingots/zinc",
+    "#forge:ingots/aluminum",
+    "#forge:ingots/osmium",
+    "#forge:ingots/uranium",
+    "#forge:ingots/steel",
+    "#forge:ingots/bronze",
+    "#forge:ingots/brass",
+    "#forge:ingots/electrum",
+    "#forge:ingots/invar",
+    "#forge:ingots/constantan"
   ]
 }

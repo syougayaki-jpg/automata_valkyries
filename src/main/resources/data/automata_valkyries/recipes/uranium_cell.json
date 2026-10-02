@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ "LGL", "LUL", "LCL" ],
+  "key": { "L": { "tag": "forge:plates/lead" }, "G": { "tag": "forge:glass" }, "U": { "tag": "forge:ingots/uranium" }, "C": { "tag": "forge:plates/constantan" } },
+  "result": { "item": "automata_valkyries:uranium_cell", "count": 1 }
+}

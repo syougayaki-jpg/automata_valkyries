@@ -36,5 +36,11 @@ public final class ModNetwork {
                 .decoder(TerminusPlayerRespawnPacket::decode)
                 .consumerMainThread(TerminusPlayerRespawnPacket::handle)
                 .add();
+
+        CHANNEL.messageBuilder(SteamThrustPacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(SteamThrustPacket::encode)
+                .decoder(SteamThrustPacket::decode)
+                .consumerMainThread(SteamThrustPacket::handle)
+                .add();
     }
 }

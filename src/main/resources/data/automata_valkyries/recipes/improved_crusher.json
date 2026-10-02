@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ "PCP", "AFA", "PBP" ],
+  "key": { "P": { "item": "automata_valkyries:composite_plate" }, "C": { "item": "automata_valkyries:circuit_advanced" }, "A": { "item": "automata_valkyries:motor" }, "F": { "item": "automata_valkyries:machine_frame_improved" }, "B": { "item": "automata_valkyries:crusher" } },
+  "result": { "item": "automata_valkyries:improved_crusher", "count": 1 }
+}

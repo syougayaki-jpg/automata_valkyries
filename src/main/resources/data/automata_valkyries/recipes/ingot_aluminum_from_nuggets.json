@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ "###", "###", "###" ],
+  "key": { "#": { "tag": "forge:nuggets/aluminum" } },
+  "result": { "item": "automata_valkyries:ingot_aluminum", "count": 1 }
+}

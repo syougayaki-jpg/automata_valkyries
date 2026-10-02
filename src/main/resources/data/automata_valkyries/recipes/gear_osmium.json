@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ " # ", "#n#", " # " ],
+  "key": { "#": { "tag": "forge:ingots/osmium" }, "n": { "tag": "forge:nuggets/osmium" } },
+  "result": { "item": "automata_valkyries:gear_osmium", "count": 1 }
+}

@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ "#", "#" ],
+  "key": { "#": { "tag": "forge:ingots/lead" } },
+  "result": { "item": "automata_valkyries:rod_lead", "count": 4 }
+}

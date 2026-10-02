@@ -1,0 +1,5 @@
+{
+  "type": "automata_valkyries:crushing",
+  "ingredients": [ { "ingredient": { "tag": "forge:raw_materials/tin" } } ],
+  "result": { "item": "automata_valkyries:dust_tin", "count": 2 }
+}

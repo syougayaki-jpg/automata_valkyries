@@ -30,6 +30,41 @@ public class ModItems {
     public static final RegistryObject<Item> ORB_LUMINAL = ITEMS.register("orb_luminal", () ->
             new com.automatavalkyries.item.LuminalCrystalItem(new Item.Properties().rarity(Rarity.RARE)));
 
+    // ---- 上位合金・回路（SPEC §7.7）。レシピは暫定のクラフト（マシンができたら置き換える。SPEC §0.2-G） ----
+    // 手に持つ・ドロップすると合金ごとの粒子を出す（ModEffects）。テクスチャは光の帯が走るアニメーション
+    public static final RegistryObject<Item> ALLOY_LUMINAL_STERLING = effect("alloy_luminal_sterling", Rarity.UNCOMMON, ModEffects.LUMINAL_STERLING, 12, false);
+    public static final RegistryObject<Item> ALLOY_CHRONO_FORTRESS = effect("alloy_chrono_fortress", Rarity.UNCOMMON, ModEffects.CHRONO_FORTRESS, 10, false);
+    public static final RegistryObject<Item> ALLOY_TACHYON_ACCEL = effect("alloy_tachyon_accel", Rarity.UNCOMMON, ModEffects.TACHYON_ACCEL, 8, false);
+    public static final RegistryObject<Item> ALLOY_ECLIPSE_BIOMETAL = effect("alloy_eclipse_biometal", Rarity.UNCOMMON, ModEffects.ECLIPSE_BIOMETAL, 12, false);
+    public static final RegistryObject<Item> CIRCUIT_QUANTUM_TAC = effect("circuit_quantum_tac", Rarity.RARE, ModEffects.QUANTUM_CIRCUIT, 10, false);
+    public static final RegistryObject<Item> INGOT_STELLACHRONODYME = effect("ingot_stellachronodyme", Rarity.EPIC, ModEffects.STELLACHRONODYME, 6, true);
+
+    // ---- 基礎文明マシンの部品（追加拡張仕様書 §11.1.2）。連携素材を多く使う重めのレシピ ----
+    public static final RegistryObject<Item> WIRE_COPPER = simple("wire_copper");
+    public static final RegistryObject<Item> WIRE_GOLD = simple("wire_gold");
+    public static final RegistryObject<Item> CIRCUIT_BASIC = simple("circuit_basic");
+    public static final RegistryObject<Item> CIRCUIT_ADVANCED = ITEMS.register("circuit_advanced", () -> new Item(new Item.Properties().rarity(Rarity.UNCOMMON)));
+    public static final RegistryObject<Item> MOTOR = simple("motor");
+    public static final RegistryObject<Item> HEATING_COIL = simple("heating_coil");
+    public static final RegistryObject<Item> MACHINE_FRAME_BASIC = simple("machine_frame_basic");
+    public static final RegistryObject<Item> MACHINE_FRAME_ADVANCED = ITEMS.register("machine_frame_advanced", () -> new Item(new Item.Properties().rarity(Rarity.UNCOMMON)));
+
+    // ---- 改良型・重工業マシンの部品（追加拡張仕様書 §11.1.3〜§11.1.4）。改良型フレームまでで連携素材 14 種をすべて使う ----
+    public static final RegistryObject<Item> COMPOSITE_PLATE = simple("composite_plate");
+    public static final RegistryObject<Item> URANIUM_CELL = ITEMS.register("uranium_cell", () -> new Item(new Item.Properties().rarity(Rarity.UNCOMMON)));
+    public static final RegistryObject<Item> MACHINE_FRAME_IMPROVED = ITEMS.register("machine_frame_improved", () -> new Item(new Item.Properties().rarity(Rarity.UNCOMMON)));
+    public static final RegistryObject<Item> MACHINE_FRAME_HEAVY = ITEMS.register("machine_frame_heavy", () -> new Item(new Item.Properties().rarity(Rarity.RARE)));
+
+    // ---- プロトコア・初期兵装（追加拡張仕様書 §8.3・§11.1.4）。組み立て機・兵装ワークベンチで作る ----
+    public static final RegistryObject<Item> CORE_PROTO = ITEMS.register("core_proto", () ->
+            new com.automatavalkyries.item.ProtoCoreItem(new Item.Properties().stacksTo(1).rarity(Rarity.RARE)));
+    public static final RegistryObject<Item> WEAPON_SCRAP_SHOTGUN = ITEMS.register("weapon_scrap_shotgun", () ->
+            new com.automatavalkyries.item.ScrapShotgunItem(new Item.Properties().durability(300)));
+    public static final RegistryObject<Item> WEAPON_MOTOR_BLADE = ITEMS.register("weapon_motor_blade", () ->
+            new com.automatavalkyries.item.MotorBladeItem(new Item.Properties()));
+    public static final RegistryObject<Item> BACKPACK_STEAM_THRUSTER = ITEMS.register("backpack_steam_thruster", () ->
+            new com.automatavalkyries.item.SteamThrusterItem(new Item.Properties()));
+
     // ---- スポーンエッグ ----
     public static final RegistryObject<Item> ELENOR_SPAWN_EGG = ITEMS.register("elenor_spawn_egg", () ->
             new ForgeSpawnEggItem(ModEntities.ELENOR, 0x512da8, 0xe040fb, new Item.Properties()));
@@ -45,6 +80,12 @@ public class ModItems {
             new UltraKillStickItem(UltraKillStickItem.defaultProperties()));
     public static final RegistryObject<Item> TERMINUS_STICK = ITEMS.register("terminus_stick", () ->
             new com.automatavalkyries.item.TerminusStickItem(com.automatavalkyries.item.TerminusStickItem.defaultProperties()));
+
+    private static RegistryObject<Item> effect(String name, Rarity rarity, java.util.List<net.minecraft.core.particles.ParticleOptions> particles,
+                                               int interval, boolean foil) {
+        return ITEMS.register(name, () -> new com.automatavalkyries.item.EffectMaterialItem(new Item.Properties().rarity(rarity),
+                particles, interval, foil));
+    }
 
     private static RegistryObject<Item> simple(String name) {
         return ITEMS.register(name, () -> new Item(new Item.Properties()));

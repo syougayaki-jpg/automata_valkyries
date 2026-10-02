@@ -1,0 +1,5 @@
+{
+  "type": "automata_valkyries:crushing",
+  "ingredients": [ { "ingredient": { "tag": "forge:ores/copper" } } ],
+  "result": { "item": "automata_valkyries:dust_copper", "count": 2 }
+}

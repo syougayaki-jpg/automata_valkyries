@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [ "###", "###", "###" ],
+  "key": { "#": { "item": "automata_valkyries:alloy_luminal_sterling" } },
+  "result": { "item": "automata_valkyries:block_alloy_luminal_sterling" },
+  "show_notification": true
+}

@@ -1,0 +1,10 @@
+{
+  "replace": false,
+  "values": [
+    "automata_valkyries:block_alloy_luminal_sterling",
+    "automata_valkyries:block_alloy_chrono_fortress",
+    "automata_valkyries:block_alloy_tachyon_accel",
+    "automata_valkyries:block_alloy_eclipse_biometal",
+    "automata_valkyries:block_stellachronodyme"
+  ]
+}

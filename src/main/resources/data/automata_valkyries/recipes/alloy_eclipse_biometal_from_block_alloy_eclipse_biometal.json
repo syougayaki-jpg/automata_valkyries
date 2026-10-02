@@ -1,0 +1,6 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [ { "item": "automata_valkyries:block_alloy_eclipse_biometal" } ],
+  "result": { "item": "automata_valkyries:alloy_eclipse_biometal", "count": 9 }
+}

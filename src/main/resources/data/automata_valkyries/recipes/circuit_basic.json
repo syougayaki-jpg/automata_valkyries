@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ "WRW", "TQT", "WRW" ],
+  "key": { "W": { "item": "automata_valkyries:wire_copper" }, "R": { "tag": "forge:dusts/redstone" }, "T": { "tag": "forge:plates/tin" }, "Q": { "tag": "forge:gems/quartz" } },
+  "result": { "item": "automata_valkyries:circuit_basic", "count": 1 }
+}

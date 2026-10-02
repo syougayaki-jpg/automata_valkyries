@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ " # ", "#n#", " # " ],
+  "key": { "#": { "tag": "forge:ingots/electrum" }, "n": { "tag": "forge:nuggets/electrum" } },
+  "result": { "item": "automata_valkyries:gear_electrum", "count": 1 }
+}

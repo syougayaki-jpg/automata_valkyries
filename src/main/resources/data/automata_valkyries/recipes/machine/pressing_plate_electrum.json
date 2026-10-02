@@ -1,0 +1,5 @@
+{
+  "type": "automata_valkyries:pressing",
+  "ingredients": [ { "ingredient": { "tag": "forge:ingots/electrum" } } ],
+  "result": { "item": "automata_valkyries:plate_electrum", "count": 1 }
+}

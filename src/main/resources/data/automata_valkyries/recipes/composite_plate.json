@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ "OBO", "ZSZ", "ONO" ],
+  "key": { "O": { "tag": "forge:plates/osmium" }, "B": { "tag": "forge:plates/brass" }, "Z": { "tag": "forge:plates/zinc" }, "S": { "tag": "forge:plates/steel" }, "N": { "tag": "forge:plates/nickel" } },
+  "result": { "item": "automata_valkyries:composite_plate", "count": 2 }
+}

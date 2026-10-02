@@ -1,0 +1,6 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [ { "tag": "forge:storage_blocks/invar" } ],
+  "result": { "item": "automata_valkyries:ingot_invar", "count": 9 }
+}

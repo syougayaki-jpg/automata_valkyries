@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ "GSG", "CLC", "GEG" ],
+  "key": { "G": { "item": "automata_valkyries:wire_gold" }, "S": { "tag": "forge:plates/silver" }, "C": { "item": "automata_valkyries:circuit_basic" }, "L": { "item": "automata_valkyries:crystal_luminal" }, "E": { "tag": "forge:plates/electrum" } },
+  "result": { "item": "automata_valkyries:circuit_advanced", "count": 1 }
+}

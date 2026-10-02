@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ "LSL", "SCS", "LSL" ],
+  "key": { "L": { "item": "automata_valkyries:crystal_luminal" }, "S": { "tag": "forge:ingots/silver" }, "C": { "tag": "forge:ingots/ceruleas" } },
+  "result": { "item": "automata_valkyries:alloy_luminal_sterling", "count": 2 }
+}

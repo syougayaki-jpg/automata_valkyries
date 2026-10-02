@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ "PWP", "WRW", "PWP" ],
+  "key": { "P": { "tag": "forge:plates/steel" }, "W": { "item": "automata_valkyries:wire_copper" }, "R": { "tag": "forge:rods/steel" } },
+  "result": { "item": "automata_valkyries:motor", "count": 1 }
+}

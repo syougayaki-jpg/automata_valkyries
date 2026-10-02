@@ -330,6 +330,15 @@ dependencies {
     if (project.hasProperty('withImds')) {
         runtimeOnly fg.deobf("maven.modrinth:imds-reborn:1.4.0")                // IMDS Reborn 1.4.0
     }
+    // 工業 MOD との連携の検証用（追加拡張仕様書 §11.1）。即死系の組み合わせとも同時に使える
+    //   ./gradlew runGameTestServer -PwithTechMods   （CompatGameTests が Mekanism・AE2 を相手に動く。無いときは素通り）
+    //   ./gradlew runClient -PwithTechMods
+    if (project.hasProperty('withTechMods')) {
+        runtimeOnly fg.deobf("maven.modrinth:mekanism:10.4.16.80")             // Mekanism 10.4.16
+        runtimeOnly fg.deobf("maven.modrinth:ae2:15.4.11")                     // Applied Energistics 2 15.4.11
+        runtimeOnly fg.deobf("maven.modrinth:guideme:20.1.15")                 // AE2 が必須
+        runtimeOnly fg.deobf("maven.modrinth:jei:15.62.0.217")                 // タグ・レシピの手動確認用
+    }
     // 追加の検証対象（上の組み合わせと同時にも使える）
     //   ./gradlew runGameTestServer -PwithKillMods2
     //   ./gradlew runClient -PwithKillMods2 -PwithWitherzilla   （Witherzilla は専用サーバーで起動できないのでクライアント専用）

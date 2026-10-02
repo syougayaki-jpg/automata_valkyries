@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ " # ", "#n#", " # " ],
+  "key": { "#": { "tag": "forge:ingots/constantan" }, "n": { "tag": "forge:nuggets/constantan" } },
+  "result": { "item": "automata_valkyries:gear_constantan", "count": 1 }
+}

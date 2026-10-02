@@ -1,0 +1,6 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [ { "tag": "forge:ingots/tin" } ],
+  "result": { "item": "automata_valkyries:nugget_tin", "count": 9 }
+}

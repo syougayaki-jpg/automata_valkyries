@@ -1,0 +1,187 @@
+package com.automatavalkyries.gametest;
+
+import com.automatavalkyries.AutomataValkyries;
+import com.automatavalkyries.machine.MachineBlockEntity;
+import com.automatavalkyries.machine.MachineKind;
+import com.automatavalkyries.registry.IndustrialMetals;
+import com.automatavalkyries.registry.ModMachines;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.gametest.framework.GameTest;
+import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.ItemTags;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraftforge.common.capabilities.ForgeCapabilities;
+import net.minecraftforge.energy.IEnergyStorage;
+import net.minecraftforge.fml.ModList;
+import net.minecraftforge.gametest.GameTestHolder;
+import net.minecraftforge.gametest.PrefixGameTestTemplate;
+import net.minecraftforge.registries.ForgeRegistries;
+
+import java.util.List;
+
+/**
+ * 工業 MOD との連携の GameTest（追加拡張仕様書 §11.1）。相手の MOD は {@code -PwithTechMods} で読み込む。
+ * 読み込まれていないときは何も確かめずに通す（相手のクラスは参照せず、レジストリ名で引く）。
+ */
+@GameTestHolder(AutomataValkyries.MODID)
+@PrefixGameTestTemplate(false)
+public class CompatGameTests {
+
+    private static final String TEMPLATE = "empty";
+
+    private static boolean absent(GameTestHelper helper, String modId) {
+        if (ModList.get().isLoaded(modId)) return false;
+        helper.succeed();
+        return true;
+    }
+
+    private static Item item(String id) {
+        Item item = ForgeRegistries.ITEMS.getValue(ResourceLocation.parse(id));
+        if (item == null || item == Items.AIR) throw new IllegalStateException("missing item " + id);
+        return item;
+    }
+
+    private static Block block(String id) {
+        Block block = ForgeRegistries.BLOCKS.getValue(ResourceLocation.parse(id));
+        if (block == null) throw new IllegalStateException("missing block " + id);
+        return block;
+    }
+
+    private static Item ours(String form, String metal) {
+        return IndustrialMetals.ITEMS.get(form).get(metal).get();
+    }
+
+    private static MachineBlockEntity machine(GameTestHelper helper, BlockPos pos, MachineKind kind) {
+        helper.setBlock(pos, ModMachines.MACHINES.get(kind).get());
+        return (MachineBlockEntity) helper.getBlockEntity(pos);
+    }
+
+    private static int energyOf(GameTestHelper helper, BlockPos pos, Direction side) {
+        BlockEntity be = helper.getBlockEntity(pos);
+        if (be == null) return -1;
+        return be.getCapability(ForgeCapabilities.ENERGY, side).map(IEnergyStorage::getEnergyStored).orElse(-1);
+    }
+
+    // ---- Mekanism ----
+
+    /** 共通金属のタグ: Mekanism と同じ金属が同じ forge: タグに入り、互いに代わりに使える */
+    @GameTest(template = TEMPLATE)
+    public static void mekanismSharesMetalTags(GameTestHelper helper) {
+        if (absent(helper, "mekanism")) return;
+        for (String metal : List.of("tin", "lead", "osmium", "uranium", "steel", "bronze")) {
+            var tag = ItemTags.create(ResourceLocation.parse("forge:ingots/" + metal));
+            helper.assertTrue(new ItemStack(item("mekanism:ingot_" + metal)).is(tag), "mekanism ingot not in forge:ingots/" + metal);
+            helper.assertTrue(new ItemStack(ours("ingot", metal)).is(tag), "our ingot not in forge:ingots/" + metal);
+        }
+        for (String metal : List.of("tin", "lead", "osmium", "uranium")) {
+            var ore = ItemTags.create(ResourceLocation.parse("forge:ores/" + metal));
+            helper.assertTrue(new ItemStack(item("mekanism:" + metal + "_ore")).is(ore), "mekanism ore not in forge:ores/" + metal);
+        }
+        helper.succeed();
+    }
+
+    /** Mekanism の鉱石・インゴットを、このMODの粉砕機・金属プレスで加工できる（タグで受ける） */
+    @GameTest(template = TEMPLATE, timeoutTicks = 200)
+    public static void ourMachinesProcessMekanismMaterials(GameTestHelper helper) {
+        if (absent(helper, "mekanism")) return;
+        MachineBlockEntity crusher = machine(helper, new BlockPos(1, 2, 1), MachineKind.CRUSHER);
+        MachineBlockEntity press = machine(helper, new BlockPos(3, 2, 1), MachineKind.PRESS);
+        crusher.energy().set(crusher.energy().getMaxEnergyStored());
+        press.energy().set(press.energy().getMaxEnergyStored());
+        crusher.items().setStackInSlot(0, new ItemStack(item("mekanism:osmium_ore")));
+        press.items().setStackInSlot(0, new ItemStack(item("mekanism:ingot_tin")));
+        helper.succeedWhen(() -> {
+            ItemStack dust = crusher.items().getStackInSlot(crusher.kind().outputSlot());
+            ItemStack plate = press.items().getStackInSlot(press.kind().outputSlot());
+            helper.assertTrue(dust.is(ours("dust", "osmium")) && dust.getCount() == 2, "crusher output " + dust);
+            helper.assertTrue(plate.is(ours("plate", "tin")), "press output " + plate);
+        });
+    }
+
+    /** Mekanism のユニバーサルケーブルで、このMODの発電機 → 電気炉へ送電できる */
+    @GameTest(template = TEMPLATE, timeoutTicks = 400)
+    public static void mekanismCableCarriesOurPower(GameTestHelper helper) {
+        if (absent(helper, "mekanism")) return;
+        MachineBlockEntity generator = machine(helper, new BlockPos(0, 2, 1), MachineKind.GENERATOR);
+        for (int x = 1; x <= 3; x++) helper.setBlock(new BlockPos(x, 2, 1), block("mekanism:basic_universal_cable"));
+        MachineBlockEntity furnace = machine(helper, new BlockPos(4, 2, 1), MachineKind.ELECTRIC_FURNACE);
+        generator.items().setStackInSlot(0, new ItemStack(Items.COAL, 2));
+        furnace.items().setStackInSlot(0, new ItemStack(Items.RAW_IRON));
+        helper.succeedWhen(() -> helper.assertTrue(furnace.items().getStackInSlot(furnace.kind().outputSlot()).is(Items.IRON_INGOT),
+                "furnace energy " + furnace.energy().getEnergyStored()));
+    }
+
+    /** このMODの電力ケーブルで、蓄電器 → Mekanism のエネルギーキューブへ送電できる */
+    @GameTest(template = TEMPLATE, timeoutTicks = 200)
+    public static void ourCableChargesMekanismCube(GameTestHelper helper) {
+        if (absent(helper, "mekanism")) return;
+        MachineBlockEntity battery = machine(helper, new BlockPos(0, 2, 1), MachineKind.BATTERY);
+        battery.energy().set(battery.energy().getMaxEnergyStored());
+        helper.setBlock(new BlockPos(1, 2, 1), ModMachines.CABLE.get());
+        BlockPos cube = new BlockPos(2, 2, 1);
+        helper.setBlock(cube, block("mekanism:basic_energy_cube"));
+        helper.succeedWhen(() -> helper.assertTrue(energyOf(helper, cube, Direction.WEST) > 0,
+                "cube energy " + energyOf(helper, cube, Direction.WEST)));
+    }
+
+    // ---- Applied Energistics 2 ----
+
+    /** このMODの電力ケーブルから AE2 のエネルギーアクセプターへ FE を渡せる */
+    @GameTest(template = TEMPLATE, timeoutTicks = 200)
+    public static void ourCablePowersAe2Acceptor(GameTestHelper helper) {
+        if (absent(helper, "ae2")) return;
+        MachineBlockEntity battery = machine(helper, new BlockPos(0, 2, 1), MachineKind.BATTERY);
+        battery.energy().set(battery.energy().getMaxEnergyStored());
+        helper.setBlock(new BlockPos(1, 2, 1), ModMachines.CABLE.get());
+        BlockPos acceptor = new BlockPos(2, 2, 1);
+        helper.setBlock(acceptor, block("ae2:energy_acceptor"));
+        int start = battery.energy().getEnergyStored();
+        helper.succeedWhen(() -> helper.assertTrue(battery.energy().getEnergyStored() < start,
+                "acceptor took nothing (acceptor energy " + energyOf(helper, acceptor, Direction.WEST) + ")"));
+    }
+
+    /** AE2 の素材（ケルタスクォーツ等）が forge: タグに入っていて、このMODのクォーツを使うレシピ（基本回路）に AE2 のクォーツ類は混ざらない */
+    @GameTest(template = TEMPLATE)
+    public static void ae2TagsAreSane(GameTestHelper helper) {
+        if (absent(helper, "ae2")) return;
+        helper.assertTrue(new ItemStack(item("ae2:certus_quartz_crystal")).is(ItemTags.create(ResourceLocation.parse("forge:gems/certus_quartz"))),
+                "certus quartz not in forge:gems/certus_quartz");
+        helper.succeed();
+    }
+    // ---- 鉱石の生成の重なり ----
+
+    /** 平原にこのMODの鉱石の地物が入っているか */
+    private static boolean generatesOurs(GameTestHelper helper, String metal) {
+        var biome = helper.getLevel().registryAccess().registryOrThrow(net.minecraft.core.registries.Registries.BIOME)
+                .getHolderOrThrow(net.minecraft.world.level.biome.Biomes.PLAINS).value();
+        ResourceLocation id = ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "ore_" + metal);
+        return biome.getGenerationSettings().features().stream().flatMap(set -> set.stream())
+                .anyMatch(h -> h.unwrapKey().map(k -> k.location().equals(id)).orElse(false));
+    }
+
+    /**
+     * 同じ金属の鉱石を他 MOD が生成するなら、こちらは生成しない（skipWhenOtherModGenerates）。
+     * Mekanism があればスズ・鉛・オスミウム・ウランは Mekanism に譲り、Mekanism に無い銀・ニッケル・亜鉛・アルミニウムは生成する。
+     * Mekanism が無ければすべて生成する
+     */
+    @GameTest(template = TEMPLATE)
+    public static void oreGenerationYieldsToOtherMods(GameTestHelper helper) {
+        boolean mekanism = ModList.get().isLoaded("mekanism");
+        for (String metal : List.of("tin", "lead", "osmium", "uranium")) {
+            helper.assertTrue(generatesOurs(helper, metal) != mekanism,
+                    metal + (mekanism ? " ore is still generated next to Mekanism's" : " ore is not generated"));
+            if (mekanism) helper.assertTrue(com.automatavalkyries.world.OreOverlap.skipped().getOrDefault(metal, "").startsWith("mekanism:"),
+                    metal + " was not attributed to Mekanism: " + com.automatavalkyries.world.OreOverlap.skipped());
+        }
+        for (String metal : List.of("silver", "nickel", "zinc", "aluminum")) {
+            helper.assertTrue(generatesOurs(helper, metal), metal + " ore is not generated");
+        }
+        helper.succeed();
+    }
+}

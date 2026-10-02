@@ -1,0 +1,5 @@
+{
+  "type": "automata_valkyries:pressing",
+  "ingredients": [ { "ingredient": { "tag": "forge:ingots/uranium" } } ],
+  "result": { "item": "automata_valkyries:plate_uranium", "count": 1 }
+}

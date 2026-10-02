@@ -7,6 +7,22 @@
     "automata_valkyries:deepslate_ore_luminal",
     "automata_valkyries:block_raw_ceruleas",
     "automata_valkyries:block_ceruleas",
-    "automata_valkyries:block_luminal_gem"
+    "automata_valkyries:block_luminal_gem",
+    "automata_valkyries:block_silver",
+    "automata_valkyries:block_uranium",
+    "automata_valkyries:block_raw_silver",
+    "automata_valkyries:ore_silver",
+    "automata_valkyries:deepslate_ore_silver",
+    "automata_valkyries:block_raw_uranium",
+    "automata_valkyries:ore_uranium",
+    "automata_valkyries:deepslate_ore_uranium",
+    "automata_valkyries:improved_generator",
+    "automata_valkyries:improved_battery",
+    "automata_valkyries:improved_electric_furnace",
+    "automata_valkyries:improved_crusher",
+    "automata_valkyries:improved_alloy_smelter",
+    "automata_valkyries:improved_press",
+    "automata_valkyries:assembler",
+    "automata_valkyries:weapon_workbench"
   ]
 }

@@ -1,0 +1,7 @@
+{
+  "type": "automata_valkyries:assembling",
+  "ingredients": [ { "ingredient": { "item": "automata_valkyries:uranium_cell" }, "count": 1 }, { "ingredient": { "item": "automata_valkyries:circuit_quantum_tac" }, "count": 1 }, { "ingredient": { "item": "automata_valkyries:crystal_luminal" }, "count": 4 }, { "ingredient": { "item": "automata_valkyries:alloy_luminal_sterling" }, "count": 2 }, { "ingredient": { "item": "automata_valkyries:wire_gold" }, "count": 4 }, { "ingredient": { "item": "automata_valkyries:composite_plate" }, "count": 2 } ],
+  "result": { "item": "automata_valkyries:core_proto", "count": 1 },
+  "energy": 200000,
+  "time": 600
+}

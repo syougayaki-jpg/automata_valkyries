@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ "PAP", "MFM", "PTP" ],
+  "key": { "P": { "item": "automata_valkyries:composite_plate" }, "A": { "item": "automata_valkyries:circuit_advanced" }, "M": { "item": "automata_valkyries:motor" }, "F": { "item": "automata_valkyries:machine_frame_heavy" }, "T": { "item": "minecraft:crafting_table" } },
+  "result": { "item": "automata_valkyries:assembler", "count": 1 }
+}

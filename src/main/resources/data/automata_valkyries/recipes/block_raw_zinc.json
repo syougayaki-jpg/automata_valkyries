@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ "###", "###", "###" ],
+  "key": { "#": { "tag": "forge:raw_materials/zinc" } },
+  "result": { "item": "automata_valkyries:block_raw_zinc", "count": 1 }
+}

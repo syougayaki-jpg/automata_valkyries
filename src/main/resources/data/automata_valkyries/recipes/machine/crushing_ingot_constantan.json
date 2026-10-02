@@ -1,0 +1,7 @@
+{
+  "type": "automata_valkyries:crushing",
+  "ingredients": [ { "ingredient": { "tag": "forge:ingots/constantan" } } ],
+  "result": { "item": "automata_valkyries:dust_constantan", "count": 1 },
+  "energy": 1000,
+  "time": 60
+}

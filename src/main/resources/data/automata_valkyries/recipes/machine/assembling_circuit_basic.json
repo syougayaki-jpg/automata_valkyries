@@ -1,0 +1,7 @@
+{
+  "type": "automata_valkyries:assembling",
+  "ingredients": [ { "ingredient": { "item": "automata_valkyries:wire_copper" }, "count": 8 }, { "ingredient": { "tag": "forge:plates/tin" }, "count": 4 }, { "ingredient": { "tag": "forge:dusts/redstone" }, "count": 4 }, { "ingredient": { "tag": "forge:gems/quartz" }, "count": 2 } ],
+  "result": { "item": "automata_valkyries:circuit_basic", "count": 4 },
+  "energy": 8000,
+  "time": 100
+}

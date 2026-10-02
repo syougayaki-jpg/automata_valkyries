@@ -1,0 +1,5 @@
+{
+  "type": "automata_valkyries:pressing",
+  "ingredients": [ { "ingredient": { "tag": "forge:ingots/nickel" } } ],
+  "result": { "item": "automata_valkyries:plate_nickel", "count": 1 }
+}

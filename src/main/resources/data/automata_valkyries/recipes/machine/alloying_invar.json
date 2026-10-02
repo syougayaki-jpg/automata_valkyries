@@ -1,0 +1,5 @@
+{
+  "type": "automata_valkyries:alloying",
+  "ingredients": [ { "ingredient": { "tag": "forge:ingots/iron" }, "count": 2 }, { "ingredient": { "tag": "forge:ingots/nickel" }, "count": 1 } ],
+  "result": { "item": "automata_valkyries:ingot_invar", "count": 3 }
+}

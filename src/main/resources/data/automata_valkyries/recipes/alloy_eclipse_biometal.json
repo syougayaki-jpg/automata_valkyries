@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ "CIC", "IBI", "CIC" ],
+  "key": { "C": { "tag": "forge:ingots/ceruleas" }, "I": { "tag": "forge:ingots/invar" }, "B": { "tag": "forge:slimeballs" } },
+  "result": { "item": "automata_valkyries:alloy_eclipse_biometal", "count": 2 }
+}

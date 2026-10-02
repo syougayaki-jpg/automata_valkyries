@@ -1,0 +1,6 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [ { "tag": "forge:storage_blocks/uranium" } ],
+  "result": { "item": "automata_valkyries:ingot_uranium", "count": 9 }
+}

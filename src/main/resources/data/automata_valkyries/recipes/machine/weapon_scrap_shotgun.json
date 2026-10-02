@@ -1,0 +1,7 @@
+{
+  "type": "automata_valkyries:weapon_assembling",
+  "ingredients": [ { "ingredient": { "tag": "forge:rods/steel" }, "count": 2 }, { "ingredient": { "tag": "forge:plates/steel" }, "count": 3 }, { "ingredient": { "tag": "forge:gears/bronze" }, "count": 1 }, { "ingredient": { "item": "minecraft:dispenser" }, "count": 1 }, { "ingredient": { "tag": "minecraft:planks" }, "count": 2 } ],
+  "result": { "item": "automata_valkyries:weapon_scrap_shotgun", "count": 1 },
+  "energy": 20000,
+  "time": 200
+}

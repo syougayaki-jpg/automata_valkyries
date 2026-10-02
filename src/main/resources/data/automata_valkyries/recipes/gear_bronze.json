@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ " # ", "#n#", " # " ],
+  "key": { "#": { "tag": "forge:ingots/bronze" }, "n": { "tag": "forge:nuggets/bronze" } },
+  "result": { "item": "automata_valkyries:gear_bronze", "count": 1 }
+}

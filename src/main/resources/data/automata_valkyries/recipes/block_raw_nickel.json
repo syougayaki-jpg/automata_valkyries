@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ "###", "###", "###" ],
+  "key": { "#": { "tag": "forge:raw_materials/nickel" } },
+  "result": { "item": "automata_valkyries:block_raw_nickel", "count": 1 }
+}

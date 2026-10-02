@@ -1,0 +1,5 @@
+{
+  "type": "automata_valkyries:pressing",
+  "ingredients": [ { "ingredient": { "tag": "forge:ingots/bronze" } } ],
+  "result": { "item": "automata_valkyries:plate_bronze", "count": 1 }
+}

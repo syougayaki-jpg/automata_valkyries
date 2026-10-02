@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ "HFH", "WMW", "HCH" ],
+  "key": { "H": { "item": "automata_valkyries:heating_coil" }, "F": { "item": "minecraft:furnace" }, "W": { "item": "automata_valkyries:wire_copper" }, "M": { "item": "automata_valkyries:machine_frame_basic" }, "C": { "item": "automata_valkyries:circuit_basic" } },
+  "result": { "item": "automata_valkyries:electric_furnace", "count": 1 }
+}

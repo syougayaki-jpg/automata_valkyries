@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ "CCC", "CRC", "CCC" ],
+  "key": { "C": { "tag": "forge:rods/constantan" }, "R": { "tag": "forge:storage_blocks/redstone" } },
+  "result": { "item": "automata_valkyries:heating_coil", "count": 1 }
+}

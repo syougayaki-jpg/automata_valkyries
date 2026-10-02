@@ -1,0 +1,7 @@
+{
+  "type": "automata_valkyries:crushing",
+  "ingredients": [ { "ingredient": { "tag": "forge:gravel" } } ],
+  "result": { "item": "minecraft:sand", "count": 1 },
+  "energy": 600,
+  "time": 40
+}

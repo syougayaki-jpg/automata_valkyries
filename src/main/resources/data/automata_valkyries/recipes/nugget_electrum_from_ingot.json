@@ -1,0 +1,6 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [ { "tag": "forge:ingots/electrum" } ],
+  "result": { "item": "automata_valkyries:nugget_electrum", "count": 9 }
+}

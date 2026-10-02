@@ -1,0 +1,7 @@
+{
+  "type": "automata_valkyries:configurable_ores",
+  "biomes": "#minecraft:is_overworld",
+  "features": "automata_valkyries:ore_nickel",
+  "step": "underground_ores",
+  "metal": "nickel"
+}

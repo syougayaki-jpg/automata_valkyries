@@ -4,6 +4,14 @@
     "#forge:ores/astrite",
     "#forge:ores/phononium",
     "#forge:ores/ceruleas",
-    "#forge:ores/luminal"
+    "#forge:ores/luminal",
+    "#forge:ores/tin",
+    "#forge:ores/lead",
+    "#forge:ores/silver",
+    "#forge:ores/nickel",
+    "#forge:ores/zinc",
+    "#forge:ores/aluminum",
+    "#forge:ores/osmium",
+    "#forge:ores/uranium"
   ]
 }

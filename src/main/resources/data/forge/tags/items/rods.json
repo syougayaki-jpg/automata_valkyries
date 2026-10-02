@@ -1,0 +1,19 @@
+{
+  "replace": false,
+  "values": [
+    "#forge:rods/tin",
+    "#forge:rods/lead",
+    "#forge:rods/silver",
+    "#forge:rods/nickel",
+    "#forge:rods/zinc",
+    "#forge:rods/aluminum",
+    "#forge:rods/osmium",
+    "#forge:rods/uranium",
+    "#forge:rods/steel",
+    "#forge:rods/bronze",
+    "#forge:rods/brass",
+    "#forge:rods/electrum",
+    "#forge:rods/invar",
+    "#forge:rods/constantan"
+  ]
+}

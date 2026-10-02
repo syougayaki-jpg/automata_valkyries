@@ -1,0 +1,6 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [ { "tag": "forge:ingots/silver" } ],
+  "result": { "item": "automata_valkyries:nugget_silver", "count": 9 }
+}

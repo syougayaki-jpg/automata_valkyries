@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ "PEP", "ELE", "PEP" ],
+  "key": { "P": { "tag": "forge:ingots/phononium" }, "E": { "tag": "forge:ingots/electrum" }, "L": { "item": "automata_valkyries:crystal_luminal" } },
+  "result": { "item": "automata_valkyries:alloy_tachyon_accel", "count": 2 }
+}

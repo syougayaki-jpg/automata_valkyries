@@ -1,0 +1,6 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [ { "tag": "forge:ingots/aluminum" }, { "item": "minecraft:flint" } ],
+  "result": { "item": "automata_valkyries:dust_aluminum", "count": 1 }
+}

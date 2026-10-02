@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ "III" ],
+  "key": { "I": { "tag": "forge:ingots/gold" } },
+  "result": { "item": "automata_valkyries:wire_gold", "count": 4 }
+}
