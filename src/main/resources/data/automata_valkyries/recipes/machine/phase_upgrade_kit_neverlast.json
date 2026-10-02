@@ -1,0 +1,10 @@
+{
+  "type": "automata_valkyries:phase_transition",
+  "conditions": [ { "type": "automata_valkyries:config", "key": "upgrades.upgrade_kit_neverlast" } ],
+  "tier": 4,
+  "stages": 1,
+  "ingredients": [ { "ingredient": { "item": "automata_valkyries:frame_neverlast" }, "count": 1 }, { "ingredient": { "item": "automata_valkyries:circuit_chrono_lattice" }, "count": 2 }, { "ingredient": { "item": "automata_valkyries:anchor_causal" }, "count": 2 } ],
+  "result": { "item": "automata_valkyries:upgrade_kit_neverlast", "count": 1 },
+  "energy": 50000000,
+  "time": 300
+}

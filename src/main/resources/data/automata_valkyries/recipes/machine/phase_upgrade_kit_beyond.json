@@ -1,0 +1,10 @@
+{
+  "type": "automata_valkyries:phase_transition",
+  "conditions": [ { "type": "automata_valkyries:config", "key": "upgrades.upgrade_kit_beyond" } ],
+  "tier": 3,
+  "stages": 1,
+  "ingredients": [ { "ingredient": { "item": "automata_valkyries:frame_beyond" }, "count": 1 }, { "ingredient": { "item": "automata_valkyries:circuit_quantum_tac" }, "count": 2 }, { "ingredient": { "item": "automata_valkyries:drive_tachyon" }, "count": 2 } ],
+  "result": { "item": "automata_valkyries:upgrade_kit_beyond", "count": 1 },
+  "energy": 5000000,
+  "time": 300
+}

@@ -1,0 +1,9 @@
+{
+  "type": "automata_valkyries:phase_transition",
+  "tier": 1,
+  "stages": 1,
+  "ingredients": [ { "ingredient": { "item": "automata_valkyries:drop_nanomachine" }, "count": 4 }, { "ingredient": { "tag": "forge:ingots/phononium" }, "count": 1 }, { "ingredient": { "tag": "forge:slimeballs" }, "count": 1 } ],
+  "result": { "item": "automata_valkyries:membrane_nano", "count": 1 },
+  "energy": 40000,
+  "time": 120
+}

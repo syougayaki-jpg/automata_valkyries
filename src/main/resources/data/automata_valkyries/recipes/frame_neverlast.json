@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ "KHL", "AFG", "SNQ" ],
+  "key": { "K": { "item": "automata_valkyries:core_singularity_chronos" }, "H": { "item": "automata_valkyries:heart_stellar" }, "L": { "item": "automata_valkyries:core_genesis_luminal" }, "A": { "item": "automata_valkyries:anchor_causal" }, "F": { "item": "automata_valkyries:frame_beyond" }, "G": { "item": "automata_valkyries:seed_genesis" }, "S": { "item": "automata_valkyries:block_stellachronodyme" }, "N": { "item": "automata_valkyries:core_catastrophe_nano" }, "Q": { "item": "automata_valkyries:circuit_chrono_lattice" } },
+  "result": { "item": "automata_valkyries:frame_neverlast", "count": 1 }
+}

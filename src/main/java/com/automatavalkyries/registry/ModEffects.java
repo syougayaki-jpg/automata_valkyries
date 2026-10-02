@@ -29,4 +29,11 @@ public final class ModEffects {
     /** ステラ・クロノダイム: 星の光・金・紫の時空・きらめき */
     public static final List<ParticleOptions> STELLACHRONODYME = List.of(ParticleTypes.END_ROD, dust(0xFFE6A0, 0.7F),
             ParticleTypes.REVERSE_PORTAL, ParticleTypes.WAX_ON);
+
+    /** クロノ系（クロノスクラップ・歪んだ破片・オーブ・スター）: 逆さの時空の粒と淡い紫 */
+    public static final List<ParticleOptions> CHRONO = List.of(ParticleTypes.REVERSE_PORTAL, dust(0x9A8CC8, 0.6F));
+    /** ナノ系（リアナノマシン・オーブ・スター）: 緑の光と小さな機械の粒 */
+    public static final List<ParticleOptions> NANO = List.of(ParticleTypes.GLOW, dust(0x6FD1A0, 0.5F));
+    /** ルミナル系のスター: 白い光と金の粒 */
+    public static final List<ParticleOptions> LUMINAL = List.of(ParticleTypes.END_ROD, dust(0xFFD166, 0.6F));
 }

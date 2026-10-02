@@ -1,0 +1,9 @@
+{
+  "type": "automata_valkyries:phase_transition",
+  "tier": 2,
+  "stages": 1,
+  "ingredients": [ { "ingredient": { "item": "automata_valkyries:alloy_chrono_fortress" }, "count": 4 }, { "ingredient": { "item": "automata_valkyries:drive_tachyon" }, "count": 1 }, { "ingredient": { "item": "automata_valkyries:emitter_spatial" }, "count": 2 } ],
+  "result": { "item": "automata_valkyries:field_distortion", "count": 1 },
+  "energy": 400000,
+  "time": 300
+}

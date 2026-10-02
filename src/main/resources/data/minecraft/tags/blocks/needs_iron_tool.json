@@ -23,6 +23,13 @@
     "automata_valkyries:improved_alloy_smelter",
     "automata_valkyries:improved_press",
     "automata_valkyries:assembler",
-    "automata_valkyries:weapon_workbench"
+    "automata_valkyries:weapon_workbench",
+    "automata_valkyries:block_chrono_metal",
+    "automata_valkyries:luminal_reactor",
+    "automata_valkyries:chrono_smelter",
+    "automata_valkyries:luminal_adapter",
+    "automata_valkyries:chrono_fabricator",
+    "automata_valkyries:tether_pylon",
+    "automata_valkyries:void_repository"
   ]
 }

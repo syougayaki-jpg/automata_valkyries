@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [ "###", "###", "###" ],
+  "key": { "#": { "item": "automata_valkyries:star_uranium" } },
+  "result": { "item": "automata_valkyries:core_uranium" },
+  "show_notification": true
+}

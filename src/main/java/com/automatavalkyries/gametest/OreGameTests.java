@@ -234,4 +234,36 @@ public class OreGameTests {
     private static net.minecraft.tags.TagKey<Block> blockTag(String namespace, String path) {
         return BlockTags.create(ResourceLocation.fromNamespaceAndPath(namespace, path));
     }
+    /** 敵ドロップ素材と圧縮階層 Tier 1〜3（追加拡張仕様書 §9）: 9 個 ↔ 1 個。クロノメタルは爆発に耐え、ピストンで動かない */
+    @GameTest(template = TEMPLATE)
+    public static void compressionTiersRoundTrip(GameTestHelper helper) {
+        compressRoundTrip(helper, ModItems.DROP_CHRONO_SCRAP.get(), ModBlocks.BLOCK_CHRONO_METAL.get());
+        compressRoundTrip(helper, ModBlocks.BLOCK_CHRONO_METAL.get().asItem(), ModItems.ORB_CHRONOS.get());
+        compressRoundTrip(helper, ModItems.ORB_CHRONOS.get(), ModItems.STAR_CHRONOS.get());
+        compressRoundTrip(helper, ModItems.DROP_NANOMACHINE.get(), ModBlocks.BLOCK_NANO_MESH.get());
+        compressRoundTrip(helper, ModBlocks.BLOCK_NANO_MESH.get().asItem(), ModItems.ORB_NANO.get());
+        compressRoundTrip(helper, ModItems.ORB_NANO.get(), ModItems.STAR_NANO.get());
+        compressRoundTrip(helper, ModItems.ORB_LUMINAL.get(), ModItems.STAR_LUMINAL.get());
+        var chrono = ModBlocks.BLOCK_CHRONO_METAL.get().defaultBlockState();
+        helper.assertTrue(ModBlocks.BLOCK_CHRONO_METAL.get().getExplosionResistance() >= 1200.0F, "chrono metal is not blast-proof");
+        helper.assertTrue(chrono.getPistonPushReaction() == net.minecraft.world.level.material.PushReaction.BLOCK, "chrono metal can be pushed");
+        helper.assertTrue(ModItems.DROP_DISTORTED_CHRONO_SHARD.get().getDefaultInstance().getRarity() == net.minecraft.world.item.Rarity.UNCOMMON, "shard rarity");
+        helper.succeed();
+    }
+    /** 金属（本 MOD 3 種・連携 8 種）の圧縮: ブロック ↔ オーブ ↔ スター ↔ コア。3 系統のスター 9 → Tier 4 コア */
+    @GameTest(template = TEMPLATE)
+    public static void metalCompressionChains(GameTestHelper helper) {
+        for (String metal : com.automatavalkyries.registry.ModCompression.METALS.keySet()) {
+            Item block = ForgeRegistries.ITEMS.getValue(ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "block_" + metal));
+            helper.assertTrue(block != null && block != Items.AIR, "no block_" + metal);
+            var c = com.automatavalkyries.registry.ModCompression.COMPRESSED;
+            compressRoundTrip(helper, block, c.get("orb").get(metal).get());
+            compressRoundTrip(helper, c.get("orb").get(metal).get(), c.get("star").get(metal).get());
+            compressRoundTrip(helper, c.get("star").get(metal).get(), c.get("core").get(metal).get());
+        }
+        compressRoundTrip(helper, ModItems.STAR_CHRONOS.get(), com.automatavalkyries.registry.ModCompression.CORE_SINGULARITY_CHRONOS.get());
+        compressRoundTrip(helper, ModItems.STAR_LUMINAL.get(), com.automatavalkyries.registry.ModCompression.CORE_GENESIS_LUMINAL.get());
+        compressRoundTrip(helper, ModItems.STAR_NANO.get(), com.automatavalkyries.registry.ModCompression.CORE_CATASTROPHE_NANO.get());
+        helper.succeed();
+    }
 }

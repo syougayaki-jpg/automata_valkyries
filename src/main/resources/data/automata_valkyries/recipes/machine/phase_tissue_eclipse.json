@@ -1,0 +1,9 @@
+{
+  "type": "automata_valkyries:phase_transition",
+  "tier": 2,
+  "stages": 1,
+  "ingredients": [ { "ingredient": { "item": "automata_valkyries:alloy_eclipse_biometal" }, "count": 2 }, { "ingredient": { "item": "automata_valkyries:membrane_nano" }, "count": 2 }, { "ingredient": { "item": "automata_valkyries:orb_nano" }, "count": 1 } ],
+  "result": { "item": "automata_valkyries:tissue_eclipse", "count": 1 },
+  "energy": 300000,
+  "time": 300
+}

@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [ "###", "###", "###" ],
+  "key": { "#": { "item": "automata_valkyries:star_silver" } },
+  "result": { "item": "automata_valkyries:core_silver" },
+  "show_notification": true
+}

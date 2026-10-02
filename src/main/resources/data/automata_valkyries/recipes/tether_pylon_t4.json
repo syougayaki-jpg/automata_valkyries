@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ "ICI", "AFA", "IXI" ],
+  "key": { "I": { "item": "automata_valkyries:block_stellachronodyme" }, "C": { "item": "automata_valkyries:circuit_chrono_lattice" }, "A": { "item": "automata_valkyries:gate_wormhole" }, "F": { "item": "automata_valkyries:frame_neverlast" }, "X": { "item": "automata_valkyries:improved_battery" } },
+  "result": { "item": "automata_valkyries:tether_pylon", "count": 1, "nbt": "{BlockStateTag:{tier:\"4\"}}" }
+}

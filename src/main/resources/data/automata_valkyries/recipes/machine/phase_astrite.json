@@ -1,0 +1,9 @@
+{
+  "type": "automata_valkyries:phase_transition",
+  "tier": 1,
+  "stages": 1,
+  "ingredients": [ { "ingredient": { "tag": "forge:ingots/iron" }, "count": 2 } ],
+  "result": { "item": "automata_valkyries:ingot_astrite", "count": 1 },
+  "energy": 20000,
+  "time": 100
+}

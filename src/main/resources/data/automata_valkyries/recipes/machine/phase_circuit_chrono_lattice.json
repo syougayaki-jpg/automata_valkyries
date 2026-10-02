@@ -1,0 +1,9 @@
+{
+  "type": "automata_valkyries:phase_transition",
+  "tier": 3,
+  "stages": 2,
+  "ingredients": [ { "ingredient": { "item": "automata_valkyries:circuit_quantum_tac" }, "count": 4 }, { "ingredient": { "item": "automata_valkyries:processor_synapse" }, "count": 1 }, { "ingredient": { "item": "automata_valkyries:ingot_stellachronodyme" }, "count": 1 }, { "ingredient": { "item": "automata_valkyries:matrix_photon" }, "count": 1 } ],
+  "result": { "item": "automata_valkyries:circuit_chrono_lattice", "count": 1 },
+  "energy": 4000000,
+  "time": 400
+}

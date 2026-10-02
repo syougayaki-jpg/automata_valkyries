@@ -1,0 +1,9 @@
+{
+  "type": "automata_valkyries:phase_transition",
+  "tier": 3,
+  "stages": 2,
+  "ingredients": [ { "ingredient": { "item": "automata_valkyries:ingot_stellachronodyme" }, "count": 2 }, { "ingredient": { "item": "automata_valkyries:alloy_chrono_fortress" }, "count": 4 }, { "ingredient": { "item": "automata_valkyries:heart_stellar" }, "count": 1 } ],
+  "result": { "item": "automata_valkyries:plating_stellar", "count": 2 },
+  "energy": 4000000,
+  "time": 400
+}

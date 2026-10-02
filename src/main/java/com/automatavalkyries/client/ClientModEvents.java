@@ -13,8 +13,10 @@ public class ClientModEvents {
     /** 基礎文明マシンの画面 */
     @SubscribeEvent
     public static void clientSetup(net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent event) {
-        event.enqueueWork(() -> net.minecraft.client.gui.screens.MenuScreens.register(
-                com.automatavalkyries.registry.ModMachines.MENU.get(), MachineScreen::new));
+        event.enqueueWork(() -> {
+            net.minecraft.client.gui.screens.MenuScreens.register(com.automatavalkyries.registry.ModMachines.MENU.get(), MachineScreen::new);
+            net.minecraft.client.gui.screens.MenuScreens.register(com.automatavalkyries.registry.ModChrono.MENU.get(), ChronoScreen::new);
+        });
     }
 
     @SubscribeEvent

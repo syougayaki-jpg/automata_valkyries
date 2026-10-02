@@ -30,6 +30,19 @@ public class ModItems {
     public static final RegistryObject<Item> ORB_LUMINAL = ITEMS.register("orb_luminal", () ->
             new com.automatavalkyries.item.LuminalCrystalItem(new Item.Properties().rarity(Rarity.RARE)));
 
+    // ---- 敵ドロップ素材（SPEC §7.7・追加拡張仕様書 §8.1）。敵を実装するまではクリエイティブで取り出すだけ ----
+    public static final RegistryObject<Item> DROP_NANOMACHINE = effect("drop_nanomachine", Rarity.COMMON, ModEffects.NANO, 30, false);
+    public static final RegistryObject<Item> DROP_CHRONO_SCRAP = simple("drop_chrono_scrap");
+    /** 歪んだクロノ破片（§8.1 Stage 2 の解析対象。ID は仮決め） */
+    public static final RegistryObject<Item> DROP_DISTORTED_CHRONO_SHARD = effect("drop_distorted_chrono_shard", Rarity.UNCOMMON, ModEffects.CHRONO, 16, false);
+
+    // ---- 圧縮階層 Tier 2〜3（追加拡張仕様書 §9）: 9 個 ↔ 1 個。オーブ・スターは核が明滅し、粒子を出す ----
+    public static final RegistryObject<Item> ORB_CHRONOS = effect("orb_chronos", Rarity.RARE, ModEffects.CHRONO, 12, false);
+    public static final RegistryObject<Item> ORB_NANO = effect("orb_nano", Rarity.RARE, ModEffects.NANO, 12, false);
+    public static final RegistryObject<Item> STAR_CHRONOS = effect("star_chronos", Rarity.EPIC, ModEffects.CHRONO, 6, true);
+    public static final RegistryObject<Item> STAR_LUMINAL = effect("star_luminal", Rarity.EPIC, ModEffects.LUMINAL, 6, true);
+    public static final RegistryObject<Item> STAR_NANO = effect("star_nano", Rarity.EPIC, ModEffects.NANO, 6, true);
+
     // ---- 上位合金・回路（SPEC §7.7）。レシピは暫定のクラフト（マシンができたら置き換える。SPEC §0.2-G） ----
     // 手に持つ・ドロップすると合金ごとの粒子を出す（ModEffects）。テクスチャは光の帯が走るアニメーション
     public static final RegistryObject<Item> ALLOY_LUMINAL_STERLING = effect("alloy_luminal_sterling", Rarity.UNCOMMON, ModEffects.LUMINAL_STERLING, 12, false);

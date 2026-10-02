@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [ "###", "###", "###" ],
+  "key": { "#": { "item": "automata_valkyries:orb_nickel" } },
+  "result": { "item": "automata_valkyries:star_nickel" },
+  "show_notification": true
+}

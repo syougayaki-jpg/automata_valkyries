@@ -1,7 +1,0 @@
-{
-  "type": "minecraft:crafting_shaped",
-  "category": "misc",
-  "pattern": [ "RGR", "PLP", "RGR" ],
-  "key": { "R": { "tag": "forge:dusts/redstone" }, "G": { "tag": "forge:ingots/gold" }, "P": { "tag": "forge:plates/constantan" }, "L": { "item": "automata_valkyries:crystal_luminal" } },
-  "result": { "item": "automata_valkyries:circuit_quantum_tac", "count": 1 }
-}

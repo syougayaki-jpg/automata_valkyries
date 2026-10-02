@@ -44,6 +44,7 @@
     "automata_valkyries:electric_furnace",
     "automata_valkyries:crusher",
     "automata_valkyries:alloy_smelter",
-    "automata_valkyries:press"
+    "automata_valkyries:press",
+    "automata_valkyries:block_nano_mesh"
   ]
 }

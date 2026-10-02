@@ -1,0 +1,6 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [ { "item": "automata_valkyries:orb_nano" } ],
+  "result": { "item": "automata_valkyries:block_nano_mesh", "count": 9 }
+}

@@ -1,0 +1,9 @@
+{
+  "type": "automata_valkyries:phase_transition",
+  "tier": 2,
+  "stages": 1,
+  "ingredients": [ { "ingredient": { "item": "automata_valkyries:alloy_tachyon_accel" }, "count": 2 }, { "ingredient": { "item": "automata_valkyries:coil_chrono" }, "count": 2 }, { "ingredient": { "item": "automata_valkyries:circuit_quantum_tac" }, "count": 1 } ],
+  "result": { "item": "automata_valkyries:drive_tachyon", "count": 1 },
+  "energy": 300000,
+  "time": 300
+}

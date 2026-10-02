@@ -40,6 +40,14 @@ public class MachineEnergy extends EnergyStorage {
         return true;
     }
 
+    /** 上限を変える（クロノリンク・マシンのティアの昇格） */
+    public void setLimits(int capacity, int maxReceive, int maxExtract) {
+        this.capacity = capacity;
+        this.maxReceive = maxReceive;
+        this.maxExtract = maxExtract;
+        energy = Math.min(energy, capacity);
+    }
+
     public void set(int value) {
         energy = Math.max(0, Math.min(capacity, value));
     }

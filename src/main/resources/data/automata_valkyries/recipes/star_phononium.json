@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [ "###", "###", "###" ],
+  "key": { "#": { "item": "automata_valkyries:orb_phononium" } },
+  "result": { "item": "automata_valkyries:star_phononium" },
+  "show_notification": true
+}

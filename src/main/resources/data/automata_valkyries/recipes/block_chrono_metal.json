@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [ "###", "###", "###" ],
+  "key": { "#": { "item": "automata_valkyries:drop_chrono_scrap" } },
+  "result": { "item": "automata_valkyries:block_chrono_metal" },
+  "show_notification": true
+}

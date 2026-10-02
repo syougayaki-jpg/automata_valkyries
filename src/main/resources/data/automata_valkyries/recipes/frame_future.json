@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ "ALB", "KFM", "CQD" ],
+  "key": { "A": { "item": "automata_valkyries:alloy_luminal_sterling" }, "B": { "item": "automata_valkyries:alloy_chrono_fortress" }, "C": { "item": "automata_valkyries:alloy_tachyon_accel" }, "D": { "item": "automata_valkyries:alloy_eclipse_biometal" }, "L": { "item": "automata_valkyries:lens_luminal" }, "K": { "item": "automata_valkyries:coil_chrono" }, "M": { "item": "automata_valkyries:membrane_nano" }, "Q": { "item": "automata_valkyries:circuit_photonic" }, "F": { "item": "automata_valkyries:frame_high_end" } },
+  "result": { "item": "automata_valkyries:frame_future", "count": 1 }
+}

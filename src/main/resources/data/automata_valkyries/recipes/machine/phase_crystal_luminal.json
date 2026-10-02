@@ -1,0 +1,9 @@
+{
+  "type": "automata_valkyries:phase_transition",
+  "tier": 1,
+  "stages": 1,
+  "ingredients": [ { "ingredient": { "tag": "forge:gems/diamond" }, "count": 1 } ],
+  "result": { "item": "automata_valkyries:crystal_luminal", "count": 2 },
+  "energy": 50000,
+  "time": 160
+}

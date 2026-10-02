@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/orientable",
+  "textures": {
+    "front": "automata_valkyries:block/tether_pylon_front_t4",
+    "side": "automata_valkyries:block/chrono_side_t4",
+    "top": "automata_valkyries:block/chrono_top_t4"
+  }
+}

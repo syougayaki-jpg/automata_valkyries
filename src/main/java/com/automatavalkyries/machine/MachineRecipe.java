@@ -29,6 +29,7 @@ import java.util.function.Supplier;
  *   "result": { "item": "automata_valkyries:ingot_bronze", "count": 4 }, "energy": 4000, "time": 200 }
  * </pre>
  * 材料の並びは順不同（合金炉の 2 つのスロットのどちらに入れてもよい）。
+ * クロノリンク・マシンのルミナルエナジーアダプターは、さらに "tier"（必要なティア 1〜4）と "stages"（加工の中の段の数、画面に出す）を持つ。
  */
 public class MachineRecipe implements Recipe<Container> {
 
@@ -43,9 +44,16 @@ public class MachineRecipe implements Recipe<Container> {
     private final int energy;
     /** 加工にかかる Tick 数 */
     private final int time;
+    /** 必要なティア（クロノリンク・マシン。0 は問わない）と、加工の中の段の数 */
+    private final int tier, stages;
 
     public MachineRecipe(ResourceLocation id, Supplier<RecipeType<MachineRecipe>> type, Supplier<RecipeSerializer<MachineRecipe>> serializer,
                          List<CountedIngredient> inputs, ItemStack result, int energy, int time) {
+        this(id, type, serializer, inputs, result, energy, time, 0, 1);
+    }
+
+    public MachineRecipe(ResourceLocation id, Supplier<RecipeType<MachineRecipe>> type, Supplier<RecipeSerializer<MachineRecipe>> serializer,
+                         List<CountedIngredient> inputs, ItemStack result, int energy, int time, int tier, int stages) {
         this.id = id;
         this.type = type;
         this.serializer = serializer;
@@ -53,7 +61,12 @@ public class MachineRecipe implements Recipe<Container> {
         this.result = result;
         this.energy = energy;
         this.time = time;
+        this.tier = tier;
+        this.stages = Math.max(1, stages);
     }
+
+    public int tier() { return tier; }
+    public int stages() { return stages; }
 
     public List<CountedIngredient> inputs() { return inputs; }
     public ItemStack result() { return result; }
@@ -142,7 +155,8 @@ public class MachineRecipe implements Recipe<Container> {
             }
             ItemStack result = ShapedRecipe.itemStackFromJson(GsonHelper.getAsJsonObject(json, "result"));
             return new MachineRecipe(id, type, self, inputs, result,
-                    GsonHelper.getAsInt(json, "energy", defaultEnergy), GsonHelper.getAsInt(json, "time", defaultTime));
+                    GsonHelper.getAsInt(json, "energy", defaultEnergy), GsonHelper.getAsInt(json, "time", defaultTime),
+                    GsonHelper.getAsInt(json, "tier", 0), GsonHelper.getAsInt(json, "stages", 1));
         }
 
         @Override
@@ -150,7 +164,7 @@ public class MachineRecipe implements Recipe<Container> {
             int size = buf.readVarInt();
             List<CountedIngredient> inputs = new ArrayList<>();
             for (int i = 0; i < size; i++) inputs.add(new CountedIngredient(Ingredient.fromNetwork(buf), buf.readVarInt()));
-            return new MachineRecipe(id, type, self, inputs, buf.readItem(), buf.readVarInt(), buf.readVarInt());
+            return new MachineRecipe(id, type, self, inputs, buf.readItem(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt());
         }
 
         @Override
@@ -163,6 +177,8 @@ public class MachineRecipe implements Recipe<Container> {
             buf.writeItem(recipe.result);
             buf.writeVarInt(recipe.energy);
             buf.writeVarInt(recipe.time);
+            buf.writeVarInt(recipe.tier);
+            buf.writeVarInt(recipe.stages);
         }
     }
 }

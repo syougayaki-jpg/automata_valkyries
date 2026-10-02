@@ -1,0 +1,9 @@
+{
+  "type": "automata_valkyries:phase_transition",
+  "tier": 4,
+  "stages": 3,
+  "ingredients": [ { "ingredient": { "item": "automata_valkyries:core_singularity_chronos" }, "count": 1 }, { "ingredient": { "item": "automata_valkyries:core_genesis_luminal" }, "count": 1 }, { "ingredient": { "item": "automata_valkyries:core_catastrophe_nano" }, "count": 1 }, { "ingredient": { "item": "automata_valkyries:heart_stellar" }, "count": 1 }, { "ingredient": { "item": "automata_valkyries:anchor_causal" }, "count": 1 }, { "ingredient": { "item": "automata_valkyries:seed_genesis" }, "count": 1 } ],
+  "result": { "item": "automata_valkyries:singularity_neverlast", "count": 1 },
+  "energy": 50000000,
+  "time": 1200
+}

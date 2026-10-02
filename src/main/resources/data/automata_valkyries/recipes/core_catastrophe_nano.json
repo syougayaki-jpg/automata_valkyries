@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [ "###", "###", "###" ],
+  "key": { "#": { "item": "automata_valkyries:star_nano" } },
+  "result": { "item": "automata_valkyries:core_catastrophe_nano" },
+  "show_notification": true
+}

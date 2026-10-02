@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ "ICI", "AFA", "IXI" ],
+  "key": { "I": { "item": "automata_valkyries:ingot_stellachronodyme" }, "C": { "item": "automata_valkyries:circuit_quantum_tac" }, "A": { "item": "automata_valkyries:matrix_photon" }, "F": { "item": "automata_valkyries:frame_beyond" }, "X": { "item": "automata_valkyries:improved_alloy_smelter" } },
+  "result": { "item": "automata_valkyries:luminal_adapter", "count": 1, "nbt": "{BlockStateTag:{tier:\"3\"}}" }
+}

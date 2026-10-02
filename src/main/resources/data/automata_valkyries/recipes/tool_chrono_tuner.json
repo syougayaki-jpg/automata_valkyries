@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ "C C", "CLC", " P " ],
+  "key": { "C": { "tag": "forge:ingots/ceruleas" }, "L": { "item": "automata_valkyries:crystal_luminal" }, "P": { "tag": "forge:ingots/phononium" } },
+  "result": { "item": "automata_valkyries:tool_chrono_tuner", "count": 1 }
+}

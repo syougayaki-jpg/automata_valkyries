@@ -1,0 +1,9 @@
+{
+  "type": "automata_valkyries:phase_transition",
+  "tier": 4,
+  "stages": 1,
+  "ingredients": [ { "ingredient": { "item": "automata_valkyries:star_luminal" }, "count": 9 } ],
+  "result": { "item": "automata_valkyries:core_genesis_luminal", "count": 1 },
+  "energy": 5000000,
+  "time": 400
+}

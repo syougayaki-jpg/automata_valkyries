@@ -1,0 +1,9 @@
+{
+  "type": "automata_valkyries:phase_transition",
+  "tier": 2,
+  "stages": 1,
+  "ingredients": [ { "ingredient": { "tag": "forge:dusts/redstone" }, "count": 4 }, { "ingredient": { "tag": "forge:ingots/gold" }, "count": 2 }, { "ingredient": { "tag": "forge:plates/constantan" }, "count": 2 }, { "ingredient": { "item": "automata_valkyries:crystal_luminal" }, "count": 1 } ],
+  "result": { "item": "automata_valkyries:circuit_quantum_tac", "count": 1 },
+  "energy": 150000,
+  "time": 200
+}

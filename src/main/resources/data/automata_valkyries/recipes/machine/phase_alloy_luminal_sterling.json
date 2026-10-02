@@ -1,0 +1,9 @@
+{
+  "type": "automata_valkyries:phase_transition",
+  "tier": 1,
+  "stages": 1,
+  "ingredients": [ { "ingredient": { "item": "automata_valkyries:crystal_luminal" }, "count": 4 }, { "ingredient": { "tag": "forge:ingots/silver" }, "count": 2 }, { "ingredient": { "tag": "forge:ingots/ceruleas" }, "count": 1 } ],
+  "result": { "item": "automata_valkyries:alloy_luminal_sterling", "count": 2 },
+  "energy": 100000,
+  "time": 200
+}

@@ -20,12 +20,15 @@ public final class ModRecipes {
     public static final RegistryObject<RecipeType<MachineRecipe>> PRESSING = type("pressing");
     public static final RegistryObject<RecipeType<MachineRecipe>> ASSEMBLING = type("assembling");
     public static final RegistryObject<RecipeType<MachineRecipe>> WEAPON_ASSEMBLING = type("weapon_assembling");
+    /** ルミナルエナジーアダプターの原子相転移（クロノリンク・マシン設計書 §4.3）。"tier" で必要なティア */
+    public static final RegistryObject<RecipeType<MachineRecipe>> PHASE_TRANSITION = type("phase_transition");
 
     public static final RegistryObject<RecipeSerializer<MachineRecipe>> CRUSHING_SERIALIZER = serializer("crushing", CRUSHING, 2000, 100);
     public static final RegistryObject<RecipeSerializer<MachineRecipe>> ALLOYING_SERIALIZER = serializer("alloying", ALLOYING, 4000, 200);
     public static final RegistryObject<RecipeSerializer<MachineRecipe>> PRESSING_SERIALIZER = serializer("pressing", PRESSING, 2000, 100);
     public static final RegistryObject<RecipeSerializer<MachineRecipe>> ASSEMBLING_SERIALIZER = serializer("assembling", ASSEMBLING, 50000, 400);
     public static final RegistryObject<RecipeSerializer<MachineRecipe>> WEAPON_ASSEMBLING_SERIALIZER = serializer("weapon_assembling", WEAPON_ASSEMBLING, 30000, 300);
+    public static final RegistryObject<RecipeSerializer<MachineRecipe>> PHASE_TRANSITION_SERIALIZER = serializer("phase_transition", PHASE_TRANSITION, 20000, 200);
 
     private ModRecipes() {}
 

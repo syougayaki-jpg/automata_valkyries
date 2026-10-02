@@ -1,0 +1,9 @@
+{
+  "type": "automata_valkyries:phase_transition",
+  "tier": 1,
+  "stages": 1,
+  "ingredients": [ { "ingredient": { "item": "automata_valkyries:drop_chrono_scrap" }, "count": 2 }, { "ingredient": { "tag": "forge:ingots/astrite" }, "count": 2 }, { "ingredient": { "item": "automata_valkyries:wire_gold" }, "count": 2 } ],
+  "result": { "item": "automata_valkyries:coil_chrono", "count": 1 },
+  "energy": 40000,
+  "time": 120
+}

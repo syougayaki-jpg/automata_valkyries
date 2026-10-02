@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ "ICI", "AFA", "IXI" ],
+  "key": { "I": { "item": "automata_valkyries:block_stellachronodyme" }, "C": { "item": "automata_valkyries:circuit_chrono_lattice" }, "A": { "item": "automata_valkyries:heart_stellar" }, "F": { "item": "automata_valkyries:frame_neverlast" }, "X": { "item": "automata_valkyries:improved_generator" } },
+  "result": { "item": "automata_valkyries:luminal_reactor", "count": 1, "nbt": "{BlockStateTag:{tier:\"4\"}}" }
+}

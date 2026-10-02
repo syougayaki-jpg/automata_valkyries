@@ -35,6 +35,9 @@ public class AutomataValkyries {
         com.automatavalkyries.world.ConfigurableOresBiomeModifier.SERIALIZERS.register(modEventBus);
         // 基礎文明マシン（ブロック・アイテムを BLOCKS / ITEMS に足すので、ITEMS より前に読み込む）
         com.automatavalkyries.registry.ModMachines.init();
+        com.automatavalkyries.registry.ModChrono.init();
+        com.automatavalkyries.registry.ModCompression.init(); // 金属の圧縮・Tier 4 コア・ティアごとの中間素材
+        com.automatavalkyries.registry.ModFutureTech.init(); // 未来技術の上位回路・パーツ // クロノリンク・マシン（BLOCKS / ITEMS / BLOCK_ENTITIES / MENUS に足す）
         com.automatavalkyries.registry.ModMachines.BLOCK_ENTITIES.register(modEventBus);
         com.automatavalkyries.registry.ModMachines.MENUS.register(modEventBus);
         com.automatavalkyries.registry.ModRecipes.TYPES.register(modEventBus);
@@ -45,6 +48,8 @@ public class AutomataValkyries {
         modEventBus.addListener(this::commonSetup);
         context.registerConfig(ModConfig.Type.COMMON, EprotectConfig.SPEC);
         context.registerConfig(ModConfig.Type.COMMON, com.automatavalkyries.config.WorldgenConfig.SPEC, MODID + "-worldgen.toml");
+        context.registerConfig(ModConfig.Type.COMMON, com.automatavalkyries.config.MachineConfig.SPEC, MODID + "-machines.toml");
+        net.minecraftforge.common.crafting.CraftingHelper.register(com.automatavalkyries.config.MachineConfig.Condition.SERIALIZER);
         // ブラックリストは設定の読み込み・再読み込み（コマンドでの保存を含む）のたびに作り直す
         modEventBus.addListener((ModConfigEvent.Loading event) -> onConfigChanged(event.getConfig()));
         modEventBus.addListener((ModConfigEvent.Reloading event) -> onConfigChanged(event.getConfig()));

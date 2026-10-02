@@ -1,0 +1,9 @@
+{
+  "type": "automata_valkyries:phase_transition",
+  "tier": 3,
+  "stages": 2,
+  "ingredients": [ { "ingredient": { "item": "automata_valkyries:ingot_stellachronodyme" }, "count": 1 }, { "ingredient": { "item": "automata_valkyries:star_nano" }, "count": 1 }, { "ingredient": { "item": "automata_valkyries:tissue_eclipse" }, "count": 2 } ],
+  "result": { "item": "automata_valkyries:seed_genesis", "count": 1 },
+  "energy": 3000000,
+  "time": 400
+}

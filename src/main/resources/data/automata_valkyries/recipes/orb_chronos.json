@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [ "###", "###", "###" ],
+  "key": { "#": { "item": "automata_valkyries:block_chrono_metal" } },
+  "result": { "item": "automata_valkyries:orb_chronos" },
+  "show_notification": true
+}

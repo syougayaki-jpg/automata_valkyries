@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ "APC", "LFL", "CPA" ],
+  "key": { "A": { "tag": "forge:ingots/astrite" }, "P": { "tag": "forge:ingots/phononium" }, "C": { "tag": "forge:ingots/ceruleas" }, "L": { "item": "automata_valkyries:block_luminal_gem" }, "F": { "item": "automata_valkyries:machine_frame_improved" } },
+  "result": { "item": "automata_valkyries:frame_high_end", "count": 1 }
+}

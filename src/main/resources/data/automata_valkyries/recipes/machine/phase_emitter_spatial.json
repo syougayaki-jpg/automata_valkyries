@@ -1,0 +1,9 @@
+{
+  "type": "automata_valkyries:phase_transition",
+  "tier": 1,
+  "stages": 1,
+  "ingredients": [ { "ingredient": { "item": "automata_valkyries:coil_chrono" }, "count": 1 }, { "ingredient": { "item": "automata_valkyries:lens_luminal" }, "count": 1 }, { "ingredient": { "tag": "forge:ender_pearls" }, "count": 2 }, { "ingredient": { "tag": "forge:ingots/ceruleas" }, "count": 2 } ],
+  "result": { "item": "automata_valkyries:emitter_spatial", "count": 1 },
+  "energy": 60000,
+  "time": 160
+}

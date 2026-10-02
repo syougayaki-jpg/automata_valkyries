@@ -1,0 +1,6 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [ { "item": "automata_valkyries:block_nano_mesh" } ],
+  "result": { "item": "automata_valkyries:drop_nanomachine", "count": 9 }
+}

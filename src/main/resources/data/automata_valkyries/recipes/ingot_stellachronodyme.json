@@ -1,7 +1,0 @@
-{
-  "type": "minecraft:crafting_shaped",
-  "category": "misc",
-  "pattern": [ "SCS", "TOE", "SQS" ],
-  "key": { "S": { "item": "automata_valkyries:alloy_luminal_sterling" }, "C": { "item": "automata_valkyries:alloy_chrono_fortress" }, "T": { "item": "automata_valkyries:alloy_tachyon_accel" }, "E": { "item": "automata_valkyries:alloy_eclipse_biometal" }, "O": { "item": "automata_valkyries:orb_luminal" }, "Q": { "item": "automata_valkyries:circuit_quantum_tac" } },
-  "result": { "item": "automata_valkyries:ingot_stellachronodyme", "count": 1 }
-}

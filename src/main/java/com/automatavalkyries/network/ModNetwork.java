@@ -42,5 +42,11 @@ public final class ModNetwork {
                 .decoder(SteamThrustPacket::decode)
                 .consumerMainThread(SteamThrustPacket::handle)
                 .add();
+
+        CHANNEL.messageBuilder(RepositoryContentsPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(RepositoryContentsPacket::encode)
+                .decoder(RepositoryContentsPacket::decode)
+                .consumerMainThread(RepositoryContentsPacket::handle)
+                .add();
     }
 }

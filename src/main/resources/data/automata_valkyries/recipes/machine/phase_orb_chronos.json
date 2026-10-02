@@ -1,0 +1,9 @@
+{
+  "type": "automata_valkyries:phase_transition",
+  "tier": 1,
+  "stages": 1,
+  "ingredients": [ { "ingredient": { "item": "automata_valkyries:block_chrono_metal" }, "count": 9 } ],
+  "result": { "item": "automata_valkyries:orb_chronos", "count": 1 },
+  "energy": 50000,
+  "time": 100
+}

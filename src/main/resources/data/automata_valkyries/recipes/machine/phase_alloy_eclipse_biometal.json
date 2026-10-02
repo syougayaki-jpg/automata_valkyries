@@ -1,0 +1,9 @@
+{
+  "type": "automata_valkyries:phase_transition",
+  "tier": 1,
+  "stages": 1,
+  "ingredients": [ { "ingredient": { "tag": "forge:ingots/ceruleas" }, "count": 4 }, { "ingredient": { "tag": "forge:ingots/invar" }, "count": 4 }, { "ingredient": { "tag": "forge:slimeballs" }, "count": 1 } ],
+  "result": { "item": "automata_valkyries:alloy_eclipse_biometal", "count": 2 },
+  "energy": 100000,
+  "time": 200
+}

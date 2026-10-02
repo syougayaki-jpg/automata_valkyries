@@ -1,0 +1,9 @@
+{
+  "type": "automata_valkyries:phase_transition",
+  "tier": 3,
+  "stages": 2,
+  "ingredients": [ { "ingredient": { "item": "automata_valkyries:field_distortion" }, "count": 2 }, { "ingredient": { "item": "automata_valkyries:star_chronos" }, "count": 1 }, { "ingredient": { "item": "automata_valkyries:emitter_spatial" }, "count": 4 } ],
+  "result": { "item": "automata_valkyries:gate_wormhole", "count": 1 },
+  "energy": 4000000,
+  "time": 400
+}

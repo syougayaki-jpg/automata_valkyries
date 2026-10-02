@@ -1,7 +1,0 @@
-{
-  "type": "minecraft:crafting_shaped",
-  "category": "misc",
-  "pattern": [ "ASA", "SOS", "ASA" ],
-  "key": { "A": { "tag": "forge:ingots/astrite" }, "S": { "tag": "forge:ingots/steel" }, "O": { "tag": "forge:obsidian" } },
-  "result": { "item": "automata_valkyries:alloy_chrono_fortress", "count": 2 }
-}

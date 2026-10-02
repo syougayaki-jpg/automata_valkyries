@@ -1,0 +1,6 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [ { "item": "automata_valkyries:orb_astrite" } ],
+  "result": { "item": "automata_valkyries:block_astrite", "count": 9 }
+}

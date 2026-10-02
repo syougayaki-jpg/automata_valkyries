@@ -1,0 +1,9 @@
+{
+  "type": "automata_valkyries:phase_transition",
+  "tier": 3,
+  "stages": 2,
+  "ingredients": [ { "ingredient": { "item": "automata_valkyries:ingot_stellachronodyme" }, "count": 1 }, { "ingredient": { "item": "automata_valkyries:star_chronos" }, "count": 1 }, { "ingredient": { "item": "automata_valkyries:drive_tachyon" }, "count": 2 }, { "ingredient": { "item": "automata_valkyries:alloy_chrono_fortress" }, "count": 4 } ],
+  "result": { "item": "automata_valkyries:anchor_causal", "count": 1 },
+  "energy": 3000000,
+  "time": 400
+}

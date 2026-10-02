@@ -271,6 +271,9 @@ dependencies {
     // then special handling is done to allow a setup of a vanilla dependency without the use of an external repository.
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
 
+    // JEI のプラグイン（compat/jei）を書くための API。JEI 自体は入れない（-PwithJei / -PwithTechMods のときだけ実行時に読み込む）
+    compileOnly fg.deobf("maven.modrinth:jei:15.62.0.217")
+
     // Mixin の refmap 生成用アノテーションプロセッサ
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 
@@ -338,6 +341,10 @@ dependencies {
         runtimeOnly fg.deobf("maven.modrinth:ae2:15.4.11")                     // Applied Energistics 2 15.4.11
         runtimeOnly fg.deobf("maven.modrinth:guideme:20.1.15")                 // AE2 が必須
         runtimeOnly fg.deobf("maven.modrinth:jei:15.62.0.217")                 // タグ・レシピの手動確認用
+    }
+    // JEI だけ（レシピ・タグの手動確認用）: ./gradlew runClient -PwithJei
+    if (project.hasProperty('withJei') && !project.hasProperty('withTechMods')) {
+        runtimeOnly fg.deobf("maven.modrinth:jei:15.62.0.217")
     }
     // 追加の検証対象（上の組み合わせと同時にも使える）
     //   ./gradlew runGameTestServer -PwithKillMods2

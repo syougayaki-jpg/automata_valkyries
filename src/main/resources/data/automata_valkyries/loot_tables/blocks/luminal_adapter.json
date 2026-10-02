@@ -1,0 +1,23 @@
+{
+  "type": "minecraft:block",
+  "pools": [
+    {
+      "bonus_rolls": 0.0,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "automata_valkyries:luminal_adapter",
+          "functions": [
+            {
+              "function": "minecraft:copy_state",
+              "block": "automata_valkyries:luminal_adapter",
+              "properties": [ "tier" ]
+            }
+          ]
+        }
+      ],
+      "rolls": 1.0
+    }
+  ],
+  "random_sequence": "automata_valkyries:blocks/luminal_adapter"
+}

@@ -29,6 +29,7 @@
 
 ### E0.3 未定・未受領の項目（推測で埋めず、確認する）
 
+- 「歪んだクロノ破片」（§8.1）の正式な ID（今は `drop_distorted_chrono_shard` で仮決め）
 - §8.3 の見出しの本文（データ定義の一覧だけ受領）。`block_crank_dynamo` の「1 回転」が右クリック何回分か
 - §11.1 の見出しの本文（連携マトリクスの表だけ受領）
 - 墜落ポッドの生成頻度・バイオーム、`damaged_interface` の役割
@@ -121,6 +122,15 @@ backpack_steam_thruster:
   * `orb_luminal`: 右クリックまたは給電ドック投入で **5,000,000 FE** を瞬時充填。
   * `star_nano`: 兵姫スリープ（HP0）時に使用で、フルHP・フルシールドで即時戦線復帰。
   * `core_genesis_luminal`: マシンにセットすると、**毎秒 1,000,000 FE を永久無償発電**。
+
+### 9.4 実装状況（2026-10-02、暫定）
+
+* **実装済み（素材として）**: Tier 0 の `drop_chrono_scrap`・`drop_nanomachine`・`crystal_luminal`、Tier 1 の `block_chrono_metal`・`block_nano_mesh`・`block_luminal_gem`、Tier 2 の `orb_chronos`・`orb_nano`・`orb_luminal`、Tier 3 の `star_chronos`・`star_luminal`・`star_nano`。各段は 3×3 で圧縮、1 個から 9 個に展開できる
+  * `block_chrono_metal`（耐爆・時空固定）: 爆発耐性 1200、ピストンで動かない。採掘は鉄のツルハシ以上
+  * `block_nano_mesh`（自己修復多孔質）: 弱く光り（明るさ 4）、ナノマシンの緑の粒をにじませる。自己修復の挙動はまだ無い
+  * オーブ・スターは核が明滅するアニメーションと系統ごとの粒子（クロノ = 紫の時空、ナノ = 緑、ルミナル = 金と白）。スターは付与のきらめき付き
+* **敵ドロップ**: `drop_chrono_scrap`・`drop_nanomachine` と、§8.1 Stage 2 の「歪んだクロノ破片」（`drop_distorted_chrono_shard`、ID は仮決め）。**敵を実装するまではクリエイティブで取り出すだけ**（敵ができたら §9.3 のとおりドロップにつなぐ）
+* **未実装**: Tier 4 のコア（裏ボス素材を兼ねるので後で）、上の実用消費効果（`orb_luminal` の FE 充填・`star_nano` の兵姫の復帰は兵姫・給電ドックを作ってから）
 
 ---
 

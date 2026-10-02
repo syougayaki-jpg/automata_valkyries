@@ -1,0 +1,6 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [ { "item": "automata_valkyries:orb_uranium" } ],
+  "result": { "item": "automata_valkyries:block_uranium", "count": 9 }
+}

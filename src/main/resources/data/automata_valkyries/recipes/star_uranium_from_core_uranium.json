@@ -1,0 +1,6 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [ { "item": "automata_valkyries:core_uranium" } ],
+  "result": { "item": "automata_valkyries:star_uranium", "count": 9 }
+}

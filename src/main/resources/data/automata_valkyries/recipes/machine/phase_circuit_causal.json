@@ -1,0 +1,9 @@
+{
+  "type": "automata_valkyries:phase_transition",
+  "tier": 4,
+  "stages": 3,
+  "ingredients": [ { "ingredient": { "item": "automata_valkyries:circuit_chrono_lattice" }, "count": 2 }, { "ingredient": { "item": "automata_valkyries:gate_wormhole" }, "count": 1 }, { "ingredient": { "item": "automata_valkyries:core_singularity_chronos" }, "count": 1 }, { "ingredient": { "item": "automata_valkyries:processor_synapse" }, "count": 2 } ],
+  "result": { "item": "automata_valkyries:circuit_causal", "count": 1 },
+  "energy": 60000000,
+  "time": 1200
+}

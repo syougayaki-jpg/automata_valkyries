@@ -1,0 +1,6 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [ { "item": "automata_valkyries:core_zinc" } ],
+  "result": { "item": "automata_valkyries:star_zinc", "count": 9 }
+}

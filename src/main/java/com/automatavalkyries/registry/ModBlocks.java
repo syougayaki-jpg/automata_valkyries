@@ -52,6 +52,18 @@ public class ModBlocks {
             .mapColor(MapColor.DIAMOND).requiresCorrectToolForDrops().strength(5.0F, 6.0F).sound(SoundType.AMETHYST)
             .lightLevel(state -> 15)));
 
+    // ---- 圧縮階層 Tier 1（追加拡張仕様書 §9）: クロノスクラップ・リアナノマシン 9 個 ↔ 1 ブロック ----
+    /** クロノメタル: 耐爆・時空固定（爆発に耐え、ピストンで動かない） */
+    public static final RegistryObject<Block> BLOCK_CHRONO_METAL = register("block_chrono_metal", () -> new com.automatavalkyries.block.EffectStorageBlock(
+            BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_PURPLE).requiresCorrectToolForDrops().strength(8.0F, 1200.0F)
+                    .sound(SoundType.NETHERITE_BLOCK).pushReaction(net.minecraft.world.level.material.PushReaction.BLOCK),
+            ModEffects.CHRONO, 0.15F));
+    /** ナノメッシュ: 自己修復多孔質（ナノマシンの緑の光がにじむ） */
+    public static final RegistryObject<Block> BLOCK_NANO_MESH = register("block_nano_mesh", () -> new com.automatavalkyries.block.EffectStorageBlock(
+            BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_GREEN).requiresCorrectToolForDrops().strength(4.0F, 6.0F)
+                    .sound(SoundType.SCULK).lightLevel(state -> 4),
+            ModEffects.NANO, 0.2F));
+
     // ---- 上位合金の貯蔵ブロック（9 個 ↔ 1 ブロック）。光り、表面から合金の粒子を出す。テクスチャは光の帯が走るアニメーション ----
     public static final RegistryObject<Block> BLOCK_ALLOY_LUMINAL_STERLING = effectBlock("block_alloy_luminal_sterling", MapColor.COLOR_LIGHT_BLUE, 12, ModEffects.LUMINAL_STERLING, 0.35F);
     public static final RegistryObject<Block> BLOCK_ALLOY_CHRONO_FORTRESS = effectBlock("block_alloy_chrono_fortress", MapColor.COLOR_PURPLE, 7, ModEffects.CHRONO_FORTRESS, 0.45F);

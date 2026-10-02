@@ -1,0 +1,28 @@
+{
+  "type": "minecraft:block",
+  "pools": [
+    {
+      "bonus_rolls": 0.0,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "automata_valkyries:void_repository",
+          "functions": [
+            {
+              "function": "minecraft:copy_state",
+              "block": "automata_valkyries:void_repository",
+              "properties": [ "tier" ]
+            },
+            {
+              "function": "minecraft:copy_nbt",
+              "source": "block_entity",
+              "ops": [ { "source": "Contents", "target": "BlockEntityTag.Contents", "op": "replace" } ]
+            }
+          ]
+        }
+      ],
+      "rolls": 1.0
+    }
+  ],
+  "random_sequence": "automata_valkyries:blocks/void_repository"
+}
