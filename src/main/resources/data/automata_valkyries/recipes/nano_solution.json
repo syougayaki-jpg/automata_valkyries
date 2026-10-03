@@ -1,0 +1,22 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "automata_valkyries:drop_nanomachine"
+    },
+    {
+      "item": "automata_valkyries:drop_nanomachine"
+    },
+    {
+      "item": "minecraft:glass_bottle"
+    },
+    {
+      "tag": "forge:dusts/redstone"
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:nano_solution",
+    "count": 4
+  }
+}

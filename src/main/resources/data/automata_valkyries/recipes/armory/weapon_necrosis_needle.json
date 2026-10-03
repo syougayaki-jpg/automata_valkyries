@@ -1,0 +1,33 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 1,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:boss_drop_necro_colony"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:alloy_eclipse_biometal"
+      },
+      "count": 4
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:drop_nanomachine"
+      },
+      "count": 8
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_advanced"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:weapon_necrosis_needle"
+  },
+  "energy": 150000,
+  "time": 400
+}

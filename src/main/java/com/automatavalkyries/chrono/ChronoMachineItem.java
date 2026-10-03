@@ -41,6 +41,15 @@ public class ChronoMachineItem extends BlockItem {
     @Override
     public boolean isFoil(ItemStack stack) { return tierOf(stack).level >= 3; }
 
+    /** 名前にティアを付ける（同じマシンの T1〜T4 が一覧で見分けられるように） */
+    @Override
+    public Component getName(ItemStack stack) {
+        ChronoTier tier = tierOf(stack);
+        return Component.translatable(getDescriptionId(stack)).append(" [")
+                .append(Component.translatable("tier.automata_valkyries." + tier.id).withStyle(ChronoTiers.color(tier)))
+                .append("]");
+    }
+
     @Override
     public void appendHoverText(ItemStack stack, @Nullable Level level, List<Component> tooltip, TooltipFlag flag) {
         ChronoTier tier = tierOf(stack);

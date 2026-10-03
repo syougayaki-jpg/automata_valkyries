@@ -49,6 +49,8 @@ public final class ModChrono {
     public static final RegistryObject<Block> CHRONO_FABRICATOR = machine(ChronoMachineType.CHRONO_FABRICATOR, () -> ChronoFabricatorBlockEntity::new);
     public static final RegistryObject<Block> TETHER_PYLON = machine(ChronoMachineType.TETHER_PYLON, () -> TetherPylonBlockEntity::new);
     public static final RegistryObject<Block> VOID_REPOSITORY = machine(ChronoMachineType.VOID_REPOSITORY, () -> VoidRepositoryBlockEntity::new);
+    public static final RegistryObject<Block> TACTICAL_ARMORY = machine(ChronoMachineType.TACTICAL_ARMORY,
+            () -> com.automatavalkyries.chrono.TacticalArmoryBlockEntity::new);
 
     @SuppressWarnings("DataFlowIssue")
     public static final RegistryObject<BlockEntityType<LuminalReactorBlockEntity>> REACTOR_ENTITY = ModMachines.BLOCK_ENTITIES.register("luminal_reactor",
@@ -68,6 +70,10 @@ public final class ModChrono {
     @SuppressWarnings("DataFlowIssue")
     public static final RegistryObject<BlockEntityType<VoidRepositoryBlockEntity>> REPOSITORY_ENTITY = ModMachines.BLOCK_ENTITIES.register("void_repository",
             () -> BlockEntityType.Builder.of(VoidRepositoryBlockEntity::new, VOID_REPOSITORY.get()).build(null));
+
+    @SuppressWarnings("DataFlowIssue")
+    public static final RegistryObject<BlockEntityType<com.automatavalkyries.chrono.TacticalArmoryBlockEntity>> ARMORY_ENTITY = ModMachines.BLOCK_ENTITIES.register("tactical_armory",
+            () -> BlockEntityType.Builder.of(com.automatavalkyries.chrono.TacticalArmoryBlockEntity::new, TACTICAL_ARMORY.get()).build(null));
 
     public static final RegistryObject<MenuType<ChronoMenu>> MENU = ModMachines.MENUS.register("chrono_machine", () -> IForgeMenuType.create(ChronoMenu::new));
 

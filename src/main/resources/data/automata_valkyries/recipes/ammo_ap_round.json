@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    " A ",
+    "IGI",
+    " I "
+  ],
+  "key": {
+    "A": {
+      "tag": "forge:ingots/astrite"
+    },
+    "I": {
+      "tag": "forge:ingots/iron"
+    },
+    "G": {
+      "tag": "forge:gunpowder"
+    }
+  },
+  "result": {
+    "item": "automata_valkyries:ammo_ap_round",
+    "count": 16
+  }
+}

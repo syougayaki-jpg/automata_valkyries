@@ -1,0 +1,33 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 1,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:drop_nanomachine"
+      },
+      "count": 8
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:orb_nano"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:composite_plate"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_basic"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:module_repair_injector"
+  },
+  "energy": 80000,
+  "time": 300
+}

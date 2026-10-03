@@ -20,6 +20,19 @@ public class ModCreativeTabs {
                     .withTabsBefore(CreativeModeTabs.SPAWN_EGGS)
                     .icon(() -> ModItems.INGOT_ASTRITE.get().getDefaultInstance())
                     .displayItems((parameters, output) ->
-                            ModItems.ITEMS.getEntries().forEach(item -> output.accept(item.get())))
+                            ModItems.ITEMS.getEntries().forEach(entry -> {
+                                net.minecraft.world.item.Item item = entry.get();
+                                // 兵装・ルミナルコアは満充電（弾・溶液も満タン）で並べる
+                                if (item instanceof com.automatavalkyries.weapon.TacticalWeaponItem weapon) output.accept(weapon.charged());
+                                else if (item instanceof com.automatavalkyries.weapon.LuminalCoreItem core) output.accept(core.charged());
+                                else output.accept(item);
+                                // クロノリンク・マシンは T2〜T4 も並べる（ティアはアイテムの BlockStateTag。並べないと T2〜T4 を見つけられない）
+                                if (item instanceof com.automatavalkyries.chrono.ChronoMachineItem) {
+                                    for (com.automatavalkyries.chrono.ChronoTier tier : com.automatavalkyries.chrono.ChronoTier.values()) {
+                                        if (tier.level < 2) continue;
+                                        output.accept(com.automatavalkyries.chrono.ChronoMachineItem.withTier(new net.minecraft.world.item.ItemStack(item), tier));
+                                    }
+                                }
+                            }))
                     .build());
 }

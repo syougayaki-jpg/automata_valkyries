@@ -37,6 +37,9 @@ public class AutomataValkyries {
         com.automatavalkyries.registry.ModMachines.init();
         com.automatavalkyries.registry.ModChrono.init();
         com.automatavalkyries.registry.ModCompression.init(); // 金属の圧縮・Tier 4 コア・ティアごとの中間素材
+        com.automatavalkyries.registry.ModBossDrops.init(); // ボス素材（クリエイティブ限定。兵装のレシピで要求する）
+        com.automatavalkyries.registry.ModWeapons.init(); // ルミナルコア・兵装・弾薬（兵器ユニット設計書）
+        com.automatavalkyries.registry.ModWeapons.MOB_EFFECTS.register(modEventBus);
         com.automatavalkyries.registry.ModFutureTech.init(); // 未来技術の上位回路・パーツ // クロノリンク・マシン（BLOCKS / ITEMS / BLOCK_ENTITIES / MENUS に足す）
         com.automatavalkyries.registry.ModMachines.BLOCK_ENTITIES.register(modEventBus);
         com.automatavalkyries.registry.ModMachines.MENUS.register(modEventBus);
@@ -49,6 +52,7 @@ public class AutomataValkyries {
         context.registerConfig(ModConfig.Type.COMMON, EprotectConfig.SPEC);
         context.registerConfig(ModConfig.Type.COMMON, com.automatavalkyries.config.WorldgenConfig.SPEC, MODID + "-worldgen.toml");
         context.registerConfig(ModConfig.Type.COMMON, com.automatavalkyries.config.MachineConfig.SPEC, MODID + "-machines.toml");
+        context.registerConfig(ModConfig.Type.COMMON, com.automatavalkyries.config.WeaponConfig.SPEC, MODID + "-weapons.toml");
         net.minecraftforge.common.crafting.CraftingHelper.register(com.automatavalkyries.config.MachineConfig.Condition.SERIALIZER);
         // ブラックリストは設定の読み込み・再読み込み（コマンドでの保存を含む）のたびに作り直す
         modEventBus.addListener((ModConfigEvent.Loading event) -> onConfigChanged(event.getConfig()));

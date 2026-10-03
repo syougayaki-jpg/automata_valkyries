@@ -1,0 +1,53 @@
+{
+  "format_version": "1.12.0",
+  "minecraft:geometry": [
+    {
+      "description": {
+        "identifier": "geometry.module_polar_deflector",
+        "texture_width": 64,
+        "texture_height": 64,
+        "visible_bounds_width": 3,
+        "visible_bounds_height": 3,
+        "visible_bounds_offset": [0, 0.5, 0]
+      },
+      "bones": [
+        {
+          "name": "root",
+          "pivot": [0, 0, 0]
+        },
+        {
+          "name": "plate",
+          "parent": "root",
+          "pivot": [0, 0, 0],
+          "cubes": [
+            {"origin": [-3.5, -7, -0.5], "size": [7, 14, 1], "uv": [0, 0]},
+            {"origin": [-4, -7.5, -0.75], "size": [8, 0.5, 1.5], "uv": [17, 0]},
+            {"origin": [-4, 7, -0.75], "size": [8, 0.5, 1.5], "uv": [38, 0]},
+            {"origin": [-1, -2, -1.5], "size": [2, 4, 1], "uv": [0, 16]},
+            {"origin": [-1.5, -1.5, 0.5], "size": [3, 3, 1], "uv": [7, 16]},
+            {"origin": [-3, -6, 0.5], "size": [0.5, 12, 0.25], "uv": [16, 16]},
+            {"origin": [2.5, -6, 0.5], "size": [0.5, 12, 0.25], "uv": [21, 16]}
+          ]
+        },
+        {
+          "name": "wing_left",
+          "parent": "root",
+          "pivot": [-3.5, 0, 0],
+          "cubes": [
+            {"origin": [-6.5, -5.5, -0.4], "size": [3, 11, 0.8], "uv": [26, 16]},
+            {"origin": [-6, -4.5, 0.4], "size": [0.5, 9, 0.25], "uv": [35, 16]}
+          ]
+        },
+        {
+          "name": "wing_right",
+          "parent": "root",
+          "pivot": [3.5, 0, 0],
+          "cubes": [
+            {"origin": [3.5, -5.5, -0.4], "size": [3, 11, 0.8], "uv": [40, 16]},
+            {"origin": [5.5, -4.5, 0.4], "size": [0.5, 9, 0.25], "uv": [49, 16]}
+          ]
+        }
+      ]
+    }
+  ]
+}

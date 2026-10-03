@@ -1,3 +1,23 @@
 {
-  "parent": "automata_valkyries:block/tether_pylon_t1"
+  "parent": "automata_valkyries:block/tether_pylon_t1",
+  "overrides": [
+    {
+      "predicate": {
+        "automata_valkyries:tier": 2
+      },
+      "model": "automata_valkyries:block/tether_pylon_t2"
+    },
+    {
+      "predicate": {
+        "automata_valkyries:tier": 3
+      },
+      "model": "automata_valkyries:block/tether_pylon_t3"
+    },
+    {
+      "predicate": {
+        "automata_valkyries:tier": 4
+      },
+      "model": "automata_valkyries:block/tether_pylon_t4"
+    }
+  ]
 }

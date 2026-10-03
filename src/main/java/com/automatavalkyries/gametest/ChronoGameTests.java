@@ -334,4 +334,30 @@ public class ChronoGameTests {
         }
         helper.succeed();
     }
+
+    /** 6 種のマシンすべてに T2〜T4 を作業台で直接作るレシピがあり、できたアイテムにそのティアが付き、材料がすべて登録済み */
+    @GameTest(template = TEMPLATE)
+    public static void everyMachineHasDirectRecipesForTiers2To4(GameTestHelper helper) {
+        var recipes = helper.getLevel().getRecipeManager();
+        java.util.List<String> problems = new java.util.ArrayList<>();
+        for (ChronoMachineType type : ChronoMachineType.values()) {
+            for (int level = 2; level <= 4; level++) {
+                var id = net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, type.id + "_t" + level);
+                var recipe = recipes.byKey(id).orElse(null);
+                if (recipe == null) {
+                    problems.add(id + " missing");
+                    continue;
+                }
+                ItemStack result = recipe.getResultItem(helper.getLevel().registryAccess());
+                if (!(result.getItem() instanceof ChronoMachineItem) || ChronoMachineItem.tierOf(result).level != level) {
+                    problems.add(id + " makes " + result + " (tier " + ChronoMachineItem.tierOf(result).level + ")");
+                }
+                for (var ingredient : recipe.getIngredients()) {
+                    if (!ingredient.isEmpty() && ingredient.getItems().length == 0) problems.add(id + " has an ingredient with no items");
+                }
+            }
+        }
+        helper.assertTrue(problems.isEmpty(), "Tier recipe problems: " + problems);
+        helper.succeed();
+    }
 }

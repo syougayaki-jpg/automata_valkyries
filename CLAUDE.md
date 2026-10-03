@@ -12,6 +12,7 @@ Minecraft **1.20.1** / **Forge 47.4.x** / **Java 17** の MOD。
 MOD 全体の仕様（世界観、兵姫、敵・ボス、アイテム、マシン）は **[`docs/SPEC_TACTICAL_VALKYRIES.md`](docs/SPEC_TACTICAL_VALKYRIES.md)** にある。第 8〜13 章（序盤の進行・墜落ポッド、資源圧縮、侵食基地ダンジョン、外部工業 MOD 連携、日常・感情 AI、戦術級コード）は追加拡張仕様書 **[`docs/SPEC_TACTICAL_VALKYRIES_EXT.md`](docs/SPEC_TACTICAL_VALKYRIES_EXT.md)** にあり、1.20.1 Forge への読み替え・暫定統一・未定の項目は同書 §E0。
 
 - 本題の機械（クロノリンク・マシン）のティア設計（T1 ハイエンド / T2 フューチャー / T3 ビヨンド / T4 ネバーラスト）は **[`docs/SPEC_CHRONOLINK_MACHINES.md`](docs/SPEC_CHRONOLINK_MACHINES.md)**
+- 兵器ユニット（兵装・ルミナルコア・背部ユニット・外装フレーム・ロジックチップ）の決定事項（使い手・電力・製造マシン・ティア割り振り・操作・見た目など）は **[`docs/SPEC_WEAPON_UNITS.md`](docs/SPEC_WEAPON_UNITS.md)**
 - 元資料は 1.20.4+ / NeoForge 前提。1.20.1 Forge への読み替えは同書 §0.1 を参照（`c:` タグは `forge:` に、時間停止は独自実装）
 - 【暫定統一】の項目（§0.2）は後でユーザーが調整する前提の仮決定。変更されたら仕様書を更新する
 - 未定・未受領の項目（§0.3）は推測で埋めず、ユーザーに確認する

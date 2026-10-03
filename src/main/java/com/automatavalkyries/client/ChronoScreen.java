@@ -348,6 +348,7 @@ public class ChronoScreen extends AbstractContainerScreen<ChronoMenu> {
                 }
                 if (batch > 1) g.drawCenteredString(font, "×" + batch, x + 112, y + 38, text);
             }
+            case TACTICAL_ARMORY -> arrow(g, x + 102, y + 49, menu.extra(0) / 1000F);
             case CHRONO_FABRICATOR -> {
                 int p = menu.extra(0);
                 g.fill(x + 22, y + 76, x + 184, y + 78, 0xFF101828);

@@ -21,6 +21,7 @@ import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.registration.IRecipeCatalystRegistration;
 import mezz.jei.api.registration.IRecipeCategoryRegistration;
 import mezz.jei.api.registration.IRecipeRegistration;
+import mezz.jei.api.registration.ISubtypeRegistration;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -62,7 +63,9 @@ public class AutomataJeiPlugin implements IModPlugin {
             new Entry(jei("weapon_assembling"), ModRecipes.WEAPON_ASSEMBLING, "weapon_assembling", machine(MachineKind.WEAPON_WORKBENCH), false,
                     List.of(machine(MachineKind.WEAPON_WORKBENCH), () -> ModChrono.CHRONO_FABRICATOR.get())),
             new Entry(jei("phase_transition"), ModRecipes.PHASE_TRANSITION, "phase_transition", () -> ModChrono.LUMINAL_ADAPTER.get(), true,
-                    List.of(() -> ModChrono.LUMINAL_ADAPTER.get())));
+                    List.of(() -> ModChrono.LUMINAL_ADAPTER.get())),
+            new Entry(jei("armory_assembling"), ModRecipes.ARMORY_ASSEMBLING, "armory_assembling", () -> ModChrono.TACTICAL_ARMORY.get(), true,
+                    List.of(() -> ModChrono.TACTICAL_ARMORY.get())));
 
     @Override
     public ResourceLocation getPluginUid() {
@@ -105,6 +108,16 @@ public class AutomataJeiPlugin implements IModPlugin {
         for (ChronoMachineType type : ChronoMachineType.values()) {
             registration.addIngredientInfo(ModChrono.MACHINES.get(type).get(), Component.translatable("block.automata_valkyries." + type.id + ".desc"),
                     Component.translatable("jei.automata_valkyries.info.chrono_machine"));
+        }
+    }
+
+    /** クロノリンク・マシンはティアごとに別のアイテムとして扱う（T2〜T4 のレシピが T1 のレシピに混ざらず、それぞれで引ける） */
+    @Override
+    public void registerItemSubtypes(ISubtypeRegistration registration) {
+        for (var block : ModChrono.MACHINES.values()) {
+            registration.registerSubtypeInterpreter(block.get().asItem(),
+                    (mezz.jei.api.ingredients.subtypes.IIngredientSubtypeInterpreter<ItemStack>) (stack, context) ->
+                            "tier" + com.automatavalkyries.chrono.ChronoMachineItem.tierOf(stack).level);
         }
     }
 

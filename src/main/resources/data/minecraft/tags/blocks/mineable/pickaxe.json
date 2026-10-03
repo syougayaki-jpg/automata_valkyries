@@ -80,6 +80,7 @@
     "automata_valkyries:luminal_adapter",
     "automata_valkyries:chrono_fabricator",
     "automata_valkyries:tether_pylon",
-    "automata_valkyries:void_repository"
+    "automata_valkyries:void_repository",
+    "automata_valkyries:tactical_armory"
   ]
 }

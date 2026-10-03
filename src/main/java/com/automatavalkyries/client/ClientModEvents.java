@@ -16,6 +16,12 @@ public class ClientModEvents {
         event.enqueueWork(() -> {
             net.minecraft.client.gui.screens.MenuScreens.register(com.automatavalkyries.registry.ModMachines.MENU.get(), MachineScreen::new);
             net.minecraft.client.gui.screens.MenuScreens.register(com.automatavalkyries.registry.ModChrono.MENU.get(), ChronoScreen::new);
+            // クロノリンク・マシンのアイテムは、ブロックと同じくティアごとの見た目（models/item/<id>.json の overrides）
+            net.minecraft.resources.ResourceLocation tier = net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "tier");
+            for (var block : com.automatavalkyries.registry.ModChrono.MACHINES.values()) {
+                net.minecraft.client.renderer.item.ItemProperties.register(block.get().asItem(), tier,
+                        (stack, level, entity, seed) -> com.automatavalkyries.chrono.ChronoMachineItem.tierOf(stack).level);
+            }
         });
     }
 
@@ -29,5 +35,7 @@ public class ClientModEvents {
                     (net.minecraft.client.renderer.entity.EntityRenderer) new ElenorRenderer(context);
             return renderer;
         });
+        // ネクロシス・ニードルガンの針は粒子だけで見せる
+        event.registerEntityRenderer(com.automatavalkyries.registry.ModWeapons.NECROSIS_NEEDLE.get(), net.minecraft.client.renderer.entity.NoopRenderer::new);
     }
 }

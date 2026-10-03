@@ -1,0 +1,7 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ "ICI", "AFA", "IXI" ],
+  "key": { "I": { "item": "automata_valkyries:alloy_chrono_fortress" }, "C": { "item": "automata_valkyries:circuit_photonic" }, "A": { "item": "automata_valkyries:membrane_nano" }, "F": { "item": "automata_valkyries:frame_future" }, "X": { "item": "automata_valkyries:weapon_workbench" } },
+  "result": { "item": "automata_valkyries:tactical_armory", "count": 1, "nbt": "{BlockStateTag:{tier:\"2\"}}" }
+}
