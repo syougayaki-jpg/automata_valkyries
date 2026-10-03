@@ -222,6 +222,16 @@ public final class ModWeapons {
                     .updateInterval(2)
                     .fireImmune()
                     .build("black_hole"));
+    // T4 兵装の通常攻撃（2026-10-04 ユーザー指定）
+    public static final RegistryObject<EntityType<com.automatavalkyries.weapon.RainbowSlashEntity>> RAINBOW_SLASH = ModEntities.ENTITY_TYPES.register("rainbow_slash", () ->
+            EntityType.Builder.<com.automatavalkyries.weapon.RainbowSlashEntity>of(com.automatavalkyries.weapon.RainbowSlashEntity::new, MobCategory.MISC)
+                    .sized(0.5F, 0.5F).clientTrackingRange(8).updateInterval(1).build("rainbow_slash"));
+    public static final RegistryObject<EntityType<com.automatavalkyries.weapon.MiniCatastropheEntity>> MINI_CATASTROPHE = ModEntities.ENTITY_TYPES.register("mini_catastrophe", () ->
+            EntityType.Builder.<com.automatavalkyries.weapon.MiniCatastropheEntity>of(com.automatavalkyries.weapon.MiniCatastropheEntity::new, MobCategory.MISC)
+                    .sized(0.5F, 0.5F).clientTrackingRange(8).updateInterval(1).fireImmune().build("mini_catastrophe"));
+    public static final RegistryObject<EntityType<com.automatavalkyries.weapon.T4StrikeEntity>> T4_STRIKE = ModEntities.ENTITY_TYPES.register("t4_strike", () ->
+            EntityType.Builder.<com.automatavalkyries.weapon.T4StrikeEntity>of(com.automatavalkyries.weapon.T4StrikeEntity::new, MobCategory.MISC)
+                    .sized(0.2F, 0.2F).clientTrackingRange(8).updateInterval(20).noSave().fireImmune().build("t4_strike"));
 
     private ModWeapons() {}
 

@@ -49,6 +49,30 @@ public class PunishmentRailgunItem extends ChargedWeaponItem {
     }
 
     @Override
+    public void inventoryTick(ItemStack stack, net.minecraft.world.level.Level level, net.minecraft.world.entity.Entity entity, int slot, boolean selected) {
+        super.inventoryTick(stack, level, entity, slot, selected);
+        if (!level.isClientSide() && selected && entity instanceof LivingEntity user && level.getGameTime() % 20 == 0) blessHolder(user);
+    }
+
+    /** 手に持っている間の加護（2026-10-04 ユーザー指定。ルミナス・レクイエムと同じく 1 秒ごとに掛け直す）。極光の疾走: 移動速度上昇 III・跳躍力上昇 II・耐性 III・暗視。兵姫に持たせたときも同じ処理（暗視は切れかけの点滅が出ないよう長めに掛ける） */
+    public static void blessHolder(LivingEntity user) {
+        Overload.bless(user, net.minecraft.world.effect.MobEffects.MOVEMENT_SPEED, 60, 2);
+        Overload.bless(user, net.minecraft.world.effect.MobEffects.JUMP, 60, 1);
+        Overload.bless(user, net.minecraft.world.effect.MobEffects.DAMAGE_RESISTANCE, 60, 2);
+        Overload.bless(user, net.minecraft.world.effect.MobEffects.NIGHT_VISION, 260, 0);
+        Overload.blessExtras(user); // オーバーロードなら耐性 IV・再生 VI
+    }
+
+    /** 通常攻撃（左クリック。空振りでも。0.75 秒に 1 回・100,000 FE）: 狙った敵に青白い落雷と放電（{@link T4NormalAttacks}） */
+    @Override
+    public boolean onEntitySwing(ItemStack stack, LivingEntity entity) {
+        if (entity.level() instanceof ServerLevel level && T4NormalAttacks.ready(entity, stack, 15, 100_000)) {
+            T4NormalAttacks.thunder(level, entity);
+        }
+        return false;
+    }
+
+    @Override
     protected ParticleOptions chargeParticle() {
         return Fx.opt(ModParticles.GLOW.get(), COLOR_GOLD, 0.3F, 10);
     }
@@ -60,13 +84,13 @@ public class PunishmentRailgunItem extends ChargedWeaponItem {
         int t = elapsed(stack, remaining);
         // チャージ中は足が止まる
         user.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 5, 9, false, false, false));
-        if (t > chargeTicks) {
+        if (t > chargeTicks(stack)) {
             if (t % 10 == 0) Fx.spray(server, Fx.opt(ModParticles.SPARK.get(), COLOR_CORE, 0.4F, 8), muzzle(user), 2, 0.1, 0.02);
             rings(server, user, 1F, t);
             vent(server, user, 3, t);
             return;
         }
-        float f = (float) t / chargeTicks;
+        float f = (float) t / chargeTicks(stack);
         // 1 秒ごとに足元から輪が広がり、進み具合を知らせる
         if (t % 20 == 0) {
             Fx.shockwave(server, user.position().add(0, 0.05, 0), f < 0.66F ? COLOR_GOLD : COLOR_CRIMSON, 1.5F + 3.5F * f, 16);
@@ -75,14 +99,14 @@ public class PunishmentRailgunItem extends ChargedWeaponItem {
             }
             server.playSound(null, user.blockPosition(), SoundEvents.RESPAWN_ANCHOR_CHARGE, SoundSource.PLAYERS, 0.6F, 0.5F + f);
         }
-        int stage = Math.min(3, t / (chargeTicks / 4)); // 放熱フィンが開いた段の数（25%・50%・75% で 1 段ずつ）
-        if (t > 0 && t % (chargeTicks / 4) == 0 && t < chargeTicks) purge(server, user, stage);
+        int stage = Math.min(3, t / (chargeTicks(stack) / 4)); // 放熱フィンが開いた段の数（25%・50%・75% で 1 段ずつ）
+        if (t > 0 && t % (chargeTicks(stack) / 4) == 0 && t < chargeTicks(stack)) purge(server, user, stage);
         rings(server, user, f, t);
         vent(server, user, stage, t);
         if (t % 20 == 10) Fx.mandala(server, user.getEyePosition().add(user.getLookAngle().scale(4.0)), HOLO, 0.55F + 0.2F * f, 22, true, t % 40 == 10); // 幾何学ホログラム照準
         // 終わりが近づくほど、集まる光が増える
-        if (t > chargeTicks * 2 / 3) Fx.gather(server, Fx.opt(ModParticles.SPARK.get(), COLOR_CRIMSON, 0.25F, 10), muzzle(user), 2, 3.0, 10);
-        if (t == chargeTicks) {
+        if (t > chargeTicks(stack) * 2 / 3) Fx.gather(server, Fx.opt(ModParticles.SPARK.get(), COLOR_CRIMSON, 0.25F, 10), muzzle(user), 2, 3.0, 10);
+        if (t == chargeTicks(stack)) {
             Fx.burst(server, Fx.opt(ModParticles.SPARK.get(), COLOR_CORE, 0.6F, 14), muzzle(user), 30, 0.5);
             Fx.shockwave(server, user.position().add(0, 0.05, 0), COLOR_CORE, 8.0F, 20);
             server.playSound(null, user.blockPosition(), SoundEvents.BEACON_POWER_SELECT, SoundSource.PLAYERS, 2.0F, 0.5F);
@@ -165,7 +189,7 @@ public class PunishmentRailgunItem extends ChargedWeaponItem {
 
     /** 撃つ（兵姫に持たせたときも同じ処理）。線上の全員を貫き（壁もすべて貫く）、射線のまわりに余波を起こす。届いた先の位置を返す */
     public static Vec3 fire(ServerLevel level, LivingEntity user) {
-        return fire(level, user, RANGE, WAVE_RADIUS);
+        return fire(level, user, RANGE, WAVE_RADIUS * Overload.range(user));
     }
 
     /** 射程 range を指定して撃つ（余波なし。GameTest では隣のテストに届かないよう短くする） */
@@ -181,15 +205,17 @@ public class PunishmentRailgunItem extends ChargedWeaponItem {
         // 16 ブロックずつ進め、壁はすべて貫く。読み込まれていない所でだけ止まる（区画を読み込ませない）
         Vec3 end = eye;
         Set<Integer> hit = new HashSet<>();
+        double width = WIDTH * Overload.range(user); // オーバーロードの T4 はレールが太い
         for (double d = 0; d < range; d += SEGMENT) {
             Vec3 a = eye.add(look.scale(d)), b = eye.add(look.scale(Math.min(range, d + SEGMENT)));
             if (!level.isLoaded(BlockPos.containing(b))) { end = a; break; }
-            for (LivingEntity target : level.getEntitiesOfClass(LivingEntity.class, new AABB(a, b).inflate(WIDTH + 1),
+            for (LivingEntity target : level.getEntitiesOfClass(LivingEntity.class, new AABB(a, b).inflate(width + 1),
                     e -> e != user && e.isAlive() && !e.isSpectator() && !hit.contains(e.getId())
-                            && e.getBoundingBox().inflate(WIDTH * 0.5).clip(a, b).isPresent())) {
+                            && e.getBoundingBox().inflate(width * 0.5).clip(a, b).isPresent())) {
                 hit.add(target.getId());
                 target.invulnerableTime = 0;
                 target.hurt(WeaponDamage.source(user, WeaponDamage.PUNISHMENT, user, user), DAMAGE);
+                Overload.overkill(target, user);
                 Vec3 at = new Vec3(target.getX(), target.getY(0.6), target.getZ());
                 Fx.number(level, new Vec3(target.getX(), target.getY() + target.getBbHeight() + 0.6, target.getZ()), DAMAGE_VALUE, 0x9FE8FF);
                 Fx.spray(level, Fx.opt(ModParticles.GLOW.get(), COLOR_CORE, 1.6F, 10), at, 1, 0, 0);
@@ -200,7 +226,7 @@ public class PunishmentRailgunItem extends ChargedWeaponItem {
         }
         Vec3 finalEnd = end;
         // 光のレールそのもの（クライアントで長く描く）
-        level.addFreshEntity(new PunishmentBeamEntity(level, start, end));
+        level.addFreshEntity(new PunishmentBeamEntity(level, start, end, PunishmentBeamEntity.SCHEME_PUNISHMENT, (float) Overload.range(user), PunishmentBeamEntity.LIFETIME));
         muzzleBlast(level, user, start, look);
         // 射線に沿って、手前から先へ走る演出と余波（16 ブロックずつ、0.5 Tick ずつ遅らせる）
         double length = end.distanceTo(eye);

@@ -29,6 +29,11 @@ public abstract class ChargedWeaponItem extends TacticalWeaponItem {
 
     public int chargeTicks() { return chargeTicks; }
 
+    /** その兵装のチャージ時間（オーバーロードなら短い。{@link Overload#CHARGE_MULT}） */
+    public int chargeTicks(ItemStack stack) {
+        return Overload.is(stack) ? Math.max(1, Math.round(chargeTicks * Overload.CHARGE_MULT)) : chargeTicks;
+    }
+
     /** 撃つ（チャージしきって離したとき、サーバーで） */
     protected abstract void fire(ServerLevel level, LivingEntity user, ItemStack stack);
 
@@ -74,8 +79,9 @@ public abstract class ChargedWeaponItem extends TacticalWeaponItem {
     public void onUseTick(Level level, LivingEntity user, ItemStack stack, int remaining) {
         if (!(level instanceof ServerLevel server)) return;
         int t = elapsed(stack, remaining);
-        if (t > chargeTicks) return;
-        int share = perShot / chargeTicks + (t == chargeTicks ? perShot % chargeTicks : 0);
+        int ct = chargeTicks(stack);
+        if (t > ct) return;
+        int share = perShot / ct + (t == ct ? perShot % ct : 0);
         if (!WeaponPower.use(user, stack, share)) {
             notEnoughPower(user);
             user.releaseUsingItem();
@@ -85,26 +91,28 @@ public abstract class ChargedWeaponItem extends TacticalWeaponItem {
         // 銃口へ粒子が集まり、音が高くなっていく
         Vec3 muzzle = chargePoint(user);
         double spread = chargeSpread();
-        double f = (double) t / chargeTicks;
+        double f = (double) t / ct;
         for (int i = 0; i < 3; i++) {
             Vec3 from = muzzle.add((user.getRandom().nextDouble() - 0.5) * spread, (user.getRandom().nextDouble() - 0.5) * spread, (user.getRandom().nextDouble() - 0.5) * spread);
             Vec3 v = muzzle.subtract(from).scale(0.12);
             server.sendParticles(chargeParticle(), from.x, from.y, from.z, 0, v.x, v.y, v.z, 1.0);
         }
         if (t % 3 == 0) Fx.spray(server, Fx.opt(com.automatavalkyries.registry.ModParticles.SPARK.get(), Fx.WHITE, 0.15F + 0.25F * (float) f, 6), muzzle, 1, 0.05, 0);
-        if (t == chargeTicks) {
+        if (Overload.is(stack)) Overload.chargeFlash(server, user, muzzle, (float) f, false); // オーバーロード: 紅と金の光が渦を巻いて集まる
+        if (t == ct) {
             Fx.burst(server, Fx.opt(com.automatavalkyries.registry.ModParticles.SPARK.get(), Fx.WHITE, 0.35F, 10), muzzle, 12, 0.25);
             Fx.shockwave(server, user.position().add(0, 0.05, 0), Fx.WHITE, 2.0F, 10);
         }
         if (t % 5 == 0) server.playSound(null, user.blockPosition(), SoundEvents.BEACON_AMBIENT, SoundSource.PLAYERS, 0.6F, 0.6F + (float) f * 1.4F);
-        if (t == chargeTicks) server.playSound(null, user.blockPosition(), SoundEvents.BEACON_POWER_SELECT, SoundSource.PLAYERS, 1.0F, 1.6F);
+        if (t == ct) server.playSound(null, user.blockPosition(), SoundEvents.BEACON_POWER_SELECT, SoundSource.PLAYERS, 1.0F, 1.6F);
     }
 
     @Override
     public void releaseUsing(ItemStack stack, Level level, LivingEntity user, int remaining) {
-        boolean charged = elapsed(stack, remaining) >= chargeTicks;
+        boolean charged = elapsed(stack, remaining) >= chargeTicks(stack);
         if (level instanceof ServerLevel server) {
             if (charged) {
+                if (Overload.is(stack)) Overload.chargeFlash(server, user, chargePoint(user), 1F, true);
                 fire(server, user, stack);
                 playUse(user, stack);
             } else {
@@ -123,7 +131,7 @@ public abstract class ChargedWeaponItem extends TacticalWeaponItem {
 
     /** チャージの進み（0〜1、一人称の揺れに使う） */
     public float chargeProgress(LivingEntity user) {
-        return Math.min(1F, user.getTicksUsingItem() / (float) chargeTicks);
+        return Math.min(1F, user.getTicksUsingItem() / (float) chargeTicks(user.getUseItem()));
     }
 
     @Override

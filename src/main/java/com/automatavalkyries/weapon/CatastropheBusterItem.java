@@ -29,6 +29,30 @@ public class CatastropheBusterItem extends ChargedWeaponItem {
     }
 
     @Override
+    public void inventoryTick(ItemStack stack, net.minecraft.world.level.Level level, net.minecraft.world.entity.Entity entity, int slot, boolean selected) {
+        super.inventoryTick(stack, level, entity, slot, selected);
+        if (!level.isClientSide() && selected && entity instanceof LivingEntity user && level.getGameTime() % 20 == 0) blessHolder(user);
+    }
+
+    /** 手に持っている間の加護（2026-10-04 ユーザー指定。ルミナス・レクイエムと同じく 1 秒ごとに掛け直す）。特異点の重力: 耐性 III・力 III・低速落下・火炎耐性。兵姫に持たせたときも同じ処理（暗視は切れかけの点滅が出ないよう長めに掛ける） */
+    public static void blessHolder(LivingEntity user) {
+        Overload.bless(user, net.minecraft.world.effect.MobEffects.DAMAGE_RESISTANCE, 60, 2);
+        Overload.bless(user, net.minecraft.world.effect.MobEffects.DAMAGE_BOOST, 60, 2);
+        Overload.bless(user, net.minecraft.world.effect.MobEffects.SLOW_FALLING, 60, 0);
+        Overload.bless(user, net.minecraft.world.effect.MobEffects.FIRE_RESISTANCE, 60, 0);
+        Overload.blessExtras(user); // オーバーロードなら耐性 IV・再生 VI
+    }
+
+    /** 通常攻撃（左クリック。空振りでも。0.75 秒に 1 回・100,000 FE）: 敵を追う極小のカタストロフを撃つ（{@link T4NormalAttacks}） */
+    @Override
+    public boolean onEntitySwing(ItemStack stack, LivingEntity entity) {
+        if (entity.level() instanceof ServerLevel level && T4NormalAttacks.ready(entity, stack, 15, 100_000)) {
+            T4NormalAttacks.miniCatastrophe(level, entity);
+        }
+        return false;
+    }
+
+    @Override
     protected ParticleOptions chargeParticle() {
         return Fx.opt(com.automatavalkyries.registry.ModParticles.VOID_SHARD.get(), Fx.ORANGE, 0.14F, 12);
     }
@@ -41,6 +65,7 @@ public class CatastropheBusterItem extends ChargedWeaponItem {
     /** 兵姫に持たせたときも同じ処理 */
     public static void shoot(ServerLevel level, LivingEntity user) {
         BlackHoleEntity hole = new BlackHoleEntity(level, user);
+        hole.setScale((float) Overload.range(user)); // オーバーロードの T4 は大きい
         Vec3 look = user.getLookAngle();
         hole.setPos(user.getX() + look.x * 1.5, user.getEyeY() - 0.3 + look.y * 1.5, user.getZ() + look.z * 1.5);
         hole.shoot(look.x, look.y, look.z, BlackHoleEntity.SPEED, 0);

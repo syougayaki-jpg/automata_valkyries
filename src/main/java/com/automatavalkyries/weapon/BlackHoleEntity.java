@@ -36,6 +36,8 @@ public class BlackHoleEntity extends ThrowableProjectile {
     /** 吸い込みの範囲（2026-10-04 ユーザー指定で強化）: 崩壊中 20 ブロック、飛んでいる最中も 14 ブロック */
     public static final double PULL_RANGE = 20.0, FLIGHT_PULL_RANGE = 14.0, BLAST_RADIUS = 6.0, BLOCK_RADIUS = 4.0;
     private static final EntityDataAccessor<Integer> COLLAPSING = SynchedEntityData.defineId(BlackHoleEntity.class, EntityDataSerializers.INT);
+    /** 大きさの倍率（オーバーロードの T4 では {@link Overload#RANGE_MULT}。吸い込み・崩壊の範囲と見た目の大きさに掛ける） */
+    private static final EntityDataAccessor<Float> SCALE = SynchedEntityData.defineId(BlackHoleEntity.class, EntityDataSerializers.FLOAT);
 
     public BlackHoleEntity(EntityType<? extends BlackHoleEntity> type, Level level) {
         super(type, level);
@@ -48,6 +50,15 @@ public class BlackHoleEntity extends ThrowableProjectile {
     @Override
     protected void defineSynchedData() {
         entityData.define(COLLAPSING, -1);
+        entityData.define(SCALE, 1F);
+    }
+
+    public float scale() {
+        return entityData.get(SCALE);
+    }
+
+    public void setScale(float scale) {
+        entityData.set(SCALE, scale);
     }
 
     /** 崩壊を始めてからの Tick（-1 = まだ飛んでいる） */
@@ -70,7 +81,7 @@ public class BlackHoleEntity extends ThrowableProjectile {
                     detonate();
                     return;
                 }
-                pull(PULL_RANGE, 1.0, 5.0, Vec3.ZERO);
+                pull(PULL_RANGE * scale(), 1.0, 5.0 * scale(), Vec3.ZERO);
                 entityData.set(COLLAPSING, age + 1);
             }
             baseTick();
@@ -80,7 +91,7 @@ public class BlackHoleEntity extends ThrowableProjectile {
             startCollapse();
             return;
         }
-        if (!level().isClientSide()) pull(FLIGHT_PULL_RANGE, 0.55, 3.0, getDeltaMovement()); // 着弾するまでの最中も吸い込む（ユーザー指定）
+        if (!level().isClientSide()) pull(FLIGHT_PULL_RANGE * scale(), 0.55, 3.0 * scale(), getDeltaMovement()); // 着弾するまでの最中も吸い込む（ユーザー指定）
         if (level() instanceof ServerLevel server) {
             // 飛ぶあいだ: 円盤のまわりを空間の破片と橙の光が巡り、後ろへ尾を引く
             Vec3 c = position().add(0, getBbHeight() * 0.5, 0);
@@ -146,10 +157,12 @@ public class BlackHoleEntity extends ThrowableProjectile {
         if (!(level() instanceof ServerLevel server)) return;
         Entity owner = getOwner();
         LivingEntity causing = owner instanceof LivingEntity living ? living : null;
-        for (LivingEntity target : server.getEntitiesOfClass(LivingEntity.class, getBoundingBox().inflate(BLAST_RADIUS),
-                e -> e != owner && e.isAlive() && e.distanceTo(this) <= BLAST_RADIUS + e.getBbWidth())) {
+        double blast = BLAST_RADIUS * scale();
+        for (LivingEntity target : server.getEntitiesOfClass(LivingEntity.class, getBoundingBox().inflate(blast),
+                e -> e != owner && e.isAlive() && e.distanceTo(this) <= blast + e.getBbWidth())) {
             target.invulnerableTime = 0;
             target.hurt(WeaponDamage.source(this, WeaponDamage.CATASTROPHE, this, causing), DAMAGE);
+            Overload.overkill(target, owner);
             Fx.number(server, new Vec3(target.getX(), target.getY() + target.getBbHeight() + 0.5, target.getZ()), DAMAGE_VALUE, 0xFFD166);
         }
         if (WeaponConfig.blockDestruction()) {
@@ -166,8 +179,8 @@ public class BlackHoleEntity extends ThrowableProjectile {
         Vec3 c = position().add(0, getBbHeight() * 0.5, 0);
         Fx.spray(server, Fx.opt(com.automatavalkyries.registry.ModParticles.GLOW.get(), Fx.WHITE, 4.5F, 10), c, 1, 0, 0);
         Fx.spray(server, Fx.opt(com.automatavalkyries.registry.ModParticles.GLOW.get(), Fx.EMBER, 3.2F, 16), c, 4, 1.0, 0);
-        Fx.shockwave(server, c, Fx.WHITE, 12.0F, 14);
-        Fx.shockwave(server, c, Fx.ORANGE, 9.0F, 20);
+        Fx.shockwave(server, c, Fx.WHITE, 12.0F * scale(), 14);
+        Fx.shockwave(server, c, Fx.ORANGE, 9.0F * scale(), 20);
         Fx.shockwave(server, c.add(0, 1.2, 0), 0xB050FF, 7.0F, 18);
         Fx.shockwave(server, c.add(0, -1.2, 0), 0xB050FF, 7.0F, 18);
         Fx.burst(server, Fx.opt(com.automatavalkyries.registry.ModParticles.VOID_SHARD.get(), Fx.ORANGE, 0.25F, 30), c, 60, 0.9);

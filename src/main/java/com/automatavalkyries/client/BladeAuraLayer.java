@@ -69,7 +69,9 @@ public class BladeAuraLayer extends GeoRenderLayer<TacticalWeaponItem> {
 
     static {
         // ---- まっすぐな剣 ----
-        sword("weapon_luminous_requiem", -0.4F, 22.6F, 3.0F, 1.3F, 0xB8F0FF);
+        // 星葬冠は虹の刃の光（2026-10-04 ユーザー指定）
+        SPECS.put("weapon_luminous_requiem", new Spec(-45F, List.of((pose, buffers, time, phase) ->
+                BladeAura.drawRainbow(pose, buffers, 0, -0.4F * PX, 90F, 22.6F * PX, 3.0F * PX, 1.3F * PX, time, phase, 1.0F))));
         sword("weapon_photon_edge", -2.4F, 14.3F, 2.4F, 1.6F, 0x7FE0FF);
         sword("weapon_luxion_saber", -2.6F, 16.3F, 3.1F, 2.4F, 0xFFE8A0);
         sword("weapon_quantum_blade", -2.6F, 15.7F, 3.6F, 3.0F, 0xA898FF);
@@ -145,8 +147,25 @@ public class BladeAuraLayer extends GeoRenderLayer<TacticalWeaponItem> {
         float time = level == null ? 0 : level.getGameTime() + partialTick;
         poseStack.pushPose();
         if (spec.rootZ() != 0) poseStack.mulPose(Axis.ZP.rotationDegrees(spec.rootZ()));
-        int i = 0;
-        for (Shape shape : spec.shapes()) shape.draw(poseStack, bufferSource, time, phase + i++ * 0.11F);
+        boolean overload = getRenderer() instanceof software.bernie.geckolib.renderer.GeoItemRenderer<TacticalWeaponItem> item
+                && com.automatavalkyries.weapon.Overload.is(item.getCurrentItemStack());
+        try {
+            if (overload) { // オーバーロード: 紅の刃の光に、金の光をずらして重ねる
+                BladeAura.tint = com.automatavalkyries.weapon.Overload.CRIMSON;
+                BladeAura.tintBrightness = 0.85F + 0.15F * net.minecraft.util.Mth.sin(time * 0.5F);
+            }
+            int i = 0;
+            for (Shape shape : spec.shapes()) shape.draw(poseStack, bufferSource, time, phase + i++ * 0.11F);
+            if (overload) {
+                BladeAura.tint = com.automatavalkyries.weapon.Overload.GOLD;
+                BladeAura.tintBrightness = 0.45F;
+                i = 0;
+                for (Shape shape : spec.shapes()) shape.draw(poseStack, bufferSource, time, phase + 0.5F + i++ * 0.11F);
+            }
+        } finally {
+            BladeAura.tint = -1;
+            BladeAura.tintBrightness = 1F;
+        }
         poseStack.popPose();
     }
 }

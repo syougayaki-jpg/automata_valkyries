@@ -51,5 +51,8 @@ public class ClientModEvents {
         event.registerEntityRenderer(com.automatavalkyries.registry.ModWeapons.FROST_MISSILE.get(), FrostMissileRenderer::new);
         event.registerEntityRenderer(com.automatavalkyries.registry.ModWeapons.CHAKRAM.get(), ChakramRenderer::new);
         event.registerEntityRenderer(com.automatavalkyries.registry.ModWeapons.JAVELIN.get(), JavelinRenderer::new);
+        event.registerEntityRenderer(com.automatavalkyries.registry.ModWeapons.RAINBOW_SLASH.get(), RainbowSlashRenderer::new);
+        event.registerEntityRenderer(com.automatavalkyries.registry.ModWeapons.MINI_CATASTROPHE.get(), MiniCatastropheRenderer::new);
+        event.registerEntityRenderer(com.automatavalkyries.registry.ModWeapons.T4_STRIKE.get(), T4StrikeRenderer::new);
     }
 }

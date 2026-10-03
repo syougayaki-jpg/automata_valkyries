@@ -32,6 +32,9 @@ public final class ModRecipes {
     public static final RegistryObject<RecipeSerializer<MachineRecipe>> WEAPON_ASSEMBLING_SERIALIZER = serializer("weapon_assembling", WEAPON_ASSEMBLING, 30000, 300);
     public static final RegistryObject<RecipeSerializer<MachineRecipe>> PHASE_TRANSITION_SERIALIZER = serializer("phase_transition", PHASE_TRANSITION, 20000, 200);
     public static final RegistryObject<RecipeSerializer<MachineRecipe>> ARMORY_ASSEMBLING_SERIALIZER = serializer("armory_assembling", ARMORY_ASSEMBLING, 100000, 400);
+    /** 兵装のオーバーロード化（作業台。2026-10-04 ユーザー指定） */
+    public static final RegistryObject<RecipeSerializer<com.automatavalkyries.weapon.OverloadRecipe>> OVERLOAD_SERIALIZER = SERIALIZERS.register("overload_weapon",
+            () -> new net.minecraft.world.item.crafting.SimpleCraftingRecipeSerializer<>(com.automatavalkyries.weapon.OverloadRecipe::new));
 
     private ModRecipes() {}
 

@@ -80,6 +80,30 @@ public class RagnarokEdgeItem extends ChargedWeaponItem {
     }
 
     @Override
+    public void inventoryTick(ItemStack stack, net.minecraft.world.level.Level level, net.minecraft.world.entity.Entity entity, int slot, boolean selected) {
+        super.inventoryTick(stack, level, entity, slot, selected);
+        if (!level.isClientSide() && selected && entity instanceof LivingEntity user && level.getGameTime() % 20 == 0) blessHolder(user);
+    }
+
+    /** 手に持っている間の加護（2026-10-04 ユーザー指定。ルミナス・レクイエムと同じく 1 秒ごとに掛け直す）。黄昏の覇気: 力 IV・耐性 III・火炎耐性・採掘速度上昇 II。兵姫に持たせたときも同じ処理（暗視は切れかけの点滅が出ないよう長めに掛ける） */
+    public static void blessHolder(LivingEntity user) {
+        Overload.bless(user, net.minecraft.world.effect.MobEffects.DAMAGE_BOOST, 60, 3);
+        Overload.bless(user, net.minecraft.world.effect.MobEffects.DAMAGE_RESISTANCE, 60, 2);
+        Overload.bless(user, net.minecraft.world.effect.MobEffects.FIRE_RESISTANCE, 60, 0);
+        Overload.bless(user, net.minecraft.world.effect.MobEffects.DIG_SPEED, 60, 1);
+        Overload.blessExtras(user); // オーバーロードなら耐性 IV・再生 VI
+    }
+
+    /** 通常攻撃（左クリック。空振りでも。0.6 秒に 1 回・80,000 FE）: 赤黒い横薙ぎの斬撃がまわりに起きる（{@link T4NormalAttacks}） */
+    @Override
+    public boolean onEntitySwing(ItemStack stack, LivingEntity entity) {
+        if (entity.level() instanceof ServerLevel level && T4NormalAttacks.ready(entity, stack, 12, 80_000)) {
+            T4NormalAttacks.twilightSweep(level, entity);
+        }
+        return false;
+    }
+
+    @Override
     protected ParticleOptions chargeParticle() {
         return Fx.opt(ModParticles.GLOW.get(), ORANGE, 0.3F, 10);
     }
@@ -89,7 +113,8 @@ public class RagnarokEdgeItem extends ChargedWeaponItem {
         super.onUseTick(level, user, stack, remaining);
         if (level instanceof ServerLevel server && user.isUsingItem()) {
             int t = elapsed(stack, remaining);
-            if (t <= CHARGE) gather(server, user, t / (float) CHARGE, t);
+            int ct = chargeTicks(stack);
+            if (t <= ct) gather(server, user, t / (float) ct, t);
         }
     }
 
@@ -131,7 +156,7 @@ public class RagnarokEdgeItem extends ChargedWeaponItem {
             Fx.shockwave(level, feet.add(0, 0.05, 0), ORANGE, 3.0F + 3.0F * f, 14);
             Fx.shockwave(level, feet.add(0, 0.08, 0), VIOLET, 2.0F + 2.0F * f, 18);
         }
-        if (t == CHARGE) {
+        if (f >= 1F) {
             Fx.burst(level, Fx.opt(ModParticles.SPARK.get(), GOLD, 0.45F, 12), blade[1], 24, 0.4);
             Fx.spray(level, Fx.opt(ModParticles.GLOW.get(), CORE, 1.4F, 8), blade[1], 1, 0, 0);
             level.playSound(null, user.blockPosition(), SoundEvents.BELL_RESONATE, SoundSource.PLAYERS, 1.2F, 0.6F);
@@ -152,7 +177,7 @@ public class RagnarokEdgeItem extends ChargedWeaponItem {
 
     @Override
     public void releaseUsing(ItemStack stack, Level level, LivingEntity user, int remaining) {
-        boolean full = elapsed(stack, remaining) >= CHARGE;
+        boolean full = elapsed(stack, remaining) >= chargeTicks(stack);
         super.releaseUsing(stack, level, user, remaining);
         if (full && level.isClientSide()) {
             net.minecraftforge.fml.DistExecutor.unsafeRunWhenOn(net.minecraftforge.api.distmarker.Dist.CLIENT,
@@ -165,13 +190,14 @@ public class RagnarokEdgeItem extends ChargedWeaponItem {
         Vec3 n = user.getLookAngle().normalize();
         Vec3 origin = user.getEyePosition().subtract(0, 0.4, 0);
         Set<LivingEntity> hit = new HashSet<>();
+        double k = Overload.range(user); // オーバーロードの T4 は範囲が広い
         twilight(level, user);
         level.playSound(null, user.blockPosition(), SoundEvents.WITHER_SPAWN, SoundSource.PLAYERS, 1.0F, 1.4F);
         level.playSound(null, user.blockPosition(), SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 1.6F, 0.5F);
         level.playSound(null, user.blockPosition(), SoundEvents.BELL_BLOCK, SoundSource.PLAYERS, 1.5F, 0.5F);
         for (int s = 0; s < STEPS; s++) {
             int step = s;
-            WeaponUtil.later(level, s, () -> segment(level, user, origin, n, step, hit));
+            WeaponUtil.later(level, s, () -> segment(level, user, origin, n, step, hit, k));
         }
     }
 
@@ -197,22 +223,24 @@ public class RagnarokEdgeItem extends ChargedWeaponItem {
     }
 
     /** 斬撃の 1 区間（RANGE / STEPS ブロック）。刃の面は「横」と「進む向き」に広がり、厚さは「上」の向き */
-    static void segment(ServerLevel level, LivingEntity user, Vec3 origin, Vec3 n, int step, Set<LivingEntity> hit) {
-        double len = RANGE / STEPS, from = step * len, to = from + len;
+    static void segment(ServerLevel level, LivingEntity user, Vec3 origin, Vec3 n, int step, Set<LivingEntity> hit, double k) {
+        double len = RANGE * k / STEPS, from = step * len, to = from + len;
+        double halfWidth = HALF_WIDTH * k, halfThick = HALF_THICK * k;
         Vec3 side = n.cross(new Vec3(0, 1, 0));
         side = side.lengthSqr() < 1.0E-4 ? new Vec3(1, 0, 0) : side.normalize();
         Vec3 up = side.cross(n).normalize();
         Vec3 a = origin.add(n.scale(from)), b = origin.add(n.scale(to));
-        AABB box = new AABB(a, b).inflate(HALF_WIDTH + 2);
+        AABB box = new AABB(a, b).inflate(halfWidth + 2);
         for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, box,
                 e -> e != user && e.isAlive() && !e.isAlliedTo(user) && !e.isSpectator() && !hit.contains(e))) {
             Vec3 rel = new Vec3(e.getX(), e.getY(0.5), e.getZ()).subtract(origin);
             double along = rel.dot(n);
             if (along < from - 1 || along > to + 1) continue;
-            if (Math.abs(rel.dot(side)) > HALF_WIDTH + e.getBbWidth() * 0.5 || Math.abs(rel.dot(up)) > HALF_THICK + e.getBbHeight() * 0.5) continue;
+            if (Math.abs(rel.dot(side)) > halfWidth + e.getBbWidth() * 0.5 || Math.abs(rel.dot(up)) > halfThick + e.getBbHeight() * 0.5) continue;
             hit.add(e);
             e.invulnerableTime = 0;
             e.hurt(WeaponDamage.source(user, WeaponDamage.RAGNAROK, user, user), CLEAVE_DAMAGE);
+            Overload.overkill(e, user);
             Vec3 at = new Vec3(e.getX(), e.getY(0.6), e.getZ());
             Fx.number(level, at.add(0, e.getBbHeight() * 0.5 + 0.5, 0), DAMAGE_VALUE, ORANGE);
             Fx.burst(level, Fx.opt(ModParticles.SPARK.get(), GOLD, 0.45F, 10), at, 14, 0.5);
@@ -220,21 +248,21 @@ public class RagnarokEdgeItem extends ChargedWeaponItem {
         }
         // 黄昏の刃: 横に広がる光の帯（芯は白金、縁ほど橙→茜→紫）、飛んだ跡に火の粉、地面に当たる所は大地が割れる
         RandomSource r = level.random;
-        for (double d = from; d < to; d += 1.0) {
+        for (double d = from; d < to; d += k) {
             Vec3 p = origin.add(n.scale(d));
-            for (double w = -HALF_WIDTH; w <= HALF_WIDTH; w += 1.5) {
-                double edge = Math.abs(w) / HALF_WIDTH;
+            for (double w = -halfWidth; w <= halfWidth; w += 1.5 * k) {
+                double edge = Math.abs(w) / halfWidth;
                 int color = edge < 0.2 ? CORE : edge < 0.45 ? GOLD : edge < 0.7 ? ORANGE : edge < 0.9 ? CRIMSON : VIOLET;
                 Vec3 q = p.add(side.scale(w)).add(up.scale((1 - edge * edge) * 0.8)); // 三日月のように中央が前へ反る
                 Fx.one(level, Fx.opt(ModParticles.GLOW.get(), color, 0.45F - (float) edge * 0.15F, 8 + (int) (edge * 8)), q, n.scale(0.4));
             }
             if (r.nextInt(2) == 0) {
-                Vec3 ember = p.add(side.scale((r.nextDouble() - 0.5) * HALF_WIDTH * 2)).add(up.scale((r.nextDouble() - 0.5) * 2));
+                Vec3 ember = p.add(side.scale((r.nextDouble() - 0.5) * halfWidth * 2)).add(up.scale((r.nextDouble() - 0.5) * 2));
                 Fx.one(level, Fx.opt(ModParticles.SPARK.get(), r.nextBoolean() ? ORANGE : GOLD, 0.25F, 20), ember, new Vec3(0, -0.04, 0));
             }
             BlockPos below = BlockPos.containing(p);
             if (!level.isLoaded(below)) continue; // 読み込まれていない区画は見ない（見ると区画を読み込み・生成してしまい、重くなる）
-            for (int k = 0; k < 3; k++, below = below.below()) {
+            for (int depth = 0; depth < 3; depth++, below = below.below()) {
                 BlockState ground = level.getBlockState(below);
                 if (!ground.isAir()) {
                     level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, ground), p.x, below.getY() + 1.1, p.z, 8, 1.2, 0.1, 1.2, 0.45);
@@ -245,8 +273,8 @@ public class RagnarokEdgeItem extends ChargedWeaponItem {
         }
         Vec3 mid = origin.add(n.scale((from + to) / 2));
         float roll = (float) Math.atan2(side.y, Math.sqrt(side.x * side.x + side.z * side.z));
-        Fx.slash(level, mid, ORANGE, 7.0F, 7, roll);
-        Fx.slash(level, mid.subtract(n.scale(1.5)), VIOLET, 6.0F, 9, roll);
+        Fx.slash(level, mid, ORANGE, 7.0F * (float) k, 7, roll);
+        Fx.slash(level, mid.subtract(n.scale(1.5)), VIOLET, 6.0F * (float) k, 9, roll);
         if (step % 3 == 0) level.playSound(null, mid.x, mid.y, mid.z, SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 0.9F, 0.6F + step * 0.04F);
     }
 

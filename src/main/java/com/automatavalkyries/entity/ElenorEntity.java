@@ -135,6 +135,23 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
         }
     }
 
+    /** 回想のトライアルのボス（{@code trial/TrialManager}）: 自分では退かず、保存もしない */
+    private boolean trialBoss = false;
+
+    public void setTrialBoss(boolean trialBoss) {
+        this.trialBoss = trialBoss;
+    }
+
+    @Override
+    public boolean shouldBeSaved() {
+        return !trialBoss && super.shouldBeSaved();
+    }
+
+    /** 正規の退場（セリフと効果音を出して消える）。回想のトライアルの失敗で使う（{@code trial/TrialManager}） */
+    public void retreat() {
+        protect.triggerDespawn();
+    }
+
     // ---- ボスバー --------------------------------------------------------------
 
     @Override
@@ -224,6 +241,7 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
     // ---- 撤収（プレイヤー全滅時） --------------------------------------------
 
     private void tickRetreat() {
+        if (trialBoss) return; // 回想のトライアルのボスは、トライアルの側が退かせる（クリエイティブで試しても自分で消えない）
         if (this.getTarget() instanceof Player) engaged = true;
         if (!engaged || this.tickCount % CHECK_INTERVAL != 0) return;
 

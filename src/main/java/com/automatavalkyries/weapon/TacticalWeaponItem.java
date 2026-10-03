@@ -133,8 +133,29 @@ public abstract class TacticalWeaponItem extends Item implements GeoItem {
         return slotChanged || oldStack.getItem() != newStack.getItem(); // 電力・弾数の NBT が変わっても持ち直さない
     }
 
+    /** オーバーロードの兵装は輝く（{@link Overload}） */
+    @Override
+    public boolean isFoil(ItemStack stack) {
+        return Overload.is(stack) || super.isFoil(stack);
+    }
+
+    /** オーバーロードの兵装は名前の後ろに「オーバーロード」（紅） */
+    @Override
+    public Component getName(ItemStack stack) {
+        Component name = super.getName(stack);
+        if (!Overload.is(stack)) return name;
+        return Component.empty().append(name).append(Component.translatable("item.automata_valkyries.overload_suffix")
+                .withStyle(s -> s.withColor(Overload.CRIMSON).withBold(true)));
+    }
+
     @Override
     public void appendHoverText(ItemStack stack, @Nullable Level level, List<Component> tooltip, TooltipFlag flag) {
+        if (Overload.is(stack)) {
+            boolean t4 = Overload.isT4(this);
+            tooltip.add(Component.translatable(this instanceof ChargedWeaponItem ? "gui.automata_valkyries.overload_charged" : "gui.automata_valkyries.overload",
+                    String.format("%.0f", Overload.damageMult(this)), Math.round((1 - Overload.CHARGE_MULT) * 100)).withStyle(s -> s.withColor(Overload.GOLD)));
+            if (t4) tooltip.add(Component.translatable("gui.automata_valkyries.overload_t4", String.format("%.1f", Overload.RANGE_MULT)).withStyle(s -> s.withColor(Overload.CRIMSON)));
+        }
         if (capacity > 0) tooltip.add(ItemEnergy.tooltip(stack, capacity));
         appendStatus(stack, tooltip);
         String id = ForgeRegistries.ITEMS.getKey(this).getPath();

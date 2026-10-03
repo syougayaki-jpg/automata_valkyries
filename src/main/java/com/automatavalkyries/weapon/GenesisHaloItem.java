@@ -65,8 +65,8 @@ public class GenesisHaloItem extends ChargedWeaponItem {
         super.onUseTick(level, user, stack, remaining);
         if (!(level instanceof ServerLevel server) || !user.isUsingItem()) return;
         int t = elapsed(stack, remaining);
-        if (t > chargeTicks) return;
-        float f = t / (float) chargeTicks;
+        if (t > chargeTicks(stack)) return;
+        float f = t / (float) chargeTicks(stack);
         Vec3 c = crystal(user);
         // クリスタルへ巻き込む 2 本の光の渦（溜まるほど速く、明るく）
         for (int arm = 0; arm < 2; arm++) {
@@ -77,10 +77,34 @@ public class GenesisHaloItem extends ChargedWeaponItem {
         }
         if (t % 4 == 0) Fx.star(server, c, 0xFFFFFF, 0.2F + 0.35F * f, 6, Vec3.ZERO);
         if (t % 10 == 0) Fx.mandala(server, c, GOLD, 0.35F + 0.4F * f, 12, true, t % 20 == 0);
-        if (t == chargeTicks) {
+        if (t == chargeTicks(stack)) {
             Fx.burst(server, Fx.opt(ModParticles.STAR.get(), 0xFFFFFF, 0.4F, 14), c, 16, 0.25);
             Fx.mandala(server, c, 0xFFF4C0, 1.2F, 16, true, false);
         }
+    }
+
+    @Override
+    public void inventoryTick(ItemStack stack, net.minecraft.world.level.Level level, net.minecraft.world.entity.Entity entity, int slot, boolean selected) {
+        super.inventoryTick(stack, level, entity, slot, selected);
+        if (!level.isClientSide() && selected && entity instanceof LivingEntity user && level.getGameTime() % 20 == 0) blessHolder(user);
+    }
+
+    /** 手に持っている間の加護（2026-10-04 ユーザー指定。ルミナス・レクイエムと同じく 1 秒ごとに掛け直す）。天輪の加護: 再生 III・耐性 III・暗視・満腹度回復。兵姫に持たせたときも同じ処理（暗視は切れかけの点滅が出ないよう長めに掛ける） */
+    public static void blessHolder(LivingEntity user) {
+        Overload.bless(user, net.minecraft.world.effect.MobEffects.REGENERATION, 60, 2);
+        Overload.bless(user, net.minecraft.world.effect.MobEffects.DAMAGE_RESISTANCE, 60, 2);
+        Overload.bless(user, net.minecraft.world.effect.MobEffects.NIGHT_VISION, 260, 0);
+        Overload.bless(user, net.minecraft.world.effect.MobEffects.SATURATION, 60, 0);
+        Overload.blessExtras(user); // オーバーロードなら耐性 IV・再生 VI
+    }
+
+    /** 通常攻撃（左クリック。空振りでも。0.4 秒に 1 回・60,000 FE）: 中心のクリスタルからきらきらの光線（{@link T4NormalAttacks}） */
+    @Override
+    public boolean onEntitySwing(ItemStack stack, LivingEntity entity) {
+        if (entity.level() instanceof ServerLevel level && T4NormalAttacks.ready(entity, stack, 8, 60_000)) {
+            T4NormalAttacks.genesisLaser(level, entity);
+        }
+        return false;
     }
 
     @Override
@@ -111,10 +135,11 @@ public class GenesisHaloItem extends ChargedWeaponItem {
 
     /** 軌道砲撃（兵姫に持たせたときも同じ処理） */
     public static void strike(ServerLevel level, LivingEntity user, Vec3 target) {
+        double k = Overload.range(user); // オーバーロードの T4 は輪も柱も広い
         // 1. 12 本の光の柱が輪に降る
         for (int i = 0; i < RING_PILLARS; i++) {
             double a = i * Math.PI * 2 / RING_PILLARS;
-            Vec3 foot = target.add(Math.cos(a) * RING, 0, Math.sin(a) * RING);
+            Vec3 foot = target.add(Math.cos(a) * RING * k, 0, Math.sin(a) * RING * k);
             int delay = i * 1;
             WeaponUtil.later(level, delay, () -> {
                 level.addFreshEntity(new PunishmentBeamEntity(level, foot.add(0, HEIGHT, 0), foot, PunishmentBeamEntity.SCHEME_GENESIS, 0.45F, DELAY + POUR - delay));
@@ -122,33 +147,35 @@ public class GenesisHaloItem extends ChargedWeaponItem {
                 Fx.burst(level, Fx.opt(ModParticles.SPARK.get(), GOLD, 0.35F, 10), foot.add(0, 0.3, 0), 6, 0.3);
             });
         }
-        Fx.shockwave(level, target.add(0, 0.05, 0), GOLD, (float) RING + 1, 30);
+        Fx.shockwave(level, target.add(0, 0.05, 0), GOLD, (float) (RING * k) + 1, 30);
         level.playSound(null, BlockPos.containing(target), SoundEvents.BEACON_ACTIVATE, SoundSource.PLAYERS, 4.0F, 0.6F);
         level.playSound(null, user.blockPosition(), SoundEvents.BEACON_POWER_SELECT, SoundSource.PLAYERS, 1.5F, 0.5F);
         // 2. 1 秒後に巨大な光の柱が注ぐ
         WeaponUtil.later(level, DELAY, () -> {
-            level.addFreshEntity(new PunishmentBeamEntity(level, target.add(0, HEIGHT + 20, 0), target, PunishmentBeamEntity.SCHEME_GENESIS, 4.5F, POUR + 10));
+            level.addFreshEntity(new PunishmentBeamEntity(level, target.add(0, HEIGHT + 20, 0), target, PunishmentBeamEntity.SCHEME_GENESIS, 4.5F * (float) k, POUR + 10));
             level.playSound(null, BlockPos.containing(target), SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.PLAYERS, 5.0F, 0.5F);
             level.playSound(null, BlockPos.containing(target), SoundEvents.WARDEN_SONIC_BOOM, SoundSource.PLAYERS, 4.0F, 0.6F);
             for (int p = 0; p < POUR; p += PULSE) {
                 int step = p;
-                WeaponUtil.later(level, p, () -> pour(level, user, target, step));
+                WeaponUtil.later(level, p, () -> pour(level, user, target, step, k));
             }
         });
     }
 
     /** 光の柱の 1 回の当たり（0.25 秒ごと） */
-    private static void pour(ServerLevel level, Entity owner, Vec3 target, int step) {
+    private static void pour(ServerLevel level, Entity owner, Vec3 target, int step, double k) {
         LivingEntity causing = owner instanceof LivingEntity living ? living : null;
-        for (LivingEntity victim : level.getEntitiesOfClass(LivingEntity.class, new net.minecraft.world.phys.AABB(target, target).inflate(RADIUS, 12, RADIUS),
-                e -> e != owner && e.isAlive() && Math.hypot(e.getX() - target.x, e.getZ() - target.z) <= RADIUS + e.getBbWidth())) {
+        double radius = RADIUS * k;
+        for (LivingEntity victim : level.getEntitiesOfClass(LivingEntity.class, new net.minecraft.world.phys.AABB(target, target).inflate(radius, 12 * k, radius),
+                e -> e != owner && e.isAlive() && Math.hypot(e.getX() - target.x, e.getZ() - target.z) <= radius + e.getBbWidth())) {
             victim.invulnerableTime = 0;
             victim.hurt(WeaponDamage.source(victim, WeaponDamage.ORBITAL, null, causing), DAMAGE);
+            Overload.overkill(victim, owner);
             Fx.number(level, new Vec3(victim.getX(), victim.getY() + victim.getBbHeight() + 0.5, victim.getZ()), DAMAGE_VALUE, 0xFFD166);
         }
         Vec3 g = target.add(0, 0.05, 0);
-        Fx.shockwave(level, g, step % 10 == 0 ? WHITE : GOLD, (float) RADIUS + 2, 10);
-        Fx.spray(level, Fx.opt(ModParticles.GLOW.get(), PALE, 2.5F, 8), target.add(0, 1, 0), 2, RADIUS * 0.4, 0);
+        Fx.shockwave(level, g, step % 10 == 0 ? WHITE : GOLD, (float) radius + 2, 10);
+        Fx.spray(level, Fx.opt(ModParticles.GLOW.get(), PALE, 2.5F, 8), target.add(0, 1, 0), 2, radius * 0.4, 0);
         Fx.burst(level, Fx.opt(ModParticles.SPARK.get(), WHITE, 0.5F, 14), target.add(0, 0.5, 0), 16, 0.7);
         Fx.burst(level, Fx.opt(ModParticles.VOID_SHARD.get(), GOLD, 0.25F, 20), target.add(0, 0.3, 0), 10, 0.6);
     }

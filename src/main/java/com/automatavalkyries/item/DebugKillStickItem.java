@@ -72,7 +72,15 @@ public class DebugKillStickItem extends Item {
         DamageSource source = attacker != null
                 ? level.damageSources().playerAttack(attacker)
                 : level.damageSources().generic();
+        annihilateGeneric(level, source, target);
+        annihilateModSpecific(target);
+    }
 
+    /**
+     * 汎用の即死手段（最大ダメージ・/kill・強制デスフラグ・Tick 停止）。MOD ごとの手段は含まない。
+     * オーバーロードの T4 兵装のチャージ攻撃の即死でも使う（{@code weapon/Overload}）
+     */
+    public static void annihilateGeneric(ServerLevel level, DamageSource source, LivingEntity target) {
         // 1. 最大ダメージ
         target.invulnerableTime = 0;
         target.hurt(source, Float.MAX_VALUE);
@@ -96,7 +104,10 @@ public class DebugKillStickItem extends Item {
         if (level.getEntity(target.getUUID()) == target) {
             ((ServerLevelTickListAccessor) level).automata_valkyries$getEntityTickList().remove(target);
         }
+    }
 
+    /** MOD ごとの即死手段のまね（IMDS-Reborn・Hyperlink。入っていなければ何もしない） */
+    private static void annihilateModSpecific(LivingEntity target) {
         // 5. IMDS-Reborn シミュレーション（無敵剥奪、強制死亡登録、AI消去）
         try {
             Class<?> killManagerClass = Class.forName("net.mcreator.imds_reborn.ImdsKillManager");

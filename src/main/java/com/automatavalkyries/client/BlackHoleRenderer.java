@@ -30,7 +30,7 @@ public class BlackHoleRenderer extends EntityRenderer<BlackHoleEntity> {
     @Override
     public void render(BlackHoleEntity entity, float yaw, float partialTick, PoseStack pose, MultiBufferSource buffers, int light) {
         float time = entity.tickCount + partialTick;
-        float size = DIAMETER;
+        float size = DIAMETER * entity.scale();
         int collapse = entity.collapseAge();
         if (collapse >= 0) {
             float t = (collapse + partialTick) / BlackHoleEntity.COLLAPSE;

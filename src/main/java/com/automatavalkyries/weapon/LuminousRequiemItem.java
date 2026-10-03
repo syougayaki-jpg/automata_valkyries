@@ -69,10 +69,11 @@ public class LuminousRequiemItem extends ChargedWeaponItem {
 
     /** 持ち主への加護（兵姫に持たせたときも同じ処理） */
     public static void blessHolder(LivingEntity user) {
-        user.addEffect(new MobEffectInstance(MobEffects.REGENERATION, 60, 2, true, false, true));
-        user.addEffect(new MobEffectInstance(MobEffects.DAMAGE_RESISTANCE, 60, 2, true, false, true));
-        user.addEffect(new MobEffectInstance(MobEffects.DAMAGE_BOOST, 60, 2, true, false, true));
-        user.addEffect(new MobEffectInstance(MobEffects.FIRE_RESISTANCE, 60, 0, true, false, true));
+        Overload.bless(user, MobEffects.REGENERATION, 60, 2);
+        Overload.bless(user, MobEffects.DAMAGE_RESISTANCE, 60, 2);
+        Overload.bless(user, MobEffects.DAMAGE_BOOST, 60, 2);
+        Overload.bless(user, MobEffects.FIRE_RESISTANCE, 60, 0);
+        Overload.blessExtras(user); // オーバーロードなら耐性 IV・再生 VI
     }
 
     @Override
@@ -87,6 +88,15 @@ public class LuminousRequiemItem extends ChargedWeaponItem {
     @Override
     public boolean canAttackBlock(BlockState state, Level level, BlockPos pos, Player player) {
         return !player.isCreative();
+    }
+
+    /** 通常攻撃（左クリック。空振りでも。0.3 秒に 1 回・50,000 FE）: 虹の斬撃が飛ぶ（{@link T4NormalAttacks}） */
+    @Override
+    public boolean onEntitySwing(ItemStack stack, LivingEntity entity) {
+        if (entity.level() instanceof ServerLevel level && T4NormalAttacks.ready(entity, stack, 6, 50_000)) {
+            T4NormalAttacks.rainbowSlash(level, entity);
+        }
+        return false;
     }
 
     @Override
@@ -114,7 +124,8 @@ public class LuminousRequiemItem extends ChargedWeaponItem {
         super.onUseTick(level, user, stack, remaining);
         if (level instanceof ServerLevel server && user.isUsingItem()) {
             int t = elapsed(stack, remaining);
-            if (t <= CHARGE) gather(server, user, t / (float) CHARGE, t);
+            int ct = chargeTicks(stack);
+            if (t <= ct) gather(server, user, t / (float) ct, t);
         }
     }
 
@@ -154,7 +165,7 @@ public class LuminousRequiemItem extends ChargedWeaponItem {
             Fx.mandala(level, user.position().add(0, 0.09, 0), CYAN, 1.5F + 2.5F * f, 18, false, true);
         }
         if (t % 8 == 0) Fx.mandala(level, frame[0].subtract(frame[3].scale(0.2)), GOLD, 1.2F + 1.6F * f, 12, true, false);
-        if (t == CHARGE) {
+        if (f >= 1F) {
             Fx.burst(level, Fx.opt(ModParticles.STAR.get(), CORE, 0.5F, 14), frame[0], 16, 0.35);
             Fx.spray(level, Fx.opt(ModParticles.GLOW.get(), CORE, 2.0F, 8), frame[0], 1, 0, 0);
             level.playSound(null, user.blockPosition(), SoundEvents.AMETHYST_BLOCK_RESONATE, SoundSource.PLAYERS, 1.5F, 1.6F);
@@ -164,7 +175,8 @@ public class LuminousRequiemItem extends ChargedWeaponItem {
 
     /** 星の鎮魂歌（兵姫に持たせたときも同じ処理）。的にした数 */
     public static int requiem(ServerLevel level, LivingEntity user) {
-        List<LivingEntity> targets = level.getEntitiesOfClass(LivingEntity.class, user.getBoundingBox().inflate(RADIUS), e -> target(user, e) && e.distanceTo(user) <= RADIUS);
+        double radius = RADIUS * Overload.range(user); // オーバーロードの T4 は範囲が広い
+        List<LivingEntity> targets = level.getEntitiesOfClass(LivingEntity.class, user.getBoundingBox().inflate(radius), e -> target(user, e) && e.distanceTo(user) <= radius);
         Vec3 c = user.position();
         Vec3[] frame = haloFrame(user);
         for (net.minecraft.server.level.ServerPlayer player : level.players()) { // まわりのプレイヤーの画面を星空に
@@ -217,6 +229,7 @@ public class LuminousRequiemItem extends ChargedWeaponItem {
                 }
                 e.invulnerableTime = 0;
                 e.hurt(WeaponDamage.source(user, WeaponDamage.ORBITAL, user, user), (float) DAMAGE_VALUE);
+                Overload.overkill(e, user);
                 Fx.number(level, at.add(0, e.getBbHeight() * 0.5 + 0.6, 0), DAMAGE_VALUE, STAR);
             }
             Fx.mandala(level, c.add(0, 0.2, 0), CORE, 24.0F, 30, false, true);
