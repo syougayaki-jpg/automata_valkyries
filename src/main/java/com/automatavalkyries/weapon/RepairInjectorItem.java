@@ -83,8 +83,10 @@ public class RepairInjectorItem extends TacticalWeaponItem {
         setSolution(stack, solution(stack) - 1);
         stack.getOrCreateTag().putLong("Ready", level.getGameTime() + COOLDOWN);
         holder.heal(HEAL);
-        level.sendParticles(ParticleTypes.HAPPY_VILLAGER, holder.getX(), holder.getY(0.6), holder.getZ(), 16, 0.4, 0.5, 0.4, 0.02);
-        level.sendParticles(ParticleTypes.CLOUD, holder.getX(), holder.getY(0.6), holder.getZ(), 8, 0.3, 0.3, 0.3, 0.02);
+        net.minecraft.world.phys.Vec3 at = new net.minecraft.world.phys.Vec3(holder.getX(), holder.getY(0.5), holder.getZ());
+        Fx.spray(level, Fx.opt(com.automatavalkyries.registry.ModParticles.GLOW.get(), 0xB0FFD0, 0.35F, 20), at, 18, 0.45, 0.6, 0.45, 0.02);
+        Fx.spray(level, Fx.opt(com.automatavalkyries.registry.ModParticles.SPARK.get(), Fx.GREEN, 0.25F, 14), at, 10, 0.5, 0.8, 0.5, 0.03);
+        Fx.shockwave(level, holder.position().add(0, 0.05, 0), 0x8AFFC0, 1.6F, 12);
         level.playSound(null, holder.blockPosition(), SoundEvents.FIRE_EXTINGUISH, SoundSource.PLAYERS, 0.5F, 1.8F);
         if (stack.getItem() instanceof RepairInjectorItem item) item.playUse(holder, stack);
         return true;

@@ -193,4 +193,93 @@ public class WeaponGameTests {
             for (int i = 0; i < 4; i++) helper.assertTrue(armory.items().getStackInSlot(i).isEmpty(), "ingredient " + i + " left");
         });
     }
+
+    /** ルクシオンセイバー: 前の敵の向こう側へ跳び、すれ違いざまに斬る */
+    @GameTest(template = TEMPLATE)
+    public static void luxionSaberBlinksThroughTarget(GameTestHelper helper) {
+        // FakePlayer はワールドに居ないので跳べない。兵姫と同じく mob に持たせて試す
+        Zombie user = dummy(helper, new Vec3(0.5, 2, 2.5));
+        Zombie zombie = dummy(helper, new Vec3(3.5, 2, 2.5));
+        double before = user.getX();
+        com.automatavalkyries.weapon.LuxionSaberItem.blink(helper.getLevel(), user, zombie,
+                ((TacticalWeaponItem) ModWeapons.LUXION_SABER.get()).charged());
+        helper.assertTrue(user.getX() > zombie.getX(), "did not pass the target: " + before + " -> " + user.getX());
+        helper.assertTrue(zombie.isDeadOrDying() || zombie.getHealth() < zombie.getMaxHealth(), "target not cut");
+        helper.succeed();
+    }
+
+    /** 重粒子収束砲: 光線が線上の 2 体を貫く（0.2 秒ごとの当たり） */
+    @GameTest(template = TEMPLATE)
+    public static void particleBeamPierces(GameTestHelper helper) {
+        FakePlayer player = player(helper, new Vec3(0.5, 2, 2.5));
+        Zombie near = dummy(helper, new Vec3(2.5, 2, 2.5));
+        Zombie far = dummy(helper, new Vec3(4.5, 2, 2.5));
+        player.moveTo(player.getX(), near.getEyeY() - player.getEyeHeight(), player.getZ(), -90.0F, 0.0F);
+        player.setYHeadRot(-90.0F);
+        com.automatavalkyries.weapon.HeavyParticleCannonItem.beamTick(helper.getLevel(), player, 0);
+        helper.assertTrue(near.getHealth() < near.getMaxHealth(), "near target not hit");
+        helper.assertTrue(far.getHealth() < far.getMaxHealth(), "far target not pierced");
+        helper.succeed();
+    }
+
+    /** タイムエリミネイター: 有益な状態異常と衝撃吸収を消し、因果停止を掛ける（プレイヤーには既定で掛けない） */
+    @GameTest(template = TEMPLATE)
+    public static void timeEliminatorStripsBuffs(GameTestHelper helper) {
+        Zombie zombie = dummy(helper, new Vec3(1.5, 2, 1.5));
+        zombie.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.REGENERATION, 600));
+        zombie.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.DAMAGE_RESISTANCE, 600, 3));
+        zombie.setAbsorptionAmount(10);
+        com.automatavalkyries.weapon.TimeEliminatorItem.sever(helper.getLevel(), zombie);
+        helper.assertFalse(zombie.hasEffect(net.minecraft.world.effect.MobEffects.REGENERATION), "regeneration kept");
+        helper.assertFalse(zombie.hasEffect(net.minecraft.world.effect.MobEffects.DAMAGE_RESISTANCE), "resistance kept");
+        helper.assertTrue(zombie.getAbsorptionAmount() == 0, "absorption kept");
+        helper.assertTrue(zombie.hasEffect(ModWeapons.CAUSAL_STOP.get()), "no causal stop");
+        FakePlayer player = player(helper, new Vec3(3, 2, 3));
+        player.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.REGENERATION, 600));
+        com.automatavalkyries.weapon.TimeEliminatorItem.sever(helper.getLevel(), player);
+        helper.assertTrue(player.hasEffect(net.minecraft.world.effect.MobEffects.REGENERATION) && !player.hasEffect(ModWeapons.CAUSAL_STOP.get()),
+                "strong effects applied to a player by default");
+        helper.succeed();
+    }
+
+    /** アイギス: ドームの中の者へ、外からの攻撃は通さず、中どうしの攻撃は通す */
+    @GameTest(template = TEMPLATE)
+    public static void aegisBlocksOutsideAttacks(GameTestHelper helper) {
+        // 見回りはワールドの中のエンティティを探すので、ワールドに居る mob に持たせる
+        Zombie guardian = dummy(helper, new Vec3(2.5, 2, 2.5));
+        guardian.setItemInHand(InteractionHand.OFF_HAND, ((TacticalWeaponItem) ModWeapons.AEGIS_BARRIER.get()).charged());
+        guardian.startUsingItem(InteractionHand.OFF_HAND);
+        com.automatavalkyries.weapon.AegisBarrierItem.ACTIVE.add(guardian);
+        try {
+            Zombie inside = dummy(helper, new Vec3(4.5, 2, 2.5));
+            Zombie insideAttacker = dummy(helper, new Vec3(2.5, 2, 4.5));
+            Zombie outsideAttacker = dummy(helper, new Vec3(11.5, 2, 2.5));
+            helper.assertFalse(ForgeHooks.onLivingAttack(inside, inside.damageSources().mobAttack(outsideAttacker), 5.0F), "outside attack got through");
+            helper.assertTrue(ForgeHooks.onLivingAttack(inside, inside.damageSources().mobAttack(insideAttacker), 5.0F), "inside attack was blocked");
+            helper.assertTrue(ForgeHooks.onLivingAttack(inside, inside.damageSources().fall(), 5.0F), "fall damage was blocked");
+        } finally {
+            com.automatavalkyries.weapon.AegisBarrierItem.ACTIVE.remove(guardian);
+        }
+        helper.succeed();
+    }
+
+    /** カタストロフ・バスター: ブラックホール弾が崩壊して範囲の敵を倒し、既定ではブロックを壊さない */
+    @GameTest(template = TEMPLATE, timeoutTicks = 200)
+    public static void blackHoleCollapses(GameTestHelper helper) {
+        FakePlayer player = player(helper, new Vec3(0.5, 2, 0.5));
+        Zombie zombie = dummy(helper, new Vec3(4.5, 2, 4.5));
+        zombie.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH).setBaseValue(500);
+        zombie.setHealth(500);
+        BlockPos stone = new BlockPos(5, 2, 6);
+        helper.setBlock(stone, net.minecraft.world.level.block.Blocks.STONE);
+        com.automatavalkyries.weapon.BlackHoleEntity hole = new com.automatavalkyries.weapon.BlackHoleEntity(helper.getLevel(), player);
+        Vec3 at = helper.absoluteVec(new Vec3(4.5, 3, 4.5));
+        hole.setPos(at.x, at.y, at.z);
+        helper.getLevel().addFreshEntity(hole);
+        helper.succeedWhen(() -> {
+            helper.assertTrue(hole.isRemoved(), "not collapsed yet");
+            helper.assertTrue(zombie.isDeadOrDying(), "target survived the collapse: " + zombie.getHealth());
+            helper.assertBlockPresent(net.minecraft.world.level.block.Blocks.STONE, stone);
+        });
+    }
 }

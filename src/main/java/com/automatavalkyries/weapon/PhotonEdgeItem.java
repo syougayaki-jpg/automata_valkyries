@@ -3,6 +3,7 @@ package com.automatavalkyries.weapon;
 import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Multimap;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
@@ -18,18 +19,23 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
+import org.joml.Vector3f;
 
 /**
  * フォトンエッジ（§7.2 weapon_photon_edge、T1）: 片手剣。攻撃力 12.0 / 攻撃速度 2.2、1 振り（当たり）2,000 FE。
  * 電力が無いとただの柄（攻撃力 4.0【提案】）。
- * 3 連コンボ: 1.5 秒以内に続けて当てると数え、3 撃目は周り（2.5 ブロック）の敵にも半分のダメージの光刃が走る【提案】。
+ * 3 連コンボ: 1.5 秒以内に続けて当てると数え、3 撃目は抜刀のような横薙ぎの光刃が目の前（左右 75 度・4 ブロック）の敵に半分のダメージ【提案】。
  * 敵のフォトンシールドゲージを 2.5 倍で削る特性は、シールドを持つ敵を実装したらつなぐ。
  */
 public class PhotonEdgeItem extends TacticalWeaponItem {
 
     public static final int CAPACITY = 40_000, PER_HIT = 2_000, COMBO_WINDOW = 30;
-    public static final double DAMAGE = 12.0, DULL_DAMAGE = 4.0, SPEED = 2.2, SWEEP_RANGE = 2.5;
+    public static final double DAMAGE = 12.0, DULL_DAMAGE = 4.0, SPEED = 2.2, SWEEP_RANGE = 4.0;
     public static final float WEIGHT = 4.0F;
+
+    private static final DustParticleOptions SLASH_CORE = new DustParticleOptions(new Vector3f(1.0F, 1.0F, 1.0F), 1.5F);
+    private static final DustParticleOptions SLASH_EDGE = new DustParticleOptions(new Vector3f(0.45F, 0.88F, 1.0F), 1.1F);
 
     private final Multimap<Attribute, AttributeModifier> charged = modifiers(DAMAGE), dull = modifiers(DULL_DAMAGE);
 
@@ -53,7 +59,9 @@ public class PhotonEdgeItem extends TacticalWeaponItem {
     public boolean hurtEnemy(ItemStack stack, LivingEntity target, LivingEntity attacker) {
         if (!WeaponPower.use(attacker, stack, PER_HIT)) return true;
         if (!(attacker.level() instanceof ServerLevel level)) return true;
-        level.sendParticles(ParticleTypes.END_ROD, target.getX(), target.getY(0.6), target.getZ(), 10, 0.3, 0.4, 0.3, 0.05);
+        Vec3 hit = new Vec3(target.getX(), target.getY(0.6), target.getZ());
+        Fx.burst(level, Fx.opt(com.automatavalkyries.registry.ModParticles.SPARK.get(), Fx.CYAN, 0.25F, 8), hit, 8, 0.25);
+        Fx.spray(level, Fx.opt(com.automatavalkyries.registry.ModParticles.GLOW.get(), Fx.ICE, 0.5F, 10), hit, 3, 0.2, 0.01);
         level.playSound(null, target.blockPosition(), SoundEvents.BEACON_POWER_SELECT, SoundSource.PLAYERS, 0.4F, 2.0F);
         playUse(attacker, stack);
 
@@ -69,16 +77,45 @@ public class PhotonEdgeItem extends TacticalWeaponItem {
         return true;
     }
 
-    /** 3 撃目: 周りの敵へ光刃 */
+    /**
+     * 3 撃目: 抜刀のような横薙ぎの光刃。目の前（左右 75 度・4 ブロック）の敵に半分のダメージ。
+     * 胸の高さに、白い芯と水色の縁の弧の斬撃を描き、刃の通り道に火花と薙ぎ払いの跡を残す。
+     */
     private static void sweep(ServerLevel level, ItemStack stack, LivingEntity target, LivingEntity attacker) {
         DamageSource source = attacker instanceof Player player ? attacker.damageSources().playerAttack(player) : attacker.damageSources().mobAttack(attacker);
-        for (LivingEntity other : level.getEntitiesOfClass(LivingEntity.class, target.getBoundingBox().inflate(SWEEP_RANGE),
+        Vec3 eye = attacker.getEyePosition();
+        Vec3 look = new Vec3(attacker.getLookAngle().x, 0, attacker.getLookAngle().z).normalize();
+        for (LivingEntity other : level.getEntitiesOfClass(LivingEntity.class, attacker.getBoundingBox().inflate(SWEEP_RANGE),
                 e -> e != attacker && e != target && e.isAlive() && !e.isAlliedTo(attacker))) {
+            Vec3 to = new Vec3(other.getX() - attacker.getX(), 0, other.getZ() - attacker.getZ());
+            if (to.length() > SWEEP_RANGE + other.getBbWidth() || to.normalize().dot(look) < 0.26) continue;
             other.hurt(source, (float) (DAMAGE / 2));
         }
-        level.sendParticles(ParticleTypes.SWEEP_ATTACK, target.getX(), target.getY(0.5), target.getZ(), 3, 0.8, 0.1, 0.8, 0);
-        level.sendParticles(ParticleTypes.ELECTRIC_SPARK, target.getX(), target.getY(0.5), target.getZ(), 24, 1.2, 0.3, 1.2, 0.2);
-        level.playSound(null, target.blockPosition(), SoundEvents.PLAYER_ATTACK_SWEEP, SoundSource.PLAYERS, 0.8F, 1.5F);
+        // 弧の斬撃（右から左へ、わずかに傾いた横一文字）: 白い芯と水色の縁の光の帯、大きな三日月、刃の通り道のきらめき
+        double yaw = Math.atan2(look.z, look.x);
+        for (int deg = -80; deg <= 80; deg += 3) {
+            double ang = yaw + Math.toRadians(deg);
+            double tilt = deg / 80.0 * 0.25;
+            double y = eye.y - 0.45 + tilt;
+            Vec3 core = new Vec3(attacker.getX() + Math.cos(ang) * 2.6, y, attacker.getZ() + Math.sin(ang) * 2.6);
+            Fx.spray(level, Fx.opt(com.automatavalkyries.registry.ModParticles.GLOW.get(), Fx.WHITE, 0.32F, 9), core, 1, 0, 0);
+            for (double rad : new double[]{2.0, 3.2}) {
+                Vec3 edge = new Vec3(attacker.getX() + Math.cos(ang) * rad, y, attacker.getZ() + Math.sin(ang) * rad);
+                Fx.spray(level, Fx.opt(com.automatavalkyries.registry.ModParticles.GLOW.get(), Fx.CYAN, 0.22F, 7), edge, 1, 0, 0);
+            }
+            if (deg % 12 == 0) Fx.burst(level, Fx.opt(com.automatavalkyries.registry.ModParticles.SPARK.get(), Fx.ICE, 0.22F, 10), core, 2, 0.12);
+        }
+        Vec3 front = new Vec3(attacker.getX() + look.x * 2.4, eye.y - 0.4, attacker.getZ() + look.z * 2.4);
+        Fx.slash(level, front, Fx.ICE, 3.0F, 8, 0F);
+        Fx.slash(level, front.add(0, 0.05, 0), Fx.WHITE, 2.4F, 6, 0F);
+        for (int deg : new int[]{-50, 0, 50}) {
+            double ang = yaw + Math.toRadians(deg);
+            level.sendParticles(ParticleTypes.SWEEP_ATTACK, attacker.getX() + Math.cos(ang) * 2.4, eye.y - 0.5,
+                    attacker.getZ() + Math.sin(ang) * 2.4, 1, 0, 0, 0, 0);
+        }
+        level.sendParticles(ParticleTypes.END_ROD, attacker.getX() + look.x * 2.6, eye.y - 0.45, attacker.getZ() + look.z * 2.6, 14, 1.2, 0.1, 1.2, 0.05);
+        level.playSound(null, attacker.blockPosition(), SoundEvents.PLAYER_ATTACK_SWEEP, SoundSource.PLAYERS, 1.0F, 0.7F);
+        level.playSound(null, attacker.blockPosition(), SoundEvents.AMETHYST_BLOCK_CHIME, SoundSource.PLAYERS, 1.2F, 1.8F);
     }
 
     @Override

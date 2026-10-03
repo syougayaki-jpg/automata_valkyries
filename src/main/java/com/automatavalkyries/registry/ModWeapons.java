@@ -45,6 +45,18 @@ public final class ModWeapons {
     public static final RegistryObject<Item> REPAIR_INJECTOR = ModItems.ITEMS.register("module_repair_injector", () ->
             new RepairInjectorItem(new Item.Properties().rarity(Rarity.UNCOMMON)));
 
+    // ---- T2〜T4 の兵装（§7.2） ----
+    public static final RegistryObject<Item> LUXION_SABER = ModItems.ITEMS.register("weapon_luxion_saber", () ->
+            new com.automatavalkyries.weapon.LuxionSaberItem(new Item.Properties().rarity(Rarity.EPIC)));
+    public static final RegistryObject<Item> HEAVY_PARTICLE_CANNON = ModItems.ITEMS.register("weapon_heavy_particle_cannon", () ->
+            new com.automatavalkyries.weapon.HeavyParticleCannonItem(new Item.Properties().rarity(Rarity.EPIC)));
+    public static final RegistryObject<Item> TIME_ELIMINATOR = ModItems.ITEMS.register("weapon_time_eliminator", () ->
+            new com.automatavalkyries.weapon.TimeEliminatorItem(new Item.Properties().rarity(Rarity.EPIC)));
+    public static final RegistryObject<Item> AEGIS_BARRIER = ModItems.ITEMS.register("module_aegis_barrier", () ->
+            new com.automatavalkyries.weapon.AegisBarrierItem(new Item.Properties().rarity(Rarity.EPIC)));
+    public static final RegistryObject<Item> CATASTROPHE_BUSTER = ModItems.ITEMS.register("weapon_catastrophe_buster", () ->
+            new com.automatavalkyries.weapon.CatastropheBusterItem(new Item.Properties().rarity(Rarity.EPIC).fireResistant()));
+
     // ---- 弾薬 ----
     public static final RegistryObject<Item> AMMO_AP_ROUND = ModItems.ITEMS.register("ammo_ap_round", () -> new Item(new Item.Properties()));
     public static final RegistryObject<Item> NANO_SOLUTION = ModItems.ITEMS.register("nano_solution", () -> new Item(new Item.Properties().stacksTo(16)));
@@ -57,6 +69,14 @@ public final class ModWeapons {
                     .updateInterval(2)
                     .build("necrosis_needle"));
     public static final RegistryObject<MobEffect> NECROSIS = MOB_EFFECTS.register("necrosis", Necrosis.Effect::new);
+    public static final RegistryObject<MobEffect> CAUSAL_STOP = MOB_EFFECTS.register("causal_stop", com.automatavalkyries.weapon.TimeEliminatorItem.CausalStop::new);
+    public static final RegistryObject<EntityType<com.automatavalkyries.weapon.BlackHoleEntity>> BLACK_HOLE = ModEntities.ENTITY_TYPES.register("black_hole", () ->
+            EntityType.Builder.<com.automatavalkyries.weapon.BlackHoleEntity>of(com.automatavalkyries.weapon.BlackHoleEntity::new, MobCategory.MISC)
+                    .sized(1.0F, 1.0F)
+                    .clientTrackingRange(8)
+                    .updateInterval(2)
+                    .fireImmune()
+                    .build("black_hole"));
 
     private ModWeapons() {}
 

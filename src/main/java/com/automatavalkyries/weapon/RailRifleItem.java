@@ -81,7 +81,8 @@ public class RailRifleItem extends TacticalWeaponItem {
             fire(server, player);
             playUse(player, rifle);
         }
-        return InteractionResultHolder.sidedSuccess(rifle, level.isClientSide());
+        clientKick(player);
+        return InteractionResultHolder.consume(rifle); // 殴る振りはしない（反動の動きを付ける）
     }
 
     /** 持ち物の徹甲弾で満たす（クリエイティブは弾を使わない）。1 発も入らなければ false */
@@ -120,18 +121,33 @@ public class RailRifleItem extends TacticalWeaponItem {
         for (LivingEntity target : hits) {
             target.hurt(WeaponDamage.source(shooter, WeaponDamage.ARMOR_PIERCING, shooter, shooter),
                     WeaponDamage.armorPiercing(target, DAMAGE, ARMOR_IGNORE));
-            level.sendParticles(ParticleTypes.ELECTRIC_SPARK, target.getX(), target.getY(0.6), target.getZ(), 12, 0.2, 0.3, 0.2, 0.3);
+            Vec3 hit = new Vec3(target.getX(), target.getY(0.6), target.getZ());
+            Fx.burst(level, Fx.opt(com.automatavalkyries.registry.ModParticles.SPARK.get(), Fx.WHITE, 0.3F, 8), hit, 10, 0.35);
+            Fx.spray(level, Fx.opt(com.automatavalkyries.registry.ModParticles.GLOW.get(), Fx.CYAN, 0.7F, 8), hit, 2, 0.1, 0);
         }
-        double length = stop.distanceTo(eye);
-        for (double d = 1.0; d < length; d += 0.6) {
-            Vec3 p = eye.add(look.scale(d));
-            level.sendParticles(TRAIL, p.x, p.y - 0.1, p.z, 1, 0, 0, 0, 0);
+        // 弾道: 白い芯と水色の光の帯、まわりを巡るきらめき
+        Vec3 from = eye.add(look.scale(1.0)).add(0, -0.1, 0), to = stop.add(0, -0.1, 0);
+        Fx.line(level, Fx.opt(com.automatavalkyries.registry.ModParticles.GLOW.get(), Fx.WHITE, 0.14F, 10), from, to, 0.35);
+        Fx.line(level, Fx.opt(com.automatavalkyries.registry.ModParticles.GLOW.get(), Fx.CYAN, 0.28F, 14), from, to, 0.5);
+        double length = to.distanceTo(from);
+        Vec3 side = look.cross(new Vec3(0, 1, 0)).normalize();
+        Vec3 up = side.cross(look).normalize();
+        for (double d = 0; d < length; d += 0.8) {
+            double a = d * 1.6;
+            Vec3 p = from.add(look.scale(d)).add(side.scale(Math.cos(a) * 0.25)).add(up.scale(Math.sin(a) * 0.25));
+            Fx.spray(level, Fx.opt(com.automatavalkyries.registry.ModParticles.SPARK.get(), Fx.ICE, 0.12F, 12), p, 1, 0, 0);
         }
-        level.sendParticles(ParticleTypes.END_ROD, stop.x, stop.y, stop.z, 6, 0.05, 0.05, 0.05, 0.08);
+        Fx.burst(level, Fx.opt(com.automatavalkyries.registry.ModParticles.SPARK.get(), Fx.ICE, 0.3F, 10), stop, 10, 0.3);
+        Fx.burst(level, Fx.opt(com.automatavalkyries.registry.ModParticles.GLOW.get(), Fx.CYAN, 0.3F, 8), from, 6, 0.08);
         level.playSound(null, shooter.blockPosition(), SoundEvents.FIREWORK_ROCKET_BLAST_FAR, SoundSource.PLAYERS, 1.2F, 0.6F);
         level.playSound(null, shooter.blockPosition(), SoundEvents.BEACON_DEACTIVATE, SoundSource.PLAYERS, 0.6F, 2.0F);
         shooter.push(-look.x * 0.2, 0.0, -look.z * 0.2); // 反動
         shooter.hurtMarked = true;
+    }
+
+    @Override
+    public float recoil() {
+        return 1.0F;
     }
 
     @Override

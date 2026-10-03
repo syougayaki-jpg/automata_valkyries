@@ -1,0 +1,15 @@
+{
+  "format_version": "1.8.0",
+  "animations": {
+    "animation.weapon.idle": {"loop": true, "animation_length": 2,
+ "bones": {"rings": {"rotation": {"0.0": [0, 0, 0], "2.0": [360, 0, 0]}}}},
+    "animation.weapon.charge": {"animation_length": 3.0,
+ "bones": {"rings": {"rotation": {"0.0": [0, 0, 0], "3.0": [2160, 0, 0]}, "scale": {"0.0": [1, 1, 1], "3.0": [1.2, 1.3, 1.3]}},
+           "chamber": {"position": {"0.0": [0, 0, 0], "1.0": [0, 0.15, 0], "2.0": [0, -0.15, 0], "3.0": [0, 0, 0]}}}},
+    "animation.weapon.use": {"animation_length": 0.9,
+ "bones": {"root": {"position": {"0.0": [0, 0, 0], "0.06": [-3.2, 0.8, 0], "0.9": [0, 0, 0]},
+                    "rotation": {"0.0": [0, 0, 0], "0.06": [0, 0, 12], "0.9": [0, 0, 0]}},
+           "rings": {"scale": {"0.0": [1.2, 1.3, 1.3], "0.1": [1.5, 1.7, 1.7], "0.9": [1, 1, 1]}}}}
+  },
+  "geckolib_format_version": 2
+}

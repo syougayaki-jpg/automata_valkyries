@@ -1,0 +1,45 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 3,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:boss_drop_distortion_gen"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:boss_drop_gallia_plate"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:module_polar_deflector"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:field_distortion"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:plating_stellar"
+      },
+      "count": 4
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:gate_wormhole"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:module_aegis_barrier"
+  },
+  "energy": 4000000,
+  "time": 800
+}

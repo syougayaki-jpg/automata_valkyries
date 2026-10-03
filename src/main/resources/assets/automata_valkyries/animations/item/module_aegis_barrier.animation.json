@@ -1,0 +1,15 @@
+{
+  "format_version": "1.8.0",
+  "animations": {
+    "animation.weapon.idle": {"loop": true, "animation_length": 2,
+ "bones": {"plate": {"scale": {"0.0": [1, 1, 1], "1.0": [1.01, 1.01, 1.0], "2.0": [1, 1, 1]}}}},
+    "animation.weapon.use": {"animation_length": 0.2, "bones": {"plate": {"scale": {"0.0": [1, 1, 1], "0.1": [1.04, 1.04, 1], "0.2": [1, 1, 1]}}}},
+    "animation.weapon.deploy": {"animation_length": 0.4,
+ "bones": {"wing_left": {"position": {"0.0": [0, 0, 0], "0.4": [-2.5, 0, 1]}, "rotation": {"0.0": [0, 0, 0], "0.4": [0, -35, 0]}},
+           "wing_right": {"position": {"0.0": [0, 0, 0], "0.4": [2.5, 0, 1]}, "rotation": {"0.0": [0, 0, 0], "0.4": [0, 35, 0]}}}},
+    "animation.weapon.retract": {"animation_length": 0.4,
+ "bones": {"wing_left": {"position": {"0.0": [-2.5, 0, 1], "0.4": [0, 0, 0]}, "rotation": {"0.0": [0, -35, 0], "0.4": [0, 0, 0]}},
+           "wing_right": {"position": {"0.0": [2.5, 0, 1], "0.4": [0, 0, 0]}, "rotation": {"0.0": [0, 35, 0], "0.4": [0, 0, 0]}}}}
+  },
+  "geckolib_format_version": 2
+}

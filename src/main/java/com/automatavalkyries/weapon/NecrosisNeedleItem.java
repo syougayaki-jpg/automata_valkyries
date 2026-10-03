@@ -38,7 +38,8 @@ public class NecrosisNeedleItem extends TacticalWeaponItem {
             fire(server, player);
             playUse(player, gun);
         }
-        return InteractionResultHolder.sidedSuccess(gun, level.isClientSide());
+        clientKick(player);
+        return InteractionResultHolder.consume(gun); // 殴る振りはしない（反動の動きを付ける）
     }
 
     public static void fire(ServerLevel level, LivingEntity shooter) {
@@ -48,6 +49,11 @@ public class NecrosisNeedleItem extends TacticalWeaponItem {
         needle.shoot(look.x, look.y, look.z, NecrosisNeedleEntity.SPEED, 0.5F);
         level.addFreshEntity(needle);
         level.playSound(null, shooter.blockPosition(), SoundEvents.BREWING_STAND_BREW, SoundSource.PLAYERS, 0.8F, 1.8F);
+    }
+
+    @Override
+    public float recoil() {
+        return 0.45F;
     }
 
     @Override

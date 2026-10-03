@@ -548,5 +548,21 @@
   "item.automata_valkyries.boss_drop_purified_zero.flavor1": "怨嗟を祓われた零号機のコア。十二の面から漏れる光は、もう誰も呪わない。",
   "item.automata_valkyries.boss_drop_purified_zero.flavor2": "尽きない力を、今度は守るために。",
   "item.automata_valkyries.boss_drop_singularity_remnant.flavor1": "フォール・カタストロフで次元を砕いた、特異点自爆の燃え残り。",
-  "item.automata_valkyries.boss_drop_singularity_remnant.flavor2": "見つめていると、世界のほうにノイズが走る。"
+  "item.automata_valkyries.boss_drop_singularity_remnant.flavor2": "見つめていると、世界のほうにノイズが走る。",
+  "item.automata_valkyries.weapon_luxion_saber": "光速剣『ルクシオンセイバー』",
+  "item.automata_valkyries.weapon_luxion_saber.desc": "攻撃力 28・無敵時間無視（1 振り %s FE）。右クリックで 15 ブロック先の敵へ空間跳躍して斬り抜ける",
+  "item.automata_valkyries.weapon_heavy_particle_cannon": "重粒子収束砲",
+  "item.automata_valkyries.weapon_heavy_particle_cannon.desc": "1 射 %s FE。右クリック長押しで %s 秒チャージ、離すと極太の光線を 2 秒照射（0.2 秒ごとに 20 ダメージ・貫通）",
+  "item.automata_valkyries.weapon_time_eliminator": "因果切断剣『タイムエリミネイター』",
+  "item.automata_valkyries.weapon_time_eliminator.desc": "攻撃力 75（1 振り %s FE）。当てた相手の全バフを消し、3 秒の因果停止（行動不能）",
+  "item.automata_valkyries.module_aegis_barrier": "絶対障壁発生器『アイギス』",
+  "item.automata_valkyries.module_aegis_barrier.desc": "右クリック長押しで半径 4 m の完全防御ドームを展開（毎秒 %s FE）。外からの攻撃・爆発・飛び道具を中へ通さない",
+  "item.automata_valkyries.weapon_catastrophe_buster": "特異点砲『カタストロフ・バスター』",
+  "item.automata_valkyries.weapon_catastrophe_buster.desc": "1 射 %s FE。%s 秒チャージで直径 5 ブロックのブラックホール弾。着弾で空間崩壊（防御無視・無敵無視・カンストダメージ 2,147,483,647）",
+  "effect.automata_valkyries.causal_stop": "因果停止",
+  "entity.automata_valkyries.black_hole": "ブラックホール弾",
+  "death.attack.automata_valkyries.particle_beam": "%1$s は重粒子の光線に焼き尽くされた",
+  "death.attack.automata_valkyries.particle_beam.player": "%1$s は %2$s の重粒子の光線に焼き尽くされた",
+  "death.attack.automata_valkyries.catastrophe": "%1$s は特異点の崩壊に呑まれた",
+  "death.attack.automata_valkyries.catastrophe.player": "%1$s は %2$s の特異点の崩壊に呑まれた"
 }

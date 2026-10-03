@@ -19,6 +19,13 @@ public final class WeaponDamage {
     public static final ResourceKey<DamageType> ARMOR_PIERCING =
             ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "armor_piercing"));
 
+    /** 重粒子収束砲の光線（ガリアフォートの「ダメージ 1 固定の場」を通す目印にする） */
+    public static final ResourceKey<DamageType> PARTICLE_BEAM =
+            ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "particle_beam"));
+    /** カタストロフ・バスターの空間崩壊（防具・エンチャント・状態異常・耐性を通らない。999 固定） */
+    public static final ResourceKey<DamageType> CATASTROPHE =
+            ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "catastrophe"));
+
     private WeaponDamage() {}
 
     public static DamageSource source(Entity context, ResourceKey<DamageType> type, @Nullable Entity direct, @Nullable Entity causing) {

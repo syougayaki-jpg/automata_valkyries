@@ -1,0 +1,54 @@
+{
+  "format_version": "1.12.0",
+  "minecraft:geometry": [
+    {
+      "description": {
+        "identifier": "geometry.weapon_time_eliminator",
+        "texture_width": 64,
+        "texture_height": 64,
+        "visible_bounds_width": 3,
+        "visible_bounds_height": 3,
+        "visible_bounds_offset": [0, 0.5, 0]
+      },
+      "bones": [
+        {
+          "name": "root",
+          "pivot": [0, 0, 0],
+          "rotation": [0, 0, -45]
+        },
+        {
+          "name": "hilt",
+          "parent": "root",
+          "pivot": [0, 0, 0],
+          "cubes": [
+            {"origin": [-1.5, -13, -1.5], "size": [3, 2, 3], "uv": [0, 0]},
+            {"origin": [-1, -11, -1], "size": [2, 6, 2], "uv": [13, 0]},
+            {"origin": [-4, -5.5, -1.5], "size": [8, 1.5, 3], "uv": [22, 0]},
+            {"origin": [-2.5, -7.5, -1], "size": [5, 1, 2], "uv": [45, 0]}
+          ]
+        },
+        {
+          "name": "clock",
+          "parent": "hilt",
+          "pivot": [0, -5, 0],
+          "cubes": [
+            {"origin": [-1.5, -6.5, -1.6], "size": [3, 3, 0.3], "uv": [0, 9]},
+            {"origin": [-0.25, -5.25, -1.8], "size": [0.5, 1.5, 0.2], "uv": [9, 9]}
+          ]
+        },
+        {
+          "name": "blade",
+          "parent": "root",
+          "pivot": [0, -4, 0],
+          "cubes": [
+            {"origin": [-2.5, -4, -0.5], "size": [5, 15, 1], "uv": [14, 9]},
+            {"origin": [-2.75, -4, -0.3], "size": [0.5, 14, 0.6], "uv": [27, 9]},
+            {"origin": [2.25, -4, -0.3], "size": [0.5, 14, 0.6], "uv": [32, 9]},
+            {"origin": [-0.5, -3, -0.6], "size": [1, 13, 1.2], "uv": [37, 9]},
+            {"origin": [-1.5, 11, -0.5], "size": [3, 1.5, 1], "uv": [44, 9]}
+          ]
+        }
+      ]
+    }
+  ]
+}

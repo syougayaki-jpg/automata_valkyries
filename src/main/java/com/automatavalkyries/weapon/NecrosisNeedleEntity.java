@@ -55,7 +55,8 @@ public class NecrosisNeedleEntity extends ThrowableProjectile {
             }
             seek();
         } else {
-            level().addParticle(TRAIL, getX(), getY(), getZ(), 0, 0, 0);
+            level().addParticle(new com.automatavalkyries.particle.FxOptions(com.automatavalkyries.registry.ModParticles.GLOW.get(), Fx.GREEN, 0.18F, 10, 0), getX(), getY(), getZ(), 0, 0, 0);
+            if (tickCount % 2 == 0) level().addParticle(new com.automatavalkyries.particle.FxOptions(com.automatavalkyries.registry.ModParticles.VOID_SHARD.get(), Fx.GREEN, 0.06F, 12, 0), getX(), getY(), getZ(), 0, 0, 0);
         }
         super.tick();
     }
@@ -103,7 +104,9 @@ public class NecrosisNeedleEntity extends ThrowableProjectile {
         Entity owner = getOwner();
         hit.hurt(damageSources().thrown(this, owner), DAMAGE);
         Necrosis.apply(hit);
-        level.sendParticles(ParticleTypes.SQUID_INK, hit.getX(), hit.getY(0.6), hit.getZ(), 8, 0.2, 0.3, 0.2, 0.02);
+        net.minecraft.world.phys.Vec3 at = new net.minecraft.world.phys.Vec3(hit.getX(), hit.getY(0.6), hit.getZ());
+        Fx.burst(level, Fx.opt(com.automatavalkyries.registry.ModParticles.VOID_SHARD.get(), Fx.GREEN, 0.1F, 20), at, 10, 0.2);
+        Fx.spray(level, Fx.opt(com.automatavalkyries.registry.ModParticles.GLOW.get(), 0x2E8A54, 0.6F, 12), at, 3, 0.2, 0.01);
         discard();
     }
 

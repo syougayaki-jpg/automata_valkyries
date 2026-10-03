@@ -1,0 +1,48 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 4,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:boss_drop_singularity_remnant"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:weapon_heavy_particle_cannon"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:core_singularity_chronos"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:singularity_neverlast"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_causal"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:shell_causal"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:engine_perpetual"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:weapon_catastrophe_buster"
+  },
+  "energy": 20000000,
+  "time": 1200
+}

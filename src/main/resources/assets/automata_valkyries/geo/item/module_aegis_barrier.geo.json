@@ -1,0 +1,55 @@
+{
+  "format_version": "1.12.0",
+  "minecraft:geometry": [
+    {
+      "description": {
+        "identifier": "geometry.module_aegis_barrier",
+        "texture_width": 64,
+        "texture_height": 64,
+        "visible_bounds_width": 3,
+        "visible_bounds_height": 3,
+        "visible_bounds_offset": [0, 0.5, 0]
+      },
+      "bones": [
+        {
+          "name": "root",
+          "pivot": [0, 0, 0]
+        },
+        {
+          "name": "plate",
+          "parent": "root",
+          "pivot": [0, 0, 0],
+          "cubes": [
+            {"origin": [-5, -8, -0.6], "size": [10, 16, 1.2], "uv": [0, 0]},
+            {"origin": [-5.5, 7.5, -0.9], "size": [11, 1, 1.8], "uv": [25, 0]},
+            {"origin": [-5.5, -8.5, -0.9], "size": [11, 1, 1.8], "uv": [0, 19]},
+            {"origin": [-5.5, -8, -0.9], "size": [1, 16, 1.8], "uv": [27, 19]},
+            {"origin": [4.5, -8, -0.9], "size": [1, 16, 1.8], "uv": [34, 19]},
+            {"origin": [-1, -2, -1.6], "size": [2, 4, 1], "uv": [41, 19]},
+            {"origin": [-2, -2, 0.6], "size": [4, 4, 0.4], "uv": [48, 19]},
+            {"origin": [-0.5, -6.5, 0.6], "size": [1, 13, 0.25], "uv": [59, 19]},
+            {"origin": [-4, -0.5, 0.6], "size": [8, 1, 0.25], "uv": [0, 38]}
+          ]
+        },
+        {
+          "name": "wing_left",
+          "parent": "root",
+          "pivot": [-5.5, 0, 0],
+          "cubes": [
+            {"origin": [-8.5, -6, -0.4], "size": [3, 12, 0.8], "uv": [19, 38]},
+            {"origin": [-7.5, -5, 0.4], "size": [0.5, 10, 0.25], "uv": [28, 38]}
+          ]
+        },
+        {
+          "name": "wing_right",
+          "parent": "root",
+          "pivot": [5.5, 0, 0],
+          "cubes": [
+            {"origin": [5.5, -6, -0.4], "size": [3, 12, 0.8], "uv": [33, 38]},
+            {"origin": [7, -5, 0.4], "size": [0.5, 10, 0.25], "uv": [42, 38]}
+          ]
+        }
+      ]
+    }
+  ]
+}

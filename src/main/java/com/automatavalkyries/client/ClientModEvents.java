@@ -13,6 +13,8 @@ public class ClientModEvents {
     /** 基礎文明マシンの画面 */
     @SubscribeEvent
     public static void clientSetup(net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent event) {
+        // 銃の構え（ArmPose の追加）は、人型モデルが ArmPose の switch を使う前に作っておく（後から足すと描画で配列の外を読んで落ちる）
+        WeaponClient.init();
         event.enqueueWork(() -> {
             net.minecraft.client.gui.screens.MenuScreens.register(com.automatavalkyries.registry.ModMachines.MENU.get(), MachineScreen::new);
             net.minecraft.client.gui.screens.MenuScreens.register(com.automatavalkyries.registry.ModChrono.MENU.get(), ChronoScreen::new);
@@ -23,6 +25,12 @@ public class ClientModEvents {
                         (stack, level, entity, seed) -> com.automatavalkyries.chrono.ChronoMachineItem.tierOf(stack).level);
             }
         });
+    }
+
+    /** 兵装の自作エフェクトの粒子 */
+    @SubscribeEvent
+    public static void registerParticles(net.minecraftforge.client.event.RegisterParticleProvidersEvent event) {
+        com.automatavalkyries.client.particle.FxParticles.register(event);
     }
 
     @SubscribeEvent
@@ -37,5 +45,6 @@ public class ClientModEvents {
         });
         // ネクロシス・ニードルガンの針は粒子だけで見せる
         event.registerEntityRenderer(com.automatavalkyries.registry.ModWeapons.NECROSIS_NEEDLE.get(), net.minecraft.client.renderer.entity.NoopRenderer::new);
+        event.registerEntityRenderer(com.automatavalkyries.registry.ModWeapons.BLACK_HOLE.get(), BlackHoleRenderer::new);
     }
 }

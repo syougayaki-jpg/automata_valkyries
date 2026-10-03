@@ -548,5 +548,21 @@
   "item.automata_valkyries.boss_drop_purified_zero.flavor1": "The core of Unit Zero, cleansed of its malice. The light leaking from its twelve faces curses no one now.",
   "item.automata_valkyries.boss_drop_purified_zero.flavor2": "Endless power, this time to protect.",
   "item.automata_valkyries.boss_drop_singularity_remnant.flavor1": "The embers of the singularity self-destruct that shattered dimensions in the Fall Catastrophe.",
-  "item.automata_valkyries.boss_drop_singularity_remnant.flavor2": "Stare at it long enough, and it is the world that starts to glitch."
+  "item.automata_valkyries.boss_drop_singularity_remnant.flavor2": "Stare at it long enough, and it is the world that starts to glitch.",
+  "item.automata_valkyries.weapon_luxion_saber": "Lightspeed Sword \"Luxion Saber\"",
+  "item.automata_valkyries.weapon_luxion_saber.desc": "28 attack damage, ignores invulnerability frames (%s FE per hit). Right-click to blink through an enemy up to 15 blocks away",
+  "item.automata_valkyries.weapon_heavy_particle_cannon": "Heavy Particle Cannon",
+  "item.automata_valkyries.weapon_heavy_particle_cannon.desc": "%s FE per shot. Hold right-click to charge for %s s, release to fire a massive beam for 2 s (20 damage every 0.2 s, piercing)",
+  "item.automata_valkyries.weapon_time_eliminator": "Causality Severing Sword \"Time Eliminator\"",
+  "item.automata_valkyries.weapon_time_eliminator.desc": "75 attack damage (%s FE per hit). Strips every buff from the target and inflicts 3 s of Causal Stop",
+  "item.automata_valkyries.module_aegis_barrier": "Absolute Barrier Generator \"Aegis\"",
+  "item.automata_valkyries.module_aegis_barrier.desc": "Hold right-click to raise a 4 m absolute defense dome (%s FE per second). Nothing from outside gets in: attacks, explosions or projectiles",
+  "item.automata_valkyries.weapon_catastrophe_buster": "Singularity Cannon \"Catastrophe Buster\"",
+  "item.automata_valkyries.weapon_catastrophe_buster.desc": "%s FE per shot. Charge for %s s to fire a 5-block black hole. On impact, space collapses (ignores defense and invulnerability, counter-stop damage of 2,147,483,647)",
+  "effect.automata_valkyries.causal_stop": "Causal Stop",
+  "entity.automata_valkyries.black_hole": "Black Hole",
+  "death.attack.automata_valkyries.particle_beam": "%1$s was incinerated by a heavy particle beam",
+  "death.attack.automata_valkyries.particle_beam.player": "%1$s was incinerated by a heavy particle beam from %2$s",
+  "death.attack.automata_valkyries.catastrophe": "%1$s was swallowed by a collapsing singularity",
+  "death.attack.automata_valkyries.catastrophe.player": "%1$s was swallowed by a singularity collapse from %2$s"
 }

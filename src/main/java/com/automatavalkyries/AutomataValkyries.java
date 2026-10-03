@@ -40,6 +40,7 @@ public class AutomataValkyries {
         com.automatavalkyries.registry.ModBossDrops.init(); // ボス素材（クリエイティブ限定。兵装のレシピで要求する）
         com.automatavalkyries.registry.ModWeapons.init(); // ルミナルコア・兵装・弾薬（兵器ユニット設計書）
         com.automatavalkyries.registry.ModWeapons.MOB_EFFECTS.register(modEventBus);
+        com.automatavalkyries.registry.ModParticles.PARTICLES.register(modEventBus); // 兵装の自作エフェクトの粒子
         com.automatavalkyries.registry.ModFutureTech.init(); // 未来技術の上位回路・パーツ // クロノリンク・マシン（BLOCKS / ITEMS / BLOCK_ENTITIES / MENUS に足す）
         com.automatavalkyries.registry.ModMachines.BLOCK_ENTITIES.register(modEventBus);
         com.automatavalkyries.registry.ModMachines.MENUS.register(modEventBus);

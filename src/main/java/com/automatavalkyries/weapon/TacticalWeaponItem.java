@@ -96,6 +96,19 @@ public abstract class TacticalWeaponItem extends Item implements GeoItem {
         playUse(user, stack, "use");
     }
 
+    /** 銃の反動の大きさ（0 なら銃ではない: 構え・反動の動きを付けない） */
+    public float recoil() {
+        return 0;
+    }
+
+    /** 撃った側のクライアントで、反動の動きと視点の跳ね上がりを起こす */
+    protected void clientKick(LivingEntity user) {
+        if (user.level().isClientSide() && recoil() > 0) {
+            net.minecraftforge.fml.DistExecutor.unsafeRunWhenOn(net.minecraftforge.api.distmarker.Dist.CLIENT,
+                    () -> () -> com.automatavalkyries.client.WeaponClient.kick(this, recoil()));
+        }
+    }
+
     /** 追加のトリガー用アニメーション（ディフレクターの展開など）。名前は animation.weapon.<名前> */
     protected String[] extraAnimations() {
         return new String[0];
@@ -169,6 +182,19 @@ public abstract class TacticalWeaponItem extends Item implements GeoItem {
             public BlockEntityWithoutLevelRenderer getCustomRenderer() {
                 if (renderer == null) renderer = com.automatavalkyries.client.WeaponRenderer.create(TacticalWeaponItem.this);
                 return renderer;
+            }
+
+            @Override
+            public net.minecraft.client.model.HumanoidModel.ArmPose getArmPose(LivingEntity entity, InteractionHand hand, ItemStack stack) {
+                if (recoil() <= 0) return null;
+                return twoHanded ? com.automatavalkyries.client.WeaponClient.RIFLE_POSE : com.automatavalkyries.client.WeaponClient.GUN_POSE;
+            }
+
+            @Override
+            public boolean applyForgeHandTransform(com.mojang.blaze3d.vertex.PoseStack pose, net.minecraft.client.player.LocalPlayer player,
+                                                   net.minecraft.world.entity.HumanoidArm arm, ItemStack stack, float partialTick, float equipProcess, float swingProcess) {
+                if (recoil() <= 0) return false;
+                return com.automatavalkyries.client.WeaponClient.handTransform(pose, arm, stack, partialTick, equipProcess);
             }
         });
     }
