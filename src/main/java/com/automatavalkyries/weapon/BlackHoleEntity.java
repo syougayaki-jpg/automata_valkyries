@@ -33,7 +33,8 @@ public class BlackHoleEntity extends ThrowableProjectile {
     public static final long DAMAGE_VALUE = Integer.MAX_VALUE;
     public static final float SPEED = 1.2F, DAMAGE = (float) DAMAGE_VALUE;
     public static final int FLIGHT = 60, COLLAPSE = 20;
-    public static final double PULL_RANGE = 8.0, BLAST_RADIUS = 5.0, BLOCK_RADIUS = 4.0;
+    /** 吸い込みの範囲（2026-10-04 ユーザー指定で強化）: 崩壊中 20 ブロック、飛んでいる最中も 14 ブロック */
+    public static final double PULL_RANGE = 20.0, FLIGHT_PULL_RANGE = 14.0, BLAST_RADIUS = 6.0, BLOCK_RADIUS = 4.0;
     private static final EntityDataAccessor<Integer> COLLAPSING = SynchedEntityData.defineId(BlackHoleEntity.class, EntityDataSerializers.INT);
 
     public BlackHoleEntity(EntityType<? extends BlackHoleEntity> type, Level level) {
@@ -69,7 +70,7 @@ public class BlackHoleEntity extends ThrowableProjectile {
                     detonate();
                     return;
                 }
-                pull();
+                pull(PULL_RANGE, 1.0, 5.0, Vec3.ZERO);
                 entityData.set(COLLAPSING, age + 1);
             }
             baseTick();
@@ -79,6 +80,7 @@ public class BlackHoleEntity extends ThrowableProjectile {
             startCollapse();
             return;
         }
+        if (!level().isClientSide()) pull(FLIGHT_PULL_RANGE, 0.55, 3.0, getDeltaMovement()); // 着弾するまでの最中も吸い込む（ユーザー指定）
         if (level() instanceof ServerLevel server) {
             // 飛ぶあいだ: 円盤のまわりを空間の破片と橙の光が巡り、後ろへ尾を引く
             Vec3 c = position().add(0, getBbHeight() * 0.5, 0);
@@ -100,26 +102,42 @@ public class BlackHoleEntity extends ThrowableProjectile {
         level().playSound(null, blockPosition(), SoundEvents.PORTAL_TRIGGER, SoundSource.PLAYERS, 1.0F, 1.6F);
     }
 
-    /** 周りの者を中心へ引き寄せる */
-    private void pull() {
+    /**
+     * 周りの者を中心へ引き寄せる（range 以内。引く強さは最大 max・近いほど強く k / 距離、drift は弾の速さで、飛んでいる最中は引きずるように一緒に運ぶ）
+     */
+    private void pull(double range, double max, double k, Vec3 drift) {
         Entity owner = getOwner();
-        for (Entity e : level().getEntities(this, getBoundingBox().inflate(PULL_RANGE), e -> e != owner && !e.isSpectator() && (e instanceof LivingEntity || e instanceof net.minecraft.world.entity.item.ItemEntity))) {
+        for (Entity e : level().getEntities(this, getBoundingBox().inflate(range), e -> e != owner && !e.isSpectator() && (e instanceof LivingEntity || e instanceof net.minecraft.world.entity.item.ItemEntity))) {
             Vec3 to = position().subtract(e.position());
             double d = Math.max(0.5, to.length());
-            e.setDeltaMovement(e.getDeltaMovement().scale(0.6).add(to.normalize().scale(Math.min(0.6, 2.0 / d))));
+            if (d > range) continue;
+            e.setDeltaMovement(e.getDeltaMovement().scale(0.6).add(to.normalize().scale(Math.min(max, k / d))).add(drift.scale(0.5)));
             e.hurtMarked = true;
+            e.fallDistance = 0;
+        }
+        if (collapseAge() < 0) {
+            if (level() instanceof ServerLevel server && tickCount % 2 == 0) { // 飛んでいる最中: 外から渦を巻いて吸い込まれる光
+                Vec3 c = position().add(0, getBbHeight() * 0.5, 0);
+                for (int i = 0; i < 6; i++) {
+                    double a = random.nextDouble() * Math.PI * 2, r = 3 + random.nextDouble() * (range - 3);
+                    Vec3 p = c.add(Math.cos(a) * r, (random.nextDouble() - 0.5) * 3, Math.sin(a) * r);
+                    Vec3 v = c.subtract(p).scale(0.08).add(new Vec3(-Math.sin(a), 0, Math.cos(a)).scale(0.2)).add(drift);
+                    Fx.one(server, Fx.opt(i % 2 == 0 ? com.automatavalkyries.registry.ModParticles.VOID_SHARD.get() : com.automatavalkyries.registry.ModParticles.GLOW.get(), i % 2 == 0 ? Fx.ORANGE : Fx.EMBER, i % 2 == 0 ? 0.14F : 0.4F, 12), p, v);
+                }
+            }
+            return;
         }
         if (level() instanceof ServerLevel server) {
             // 引き寄せ: 空間の破片と光が渦を巻いて中心へ吸い込まれ、輪が縮む
             Vec3 c = position().add(0, getBbHeight() * 0.5, 0);
             int age = collapseAge();
-            for (int i = 0; i < 10; i++) {
-                double a = random.nextDouble() * Math.PI * 2, r = 4 + random.nextDouble() * 5;
+            for (int i = 0; i < 16; i++) {
+                double a = random.nextDouble() * Math.PI * 2, r = 4 + random.nextDouble() * (PULL_RANGE - 4);
                 Vec3 p = c.add(Math.cos(a) * r, (random.nextDouble() - 0.5) * 4, Math.sin(a) * r);
                 Vec3 v = c.subtract(p).scale(0.09).add(new Vec3(-Math.sin(a), 0, Math.cos(a)).scale(0.25));
                 Fx.one(server, Fx.opt(i % 2 == 0 ? com.automatavalkyries.registry.ModParticles.VOID_SHARD.get() : com.automatavalkyries.registry.ModParticles.GLOW.get(), i % 2 == 0 ? Fx.ORANGE : Fx.EMBER, i % 2 == 0 ? 0.16F : 0.5F, 12), p, v);
             }
-            if (age % 5 == 0) Fx.shockwave(server, c, 0x801020, 7.0F - age * 0.25F, 6);
+            if (age % 5 == 0) Fx.shockwave(server, c, 0x801020, (float) PULL_RANGE - age * 0.6F, 6);
         }
     }
 

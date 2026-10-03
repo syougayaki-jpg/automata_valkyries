@@ -16,6 +16,7 @@ import net.minecraftforge.fml.common.Mod;
  * <ul>
  *   <li>黄昏（終の黄昏『ラグナロク』）: 上から紫・茜・橙・金へ移る薄い幕、霧（地平の空）の色を橙へ</li>
  *   <li>星空（星葬冠『ルミナス・レクイエム』）: 上から深い紺・紫・水色へ移る幕に、瞬く星を 90 個散らし、霧の色を青へ</li>
+ *   <li>閃光（パニッシュメント・レールガン）: 一瞬で白に近い水色に染まり、すぐ褪せる（上下の縁は紫）</li>
  * </ul>
  */
 @Mod.EventBusSubscriber(modid = AutomataValkyries.MODID, value = Dist.CLIENT)
@@ -51,6 +52,15 @@ public final class ClientTwilight {
         if (k <= 0.001F) return;
         GuiGraphics g = event.getGuiGraphics();
         int w = event.getWindow().getGuiScaledWidth(), h = event.getWindow().getGuiScaledHeight();
+        if (scheme == com.automatavalkyries.network.TwilightPacket.FLASH) {
+            // 閃光: 一瞬で真っ白に近い水色に染まり、すぐ褪せる。縁は紫
+            float f = Math.max(0F, (left - event.getPartialTick()) / total);
+            float k2 = f * f;
+            g.fill(0, 0, w, h, argb((int) (200 * k2), 0xE8FAFF));
+            g.fillGradient(0, 0, w, h / 5, argb((int) (120 * k2), 0x8A40FF), argb(0, 0x8A40FF));
+            g.fillGradient(0, h - h / 5, w, h, argb(0, 0x8A40FF), argb((int) (120 * k2), 0x8A40FF));
+            return;
+        }
         if (scheme == com.automatavalkyries.network.TwilightPacket.STARRY) {
             starry(g, w, h, k, total - left + event.getPartialTick());
             return;
@@ -88,6 +98,7 @@ public final class ClientTwilight {
 
     @SubscribeEvent
     public static void onFogColor(ViewportEvent.ComputeFogColor event) {
+        if (scheme == com.automatavalkyries.network.TwilightPacket.FLASH) return;
         float k = intensity((float) event.getPartialTick()) * 0.75F;
         if (k <= 0.001F) return;
         boolean stars = scheme == com.automatavalkyries.network.TwilightPacket.STARRY;

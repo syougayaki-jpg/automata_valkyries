@@ -558,7 +558,7 @@
   "item.automata_valkyries.module_aegis_barrier": "Absolute Barrier Generator \"Aegis\"",
   "item.automata_valkyries.module_aegis_barrier.desc": "Hold right-click to raise a 4 m absolute defense dome (%s FE per second). Nothing from outside gets in: attacks, explosions or projectiles",
   "item.automata_valkyries.weapon_catastrophe_buster": "Singularity Cannon \"Catastrophe Buster\"",
-  "item.automata_valkyries.weapon_catastrophe_buster.desc": "%s FE per shot. Charge for %s s to fire a 5-block black hole. On impact, space collapses (ignores defense and invulnerability, counter-stop damage of 2,147,483,647)",
+  "item.automata_valkyries.weapon_catastrophe_buster.desc": "%s FE per shot. Charge for %s s to fire a 5-block black hole that sucks in everything within 14 blocks as it flies. On impact it pulls in everything within 20 blocks, then space collapses (ignores defense and invulnerability, counter-stop damage of 2,147,483,647 within 6 blocks)",
   "effect.automata_valkyries.causal_stop": "Causal Stop",
   "entity.automata_valkyries.black_hole": "Black Hole",
   "death.attack.automata_valkyries.particle_beam": "%1$s was incinerated by a heavy particle beam",
@@ -571,7 +571,7 @@
   "death.attack.automata_valkyries.quantum_slash": "%1$s was cleaved by a quantum slash",
   "death.attack.automata_valkyries.quantum_slash.player": "%1$s was cleaved by a quantum slash from %2$s",
   "item.automata_valkyries.weapon_punishment_railgun": "Punishment Railgun",
-  "item.automata_valkyries.weapon_punishment_railgun.desc": "%s FE per shot. Charge for %s s (you can't move) to fire a rail of light that pierces up to 1,024 blocks. Counter-stop damage that ignores defense and invulnerability",
+  "item.automata_valkyries.weapon_punishment_railgun.desc": "%s FE per shot. Charge for %s s (you can't move) to fire a rail of light that pierces every wall for up to 1,024 blocks. Counter-stop damage that ignores defense and invulnerability, and an aftershock deals 10,000 damage to everything within 30 blocks of the line, through walls",
   "entity.automata_valkyries.punishment_beam": "Punishment Rail",
   "gui.automata_valkyries.charge": "Charging %s%%",
   "gui.automata_valkyries.charge_ready": "Fully charged - release to fire",
@@ -689,5 +689,7 @@
   "item.automata_valkyries.weapon_luminous_requiem": "Luminous Requiem",
   "item.automata_valkyries.weapon_luminous_requiem.desc": "A two-handed star scepter with 200 attack; while held you have Regeneration III, Resistance III, Strength III and Fire Resistance. Hold right-click for %2$s s and release a requiem: every enemy within 64 is frozen in time for 5 s, then struck by starlight for max damage 2,147,483,647 (%1$s FE)",
   "item.automata_valkyries.requiem_backdrop": "Requiem Halo",
-  "item.automata_valkyries.requiem_backdrop.desc": "The halo and six swords that unfold behind the wielder of the Luminous Requiem"
+  "item.automata_valkyries.requiem_backdrop.desc": "The halo and six swords that unfold behind the wielder of the Luminous Requiem",
+  "item.automata_valkyries.genesis_backdrop": "Genesis Halo Rings",
+  "item.automata_valkyries.genesis_backdrop.desc": "The golden and silver rings that unfold behind the wielder of the Genesis Halo"
 }

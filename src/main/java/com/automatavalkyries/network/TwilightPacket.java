@@ -8,10 +8,10 @@ import net.minecraftforge.network.NetworkEvent;
 
 import java.util.function.Supplier;
 
-/** 近くのプレイヤーの画面を染める（ticks の間）。scheme 0 = 黄昏（終の黄昏『ラグナロク』）、1 = 星空（星葬冠『ルミナス・レクイエム』） */
+/** 近くのプレイヤーの画面を染める（ticks の間）。scheme 0 = 黄昏（終の黄昏『ラグナロク』）、1 = 星空（星葬冠『ルミナス・レクイエム』）、2 = 閃光（パニッシュメント・レールガン） */
 public record TwilightPacket(int ticks, int scheme) {
 
-    public static final int TWILIGHT = 0, STARRY = 1;
+    public static final int TWILIGHT = 0, STARRY = 1, FLASH = 2;
 
     public TwilightPacket(int ticks) {
         this(ticks, TWILIGHT);

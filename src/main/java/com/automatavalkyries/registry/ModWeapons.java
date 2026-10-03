@@ -142,6 +142,9 @@ public final class ModWeapons {
     public static final RegistryObject<Item> LUMINOUS_REQUIEM = ModItems.ITEMS.register("weapon_luminous_requiem", () ->
             new com.automatavalkyries.weapon.LuminousRequiemItem(new Item.Properties().rarity(Rarity.EPIC).fireResistant()));
 
+    /** ジェネシス・ヘイローの光輪モードのリングを描くためだけのアイテム（手に入らない） */
+    public static final RegistryObject<Item> GENESIS_BACKDROP = ModItems.ITEMS.register("genesis_backdrop", () ->
+            new com.automatavalkyries.weapon.GenesisBackdropItem(new Item.Properties()));
     /** 星葬冠の背の光輪と 6 振りの剣を描くためだけのアイテム（手に入らない） */
     public static final RegistryObject<Item> REQUIEM_BACKDROP = ModItems.ITEMS.register("requiem_backdrop", () ->
             new com.automatavalkyries.weapon.RequiemBackdropItem(new Item.Properties()));
@@ -186,7 +189,7 @@ public final class ModWeapons {
     public static final RegistryObject<EntityType<com.automatavalkyries.weapon.PunishmentBeamEntity>> PUNISHMENT_BEAM = ModEntities.ENTITY_TYPES.register("punishment_beam", () ->
             EntityType.Builder.<com.automatavalkyries.weapon.PunishmentBeamEntity>of(com.automatavalkyries.weapon.PunishmentBeamEntity::new, MobCategory.MISC)
                     .sized(0.2F, 0.2F)
-                    .clientTrackingRange(16)
+                    .clientTrackingRange(32) // 遠くの光の柱（ジェネシス・ヘイローの 256 ブロック先）も見えるように
                     .updateInterval(20)
                     .noSave()
                     .fireImmune()

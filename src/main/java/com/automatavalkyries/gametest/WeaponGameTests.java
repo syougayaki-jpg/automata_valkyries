@@ -263,8 +263,8 @@ public class WeaponGameTests {
         helper.succeed();
     }
 
-    /** カタストロフ・バスター: ブラックホール弾が崩壊して範囲の敵を倒し、既定ではブロックを壊さない */
-    @GameTest(template = TEMPLATE, timeoutTicks = 200)
+    /** カタストロフ・バスター: ブラックホール弾が崩壊して範囲の敵を倒し、既定ではブロックを壊さない。吸い込みが 20 ブロックと広いので、別の組で動かす */
+    @GameTest(template = TEMPLATE, timeoutTicks = 200, batch = "weapon_blackhole")
     public static void blackHoleCollapses(GameTestHelper helper) {
         FakePlayer player = player(helper, new Vec3(0.5, 2, 0.5));
         Zombie zombie = dummy(helper, new Vec3(4.5, 2, 4.5));
@@ -280,6 +280,24 @@ public class WeaponGameTests {
             helper.assertTrue(hole.isRemoved(), "not collapsed yet");
             helper.assertTrue(zombie.isDeadOrDying(), "target survived the collapse: " + zombie.getHealth());
             helper.assertBlockPresent(net.minecraft.world.level.block.Blocks.STONE, stone);
+        });
+    }
+
+    /** カタストロフ・バスター: ブラックホール弾は着弾するまでの最中も、まわりの者を吸い込む */
+    @GameTest(template = TEMPLATE, timeoutTicks = 40, batch = "weapon_blackhole_flight")
+    public static void blackHolePullsInFlight(GameTestHelper helper) {
+        FakePlayer player = player(helper, new Vec3(0.5, 2, 0.5));
+        Zombie zombie = dummy(helper, new Vec3(3.5, 2, 4.5));
+        com.automatavalkyries.weapon.BlackHoleEntity hole = new com.automatavalkyries.weapon.BlackHoleEntity(helper.getLevel(), player);
+        Vec3 at = helper.absoluteVec(new Vec3(0.5, 3, 0.5));
+        hole.setPos(at.x, at.y, at.z);
+        hole.shoot(1, 0, 0, 0.3F, 0); // 横を通り過ぎる（当たらない）
+        helper.getLevel().addFreshEntity(hole);
+        helper.runAfterDelay(3, () -> {
+            helper.assertTrue(zombie.getDeltaMovement().z < -0.05, "target not pulled toward the flying hole: " + zombie.getDeltaMovement());
+            hole.discard();
+            sweep(helper);
+            helper.succeed();
         });
     }
 
@@ -318,6 +336,22 @@ public class WeaponGameTests {
         helper.assertFalse(helper.getLevel().getEntitiesOfClass(com.automatavalkyries.weapon.PunishmentBeamEntity.class,
                 user.getBoundingBox().inflate(4)).isEmpty(), "no beam entity");
         helper.succeed();
+    }
+
+    /** パニッシュメント・レールガン: 壁をすべて貫き、射線のまわりの者にも余波（1 万）が届く。余波の半径はテストでは 4 に縮める */
+    @GameTest(template = TEMPLATE, batch = "weapon_railgun_wave", timeoutTicks = 40)
+    public static void punishmentRailgunPiercesWallsWithAftershock(GameTestHelper helper) {
+        for (int y = 2; y <= 4; y++) for (int z = 0; z <= 4; z++) helper.setBlock(new BlockPos(2, y, z), net.minecraft.world.level.block.Blocks.STONE);
+        Zombie user = facingX(helper, new Vec3(0.5, 2, 2.5));
+        Zombie behindWall = tough(helper, new Vec3(4.5, 2, 2.5));
+        Zombie offLine = tough(helper, new Vec3(4.5, 2, 0.5));
+        com.automatavalkyries.weapon.PunishmentRailgunItem.fire(helper.getLevel(), user, 16, 4);
+        helper.assertTrue(behindWall.isDeadOrDying(), "rail did not pierce the wall: " + behindWall.getHealth());
+        helper.runAfterDelay(8, () -> {
+            helper.assertTrue(offLine.isDeadOrDying(), "aftershock missed the target beside the line: " + offLine.getHealth());
+            sweep(helper);
+            helper.succeed();
+        });
     }
 
     /** アバランチ: 冷凍ミサイルは無敵時間中でも当たり、凍傷を重ねる（最大 V）。長射程の兵装のテストと離すため、別の組で動かす */
@@ -711,17 +745,17 @@ public class WeaponGameTests {
     }
 
     /** 終の黄昏: 斬撃は上下にも向いた方向へ飛ぶ（斜め上の敵に届く） */
-    @GameTest(template = TEMPLATE, batch = "weapon2_ragnarok_up", timeoutTicks = 60)
+    @GameTest(template = TEMPLATE, batch = "weapon2_ragnarok_up", timeoutTicks = 300)
     public static void ragnarokFollowsPitch(GameTestHelper helper) {
         Zombie user = facingX(helper, new Vec3(1.5, 2, 2.5));
         user.moveTo(user.getX(), user.getY(), user.getZ(), -90.0F, -45.0F); // +X の斜め上を向く
         Zombie above = tough(helper, new Vec3(4.5, 5, 2.5));
         above.setNoGravity(true);
-        com.automatavalkyries.weapon.RagnarokEdgeItem.cleave(helper.getLevel(), user);
-        helper.runAfterDelay(com.automatavalkyries.weapon.RagnarokEdgeItem.STEPS + 2, () -> {
+        // 新しく作られた区画に当たると、準備が済むまで mob が世界に入らない。届かなければ 1 秒ごとに振り直す
+        int[] tick = {0};
+        helper.succeedWhen(() -> {
+            if (tick[0]++ % 20 == 0 && above.isAlive()) com.automatavalkyries.weapon.RagnarokEdgeItem.cleave(helper.getLevel(), user);
             helper.assertTrue(!above.isAlive(), "upward cleave missed the target above: " + above.getHealth());
-            sweep(helper);
-            helper.succeed();
         });
     }
 
@@ -781,15 +815,17 @@ public class WeaponGameTests {
     }
 
     /** クリムゾンシックル: 血の波動で吸って回復する */
-    @GameTest(template = TEMPLATE, batch = "weapon3_crimson")
+    @GameTest(template = TEMPLATE, batch = "weapon3_crimson", timeoutTicks = 300)
     public static void crimsonSickleDrains(GameTestHelper helper) {
         Zombie user = dummy(helper, new Vec3(0.5, 2, 2.5));
         Zombie target = tough(helper, new Vec3(3.5, 2, 2.5));
         user.setHealth(5);
-        helper.assertTrue(com.automatavalkyries.weapon.Batch3T2.CrimsonSickle.drain(helper.getLevel(), user) >= 1, "drain hit nothing");
-        helper.assertTrue(user.getHealth() > 5 && target.hasEffect(net.minecraft.world.effect.MobEffects.WITHER), "drain did not heal or wither");
-        sweep(helper);
-            helper.succeed();
+        // 新しく作られた区画に当たると、準備が済むまで mob が世界に入らない。入るまで 0.5 秒ごとに吸い直す
+        int[] tick = {0};
+        helper.succeedWhen(() -> {
+            if (tick[0]++ % 10 == 0 && !target.hasEffect(net.minecraft.world.effect.MobEffects.WITHER)) com.automatavalkyries.weapon.Batch3T2.CrimsonSickle.drain(helper.getLevel(), user);
+            helper.assertTrue(user.getHealth() > 5 && target.hasEffect(net.minecraft.world.effect.MobEffects.WITHER), "drain did not heal or wither");
+        });
     }
 
     /** レビテーションロッド: 浮かせて、3 秒後に叩き落とす */

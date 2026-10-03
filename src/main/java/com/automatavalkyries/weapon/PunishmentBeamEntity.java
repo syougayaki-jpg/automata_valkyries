@@ -40,17 +40,21 @@ public class PunishmentBeamEntity extends net.minecraft.world.entity.Entity {
 
     public PunishmentBeamEntity(Level level, Vec3 start, Vec3 end, int scheme, float width, int lifetime) {
         this(ModWeapons.PUNISHMENT_BEAM.get(), level);
-        setPos(start);
-        // 終わりは始まりからの差で持つ（float でも 1,024 ブロック先まで十分な精度）
-        entityData.set(END_X, (float) (end.x - start.x));
-        entityData.set(END_Y, (float) (end.y - start.y));
-        entityData.set(END_Z, (float) (end.z - start.z));
+        // 置く位置: 空から降る柱は地面側の端に置く。クライアントは、居場所の区画（16 ブロックの立方体）の描画の準備ができていないと
+        // 実体を描かない。空の区画は画面に入ったときにしか準備されないので、空の端に置くと視点によって柱が消えたり出たりした（2026-10-04 修正）
+        boolean fromSky = start.y - end.y > 4;
+        Vec3 anchor = fromSky ? end : start, other = fromSky ? start : end;
+        setPos(anchor);
+        // もう一方の端は置いた位置からの差で持つ（float でも 1,024 ブロック先まで十分な精度）
+        entityData.set(END_X, (float) (other.x - anchor.x));
+        entityData.set(END_Y, (float) (other.y - anchor.y));
+        entityData.set(END_Z, (float) (other.z - anchor.z));
         entityData.set(SCHEME, scheme);
         entityData.set(WIDTH, width);
         entityData.set(LIFE, lifetime);
     }
 
-    /** 始まり（この位置）から終わりまでの差 */
+    /** 置いた位置からもう一方の端までの差（空から降る柱は、地面側から空への向き） */
     public Vec3 span() {
         return new Vec3(entityData.get(END_X), entityData.get(END_Y), entityData.get(END_Z));
     }

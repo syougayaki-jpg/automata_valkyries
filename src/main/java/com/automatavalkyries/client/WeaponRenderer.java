@@ -18,6 +18,7 @@ public class WeaponRenderer extends GeoItemRenderer<TacticalWeaponItem> {
         String id = ForgeRegistries.ITEMS.getKey(item).getPath();
         BladeAuraLayer.Spec blade = BladeAuraLayer.specFor(id);
         if (blade != null) addRenderLayer(new BladeAuraLayer(this, blade, id)); // 刃物の刃先の光のレイヤー
+        if (item instanceof com.automatavalkyries.weapon.GenesisHaloItem) addRenderLayer(new GenesisCoreLayer(this)); // 中心のルミナルクリスタルの光
     }
 
     public static WeaponRenderer create(TacticalWeaponItem item) {

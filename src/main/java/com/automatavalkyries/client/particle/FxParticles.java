@@ -48,6 +48,7 @@ public final class FxParticles {
         event.registerSpriteSet(ModParticles.SAW.get(), sprites -> (o, l, x, y, z, dx, dy, dz) -> new Fx(l, x, y, z, dx, dy, dz, o, sprites, Kind.SAW));
         event.registerSpriteSet(ModParticles.STAR.get(), sprites -> (o, l, x, y, z, dx, dy, dz) -> new Star(l, x, y, z, dx, dy, dz, o, sprites));
         event.registerSpriteSet(ModParticles.MANDALA.get(), sprites -> (o, l, x, y, z, dx, dy, dz) -> new Mandala(l, x, y, z, o, sprites));
+        event.registerSpriteSet(ModParticles.BEAM_RING.get(), sprites -> (o, l, x, y, z, dx, dy, dz) -> new BeamRing(l, x, y, z, dx, dy, dz, o, sprites));
         event.registerSpecial(ModParticles.DAMAGE_NUMBER.get(), (o, l, x, y, z, dx, dy, dz) -> new DamageNumber(l, x, y, z, o));
     }
 
@@ -225,6 +226,61 @@ public final class FxParticles {
                     int j = pass == 0 ? i : 3 - i;
                     float px = cx + u.x * k[j][0] + v.x * k[j][1], py = cy + u.y * k[j][0] + v.y * k[j][1], pz = cz + u.z * k[j][0] + v.z * k[j][1];
                     vc.vertex(px, py, pz).uv(uv[j][0], uv[j][1]).color(rCol, gCol, bCol, a).uv2(0xF000F0).endVertex();
+                }
+            }
+        }
+
+        @Override
+        public ParticleRenderType getRenderType() {
+            return ParticleRenderType.PARTICLE_SHEET_TRANSLUCENT;
+        }
+    }
+
+    /** 光線の輪: 渡された向き（軸）に垂直な面で、半径 scale まで広がりながら回って薄れる */
+    static class BeamRing extends TextureSheetParticle {
+        private final float maxRadius;
+        private final org.joml.Vector3f u, v;
+
+        BeamRing(ClientLevel level, double x, double y, double z, double ax, double ay, double az, FxOptions o, SpriteSet sprites) {
+            super(level, x, y, z);
+            this.lifetime = Math.max(1, o.lifetime());
+            this.rCol = ((o.color() >> 16) & 255) / 255F;
+            this.gCol = ((o.color() >> 8) & 255) / 255F;
+            this.bCol = (o.color() & 255) / 255F;
+            this.maxRadius = o.scale();
+            this.hasPhysics = false;
+            this.xd = this.yd = this.zd = 0;
+            org.joml.Vector3f axis = new org.joml.Vector3f((float) ax, (float) ay, (float) az);
+            if (axis.lengthSquared() < 1.0E-6F) axis.set(0, 1, 0);
+            axis.normalize();
+            org.joml.Vector3f ref = Math.abs(axis.y) > 0.9F ? new org.joml.Vector3f(1, 0, 0) : new org.joml.Vector3f(0, 1, 0);
+            this.u = new org.joml.Vector3f(axis).cross(ref).normalize();
+            this.v = new org.joml.Vector3f(axis).cross(u).normalize();
+            pickSprite(sprites);
+        }
+
+        @Override
+        public void render(VertexConsumer vc, Camera camera, float partialTick) {
+            float age = this.age + partialTick;
+            float t = Math.min(1F, age / lifetime);
+            float radius = maxRadius * (float) Math.pow(t, 0.45);
+            float a = (1 - t) * (1 - t);
+            float ang = age * 0.08F;
+            Vec3 cam = camera.getPosition();
+            float cx = (float) (Mth.lerp(partialTick, xo, x) - cam.x);
+            float cy = (float) (Mth.lerp(partialTick, yo, y) - cam.y);
+            float cz = (float) (Mth.lerp(partialTick, zo, z) - cam.z);
+            float c = Mth.cos(ang) * radius, s = Mth.sin(ang) * radius;
+            org.joml.Vector3f a1 = new org.joml.Vector3f(u).mul(c).add(new org.joml.Vector3f(v).mul(s));
+            org.joml.Vector3f a2 = new org.joml.Vector3f(v).mul(c).sub(new org.joml.Vector3f(u).mul(s));
+            float u0 = getU0(), u1 = getU1(), v0 = getV0(), v1 = getV1();
+            float[][] k = {{-1, -1}, {1, -1}, {1, 1}, {-1, 1}};
+            float[][] uv = {{u0, v0}, {u1, v0}, {u1, v1}, {u0, v1}};
+            for (int pass = 0; pass < 2; pass++) {
+                for (int i = 0; i < 4; i++) {
+                    int j = pass == 0 ? i : 3 - i;
+                    vc.vertex(cx + a1.x * k[j][0] + a2.x * k[j][1], cy + a1.y * k[j][0] + a2.y * k[j][1], cz + a1.z * k[j][0] + a2.z * k[j][1])
+                            .uv(uv[j][0], uv[j][1]).color(rCol, gCol, bCol, a).uv2(0xF000F0).endVertex();
                 }
             }
         }

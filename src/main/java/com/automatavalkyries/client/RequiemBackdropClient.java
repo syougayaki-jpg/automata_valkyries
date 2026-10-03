@@ -114,7 +114,7 @@ public final class RequiemBackdropClient {
     }
 
     /** 背の平面（xy、z だけずらす）に、中心のまわりに angle 度回した正方形を加算で描く（表からも裏からも見える） */
-    private static void quad(PoseStack pose, MultiBufferSource buffers, ResourceLocation texture, float half, float angle, float z, float brightness) {
+    static void quad(PoseStack pose, MultiBufferSource buffers, ResourceLocation texture, float half, float angle, float z, float brightness) {
         pose.pushPose();
         pose.translate(0, 0, z);
         pose.mulPose(Axis.ZP.rotationDegrees(angle));

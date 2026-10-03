@@ -39,6 +39,50 @@ public class GenesisHaloItem extends ChargedWeaponItem {
         return 0.8F;
     }
 
+    /** 手に持つ知恵の輪の中心（ルミナルクリスタル）のおおよその位置: 持っている手の側、目の前で少し下 */
+    public static Vec3 crystal(LivingEntity user) {
+        Vec3 look = user.getLookAngle();
+        Vec3 right = look.cross(new Vec3(0, 1, 0));
+        right = right.lengthSqr() < 1.0E-4 ? new Vec3(1, 0, 0) : right.normalize();
+        Vec3 up = right.cross(look).normalize();
+        boolean rightHand = (user.getUsedItemHand() == net.minecraft.world.InteractionHand.MAIN_HAND) == (user.getMainArm() == net.minecraft.world.entity.HumanoidArm.RIGHT);
+        return user.getEyePosition().add(look.scale(0.8)).add(right.scale(rightHand ? 0.32 : -0.32)).add(up.scale(-0.3));
+    }
+
+    /** チャージの光は、手の中のクリスタルへ集まる（2026-10-04 ユーザー指定） */
+    @Override
+    protected Vec3 chargePoint(LivingEntity user) {
+        return crystal(user);
+    }
+
+    @Override
+    protected double chargeSpread() {
+        return 1.6;
+    }
+
+    @Override
+    public void onUseTick(net.minecraft.world.level.Level level, LivingEntity user, ItemStack stack, int remaining) {
+        super.onUseTick(level, user, stack, remaining);
+        if (!(level instanceof ServerLevel server) || !user.isUsingItem()) return;
+        int t = elapsed(stack, remaining);
+        if (t > chargeTicks) return;
+        float f = t / (float) chargeTicks;
+        Vec3 c = crystal(user);
+        // クリスタルへ巻き込む 2 本の光の渦（溜まるほど速く、明るく）
+        for (int arm = 0; arm < 2; arm++) {
+            double a = t * (0.25 + 0.6 * f) + arm * Math.PI;
+            double r = 0.9 - 0.3 * f;
+            Vec3 p = c.add(Math.cos(a) * r, Math.sin(a * 0.7) * 0.25, Math.sin(a) * r);
+            Fx.one(server, Fx.opt(ModParticles.GLOW.get(), arm == 0 ? GOLD : 0xC8F4FF, 0.1F + 0.08F * f, 6), p, c.subtract(p).scale(1 / 6.0));
+        }
+        if (t % 4 == 0) Fx.star(server, c, 0xFFFFFF, 0.2F + 0.35F * f, 6, Vec3.ZERO);
+        if (t % 10 == 0) Fx.mandala(server, c, GOLD, 0.35F + 0.4F * f, 12, true, t % 20 == 0);
+        if (t == chargeTicks) {
+            Fx.burst(server, Fx.opt(ModParticles.STAR.get(), 0xFFFFFF, 0.4F, 14), c, 16, 0.25);
+            Fx.mandala(server, c, 0xFFF4C0, 1.2F, 16, true, false);
+        }
+    }
+
     @Override
     protected ParticleOptions chargeParticle() {
         return Fx.opt(ModParticles.GLOW.get(), GOLD, 0.3F, 10);

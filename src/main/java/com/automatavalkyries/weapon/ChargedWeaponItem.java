@@ -55,6 +55,16 @@ public abstract class ChargedWeaponItem extends TacticalWeaponItem {
         return InteractionResultHolder.consume(stack);
     }
 
+    /** チャージの光が集まる所（既定は銃口: 目の前 1.4 ブロック、少し下） */
+    protected Vec3 chargePoint(LivingEntity user) {
+        return user.getEyePosition().add(user.getLookAngle().scale(1.4)).add(0, -0.25, 0);
+    }
+
+    /** チャージの光が集まってくる範囲の広さ（ブロック） */
+    protected double chargeSpread() {
+        return 2.4;
+    }
+
     /** 経過 Tick（使い始めから） */
     protected int elapsed(ItemStack stack, int remaining) {
         return getUseDuration(stack) - remaining;
@@ -73,10 +83,11 @@ public abstract class ChargedWeaponItem extends TacticalWeaponItem {
         }
         stack.getOrCreateTag().putInt("Drawn", stack.getOrCreateTag().getInt("Drawn") + share);
         // 銃口へ粒子が集まり、音が高くなっていく
-        Vec3 muzzle = user.getEyePosition().add(user.getLookAngle().scale(1.4)).add(0, -0.25, 0);
+        Vec3 muzzle = chargePoint(user);
+        double spread = chargeSpread();
         double f = (double) t / chargeTicks;
         for (int i = 0; i < 3; i++) {
-            Vec3 from = muzzle.add((user.getRandom().nextDouble() - 0.5) * 2.4, (user.getRandom().nextDouble() - 0.5) * 2.4, (user.getRandom().nextDouble() - 0.5) * 2.4);
+            Vec3 from = muzzle.add((user.getRandom().nextDouble() - 0.5) * spread, (user.getRandom().nextDouble() - 0.5) * spread, (user.getRandom().nextDouble() - 0.5) * spread);
             Vec3 v = muzzle.subtract(from).scale(0.12);
             server.sendParticles(chargeParticle(), from.x, from.y, from.z, 0, v.x, v.y, v.z, 1.0);
         }

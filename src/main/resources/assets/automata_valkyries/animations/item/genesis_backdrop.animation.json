@@ -1,0 +1,12 @@
+{
+  "format_version": "1.8.0",
+  "animations": {
+    "animation.weapon.idle": {"loop": true, "animation_length": 60.0,
+ "bones": {"ring_outer": {"rotation": {"0.0": [0, 0, 0], "60.0": [0, 0, 360]}},
+           "ring_middle": {"rotation": {"0.0": [0, 0, 0], "60.0": [0, 0, -720]}},
+           "ring_inner": {"rotation": {"0.0": [0, 0, 0], "60.0": [0, 0, 1080]}},
+           "ring_core": {"rotation": {"0.0": [0, 0, 0], "60.0": [0, 0, -1440]}}}},
+    "animation.weapon.use": {"animation_length": 0.5, "bones": {}}
+  },
+  "geckolib_format_version": 2
+}

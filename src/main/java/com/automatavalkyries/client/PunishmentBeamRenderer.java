@@ -45,7 +45,8 @@ public class PunishmentBeamRenderer extends EntityRenderer<PunishmentBeamEntity>
         VertexConsumer vc = buffers.getBuffer(RenderType.eyes(TEXTURE));
         Matrix4f m = pose.last().pose();
         Matrix3f n = pose.last().normal();
-        float flow = age * 0.6F; // 帯に沿って流れる光の節（絵の縦を流す）
+        // 帯に沿って流れる光の節（絵の縦を流す）。空から降る柱は地面側に置いてあるので、流れを逆にして上から下へ流す
+        float flow = age * 0.6F * (span.y > length * 0.5 ? -1F : 1F);
         Vec3[] axes = {a, b, c};
         int[][] colors = switch (entity.scheme()) {
             case PunishmentBeamEntity.SCHEME_GENESIS -> new int[][]{{0xFF, 0xB0, 0x30}, {0xFF, 0xE8, 0x90}, {0xFF, 0xFF, 0xF0}};
@@ -56,7 +57,7 @@ public class PunishmentBeamRenderer extends EntityRenderer<PunishmentBeamEntity>
                 int o = java.awt.Color.HSBtoRGB(hue, 0.8F, 1F), mid = java.awt.Color.HSBtoRGB((hue + 0.33F) % 1F, 0.6F, 1F);
                 yield new int[][]{{(o >> 16) & 255, (o >> 8) & 255, o & 255}, {(mid >> 16) & 255, (mid >> 8) & 255, mid & 255}, {0xFF, 0xFF, 0xFF}};
             }
-            default -> new int[][]{{0xE0, 0x20, 0x40}, {0xFF, 0xC0, 0x40}, {0xFF, 0xF6, 0xD8}};
+            default -> new int[][]{{0x8A, 0x40, 0xFF}, {0x40, 0xD8, 0xFF}, {0xE8, 0xF8, 0xFF}}; // 断罪: 紫・シアン・白（2026-10-04 再デザイン）
         };
         // 外（太い）→ 中 → 芯（細い）
         layer(vc, m, n, span, length, axes, 2.6F * w * shrink, colors[0][0], colors[0][1], colors[0][2], bright * 0.75F, flow);
