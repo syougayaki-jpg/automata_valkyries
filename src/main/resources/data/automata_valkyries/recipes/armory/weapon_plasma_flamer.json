@@ -1,0 +1,33 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 2,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:matrix_photon"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:alloy_luminal_sterling"
+      },
+      "count": 3
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:processor_synapse"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:star_luminal"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:weapon_plasma_flamer"
+  },
+  "energy": 1000000,
+  "time": 600
+}

@@ -1,0 +1,11 @@
+{
+  "format_version": "1.8.0",
+  "animations": {
+    "animation.weapon.idle": {"loop": true, "animation_length": 1.2,
+ "bones": {"pile": {"scale": {"0.0": [1, 1, 1], "0.6": [1, 1.06, 1.06], "1.2": [1, 1, 1]}}}},
+    "animation.weapon.use": {"animation_length": 0.5,
+ "bones": {"pile": {"position": {"0.0": [0, 0, 0], "0.04": [4, 0, 0], "0.2": [4, 0, 0], "0.5": [0, 0, 0]}},
+           "root": {"position": {"0.0": [0, 0, 0], "0.05": [-1.2, 0.3, 0], "0.5": [0, 0, 0]}}}}
+  },
+  "geckolib_format_version": 2
+}

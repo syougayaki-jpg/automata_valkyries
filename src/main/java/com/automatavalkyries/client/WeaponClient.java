@@ -6,6 +6,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.AnimationUtils;
 import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.Item;
@@ -46,6 +47,62 @@ public final class WeaponClient {
         float t = player.level().getGameTime() - shotTick + partialTick;
         if (t < 0 || t > 30) return 0;
         return (t < 1.5F ? t / 1.5F : (float) Math.exp(-(t - 1.5F) / 4F)) * shotStrength;
+    }
+
+    // ---- 振り下ろし（終の黄昏のチャージ攻撃。2026-10-03 ユーザー指定「画面中心に思いっきり振り落とす」） ----
+
+    /** 振り下ろしの長さ（Tick）と、刃が画面の中心へ落ちきる時刻 */
+    public static final int SLAM_TICKS = 16;
+    public static final float SLAM_IMPACT = 4.5F;
+    private static long slamTick = Long.MIN_VALUE / 2;
+    private static Item slamItem;
+
+    /** 振り下ろしを始める（クライアントの releaseUsing から） */
+    public static void slam(Item item) {
+        LocalPlayer player = Minecraft.getInstance().player;
+        if (player == null) return;
+        slamTick = player.level().getGameTime();
+        slamItem = item;
+    }
+
+    private static float smooth(float x) {
+        x = Mth.clamp(x, 0F, 1F);
+        return x * x * (3 - 2 * x);
+    }
+
+    /**
+     * 一人称の振り下ろし: 肩の上へ大きく振りかぶり（〜2.5 Tick）、画面の中心へ一気に叩き下ろし（〜4.5 Tick）、
+     * 落ちきった所で震えながら少し止まり（〜9 Tick）、ゆっくり構えへ戻る（〜16 Tick）。振り下ろし中でなければ false
+     */
+    public static boolean slamTransform(PoseStack pose, HumanoidArm arm, ItemStack stack, float partialTick) {
+        LocalPlayer player = Minecraft.getInstance().player;
+        if (player == null || stack.getItem() != slamItem) return false;
+        float t = player.level().getGameTime() - slamTick + partialTick;
+        if (t < 0 || t > SLAM_TICKS) return false;
+        int side = arm == HumanoidArm.RIGHT ? 1 : -1;
+        // 構え → 振りかぶり → 叩き下ろし（画面の中心、手前やや下）の 3 つの姿勢: {x, y, z, 縦の回転, 横の傾き}
+        float[] rest = {0, 0, 0, 0, 0};
+        float[] wind = {-0.15F * side, 0.55F, 0.2F, 55F, 10F * side};
+        float[] impact = {-0.56F * side, -0.05F, -0.35F, -105F, -35F * side};
+        float[] cur;
+        if (t < 2.5F) cur = lerp(rest, wind, smooth(t / 2.5F));
+        else if (t < SLAM_IMPACT) { float f = (t - 2.5F) / (SLAM_IMPACT - 2.5F); cur = lerp(wind, impact, f * f); }
+        else if (t < 9F) cur = impact;
+        else cur = lerp(impact, rest, smooth((t - 9F) / (SLAM_TICKS - 9F)));
+        pose.translate(side * 0.56F + cur[0], -0.52F + cur[1], -0.72F + cur[2]);
+        if (t >= SLAM_IMPACT && t < 9F) { // 叩きつけた震え（だんだん収まる）
+            float shake = 0.035F * (1 - (t - SLAM_IMPACT) / (9F - SLAM_IMPACT));
+            pose.translate(Math.sin(t * 9.0) * shake, Math.cos(t * 11.0) * shake, 0);
+        }
+        pose.mulPose(Axis.XP.rotationDegrees(cur[3]));
+        pose.mulPose(Axis.ZP.rotationDegrees(cur[4]));
+        return true;
+    }
+
+    private static float[] lerp(float[] a, float[] b, float f) {
+        float[] out = new float[a.length];
+        for (int i = 0; i < a.length; i++) out[i] = a[i] + (b[i] - a[i]) * f;
+        return out;
     }
 
     /** 一人称: 振りの動きの代わりに、反動で銃口が上がって手前へ引く */

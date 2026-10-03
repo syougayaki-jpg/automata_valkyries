@@ -1,0 +1,32 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 2,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:weapon_arc_lancer"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:drive_tachyon"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:field_distortion"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:ingot_stellachronodyme"
+      },
+      "count": 2
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:weapon_thunder_javelin"
+  },
+  "energy": 1000000,
+  "time": 600
+}

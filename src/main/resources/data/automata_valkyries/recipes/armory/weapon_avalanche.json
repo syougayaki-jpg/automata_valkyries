@@ -1,0 +1,45 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 3,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:weapon_necrosis_needle"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:processor_synapse"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:field_distortion"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:plating_stellar"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:star_nano"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:heart_stellar"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:weapon_avalanche"
+  },
+  "energy": 4000000,
+  "time": 800
+}

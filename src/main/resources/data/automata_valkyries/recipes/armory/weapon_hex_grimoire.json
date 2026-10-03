@@ -1,0 +1,33 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 3,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:boss_drop_necro_colony"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:tissue_eclipse"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_chrono_lattice"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:seed_genesis"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:weapon_hex_grimoire"
+  },
+  "energy": 4000000,
+  "time": 800
+}

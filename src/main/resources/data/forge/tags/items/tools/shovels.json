@@ -1,0 +1,9 @@
+{
+  "replace": false,
+  "values": [
+    "automata_valkyries:tool_drill_t1",
+    "automata_valkyries:tool_drill_t2",
+    "automata_valkyries:tool_drill_t3",
+    "automata_valkyries:tool_drill_t4"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "format_version": "1.8.0",
+  "animations": {
+    "animation.weapon.idle": {"loop": true, "animation_length": 4,
+ "bones": {"halo": {"rotation": {"0.0": [0, 0, 0], "4.0": [0, 360, 0]}, "position": {"0.0": [0, 0, 0], "2.0": [0, 0.5, 0], "4.0": [0, 0, 0]}}}},
+    "animation.weapon.charge": {"animation_length": 5.0, "bones": {"halo": {"rotation": {"0.0": [0, 0, 0], "5.0": [0, 1800, 0]}, "scale": {"0.0": [1, 1, 1], "5.0": [1.6, 1, 1.6]}}}},
+    "animation.weapon.use": {"animation_length": 1.0, "bones": {"halo": {"scale": {"0.0": [1.6, 1, 1.6], "0.15": [2.4, 1, 2.4], "1.0": [1, 1, 1]}, "position": {"0.0": [0, 0, 0], "0.15": [0, 3, 0], "1.0": [0, 0, 0]}},
+ "root": {"position": {"0.0": [0, 0, 0], "0.06": [-1.5, 0.4, 0], "1.0": [0, 0, 0]}}}}
+  },
+  "geckolib_format_version": 2
+}

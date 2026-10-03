@@ -1,0 +1,32 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 1,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:alloy_tachyon_accel"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:coil_chrono"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_advanced"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:capsule_spatial"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:weapon_venom_stinger"
+  },
+  "energy": 100000,
+  "time": 400
+}

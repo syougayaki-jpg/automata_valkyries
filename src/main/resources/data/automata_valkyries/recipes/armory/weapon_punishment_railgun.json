@@ -1,0 +1,55 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 4,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:boss_drop_memory_stella"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:weapon_linear_rail_rifle"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:boss_drop_time_needle"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:boss_drop_gallia_plate"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:singularity_neverlast"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_causal"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:shell_causal"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:engine_perpetual"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:weapon_punishment_railgun"
+  },
+  "energy": 30000000,
+  "time": 1600
+}

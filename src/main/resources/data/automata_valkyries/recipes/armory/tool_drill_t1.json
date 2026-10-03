@@ -1,0 +1,37 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 1,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "minecraft:diamond_pickaxe"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "minecraft:diamond_shovel"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:motor"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:coil_chrono"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_advanced"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:tool_drill_t1"
+  },
+  "energy": 80000,
+  "time": 300
+}

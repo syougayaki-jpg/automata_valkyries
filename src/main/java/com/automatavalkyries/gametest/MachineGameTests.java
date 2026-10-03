@@ -42,7 +42,7 @@ public class MachineGameTests {
     }
 
     /** 粉砕機: 錫鉱石 1 個 → 錫の粉 2 個（電力を使う） */
-    @GameTest(template = TEMPLATE)
+    @GameTest(template = TEMPLATE, timeoutTicks = 400) // 新しく作られた区画に当たると、準備が済むまで機械が動かない
     public static void crusherDoublesOre(GameTestHelper helper) {
         MachineBlockEntity crusher = place(helper, new BlockPos(1, 2, 1), MachineKind.CRUSHER);
         powered(crusher);

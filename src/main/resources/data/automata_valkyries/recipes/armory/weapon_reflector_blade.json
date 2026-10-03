@@ -1,0 +1,33 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 3,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:boss_drop_gallia_plate"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:plating_stellar"
+      },
+      "count": 3
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:anchor_causal"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:lens_luminal"
+      },
+      "count": 4
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:weapon_reflector_blade"
+  },
+  "energy": 4000000,
+  "time": 800
+}

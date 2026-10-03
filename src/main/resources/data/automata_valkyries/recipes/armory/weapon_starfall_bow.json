@@ -1,0 +1,39 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 3,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:boss_drop_purified_zero"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:star_chronos"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_chrono_lattice"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:lens_luminal"
+      },
+      "count": 4
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:plating_stellar"
+      },
+      "count": 2
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:weapon_starfall_bow"
+  },
+  "energy": 4000000,
+  "time": 800
+}

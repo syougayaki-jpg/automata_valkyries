@@ -1,0 +1,32 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 3,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:boss_drop_ftl_accel"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:heart_stellar"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:plating_stellar"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_chrono_lattice"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:weapon_phoenix_wing"
+  },
+  "energy": 4000000,
+  "time": 800
+}

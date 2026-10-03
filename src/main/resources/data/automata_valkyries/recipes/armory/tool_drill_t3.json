@@ -1,0 +1,32 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 3,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:tool_drill_t2"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:plating_stellar"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:gate_wormhole"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_chrono_lattice"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:tool_drill_t3"
+  },
+  "energy": 3000000,
+  "time": 700
+}

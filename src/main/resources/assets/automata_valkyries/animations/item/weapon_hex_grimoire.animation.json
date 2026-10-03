@@ -1,0 +1,8 @@
+{
+  "format_version": "1.8.0",
+  "animations": {
+    "animation.weapon.idle": {"loop": true, "animation_length": 3.0, "bones": {"sigil": {"rotation": {"0.0": [0, 0, 0], "3.0": [0, 360, 360]}, "position": {"0.0": [0, 0, 0], "1.5": [0, 0.8, 0], "3.0": [0, 0, 0]}}}},
+    "animation.weapon.use": {"animation_length": 1.0, "bones": {"sigil": {"scale": {"0.0": [1, 1, 1], "0.25": [3, 3, 3], "1.0": [1, 1, 1]}}}}
+  },
+  "geckolib_format_version": 2
+}

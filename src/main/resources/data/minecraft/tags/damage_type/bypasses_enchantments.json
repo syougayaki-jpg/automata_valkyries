@@ -1,6 +1,9 @@
 {
   "replace": false,
   "values": [
-    "automata_valkyries:catastrophe"
+    "automata_valkyries:catastrophe",
+    "automata_valkyries:punishment",
+    "automata_valkyries:orbital",
+    "automata_valkyries:ragnarok"
   ]
 }

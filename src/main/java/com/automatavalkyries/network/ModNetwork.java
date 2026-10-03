@@ -48,5 +48,11 @@ public final class ModNetwork {
                 .decoder(RepositoryContentsPacket::decode)
                 .consumerMainThread(RepositoryContentsPacket::handle)
                 .add();
+
+        CHANNEL.messageBuilder(TwilightPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(TwilightPacket::encode)
+                .decoder(TwilightPacket::decode)
+                .consumerMainThread(TwilightPacket::handle)
+                .add();
     }
 }

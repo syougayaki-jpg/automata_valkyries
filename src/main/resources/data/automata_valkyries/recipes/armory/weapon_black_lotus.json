@@ -1,0 +1,38 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 3,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:boss_drop_memento_wings"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:seed_genesis"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:plating_stellar"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_chrono_lattice"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:tissue_eclipse"
+      },
+      "count": 2
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:weapon_black_lotus"
+  },
+  "energy": 4000000,
+  "time": 800
+}

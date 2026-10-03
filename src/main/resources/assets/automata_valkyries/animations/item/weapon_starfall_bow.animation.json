@@ -1,0 +1,10 @@
+{
+  "format_version": "1.8.0",
+  "animations": {
+    "animation.weapon.idle": {"loop": true, "animation_length": 2.0,
+ "bones": {"string": {"scale": {"0.0": [1, 1, 1], "1.0": [1.5, 1, 1.5], "2.0": [1, 1, 1]}}}},
+    "animation.weapon.use": {"animation_length": 0.4,
+ "bones": {"string": {"position": {"0.0": [-2.5, 0, 0], "0.05": [0.6, 0, 0], "0.15": [-0.3, 0, 0], "0.4": [0, 0, 0]}}}}
+  },
+  "geckolib_format_version": 2
+}

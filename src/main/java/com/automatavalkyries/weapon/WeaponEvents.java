@@ -90,6 +90,27 @@ public final class WeaponEvents {
         return true;
     }
 
+    /** パニッシュメント・レールガンのチャージ中は跳べない。凍傷は跳躍力を下げる */
+    @SubscribeEvent
+    public static void onJump(net.minecraftforge.event.entity.living.LivingEvent.LivingJumpEvent event) {
+        LivingEntity entity = event.getEntity();
+        if (entity.isUsingItem() && entity.getUseItem().getItem() instanceof PunishmentRailgunItem) {
+            entity.setDeltaMovement(entity.getDeltaMovement().multiply(1, 0, 1));
+            return;
+        }
+        // 凍傷: 跳躍力が段ごとに下がる
+        double factor = Frostbite.jumpFactor(entity);
+        if (factor < 1) entity.setDeltaMovement(entity.getDeltaMovement().multiply(1, factor, 1));
+    }
+
+    /** 採掘用の兵装（ドリル・チェーンソー）で殴るときは、相手の無敵時間を貫く（攻撃の前に消す） */
+    @SubscribeEvent
+    public static void onPlayerAttack(net.minecraftforge.event.entity.player.AttackEntityEvent event) {
+        if (event.getEntity().getMainHandItem().getItem() instanceof MiningToolItem && event.getTarget() instanceof LivingEntity target) {
+            target.invulnerableTime = 0;
+        }
+    }
+
     /** 因果停止中の者は物を使えない */
     @SubscribeEvent
     public static void onUseItem(LivingEntityUseItemEvent.Start event) {

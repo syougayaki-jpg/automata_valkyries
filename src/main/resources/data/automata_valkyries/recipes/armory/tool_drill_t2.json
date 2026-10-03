@@ -1,0 +1,32 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 2,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:tool_drill_t1"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "minecraft:netherite_ingot"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:drive_tachyon"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:matrix_photon"
+      },
+      "count": 2
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:tool_drill_t2"
+  },
+  "energy": 600000,
+  "time": 500
+}

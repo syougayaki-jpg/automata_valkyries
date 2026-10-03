@@ -15,6 +15,9 @@ public class WeaponRenderer extends GeoItemRenderer<TacticalWeaponItem> {
     private WeaponRenderer(TacticalWeaponItem item) {
         super(new DefaultedItemGeoModel<>(ForgeRegistries.ITEMS.getKey(item)));
         addRenderLayer(new AutoGlowingGeoLayer<>(this));
+        String id = ForgeRegistries.ITEMS.getKey(item).getPath();
+        BladeAuraLayer.Spec blade = BladeAuraLayer.specFor(id);
+        if (blade != null) addRenderLayer(new BladeAuraLayer(this, blade, id)); // 刃物の刃先の光のレイヤー
     }
 
     public static WeaponRenderer create(TacticalWeaponItem item) {

@@ -30,6 +30,12 @@ public final class ModParticles {
     public static final RegistryObject<FxOptions.Type> HEX = PARTICLES.register("fx_hex", FxOptions.Type::new);
     /** 黒い空間の破片（縁が光る） */
     public static final RegistryObject<FxOptions.Type> VOID_SHARD = PARTICLES.register("fx_void_shard", FxOptions.Type::new);
+    /** チェーンソーの回る光の刃（鉤の歯の輪が高速で回る） */
+    public static final RegistryObject<FxOptions.Type> SAW = PARTICLES.register("fx_saw", FxOptions.Type::new);
+    /** 星: 長い十字と斜めの光芒が瞬く（ルミナス・レクイエム） */
+    public static final RegistryObject<FxOptions.Type> STAR = PARTICLES.register("fx_star", FxOptions.Type::new);
+    /** 星の陣: 八芒星の幾何学の陣が広がって回る（roll で向き: 0・1 = 地面と平行、2・3 = こちらを向く。偶数は右回り、奇数は左回り） */
+    public static final RegistryObject<FxOptions.Type> MANDALA = PARTICLES.register("fx_mandala", FxOptions.Type::new);
     /** 浮かび上がるダメージの数字 */
     public static final RegistryObject<DamageNumberOptions.Type> DAMAGE_NUMBER = PARTICLES.register("damage_number", DamageNumberOptions.Type::new);
 

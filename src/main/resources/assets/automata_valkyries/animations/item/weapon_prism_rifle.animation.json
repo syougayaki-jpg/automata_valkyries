@@ -1,0 +1,9 @@
+{
+  "format_version": "1.8.0",
+  "animations": {
+    "animation.weapon.idle": {"loop": true, "animation_length": 3, "bones": {"prism": {"rotation": {"0.0": [0, 0, 0], "3.0": [360, 0, 0]}}}},
+    "animation.weapon.use": {"animation_length": 0.4, "bones": {"prism": {"scale": {"0.0": [1, 1, 1], "0.1": [1.3, 1.3, 1.3], "0.4": [1, 1, 1]}},
+ "root": {"position": {"0.0": [0, 0, 0], "0.1": [-0.2, 0.05, 0], "0.2": [0, 0, 0], "0.3": [-0.2, 0.05, 0], "0.4": [0, 0, 0]}}}}
+  },
+  "geckolib_format_version": 2
+}

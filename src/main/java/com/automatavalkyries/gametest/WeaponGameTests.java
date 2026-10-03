@@ -282,4 +282,673 @@ public class WeaponGameTests {
             helper.assertBlockPresent(net.minecraft.world.level.block.Blocks.STONE, stone);
         });
     }
+
+    /** クアンタムブレード: 三日月の斬撃がまっすぐ飛び、線上の 2 体を貫いて斬る */
+    @GameTest(template = TEMPLATE, timeoutTicks = 60)
+    public static void quantumSlashPierces(GameTestHelper helper) {
+        Zombie user = dummy(helper, new Vec3(0.5, 2, 2.5));
+        user.moveTo(user.getX(), user.getY(), user.getZ(), -90.0F, 0.0F);
+        user.setYHeadRot(-90.0F);
+        Zombie near = dummy(helper, new Vec3(4.5, 2, 2.5));
+        Zombie far = dummy(helper, new Vec3(9.5, 2, 2.5));
+        com.automatavalkyries.weapon.QuantumBladeItem.slash(helper.getLevel(), user);
+        helper.succeedWhen(() -> {
+            helper.assertTrue(near.getHealth() < near.getMaxHealth(), "near target not cut");
+            helper.assertTrue(far.getHealth() < far.getMaxHealth(), "far target not pierced");
+            helper.assertTrue(user.getHealth() == user.getMaxHealth(), "the slash hit its owner");
+        });
+    }
+
+    /** パニッシュメント・レールガン: 線上の全員を貫いてカンストダメージで倒し、光のレールを出す */
+    @GameTest(template = TEMPLATE)
+    public static void punishmentRailgunPierces(GameTestHelper helper) {
+        Zombie user = dummy(helper, new Vec3(0.5, 2, 2.5));
+        user.moveTo(user.getX(), user.getY(), user.getZ(), -90.0F, 0.0F);
+        user.setYHeadRot(-90.0F);
+        Zombie near = dummy(helper, new Vec3(5.5, 2, 2.5));
+        Zombie far = dummy(helper, new Vec3(14.5, 2, 2.5));
+        for (Zombie z : new Zombie[]{near, far}) {
+            z.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH).setBaseValue(1000);
+            z.setHealth(1000);
+            z.setItemSlot(net.minecraft.world.entity.EquipmentSlot.CHEST, new ItemStack(net.minecraft.world.item.Items.NETHERITE_CHESTPLATE));
+        }
+        com.automatavalkyries.weapon.PunishmentRailgunItem.fire(helper.getLevel(), user, 16); // 隣のテストに届かないよう短く
+        helper.assertTrue(near.isDeadOrDying(), "near target survived: " + near.getHealth());
+        helper.assertTrue(far.isDeadOrDying(), "far target survived: " + far.getHealth());
+        helper.assertFalse(helper.getLevel().getEntitiesOfClass(com.automatavalkyries.weapon.PunishmentBeamEntity.class,
+                user.getBoundingBox().inflate(4)).isEmpty(), "no beam entity");
+        helper.succeed();
+    }
+
+    /** アバランチ: 冷凍ミサイルは無敵時間中でも当たり、凍傷を重ねる（最大 V）。長射程の兵装のテストと離すため、別の組で動かす */
+    @GameTest(template = TEMPLATE, timeoutTicks = 60, batch = "weapon_frost")
+    public static void frostMissilePiercesInvulnerability(GameTestHelper helper) {
+        Zombie user = dummy(helper, new Vec3(0.5, 2, 2.5));
+        // 昼の日光で燃える体力の減りと見分けるため、燃えないハスクを的にする
+        Zombie target = helper.spawn(EntityType.HUSK, new Vec3(4.5, 2, 2.5));
+        target.setNoAi(true);
+        target.invulnerableTime = 20; // 無敵時間の最中
+        com.automatavalkyries.weapon.FrostMissileEntity missile =
+                new com.automatavalkyries.weapon.FrostMissileEntity(helper.getLevel(), user, target);
+        missile.setPos(helper.absoluteVec(new Vec3(2.5, 3, 2.5)));
+        missile.setDeltaMovement(new Vec3(0.6, 0, 0));
+        helper.getLevel().addFreshEntity(missile);
+        helper.succeedWhen(() -> {
+            helper.assertTrue(target.getHealth() < target.getMaxHealth(), "missile did not pierce invulnerability");
+            helper.assertTrue(target.hasEffect(ModWeapons.FROSTBITE.get()), "no frostbite");
+            for (int i = 0; i < 8; i++) com.automatavalkyries.weapon.Frostbite.apply(target);
+            helper.assertTrue(target.getEffect(ModWeapons.FROSTBITE.get()).getAmplifier() == com.automatavalkyries.weapon.Frostbite.MAX_LEVEL, "frostbite over the cap");
+        });
+    }
+
+    // ======== 追加の兵装 10 種（長射程・範囲の攻撃が隣のテストに届かないよう、それぞれ別の組で動かす） ========
+
+    private static Zombie facingX(GameTestHelper helper, Vec3 at) {
+        Zombie user = dummy(helper, at);
+        user.moveTo(user.getX(), user.getY(), user.getZ(), -90.0F, 0.0F);
+        user.setYHeadRot(-90.0F);
+        return user;
+    }
+
+    private static Zombie tough(GameTestHelper helper, Vec3 at) {
+        Zombie z = helper.spawn(EntityType.HUSK, at);
+        z.setNoAi(true);
+        z.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH).setBaseValue(200);
+        z.setHealth(200);
+        return z;
+    }
+
+    /** アークランサー: 稲妻が近くの敵へ跳ぶ */
+    @GameTest(template = TEMPLATE, batch = "weapon_arc")
+    public static void arcLancerChains(GameTestHelper helper) {
+        Zombie user = dummy(helper, new Vec3(0.5, 2, 0.5));
+        Zombie first = tough(helper, new Vec3(2.5, 2, 2.5));
+        Zombie second = tough(helper, new Vec3(4.5, 2, 2.5));
+        com.automatavalkyries.weapon.ArcLancerItem.chain(helper.getLevel(), user, first);
+        helper.assertTrue(second.getHealth() < second.getMaxHealth(), "lightning did not jump");
+        helper.succeed();
+    }
+
+    /** スキャッターブラスター: 目の前の敵に散弾が当たる */
+    @GameTest(template = TEMPLATE, batch = "weapon_scatter")
+    public static void scatterBlasterHits(GameTestHelper helper) {
+        Zombie user = facingX(helper, new Vec3(0.5, 2, 2.5));
+        Zombie target = tough(helper, new Vec3(2.5, 2, 2.5));
+        com.automatavalkyries.weapon.ScatterBlasterItem.fire(helper.getLevel(), user);
+        helper.assertTrue(target.getHealth() < target.getMaxHealth(), "no pellet hit");
+        helper.succeed();
+    }
+
+    /** グラビティハンマー: まわりの敵を打ち上げる */
+    @GameTest(template = TEMPLATE, batch = "weapon_hammer")
+    public static void gravityHammerLaunches(GameTestHelper helper) {
+        Zombie user = dummy(helper, new Vec3(2.5, 2, 2.5));
+        Zombie target = tough(helper, new Vec3(4.5, 2, 2.5));
+        com.automatavalkyries.weapon.GravityHammerItem.slam(helper.getLevel(), user);
+        helper.assertTrue(target.getHealth() < target.getMaxHealth(), "slam did no damage");
+        helper.assertTrue(target.getDeltaMovement().y > 0.5, "target not launched: " + target.getDeltaMovement());
+        helper.succeed();
+    }
+
+    /** プラズマチャクラム: 投げた円盤が敵を斬って戻る */
+    @GameTest(template = TEMPLATE, batch = "weapon_chakram", timeoutTicks = 80)
+    public static void plasmaChakramReturns(GameTestHelper helper) {
+        Zombie user = facingX(helper, new Vec3(0.5, 2, 2.5));
+        Zombie target = tough(helper, new Vec3(5.5, 2, 2.5));
+        com.automatavalkyries.weapon.ChakramEntity disc = com.automatavalkyries.weapon.PlasmaChakramItem.toss(helper.getLevel(), user);
+        helper.succeedWhen(() -> {
+            helper.assertTrue(target.getHealth() <= target.getMaxHealth() - 2 * com.automatavalkyries.weapon.ChakramEntity.DAMAGE * 0.9F, "disc did not cut both ways: " + target.getHealth()); // ハスクの防具の分を見込む
+            helper.assertTrue(disc.isRemoved(), "disc has not returned");
+        });
+    }
+
+    /** プリズムビームライフル: 光線が当たり、照射し続けるほど強くなる */
+    @GameTest(template = TEMPLATE, batch = "weapon_prism")
+    public static void prismBeamRamps(GameTestHelper helper) {
+        Zombie user = facingX(helper, new Vec3(0.5, 2, 2.5));
+        Zombie target = tough(helper, new Vec3(3.5, 2, 2.5));
+        com.automatavalkyries.weapon.PrismBeamRifleItem.beam(helper.getLevel(), user, 0);
+        float early = target.getMaxHealth() - target.getHealth();
+        float before = target.getHealth();
+        com.automatavalkyries.weapon.PrismBeamRifleItem.beam(helper.getLevel(), user, 60);
+        float late = before - target.getHealth();
+        helper.assertTrue(early > 0 && late > early * 2.5F, "ramp " + early + " -> " + late);
+        helper.succeed();
+    }
+
+    /** サンダージャベリン: 刺さって 1 秒後に雷が落ちる */
+    @GameTest(template = TEMPLATE, batch = "weapon_javelin", timeoutTicks = 80)
+    public static void thunderJavelinStrikes(GameTestHelper helper) {
+        Zombie user = facingX(helper, new Vec3(0.5, 2, 2.5));
+        Zombie target = tough(helper, new Vec3(4.5, 2, 2.5));
+        Zombie bystander = tough(helper, new Vec3(4.5, 2, 4.5));
+        user.setXRot(5);
+        com.automatavalkyries.weapon.ThunderJavelinItem.hurl(helper.getLevel(), user);
+        helper.succeedWhen(() -> {
+            helper.assertTrue(target.getHealth() < target.getMaxHealth() - 30, "javelin and lightning did not both hit: " + target.getHealth());
+            helper.assertTrue(bystander.getHealth() < bystander.getMaxHealth(), "lightning did not spread");
+        });
+    }
+
+    /** ブラックロータス: 嵐の中の敵が斬られる */
+    @GameTest(template = TEMPLATE, batch = "weapon_lotus")
+    public static void blackLotusStormCuts(GameTestHelper helper) {
+        Zombie user = dummy(helper, new Vec3(2.5, 2, 2.5));
+        Zombie target = tough(helper, new Vec3(4.5, 2, 2.5));
+        com.automatavalkyries.weapon.BlackLotusItem.storm(helper.getLevel(), user, com.automatavalkyries.weapon.BlackLotusItem.TICK_RATE);
+        helper.assertTrue(target.getHealth() < target.getMaxHealth(), "storm did no damage");
+        float before = target.getHealth();
+        com.automatavalkyries.weapon.BlackLotusItem.burst(helper.getLevel(), user);
+        helper.assertTrue(target.getHealth() < before, "burst did no damage");
+        helper.succeed();
+    }
+
+    /** クロノリピーター: 1 射で 3 回（時の残響が 2 回）当たる */
+    @GameTest(template = TEMPLATE, batch = "weapon_chrono", timeoutTicks = 60)
+    public static void chronoRepeaterEchoes(GameTestHelper helper) {
+        Zombie user = facingX(helper, new Vec3(0.5, 2, 2.5));
+        Zombie target = tough(helper, new Vec3(4.5, 2, 2.5));
+        com.automatavalkyries.weapon.ChronoRepeaterItem.fire(helper.getLevel(), user);
+        helper.succeedWhen(() -> helper.assertTrue(target.getHealth() <= target.getMaxHealth() - 3 * com.automatavalkyries.weapon.ChronoRepeaterItem.DAMAGE * 0.9F, // ハスクの防具の分を見込む
+                "echoes missing: " + target.getHealth()));
+    }
+
+    /** ヴォイドサイズ: 刈り取りでまわりの敵を斬り、持ち主が回復する */
+    @GameTest(template = TEMPLATE, batch = "weapon_scythe", timeoutTicks = 400)
+    public static void voidScytheReapsAndHeals(GameTestHelper helper) {
+        Zombie user = dummy(helper, new Vec3(1.5, 2, 2.5));
+        user.setHealth(5);
+        Zombie target = tough(helper, new Vec3(4.5, 2, 2.5));
+        // 新しく作られた区画に当たると、区画の準備が済むまで mob が世界に入らない（裏で区画を作る速さ次第）。入るまで刈り取りを繰り返す
+        helper.succeedWhen(() -> {
+            if (target.getHealth() >= target.getMaxHealth()) com.automatavalkyries.weapon.VoidScytheItem.reap(helper.getLevel(), user);
+            helper.assertTrue(target.getHealth() < target.getMaxHealth(), "reap did no damage");
+            helper.assertTrue(user.getHealth() > 5, "no lifesteal");
+        });
+    }
+
+    /** ジェネシス・ヘイロー: 光の柱が注いで、柱の中の敵を焼く（撃った者には当たらない） */
+    @GameTest(template = TEMPLATE, batch = "weapon_halo", timeoutTicks = 100)
+    public static void genesisHaloStrikes(GameTestHelper helper) {
+        Zombie user = dummy(helper, new Vec3(0.5, 2, 0.5));
+        Zombie target = tough(helper, new Vec3(4.5, 2, 4.5));
+        target.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH).setBaseValue(1024);
+        target.setHealth(1024);
+        com.automatavalkyries.weapon.GenesisHaloItem.strike(helper.getLevel(), user, helper.absoluteVec(new Vec3(4.5, 2, 4.5)));
+        helper.succeedWhen(() -> {
+            helper.assertTrue(target.isDeadOrDying(), "pillar did not burn the target: " + target.getHealth());
+            helper.assertTrue(user.isAlive(), "the strike hit its owner");
+        });
+    }
+
+    // ======== 採掘用の兵装 ========
+
+    /** ドリルは石も土も速く掘り（電力があれば）、チェーンソーは丸太を速く切る。電力が無いと遅い */
+    @GameTest(template = TEMPLATE)
+    public static void miningToolSpeeds(GameTestHelper helper) {
+        ItemStack drill = ((TacticalWeaponItem) ModWeapons.DRILL_T1.get()).charged();
+        ItemStack saw = ((TacticalWeaponItem) ModWeapons.CHAINSAW_T1.get()).charged();
+        var stone = net.minecraft.world.level.block.Blocks.STONE.defaultBlockState();
+        var dirt = net.minecraft.world.level.block.Blocks.DIRT.defaultBlockState();
+        var log = net.minecraft.world.level.block.Blocks.OAK_LOG.defaultBlockState();
+        helper.assertTrue(drill.getDestroySpeed(stone) > 8 && drill.getDestroySpeed(dirt) > 8, "drill is slow");
+        helper.assertTrue(drill.isCorrectToolForDrops(net.minecraft.world.level.block.Blocks.OBSIDIAN.defaultBlockState()), "drill cannot harvest obsidian");
+        helper.assertTrue(saw.getDestroySpeed(log) > 8 && saw.getDestroySpeed(stone) <= 1, "chainsaw speeds wrong");
+        ItemStack empty = new ItemStack(ModWeapons.DRILL_T1.get());
+        helper.assertTrue(empty.getDestroySpeed(stone) < 2, "unpowered drill is fast");
+        helper.succeed();
+    }
+
+    private static FakePlayer miner(GameTestHelper helper, ItemStack tool) {
+        FakePlayer player = player(helper, new Vec3(0.5, 2, 2.5));
+        player.setItemInHand(InteractionHand.MAIN_HAND, tool);
+        return player;
+    }
+
+    /** ビヨンド・ドリル（T3）は向いた面の 3×3 をまとめて掘る */
+    @GameTest(template = TEMPLATE, batch = "tool_area")
+    public static void drillMinesThreeByThree(GameTestHelper helper) {
+        for (int y = 2; y <= 4; y++) for (int z = 1; z <= 3; z++) helper.setBlock(new BlockPos(3, y, z), net.minecraft.world.level.block.Blocks.STONE);
+        FakePlayer player = miner(helper, ((TacticalWeaponItem) ModWeapons.DRILL_T3.get()).charged());
+        player.gameMode.destroyBlock(helper.absolutePos(new BlockPos(3, 3, 2)));
+        for (int y = 2; y <= 4; y++) for (int z = 1; z <= 3; z++) helper.assertBlockPresent(net.minecraft.world.level.block.Blocks.AIR, new BlockPos(3, y, z));
+        helper.succeed();
+    }
+
+    /** ビヨンド・チェーンソー（T3）はつながった丸太をまとめて切る */
+    @GameTest(template = TEMPLATE, batch = "tool_fell")
+    public static void chainsawFellsTree(GameTestHelper helper) {
+        for (int y = 2; y <= 6; y++) helper.setBlock(new BlockPos(3, y, 2), net.minecraft.world.level.block.Blocks.OAK_LOG);
+        FakePlayer player = miner(helper, ((TacticalWeaponItem) ModWeapons.CHAINSAW_T3.get()).charged());
+        player.gameMode.destroyBlock(helper.absolutePos(new BlockPos(3, 2, 2)));
+        for (int y = 2; y <= 6; y++) helper.assertBlockPresent(net.minecraft.world.level.block.Blocks.AIR, new BlockPos(3, y, 2));
+        helper.succeed();
+    }
+
+    /** 採掘用の兵装で殴ると、相手の無敵時間を貫く */
+    @GameTest(template = TEMPLATE)
+    public static void miningToolPiercesInvulnerability(GameTestHelper helper) {
+        Zombie target = tough(helper, new Vec3(1.5, 2, 2.5));
+        FakePlayer player = miner(helper, ((TacticalWeaponItem) ModWeapons.CHAINSAW_T2.get()).charged());
+        target.hurt(target.damageSources().generic(), 50.0F); // 大きな被弾で無敵時間に入る（次の小さな一撃は普通なら弾かれる）
+        float before = target.getHealth();
+        helper.assertTrue(target.invulnerableTime > 10, "target is not invulnerable");
+        player.attack(target);
+        helper.assertTrue(target.getHealth() < before, "chainsaw did not pierce invulnerability");
+        helper.succeed();
+    }
+
+    /** ハイエンド・ドリル（T1）でも初めから 3×3 で掘れ、右クリックで範囲が 1×1 ⇔ 3×3 と切り替わる。間合いはティアごとに伸びる */
+    @GameTest(template = TEMPLATE, batch = "tool_area_t1")
+    public static void drillT1AreaAndSwitch(GameTestHelper helper) {
+        for (int y = 2; y <= 4; y++) for (int z = 1; z <= 3; z++) helper.setBlock(new BlockPos(3, y, z), net.minecraft.world.level.block.Blocks.STONE);
+        ItemStack drill = ((TacticalWeaponItem) ModWeapons.DRILL_T1.get()).charged();
+        com.automatavalkyries.weapon.MiningToolItem item = (com.automatavalkyries.weapon.MiningToolItem) drill.getItem();
+        helper.assertTrue(item.areaRadius(drill) == 1, "T1 does not start at 3x3");
+        FakePlayer player = miner(helper, drill);
+        player.gameMode.destroyBlock(helper.absolutePos(new BlockPos(3, 3, 2)));
+        for (int y = 2; y <= 4; y++) for (int z = 1; z <= 3; z++) helper.assertBlockPresent(net.minecraft.world.level.block.Blocks.AIR, new BlockPos(3, y, z));
+        item.use(helper.getLevel(), player, InteractionHand.MAIN_HAND);
+        helper.assertTrue(item.areaRadius(drill) == 0, "did not switch to 1x1");
+        item.use(helper.getLevel(), player, InteractionHand.MAIN_HAND);
+        helper.assertTrue(item.areaRadius(drill) == 1, "did not wrap back to 3x3 (T1 max)");
+        helper.assertTrue(com.automatavalkyries.weapon.MiningToolItem.blockReach(4) > com.automatavalkyries.weapon.MiningToolItem.blockReach(1), "reach does not grow with tier");
+        helper.succeed();
+    }
+
+    // ---- 追加の兵装 第 2 弾 10 種 ----
+
+    /**
+     * 試験の後片付け: 試験の場所のまわり 32 ブロックの生き物を消す。吹き飛ばし・引き寄せ・突進で枠の外へ出た mob は
+     * 次の試験の枠を置くときに消えずに残り、後の試験の邪魔をする（雷の的を奪う、アイギスのドームで攻撃を止める等）
+     */
+    private static void sweep(GameTestHelper helper) {
+        BlockPos o = helper.absolutePos(BlockPos.ZERO);
+        for (net.minecraft.world.entity.LivingEntity e : helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.LivingEntity.class,
+                new net.minecraft.world.phys.AABB(o).inflate(32), e -> !(e instanceof net.minecraft.world.entity.player.Player))) {
+            e.discard();
+        }
+    }
+
+    /** ヒートパイルバンカー: 正面の敵に杭を打ち込み、燃やす */
+    @GameTest(template = TEMPLATE, batch = "weapon2_pile")
+    public static void heatPileStrikes(GameTestHelper helper) {
+        Zombie user = facingX(helper, new Vec3(0.5, 2, 2.5));
+        Zombie target = tough(helper, new Vec3(2.5, 2, 2.5));
+        helper.assertTrue(com.automatavalkyries.weapon.HeatPileBunkerItem.strike(helper.getLevel(), user) == target, "pile missed");
+        helper.assertTrue(target.getHealth() <= target.getMaxHealth() - 20, "pile too weak: " + target.getHealth());
+        helper.assertTrue(target.getRemainingFireTicks() > 0, "target not set on fire");
+        sweep(helper);
+            helper.succeed();
+    }
+
+    /** ツインブラスター: 連射の 1 発ずつが無敵時間に弾かれずに入る */
+    @GameTest(template = TEMPLATE, batch = "weapon2_twin")
+    public static void twinBlasterRapidFire(GameTestHelper helper) {
+        Zombie user = facingX(helper, new Vec3(0.5, 2, 2.5));
+        Zombie target = tough(helper, new Vec3(4.5, 2, 2.5));
+        com.automatavalkyries.weapon.TwinBlasterItem.shot(helper.getLevel(), user, 1, 1);
+        float first = target.getHealth();
+        com.automatavalkyries.weapon.TwinBlasterItem.shot(helper.getLevel(), user, -1, -1); // オフハンド（左）から
+        helper.assertTrue(first < target.getMaxHealth(), "first bolt did nothing");
+        helper.assertTrue(target.getHealth() < first, "second bolt was blocked by invulnerability");
+        sweep(helper);
+            helper.succeed();
+    }
+
+    /** ショックウィップ: 扇の敵を打って引き寄せ、鈍らせる */
+    @GameTest(template = TEMPLATE, batch = "weapon2_whip")
+    public static void shockWhipPulls(GameTestHelper helper) {
+        Zombie user = facingX(helper, new Vec3(0.5, 2, 2.5));
+        Zombie target = tough(helper, new Vec3(4.5, 2, 2.5));
+        helper.assertTrue(com.automatavalkyries.weapon.ShockWhipItem.lash(helper.getLevel(), user) >= 1, "whip hit nothing");
+        helper.assertTrue(target.getHealth() < target.getMaxHealth(), "whip did no damage");
+        helper.assertTrue(target.hasEffect(net.minecraft.world.effect.MobEffects.MOVEMENT_SLOWDOWN), "target not slowed");
+        helper.assertTrue(target.getDeltaMovement().x < 0, "target not pulled toward the user: " + target.getDeltaMovement());
+        sweep(helper);
+            helper.succeed();
+    }
+
+    /** プラズマフレイマー: 扇の敵を焼く */
+    @GameTest(template = TEMPLATE, batch = "weapon2_flamer")
+    public static void plasmaFlamerBurns(GameTestHelper helper) {
+        Zombie user = facingX(helper, new Vec3(0.5, 2, 2.5));
+        Zombie target = tough(helper, new Vec3(4.5, 2, 2.5));
+        helper.assertTrue(com.automatavalkyries.weapon.PlasmaFlamerItem.pulse(helper.getLevel(), user) >= 1, "flame missed"); // 前の試験で飛ばされた mob が近くに残ることがある
+        float first = target.getHealth();
+        com.automatavalkyries.weapon.PlasmaFlamerItem.pulse(helper.getLevel(), user);
+        helper.assertTrue(first < target.getMaxHealth() && target.getHealth() < first, "flame pulses blocked: " + target.getHealth());
+        helper.assertTrue(target.getRemainingFireTicks() > 0, "target not set on fire");
+        sweep(helper);
+            helper.succeed();
+    }
+
+    /** ミラージュダガー: 敵の背後へ跳んで刺す */
+    @GameTest(template = TEMPLATE, batch = "weapon2_dagger")
+    public static void mirageDaggerBlinksBehind(GameTestHelper helper) {
+        Zombie user = facingX(helper, new Vec3(0.5, 2, 2.5));
+        Zombie target = tough(helper, new Vec3(3.5, 2, 2.5));
+        helper.assertTrue(com.automatavalkyries.weapon.MirageDaggerItem.blink(helper.getLevel(), user) == target, "did not blink to the target");
+        helper.assertTrue(user.getX() > target.getX(), "user is not behind the target: " + user.getX() + " vs " + target.getX());
+        helper.assertTrue(target.getHealth() <= target.getMaxHealth() - 15, "backstab too weak: " + target.getHealth());
+        sweep(helper);
+            helper.succeed();
+    }
+
+    /** ヴォルテックスキャノン: 渦が 2 秒後に潰れて、まわりの敵にもダメージ */
+    @GameTest(template = TEMPLATE, batch = "weapon2_vortex", timeoutTicks = 100)
+    public static void vortexCannonCollapses(GameTestHelper helper) {
+        Zombie user = facingX(helper, new Vec3(0.5, 2, 2.5));
+        Zombie first = tough(helper, new Vec3(4.5, 2, 2.5));
+        Zombie side = tough(helper, new Vec3(4.5, 2, 0.5));
+        com.automatavalkyries.weapon.VortexCannonItem.fire(helper.getLevel(), user);
+        helper.runAfterDelay(com.automatavalkyries.weapon.VortexCannonItem.DURATION + 5, () -> {
+            helper.assertTrue(first.getHealth() < first.getMaxHealth(), "vortex did not hurt the target");
+            helper.assertTrue(side.getHealth() < side.getMaxHealth(), "vortex collapse did not reach the side");
+            sweep(helper);
+            helper.succeed();
+        });
+    }
+
+    /** 星弓: 矢が貫き、星が降った所の敵にも当たる */
+    @GameTest(template = TEMPLATE, batch = "weapon2_starfall")
+    public static void starfallBowHits(GameTestHelper helper) {
+        Zombie user = facingX(helper, new Vec3(0.5, 2, 2.5));
+        Zombie target = tough(helper, new Vec3(4.5, 2, 2.5));
+        com.automatavalkyries.weapon.StarfallBowItem.loose(helper.getLevel(), user, 0.5F); // 途中まで引いた矢（星は降らない）
+        float afterArrow = target.getHealth();
+        helper.assertTrue(afterArrow < target.getMaxHealth() && afterArrow > target.getMaxHealth() - 20, "half-drawn arrow damage is off: " + afterArrow);
+        com.automatavalkyries.weapon.StarfallBowItem.star(helper.getLevel(), user, target.position());
+        helper.assertTrue(target.getHealth() < afterArrow, "falling star missed");
+        sweep(helper);
+            helper.succeed();
+    }
+
+    /** 蝕刃: 印が 5 つ揃うと日蝕で大きな一撃と回復 */
+    @GameTest(template = TEMPLATE, batch = "weapon2_eclipse")
+    public static void eclipseBladeDetonates(GameTestHelper helper) {
+        Zombie user = dummy(helper, new Vec3(0.5, 2, 2.5));
+        Zombie target = tough(helper, new Vec3(2.5, 2, 2.5));
+        user.setHealth(5);
+        for (int i = 1; i < com.automatavalkyries.weapon.EclipseBladeItem.MARKS; i++) {
+            helper.assertTrue(com.automatavalkyries.weapon.EclipseBladeItem.mark(helper.getLevel(), user, target) == i, "mark count wrong at " + i);
+        }
+        helper.assertTrue(target.getHealth() == target.getMaxHealth(), "marks alone should not hurt");
+        helper.assertTrue(com.automatavalkyries.weapon.EclipseBladeItem.mark(helper.getLevel(), user, target) == 0, "eclipse did not trigger at 5 marks");
+        helper.assertTrue(target.getHealth() <= target.getMaxHealth() - 50, "eclipse too weak: " + target.getHealth());
+        helper.assertTrue(user.getHealth() > 5, "attacker not healed");
+        sweep(helper);
+            helper.succeed();
+    }
+
+    /** 熾天杖: 持ち主を癒やし、アンデッドの敵を 2 倍で打つ */
+    @GameTest(template = TEMPLATE, batch = "weapon2_seraph")
+    public static void seraphStaffBlesses(GameTestHelper helper) {
+        Zombie user = dummy(helper, new Vec3(0.5, 2, 2.5));
+        Zombie target = tough(helper, new Vec3(3.5, 2, 2.5));
+        user.setHealth(5);
+        int[] result = com.automatavalkyries.weapon.SeraphStaffItem.bless(helper.getLevel(), user);
+        helper.assertTrue(result[0] >= 1 && result[1] >= 1, "bless counts wrong: healed " + result[0] + ", smitten " + result[1]); // 隣の試験の mob も範囲に入ることがある
+        helper.assertTrue(user.getHealth() > 5 && user.hasEffect(net.minecraft.world.effect.MobEffects.DAMAGE_RESISTANCE), "user not blessed"); // ゾンビはアンデッドなので再生は付かない
+        helper.assertTrue(target.getHealth() <= target.getMaxHealth() - 20, "undead smite not doubled: " + target.getHealth());
+        sweep(helper);
+            helper.succeed();
+    }
+
+    /** ラグナロク・エッジ: 正面の敵は大地ごと両断され、背後の敵は無事 */
+    @GameTest(template = TEMPLATE, batch = "weapon2_ragnarok", timeoutTicks = 60)
+    public static void ragnarokEdgeCleaves(GameTestHelper helper) {
+        Zombie user = facingX(helper, new Vec3(2.5, 2, 2.5));
+        Zombie front = tough(helper, new Vec3(4.5, 2, 2.5));
+        Zombie behind = tough(helper, new Vec3(0.5, 2, 2.5));
+        com.automatavalkyries.weapon.RagnarokEdgeItem.cleave(helper.getLevel(), user);
+        helper.runAfterDelay(com.automatavalkyries.weapon.RagnarokEdgeItem.STEPS + 2, () -> {
+            helper.assertTrue(!front.isAlive(), "front target survived the cleave: " + front.getHealth());
+            helper.assertTrue(behind.isAlive() && behind.getHealth() == behind.getMaxHealth(), "cleave hit behind the user");
+            sweep(helper);
+            helper.succeed();
+        });
+    }
+
+    /** 終の黄昏: 斬撃は上下にも向いた方向へ飛ぶ（斜め上の敵に届く） */
+    @GameTest(template = TEMPLATE, batch = "weapon2_ragnarok_up", timeoutTicks = 60)
+    public static void ragnarokFollowsPitch(GameTestHelper helper) {
+        Zombie user = facingX(helper, new Vec3(1.5, 2, 2.5));
+        user.moveTo(user.getX(), user.getY(), user.getZ(), -90.0F, -45.0F); // +X の斜め上を向く
+        Zombie above = tough(helper, new Vec3(4.5, 5, 2.5));
+        above.setNoGravity(true);
+        com.automatavalkyries.weapon.RagnarokEdgeItem.cleave(helper.getLevel(), user);
+        helper.runAfterDelay(com.automatavalkyries.weapon.RagnarokEdgeItem.STEPS + 2, () -> {
+            helper.assertTrue(!above.isAlive(), "upward cleave missed the target above: " + above.getHealth());
+            sweep(helper);
+            helper.succeed();
+        });
+    }
+
+    // ---- 追加の兵装 第 3 弾 17 種 ----
+
+
+    /** ヴェノムスティンガー: 突進が通り道の敵を刺して弱らせる */
+    @GameTest(template = TEMPLATE, batch = "weapon3_venom")
+    public static void venomStingerLunges(GameTestHelper helper) {
+        Zombie user = facingX(helper, new Vec3(0.5, 2, 2.5));
+        Zombie target = tough(helper, new Vec3(3.5, 2, 2.5));
+        helper.assertTrue(com.automatavalkyries.weapon.Batch3T1.VenomStinger.lunge(helper.getLevel(), user) >= 1, "lunge hit nothing");
+        helper.assertTrue(target.getHealth() < target.getMaxHealth() && target.hasEffect(net.minecraft.world.effect.MobEffects.WEAKNESS), "lunge did not weaken the target");
+        sweep(helper);
+            helper.succeed();
+    }
+
+    /** フラッシュランチャー: 閃光弾で目をくらませる */
+    @GameTest(template = TEMPLATE, batch = "weapon3_flash")
+    public static void flashLauncherBlinds(GameTestHelper helper) {
+        Zombie user = facingX(helper, new Vec3(0.5, 2, 2.5));
+        Zombie target = tough(helper, new Vec3(4.5, 2, 2.5));
+        helper.assertTrue(com.automatavalkyries.weapon.Batch3T1.FlashLauncher.flash(helper.getLevel(), user) >= 1, "flash hit nothing");
+        helper.assertTrue(target.hasEffect(net.minecraft.world.effect.MobEffects.BLINDNESS) && target.hasEffect(net.minecraft.world.effect.MobEffects.GLOWING), "target not blinded");
+        sweep(helper);
+            helper.succeed();
+    }
+
+    /** ゲイルファン: 敵を吹き飛ばし、飛んでくる矢を撃ち返す */
+    @GameTest(template = TEMPLATE, batch = "weapon3_gale")
+    public static void galeFanBlowsAndReflects(GameTestHelper helper) {
+        Zombie user = facingX(helper, new Vec3(0.5, 2, 2.5));
+        Zombie target = tough(helper, new Vec3(3.5, 2, 2.5));
+        Vec3 at = helper.absoluteVec(new Vec3(2.5, 3.6, 2.5));
+        Arrow arrow = new Arrow(helper.getLevel(), at.x, at.y, at.z);
+        arrow.setDeltaMovement(-1.0, 0, 0);
+        helper.getLevel().addFreshEntity(arrow);
+        int[] r = com.automatavalkyries.weapon.Batch3T1.GaleFan.gust(helper.getLevel(), user);
+        helper.assertTrue(r[0] >= 1 && target.getDeltaMovement().x > 0.5, "target not blown away: " + target.getDeltaMovement());
+        helper.assertTrue(r[1] >= 1 && arrow.getDeltaMovement().x > 0 && arrow.getOwner() == user, "arrow not turned back");
+        sweep(helper);
+            helper.succeed();
+    }
+
+    /** フロストナックル: 3 発目で氷が砕ける */
+    @GameTest(template = TEMPLATE, batch = "weapon3_frost")
+    public static void frostKnuckleShatters(GameTestHelper helper) {
+        Zombie user = dummy(helper, new Vec3(0.5, 2, 2.5));
+        Zombie target = tough(helper, new Vec3(2.5, 2, 2.5));
+        var level = helper.getLevel();
+        helper.assertTrue(com.automatavalkyries.weapon.Batch3T1.FrostKnuckle.punch(level, user, target) == 1, "first punch count wrong");
+        helper.assertTrue(com.automatavalkyries.weapon.Batch3T1.FrostKnuckle.punch(level, user, target) == 2, "second punch count wrong");
+        helper.assertTrue(com.automatavalkyries.weapon.Batch3T1.FrostKnuckle.punch(level, user, target) == 0, "third punch did not shatter");
+        helper.assertTrue(target.getHealth() < target.getMaxHealth() && target.hasEffect(ModWeapons.FROSTBITE.get()), "shatter did nothing");
+        sweep(helper);
+            helper.succeed();
+    }
+
+    /** クリムゾンシックル: 血の波動で吸って回復する */
+    @GameTest(template = TEMPLATE, batch = "weapon3_crimson")
+    public static void crimsonSickleDrains(GameTestHelper helper) {
+        Zombie user = dummy(helper, new Vec3(0.5, 2, 2.5));
+        Zombie target = tough(helper, new Vec3(3.5, 2, 2.5));
+        user.setHealth(5);
+        helper.assertTrue(com.automatavalkyries.weapon.Batch3T2.CrimsonSickle.drain(helper.getLevel(), user) >= 1, "drain hit nothing");
+        helper.assertTrue(user.getHealth() > 5 && target.hasEffect(net.minecraft.world.effect.MobEffects.WITHER), "drain did not heal or wither");
+        sweep(helper);
+            helper.succeed();
+    }
+
+    /** レビテーションロッド: 浮かせて、3 秒後に叩き落とす */
+    @GameTest(template = TEMPLATE, batch = "weapon3_levitate", timeoutTicks = 100)
+    public static void levitationRodLiftsAndSlams(GameTestHelper helper) {
+        Zombie user = dummy(helper, new Vec3(0.5, 2, 2.5));
+        Zombie target = tough(helper, new Vec3(3.5, 2, 2.5));
+        helper.assertTrue(com.automatavalkyries.weapon.Batch3T2.LevitationRod.levitate(helper.getLevel(), user).contains(target), "target not lifted");
+        helper.assertTrue(target.hasEffect(net.minecraft.world.effect.MobEffects.LEVITATION), "no levitation");
+        float lifted = target.getHealth();
+        helper.runAfterDelay(com.automatavalkyries.weapon.Batch3T2.LevitationRod.LIFT + 5, () -> {
+            helper.assertTrue(target.getHealth() < lifted, "slam did no damage");
+            sweep(helper);
+            helper.succeed();
+        });
+    }
+
+    /** リコシェライフル: 弾が次の敵へ跳ねる */
+    @GameTest(template = TEMPLATE, batch = "weapon3_ricochet")
+    public static void ricochetRifleBounces(GameTestHelper helper) {
+        Zombie user = facingX(helper, new Vec3(0.5, 2, 2.5));
+        Zombie first = tough(helper, new Vec3(4.5, 2, 2.5));
+        Zombie second = tough(helper, new Vec3(4.5, 2, 0.5));
+        helper.assertTrue(com.automatavalkyries.weapon.Batch3T2.RicochetRifle.ricochet(helper.getLevel(), user) >= 2, "bullet did not bounce");
+        helper.assertTrue(first.getHealth() < first.getMaxHealth() && second.getHealth() < second.getMaxHealth(), "bounce missed a target");
+        sweep(helper);
+            helper.succeed();
+    }
+
+    /** スペクトラルチェイン: 鎖を撃ち込んで飛びつく */
+    @GameTest(template = TEMPLATE, batch = "weapon3_chain")
+    public static void spectralChainHooks(GameTestHelper helper) {
+        Zombie user = facingX(helper, new Vec3(0.5, 2, 2.5));
+        Zombie target = tough(helper, new Vec3(4.5, 2, 2.5));
+        helper.assertTrue(com.automatavalkyries.weapon.Batch3T2.SpectralChain.hook(helper.getLevel(), user) == target, "chain missed");
+        helper.assertTrue(user.getDeltaMovement().x > 0.3 && target.hasEffect(net.minecraft.world.effect.MobEffects.MOVEMENT_SLOWDOWN), "user not pulled or target not bound");
+        sweep(helper);
+            helper.succeed();
+    }
+
+    /** スタティックトラップ: 敵が近づくと炸裂する */
+    @GameTest(template = TEMPLATE, batch = "weapon3_trap")
+    public static void staticTrapBursts(GameTestHelper helper) {
+        Zombie user = dummy(helper, new Vec3(0.5, 2, 2.5));
+        Zombie target = tough(helper, new Vec3(3.5, 2, 2.5));
+        com.automatavalkyries.weapon.Batch3T2.StaticTrap.place(helper.getLevel(), user, target.position());
+        helper.assertTrue(target.getHealth() < target.getMaxHealth() && target.hasEffect(net.minecraft.world.effect.MobEffects.MOVEMENT_SLOWDOWN), "trap did not burst");
+        sweep(helper);
+            helper.succeed();
+    }
+
+    /** バーサークアックス: 体力が減るほど強く、激昂で強化される */
+    @GameTest(template = TEMPLATE, batch = "weapon3_berserk")
+    public static void berserkAxeScales(GameTestHelper helper) {
+        Zombie user = dummy(helper, new Vec3(0.5, 2, 2.5));
+        helper.assertTrue(com.automatavalkyries.weapon.Batch3T2.BerserkAxe.multiplier(user) == 1F, "full health multiplier should be 1");
+        user.setHealth(user.getMaxHealth() * 0.2F);
+        helper.assertTrue(Math.abs(com.automatavalkyries.weapon.Batch3T2.BerserkAxe.multiplier(user) - 2F) < 1.0E-3, "20% health multiplier should be 2");
+        user.setHealth(user.getMaxHealth());
+        com.automatavalkyries.weapon.Batch3T2.BerserkAxe.rage(helper.getLevel(), user);
+        helper.assertTrue(user.getHealth() < user.getMaxHealth() && user.hasEffect(net.minecraft.world.effect.MobEffects.DAMAGE_BOOST), "rage did not cost health or buff");
+        sweep(helper);
+            helper.succeed();
+    }
+
+    /** ソニックキャノン: 一直線の敵をまとめて打つ */
+    @GameTest(template = TEMPLATE, batch = "weapon3_sonic")
+    public static void sonicCannonPierces(GameTestHelper helper) {
+        Zombie user = facingX(helper, new Vec3(0.5, 2, 2.5));
+        Zombie near = tough(helper, new Vec3(2.5, 2, 2.5));
+        Zombie far = tough(helper, new Vec3(4.5, 2, 2.5));
+        helper.assertTrue(com.automatavalkyries.weapon.Batch3T2.SonicCannon.blast(helper.getLevel(), user) >= 2, "shockwave did not pierce");
+        helper.assertTrue(near.hasEffect(net.minecraft.world.effect.MobEffects.CONFUSION) && far.getHealth() < far.getMaxHealth(), "shockwave effects missing");
+        sweep(helper);
+            helper.succeed();
+    }
+
+    /** 呪詛の魔導書: 呪われた敵は 1.5 倍のダメージを受ける */
+    @GameTest(template = TEMPLATE, batch = "weapon3_hex")
+    public static void hexGrimoireAmplifies(GameTestHelper helper) {
+        Zombie user = dummy(helper, new Vec3(0.5, 2, 2.5));
+        Zombie target = tough(helper, new Vec3(4.5, 2, 2.5));
+        helper.assertTrue(com.automatavalkyries.weapon.Batch3T3.HexGrimoire.hex(helper.getLevel(), user) >= 1, "hex hit nothing");
+        helper.assertTrue(com.automatavalkyries.weapon.Batch3T3.HexGrimoire.cursed(target), "target not cursed");
+        target.removeAllEffects();
+        target.invulnerableTime = 0;
+        float before = target.getHealth();
+        target.hurt(helper.getLevel().damageSources().magic(), 10.0F);
+        helper.assertTrue(before - target.getHealth() > 14.0F, "curse did not amplify: took " + (before - target.getHealth()));
+        sweep(helper);
+            helper.succeed();
+    }
+
+    /** 不死鳥の翼: 飛翔した通り道の敵を焼く */
+    @GameTest(template = TEMPLATE, batch = "weapon3_phoenix")
+    public static void phoenixWingBurns(GameTestHelper helper) {
+        Zombie user = facingX(helper, new Vec3(0.5, 2, 2.5));
+        Zombie target = tough(helper, new Vec3(4.5, 2, 2.5));
+        helper.assertTrue(com.automatavalkyries.weapon.Batch3T3.PhoenixWing.soar(helper.getLevel(), user) >= 1, "soar burned nothing");
+        helper.assertTrue(target.getRemainingFireTicks() > 0 && user.hasEffect(net.minecraft.world.effect.MobEffects.FIRE_RESISTANCE), "fire effects missing");
+        helper.assertTrue(user.getDeltaMovement().x > 1.0, "user did not soar: " + user.getDeltaMovement());
+        sweep(helper);
+            helper.succeed();
+    }
+
+    /** 嵐呼びの杖: 雷が範囲の敵に落ちる */
+    @GameTest(template = TEMPLATE, batch = "weapon3_storm", timeoutTicks = 100)
+    public static void stormCallerStrikes(GameTestHelper helper) {
+        sweep(helper); // 前の試験で枠の外へ飛ばされた mob が残っていると、雷の的を奪われる
+        Zombie user = dummy(helper, new Vec3(0.5, 2, 2.5));
+        Zombie target = tough(helper, new Vec3(4.5, 2, 2.5));
+        helper.assertTrue(com.automatavalkyries.weapon.Batch3T3.StormCaller.call(helper.getLevel(), user) >= 8, "storm did not start");
+        helper.runAfterDelay(45, () -> {
+            helper.assertTrue(target.getHealth() < target.getMaxHealth(), "no lightning hit the target");
+            sweep(helper);
+            helper.succeed();
+        });
+    }
+
+    /** 鏡刃: 守りの最中、近接は減らして相手に返す */
+    @GameTest(template = TEMPLATE, batch = "weapon3_reflector")
+    public static void reflectorBladeReturnsMelee(GameTestHelper helper) {
+        Zombie defender = dummy(helper, new Vec3(0.5, 2, 2.5));
+        Zombie attacker = tough(helper, new Vec3(1.5, 2, 2.5));
+        defender.setItemInHand(InteractionHand.MAIN_HAND, ((TacticalWeaponItem) ModWeapons.REFLECTOR_BLADE.get()).charged());
+        defender.startUsingItem(InteractionHand.MAIN_HAND);
+        helper.assertTrue(com.automatavalkyries.weapon.Batch3T3.ReflectorBlade.guarding(defender), "not guarding");
+        defender.hurt(helper.getLevel().damageSources().mobAttack(attacker), 8.0F);
+        helper.assertTrue(defender.getHealth() >= defender.getMaxHealth() - 2.5F, "melee not reduced: " + defender.getHealth());
+        helper.assertTrue(attacker.getHealth() < attacker.getMaxHealth(), "nothing returned to the attacker");
+        sweep(helper);
+            helper.succeed();
+    }
+
+    /** 新星槍: 新星と突進 */
+    @GameTest(template = TEMPLATE, batch = "weapon3_nova")
+    public static void novaLanceBursts(GameTestHelper helper) {
+        Zombie user = facingX(helper, new Vec3(0.5, 2, 2.5));
+        Zombie target = tough(helper, new Vec3(3.5, 2, 2.5));
+        com.automatavalkyries.weapon.Batch3T3.NovaLance.nova(helper.getLevel(), user, new Vec3(target.getX(), target.getY(0.5), target.getZ()));
+        helper.assertTrue(target.getHealth() <= target.getMaxHealth() - 25 && target.getRemainingFireTicks() > 0, "nova too weak: " + target.getHealth());
+        float afterNova = target.getHealth();
+        target.invulnerableTime = 0;
+        helper.assertTrue(com.automatavalkyries.weapon.Batch3T3.NovaLance.thrust(helper.getLevel(), user) >= 1 && target.getHealth() < afterNova, "thrust missed");
+        sweep(helper);
+            helper.succeed();
+    }
+
+    /** 星葬冠: 範囲の敵の時を止め、1 秒後に星の光で消す */
+    @GameTest(template = TEMPLATE, batch = "weapon3_requiem", timeoutTicks = 80)
+    public static void luminousRequiemErases(GameTestHelper helper) {
+        Zombie user = dummy(helper, new Vec3(0.5, 2, 2.5));
+        Zombie target = tough(helper, new Vec3(4.5, 2, 2.5));
+        helper.assertTrue(com.automatavalkyries.weapon.LuminousRequiemItem.requiem(helper.getLevel(), user) >= 1, "requiem targeted nothing");
+        helper.assertTrue(target.hasEffect(ModWeapons.CAUSAL_STOP.get()), "target not frozen in time");
+        helper.runAfterDelay(com.automatavalkyries.weapon.LuminousRequiemItem.DELAY + 3, () -> {
+            helper.assertTrue(!target.isAlive(), "requiem did not erase the target: " + target.getHealth());
+            sweep(helper);
+            helper.succeed();
+        });
+    }
 }

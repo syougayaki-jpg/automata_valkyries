@@ -1,6 +1,8 @@
 {
   "replace": false,
   "values": [
-    "automata_valkyries:armor_piercing"
+    "automata_valkyries:armor_piercing",
+    "automata_valkyries:frost_missile",
+    "automata_valkyries:energy"
   ]
 }

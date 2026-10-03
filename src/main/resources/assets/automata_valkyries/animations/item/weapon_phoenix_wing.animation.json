@@ -1,0 +1,8 @@
+{
+  "format_version": "1.8.0",
+  "animations": {
+    "animation.weapon.idle": {"loop": true, "animation_length": 1.2, "bones": {"wing_r": {"rotation": {"0.0": [0, 0, 0], "0.6": [0, 0, -12], "1.2": [0, 0, 0]}}, "wing_l": {"rotation": {"0.0": [0, 0, 0], "0.6": [0, 0, 12], "1.2": [0, 0, 0]}}}},
+    "animation.weapon.use": {"animation_length": 0.5, "bones": {"wing_r": {"rotation": {"0.0": [0, 0, 0], "0.1": [0, 0, 35], "0.5": [0, 0, 0]}}, "wing_l": {"rotation": {"0.0": [0, 0, 0], "0.1": [0, 0, -35], "0.5": [0, 0, 0]}}}}
+  },
+  "geckolib_format_version": 2
+}

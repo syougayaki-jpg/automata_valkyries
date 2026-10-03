@@ -1,0 +1,33 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 1,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:coil_chrono"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "tag": "forge:ingots/astrite"
+      },
+      "count": 4
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_advanced"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:emitter_spatial"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:weapon_arc_lancer"
+  },
+  "energy": 100000,
+  "time": 400
+}

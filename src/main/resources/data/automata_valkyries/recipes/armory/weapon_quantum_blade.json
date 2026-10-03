@@ -1,0 +1,45 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 3,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:weapon_photon_edge"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_chrono_lattice"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:gate_wormhole"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:field_distortion"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:ingot_stellachronodyme"
+      },
+      "count": 4
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:matrix_photon"
+      },
+      "count": 2
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:weapon_quantum_blade"
+  },
+  "energy": 4000000,
+  "time": 800
+}

@@ -1,0 +1,33 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 1,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:lens_luminal"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "tag": "forge:ingots/astrite"
+      },
+      "count": 3
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_advanced"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:capsule_spatial"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:weapon_twin_blaster"
+  },
+  "energy": 100000,
+  "time": 400
+}

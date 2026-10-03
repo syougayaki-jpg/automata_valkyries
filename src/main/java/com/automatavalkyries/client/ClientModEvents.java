@@ -46,5 +46,10 @@ public class ClientModEvents {
         // ネクロシス・ニードルガンの針は粒子だけで見せる
         event.registerEntityRenderer(com.automatavalkyries.registry.ModWeapons.NECROSIS_NEEDLE.get(), net.minecraft.client.renderer.entity.NoopRenderer::new);
         event.registerEntityRenderer(com.automatavalkyries.registry.ModWeapons.BLACK_HOLE.get(), BlackHoleRenderer::new);
+        event.registerEntityRenderer(com.automatavalkyries.registry.ModWeapons.QUANTUM_SLASH.get(), QuantumSlashRenderer::new);
+        event.registerEntityRenderer(com.automatavalkyries.registry.ModWeapons.PUNISHMENT_BEAM.get(), PunishmentBeamRenderer::new);
+        event.registerEntityRenderer(com.automatavalkyries.registry.ModWeapons.FROST_MISSILE.get(), FrostMissileRenderer::new);
+        event.registerEntityRenderer(com.automatavalkyries.registry.ModWeapons.CHAKRAM.get(), ChakramRenderer::new);
+        event.registerEntityRenderer(com.automatavalkyries.registry.ModWeapons.JAVELIN.get(), JavelinRenderer::new);
     }
 }

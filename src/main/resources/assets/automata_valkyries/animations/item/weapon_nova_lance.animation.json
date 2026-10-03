@@ -1,0 +1,8 @@
+{
+  "format_version": "1.8.0",
+  "animations": {
+    "animation.weapon.idle": {"loop": true, "animation_length": 2.0, "bones": {"halo": {"rotation": {"0.0": [0, 0, 0], "2.0": [0, 360, 0]}, "position": {"0.0": [0, 0, 0], "1.0": [0, 1.5, 0], "2.0": [0, 0, 0]}}}},
+    "animation.weapon.use": {"animation_length": 0.5, "bones": {"halo": {"scale": {"0.0": [1, 1, 1], "0.13": [2.5, 1, 2.5], "0.5": [1, 1, 1]}}}}
+  },
+  "geckolib_format_version": 2
+}

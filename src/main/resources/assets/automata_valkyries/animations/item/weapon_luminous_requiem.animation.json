@@ -1,0 +1,14 @@
+{
+  "format_version": "1.8.0",
+  "animations": {
+    "animation.weapon.idle": {"loop": true, "animation_length": 2.0,
+ "bones": {"blade": {"scale": {"0.0": [1, 1, 1], "1.0": [1.04, 1, 1.12], "2.0": [1, 1, 1]}}}},
+    "animation.weapon.charge": {"animation_length": 2.0,
+ "bones": {"blade": {"scale": {"0.0": [1, 1, 1], "2.0": [1.12, 1.02, 1.6]}},
+           "guard": {"scale": {"0.0": [1, 1, 1], "2.0": [1.1, 1.1, 1.3]}}}},
+    "animation.weapon.use": {"animation_length": 1.0,
+ "bones": {"blade": {"scale": {"0.0": [1.12, 1.02, 1.6], "0.12": [1.3, 1.06, 2.4], "1.0": [1, 1, 1]}},
+           "guard": {"scale": {"0.0": [1.1, 1.1, 1.3], "0.12": [1.3, 1.3, 1.8], "1.0": [1, 1, 1]}}}}
+  },
+  "geckolib_format_version": 2
+}

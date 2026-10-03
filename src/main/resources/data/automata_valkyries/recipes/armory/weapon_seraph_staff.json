@@ -1,0 +1,38 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 3,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:boss_drop_ruler_heart"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:seed_genesis"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:heart_stellar"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_chrono_lattice"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:plating_stellar"
+      },
+      "count": 2
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:weapon_seraph_staff"
+  },
+  "energy": 5000000,
+  "time": 800
+}

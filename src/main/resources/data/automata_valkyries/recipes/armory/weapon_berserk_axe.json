@@ -1,0 +1,33 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 2,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:alloy_chrono_fortress"
+      },
+      "count": 4
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:matrix_photon"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:ingot_stellachronodyme"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:processor_synapse"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:weapon_berserk_axe"
+  },
+  "energy": 1000000,
+  "time": 600
+}

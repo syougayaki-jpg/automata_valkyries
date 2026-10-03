@@ -26,6 +26,32 @@ public final class WeaponDamage {
     public static final ResourceKey<DamageType> CATASTROPHE =
             ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "catastrophe"));
 
+    /** クアンタムブレードの三日月の斬撃 */
+    public static final ResourceKey<DamageType> QUANTUM_SLASH =
+            ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "quantum_slash"));
+
+    /** パニッシュメント・レールガンのレール（防具・エンチャント・状態異常・耐性を通らない。カンストダメージ） */
+    public static final ResourceKey<DamageType> PUNISHMENT =
+            ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "punishment"));
+
+    /** アバランチの冷凍ミサイル（飛び道具の扱い） */
+    public static final ResourceKey<DamageType> FROST_MISSILE =
+            ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "frost_missile"));
+
+    /** 電撃（アークランサーの稲妻・サンダージャベリンの落雷） */
+    public static final ResourceKey<DamageType> ARC =
+            ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "arc"));
+    /** エネルギーの弾・刃（散弾・チャクラム・プリズムの光線・時間の矢・投げ槍） */
+    public static final ResourceKey<DamageType> ENERGY =
+            ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "energy"));
+    /** ジェネシス・ヘイローの軌道砲撃（防具・エンチャント・状態異常・耐性を通らない） */
+    public static final ResourceKey<DamageType> ORBITAL =
+            ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "orbital"));
+
+    /** ラグナロク・エッジの大地を割る斬撃（防具・エンチャント・状態異常・耐性を通らない） */
+    public static final ResourceKey<DamageType> RAGNAROK =
+            ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "ragnarok"));
+
     private WeaponDamage() {}
 
     public static DamageSource source(Entity context, ResourceKey<DamageType> type, @Nullable Entity direct, @Nullable Entity causing) {

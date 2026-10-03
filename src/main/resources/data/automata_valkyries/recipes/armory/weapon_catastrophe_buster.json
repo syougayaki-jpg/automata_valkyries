@@ -4,6 +4,11 @@
   "ingredients": [
     {
       "ingredient": {
+        "item": "automata_valkyries:boss_drop_memory_stella"
+      }
+    },
+    {
+      "ingredient": {
         "item": "automata_valkyries:boss_drop_singularity_remnant"
       }
     },

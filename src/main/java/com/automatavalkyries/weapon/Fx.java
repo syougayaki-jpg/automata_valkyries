@@ -75,6 +75,21 @@ public final class Fx {
         level.sendParticles(new FxOptions(ModParticles.SLASH.get(), color, scale, life, roll), at.x, at.y, at.z, 1, 0, 0, 0, 0);
     }
 
+    /** チェーンソーの回る光の刃（大きさ scale、life Tick） */
+    public static void saw(ServerLevel level, Vec3 at, int color, float scale, int life) {
+        level.sendParticles(opt(ModParticles.SAW.get(), color, scale, life), at.x, at.y, at.z, 1, 0, 0, 0, 0);
+    }
+
+    /** 瞬く星（大きさ scale、life Tick） */
+    public static void star(ServerLevel level, Vec3 at, int color, float scale, int life, Vec3 velocity) {
+        one(level, opt(ModParticles.STAR.get(), color, scale, life), at, velocity);
+    }
+
+    /** 星の陣（半径 radius、life Tick。facing = こちらを向く、ccw = 左回り） */
+    public static void mandala(ServerLevel level, Vec3 at, int color, float radius, int life, boolean facing, boolean ccw) {
+        level.sendParticles(new FxOptions(ModParticles.MANDALA.get(), color, radius, life, (facing ? 2 : 0) + (ccw ? 1 : 0)), at.x, at.y, at.z, 1, 0, 0, 0, 0);
+    }
+
     /** 浮かび上がるダメージの数字 */
     public static void number(ServerLevel level, Vec3 at, long value, int color) {
         level.sendParticles(new DamageNumberOptions(value, color), at.x, at.y, at.z, 1, 0, 0, 0, 0);

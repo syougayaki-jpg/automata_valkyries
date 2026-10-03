@@ -1,0 +1,8 @@
+{
+  "format_version": "1.8.0",
+  "animations": {
+    "animation.weapon.idle": {"loop": true, "animation_length": 2, "bones": {"fan": {"rotation": {"0.0": [0, 0, -3], "1.0": [0, 0, 3], "2.0": [0, 0, -3]}}}},
+    "animation.weapon.use": {"animation_length": 0.6, "bones": {"fan": {"rotation": {"0.0": [0, 0, 0], "0.6": [0, 0, 360]}, "scale": {"0.0": [1, 1, 1], "0.3": [1.3, 1.3, 1], "0.6": [1, 1, 1]}}}}
+  },
+  "geckolib_format_version": 2
+}

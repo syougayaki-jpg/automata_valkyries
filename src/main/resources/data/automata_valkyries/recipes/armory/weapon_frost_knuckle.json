@@ -1,0 +1,32 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 1,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:alloy_chrono_fortress"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:orb_chronos"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_advanced"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:composite_plate"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:weapon_frost_knuckle"
+  },
+  "energy": 100000,
+  "time": 400
+}

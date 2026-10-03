@@ -193,6 +193,7 @@ public abstract class TacticalWeaponItem extends Item implements GeoItem {
             @Override
             public boolean applyForgeHandTransform(com.mojang.blaze3d.vertex.PoseStack pose, net.minecraft.client.player.LocalPlayer player,
                                                    net.minecraft.world.entity.HumanoidArm arm, ItemStack stack, float partialTick, float equipProcess, float swingProcess) {
+                if (com.automatavalkyries.client.WeaponClient.slamTransform(pose, arm, stack, partialTick)) return true;
                 if (recoil() <= 0) return false;
                 return com.automatavalkyries.client.WeaponClient.handTransform(pose, arm, stack, partialTick, equipProcess);
             }

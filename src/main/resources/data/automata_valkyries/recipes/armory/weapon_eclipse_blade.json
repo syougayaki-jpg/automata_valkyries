@@ -1,0 +1,39 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 3,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:boss_drop_purified_zero"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:tissue_eclipse"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_chrono_lattice"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:ingot_stellachronodyme"
+      },
+      "count": 4
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:anchor_causal"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:weapon_eclipse_blade"
+  },
+  "energy": 4000000,
+  "time": 800
+}

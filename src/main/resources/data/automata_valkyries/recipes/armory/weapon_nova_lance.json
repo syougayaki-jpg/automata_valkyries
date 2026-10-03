@@ -1,0 +1,33 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 3,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:boss_drop_ruler_heart"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:ingot_stellachronodyme"
+      },
+      "count": 4
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_chrono_lattice"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:heart_stellar"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:weapon_nova_lance"
+  },
+  "energy": 5000000,
+  "time": 800
+}

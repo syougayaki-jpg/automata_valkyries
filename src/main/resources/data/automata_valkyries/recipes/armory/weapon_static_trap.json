@@ -1,0 +1,32 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 2,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:matrix_photon"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:coil_chrono"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_quantum_tac"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:star_luminal"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:weapon_static_trap"
+  },
+  "energy": 1000000,
+  "time": 600
+}

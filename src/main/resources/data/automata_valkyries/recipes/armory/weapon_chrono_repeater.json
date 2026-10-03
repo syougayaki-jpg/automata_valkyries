@@ -1,0 +1,38 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 3,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:boss_drop_time_needle"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:anchor_causal"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_chrono_lattice"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:gate_wormhole"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:star_chronos"
+      },
+      "count": 2
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:weapon_chrono_repeater"
+  },
+  "energy": 4000000,
+  "time": 800
+}

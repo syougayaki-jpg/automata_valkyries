@@ -1,0 +1,33 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 1,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "minecraft:diamond_axe"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:motor"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "tag": "forge:ingots/astrite"
+      },
+      "count": 4
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_advanced"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:tool_chainsaw_t1"
+  },
+  "energy": 80000,
+  "time": 300
+}

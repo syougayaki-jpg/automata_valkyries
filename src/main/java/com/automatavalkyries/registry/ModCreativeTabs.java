@@ -22,6 +22,7 @@ public class ModCreativeTabs {
                     .displayItems((parameters, output) ->
                             ModItems.ITEMS.getEntries().forEach(entry -> {
                                 net.minecraft.world.item.Item item = entry.get();
+                                if (item instanceof com.automatavalkyries.weapon.RequiemBackdropItem) return; // 描くためだけのアイテムは並べない
                                 // 兵装・ルミナルコアは満充電（弾・溶液も満タン）で並べる
                                 if (item instanceof com.automatavalkyries.weapon.TacticalWeaponItem weapon) output.accept(weapon.charged());
                                 else if (item instanceof com.automatavalkyries.weapon.LuminalCoreItem core) output.accept(core.charged());
