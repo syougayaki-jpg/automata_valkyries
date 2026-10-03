@@ -1,0 +1,12 @@
+{
+  "format_version": "1.8.0",
+  "animations": {
+    "animation.weapon.idle": {"loop": true, "animation_length": 12.0,
+ "bones": {"debris_inner": {"rotation": {"0.0": [0, 0, 0], "12.0": [0, 0, 1080]}},
+           "debris_outer": {"rotation": {"0.0": [0, 0, 0], "12.0": [0, 0, 360]}},
+           "disk0": {"rotation": {"0.0": [0, 0, 0], "12.0": [0, 0, 1440]}},
+           "disk1": {"rotation": {"0.0": [0, 0, 0], "12.0": [0, 0, 720]}, "scale": {"0.0": [1, 1, 1], "6.0": [1.06, 1.06, 1], "12.0": [1, 1, 1]}}}},
+    "animation.weapon.use": {"animation_length": 0.5, "bones": {}}
+  },
+  "geckolib_format_version": 2
+}

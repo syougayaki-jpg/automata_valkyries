@@ -570,7 +570,7 @@
   "entity.automata_valkyries.quantum_slash": "量子の斬撃",
   "death.attack.automata_valkyries.quantum_slash": "%1$s は量子の斬撃に断ち切られた",
   "death.attack.automata_valkyries.quantum_slash.player": "%1$s は %2$s の量子の斬撃に断ち切られた",
-  "item.automata_valkyries.weapon_punishment_railgun": "パニッシュメント・レールガン",
+  "item.automata_valkyries.weapon_punishment_railgun": "極光轟雷『パニッシュメント・レールガン』",
   "item.automata_valkyries.weapon_punishment_railgun.desc": "1 射 %s FE。%s 秒チャージ（動けない）で、壁をすべて貫いて 1,024 ブロック先まで届く極光のレール。防御・無敵無視のカンストダメージ。射線のまわり半径 30 ブロックには、壁を通して 1 万ダメージの余波",
   "entity.automata_valkyries.punishment_beam": "断罪のレール",
   "gui.automata_valkyries.charge": "チャージ %s%%",
@@ -691,5 +691,11 @@
   "item.automata_valkyries.requiem_backdrop": "星葬冠の光輪",
   "item.automata_valkyries.requiem_backdrop.desc": "星葬冠『ルミナス・レクイエム』の持ち主の背に展開する光輪と 6 振りの剣",
   "item.automata_valkyries.genesis_backdrop": "天輪砲の光輪",
-  "item.automata_valkyries.genesis_backdrop.desc": "天輪砲『ジェネシス・ヘイロー』の持ち主の背に展開する黄金と白銀のリング"
+  "item.automata_valkyries.genesis_backdrop.desc": "天輪砲『ジェネシス・ヘイロー』の持ち主の背に展開する黄金と白銀のリング",
+  "item.automata_valkyries.railgun_backdrop": "極光轟雷の歯車",
+  "item.automata_valkyries.railgun_backdrop.desc": "極光轟雷『パニッシュメント・レールガン』の持ち主の背で噛み合って回る歯車",
+  "item.automata_valkyries.buster_backdrop": "特異点砲の渦",
+  "item.automata_valkyries.buster_backdrop.desc": "特異点砲『カタストロフ・バスター』の持ち主の背で渦巻く禍々しい渦",
+  "item.automata_valkyries.ragnarok_backdrop": "終の黄昏の夕焼け",
+  "item.automata_valkyries.ragnarok_backdrop.desc": "終の黄昏『ラグナロク』の持ち主の背に沈む夕焼け"
 }

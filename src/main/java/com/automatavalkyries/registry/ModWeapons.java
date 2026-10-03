@@ -142,6 +142,14 @@ public final class ModWeapons {
     public static final RegistryObject<Item> LUMINOUS_REQUIEM = ModItems.ITEMS.register("weapon_luminous_requiem", () ->
             new com.automatavalkyries.weapon.LuminousRequiemItem(new Item.Properties().rarity(Rarity.EPIC).fireResistant()));
 
+    /** カタストロフ・バスターの背の渦・ラグナロクの背の夕焼けの立体を描くためだけのアイテム（手に入らない） */
+    public static final RegistryObject<Item> BUSTER_BACKDROP = ModItems.ITEMS.register("buster_backdrop", () ->
+            new com.automatavalkyries.weapon.T4BackdropItem(new Item.Properties()));
+    public static final RegistryObject<Item> RAGNAROK_BACKDROP = ModItems.ITEMS.register("ragnarok_backdrop", () ->
+            new com.automatavalkyries.weapon.T4BackdropItem(new Item.Properties()));
+    /** 極光轟雷の背の歯車を描くためだけのアイテム（手に入らない） */
+    public static final RegistryObject<Item> RAILGUN_BACKDROP = ModItems.ITEMS.register("railgun_backdrop", () ->
+            new com.automatavalkyries.weapon.RailgunBackdropItem(new Item.Properties()));
     /** ジェネシス・ヘイローの光輪モードのリングを描くためだけのアイテム（手に入らない） */
     public static final RegistryObject<Item> GENESIS_BACKDROP = ModItems.ITEMS.register("genesis_backdrop", () ->
             new com.automatavalkyries.weapon.GenesisBackdropItem(new Item.Properties()));

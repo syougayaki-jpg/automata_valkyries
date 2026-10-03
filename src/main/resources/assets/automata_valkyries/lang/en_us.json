@@ -570,7 +570,7 @@
   "entity.automata_valkyries.quantum_slash": "Quantum Slash",
   "death.attack.automata_valkyries.quantum_slash": "%1$s was cleaved by a quantum slash",
   "death.attack.automata_valkyries.quantum_slash.player": "%1$s was cleaved by a quantum slash from %2$s",
-  "item.automata_valkyries.weapon_punishment_railgun": "Punishment Railgun",
+  "item.automata_valkyries.weapon_punishment_railgun": "Aurora Thunder \"Punishment Railgun\"",
   "item.automata_valkyries.weapon_punishment_railgun.desc": "%s FE per shot. Charge for %s s (you can't move) to fire a rail of light that pierces every wall for up to 1,024 blocks. Counter-stop damage that ignores defense and invulnerability, and an aftershock deals 10,000 damage to everything within 30 blocks of the line, through walls",
   "entity.automata_valkyries.punishment_beam": "Punishment Rail",
   "gui.automata_valkyries.charge": "Charging %s%%",
@@ -691,5 +691,11 @@
   "item.automata_valkyries.requiem_backdrop": "Requiem Halo",
   "item.automata_valkyries.requiem_backdrop.desc": "The halo and six swords that unfold behind the wielder of the Luminous Requiem",
   "item.automata_valkyries.genesis_backdrop": "Genesis Halo Rings",
-  "item.automata_valkyries.genesis_backdrop.desc": "The golden and silver rings that unfold behind the wielder of the Genesis Halo"
+  "item.automata_valkyries.genesis_backdrop.desc": "The golden and silver rings that unfold behind the wielder of the Genesis Halo",
+  "item.automata_valkyries.railgun_backdrop": "Aurora Thunder Gears",
+  "item.automata_valkyries.railgun_backdrop.desc": "The interlocking gears that turn behind the wielder of the Punishment Railgun",
+  "item.automata_valkyries.buster_backdrop": "Catastrophe Vortex",
+  "item.automata_valkyries.buster_backdrop.desc": "The ominous vortex that churns behind the wielder of the Catastrophe Buster",
+  "item.automata_valkyries.ragnarok_backdrop": "Final Twilight Sunset",
+  "item.automata_valkyries.ragnarok_backdrop.desc": "The sinking sunset that glows behind the wielder of Ragnarok"
 }
