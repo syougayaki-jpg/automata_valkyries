@@ -21,7 +21,7 @@ import java.util.List;
 public class ChronoRepeaterItem extends TacticalWeaponItem {
 
     public static final int CAPACITY = 1_200_000, PER_SHOT = 60_000, COOLDOWN = 20, ECHOES = 2, ECHO_GAP = 10;
-    public static final float DAMAGE = 20.0F, WEIGHT = 5.0F;
+    public static final float DAMAGE = 120.0F, WEIGHT = 5.0F;
     public static final double RANGE = 48.0;
     public static final int COLOR = 0xB8A8FF, CORE = 0xF0ECFF;
 

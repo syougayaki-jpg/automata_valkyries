@@ -26,7 +26,7 @@ import org.joml.Vector3f;
 public class HeavyParticleCannonItem extends ChargedWeaponItem {
 
     public static final int CAPACITY = 4_000_000, PER_SHOT = 200_000, CHARGE = 30, BEAM_TICKS = 40, PULSE = 4;
-    public static final float DAMAGE = 20.0F, WEIGHT = 28.0F;
+    public static final float DAMAGE = 100.0F, WEIGHT = 28.0F;
     public static final double RANGE = 96.0, WIDTH = 1.2;
     private static final DustParticleOptions CORE = new DustParticleOptions(new Vector3f(1.0F, 0.9F, 1.0F), 2.0F);
     private static final DustParticleOptions EDGE = new DustParticleOptions(new Vector3f(0.7F, 0.35F, 1.0F), 1.6F);

@@ -29,8 +29,8 @@ import net.minecraft.world.phys.Vec3;
 public class GravityHammerItem extends TacticalWeaponItem {
 
     public static final int CAPACITY = 200_000, PER_SLAM = 20_000, COOLDOWN = 60;
-    public static final double DAMAGE = 14.0, DULL_DAMAGE = 5.0, SPEED = 0.8, RADIUS = 5.0;
-    public static final float SLAM_DAMAGE = 10.0F, WEIGHT = 12.0F;
+    public static final double DAMAGE = 45.0, DULL_DAMAGE = 15.0, SPEED = 0.8, RADIUS = 5.0;
+    public static final float SLAM_DAMAGE = 32.0F, WEIGHT = 12.0F;
     public static final int COLOR = 0xA070FF;
 
     private final Multimap<Attribute, AttributeModifier> charged = modifiers(DAMAGE), dull = modifiers(DULL_DAMAGE);

@@ -108,7 +108,7 @@ public final class Batch3T3 {
             for (LivingEntity e : ray.hits()) {
                 if (!foe(user, e)) continue;
                 e.invulnerableTime = 0;
-                e.hurt(WeaponDamage.source(user, WeaponDamage.ENERGY, user, user), 20.0F);
+                e.hurt(WeaponDamage.source(user, WeaponDamage.ENERGY, user, user), 200.0F);
                 e.setSecondsOnFire(8);
                 n++;
             }
@@ -167,7 +167,7 @@ public final class Batch3T3 {
                     if (alive.isEmpty()) return;
                     LivingEntity e = alive.get(level.random.nextInt(alive.size()));
                     e.invulnerableTime = 0;
-                    e.hurt(WeaponDamage.source(user, WeaponDamage.ARC, user, user), 20.0F);
+                    e.hurt(WeaponDamage.source(user, WeaponDamage.ARC, user, user), 200.0F);
                     e.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 40, 1));
                     Vec3 at = mid(e);
                     WeaponUtil.lightning(level, at.add(level.random.nextDouble() * 2 - 1, 18, level.random.nextDouble() * 2 - 1), at, COLOR);
@@ -191,7 +191,7 @@ public final class Batch3T3 {
         public static final int COLOR = 0xE0F0FF, PER_TICK = 500, MAX_GUARD = 100;
 
         public ReflectorBlade(Properties p) {
-            super(p, 3_000_000, 4.0F, false, 20.0, 1.4, 0, PER_TICK, 0);
+            super(p, 3_000_000, 4.0F, false, 200.0, 1.4, 0, PER_TICK, 0);
         }
 
         @Override
@@ -252,7 +252,7 @@ public final class Batch3T3 {
         static final String TAG = "AutomataNovaHits";
 
         public NovaLance(Properties p) {
-            super(p, 4_000_000, 10.0F, true, 26.0, 1.0, 3.0, 60_000, 60);
+            super(p, 4_000_000, 10.0F, true, 260.0, 1.0, 3.0, 60_000, 60);
         }
 
         @Override
@@ -274,7 +274,7 @@ public final class Batch3T3 {
             int n = 0;
             for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, new net.minecraft.world.phys.AABB(at, at).inflate(5), e -> foe(user, e) && e.distanceToSqr(at) <= 30)) {
                 e.invulnerableTime = 0;
-                e.hurt(WeaponDamage.source(user, WeaponDamage.ENERGY, user, user), 30.0F);
+                e.hurt(WeaponDamage.source(user, WeaponDamage.ENERGY, user, user), 300.0F);
                 e.setSecondsOnFire(5);
                 e.setDeltaMovement(e.getDeltaMovement().add(0, 0.8, 0));
                 e.hurtMarked = true;
@@ -301,7 +301,7 @@ public final class Batch3T3 {
             int n = 0;
             for (LivingEntity e : ray.hits()) {
                 if (!foe(user, e)) continue;
-                e.hurt(WeaponUtil.melee(user), 25.0F);
+                e.hurt(WeaponUtil.melee(user), 250.0F);
                 Fx.burst(level, Fx.opt(ModParticles.SPARK.get(), COLOR, 0.3F, 8), mid(e), 8, 0.3);
                 n++;
             }

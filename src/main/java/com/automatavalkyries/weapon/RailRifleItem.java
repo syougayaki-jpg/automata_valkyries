@@ -32,7 +32,7 @@ import java.util.List;
 public class RailRifleItem extends TacticalWeaponItem {
 
     public static final int CAPACITY = 500_000, PER_SHOT = 25_000, MAGAZINE = 12, COOLDOWN = 20, RELOAD = 40, PIERCE = 4;
-    public static final float DAMAGE = 35.0F, ARMOR_IGNORE = 0.5F, WEIGHT = 12.0F;
+    public static final float DAMAGE = 50.0F, ARMOR_IGNORE = 0.5F, WEIGHT = 12.0F;
     public static final double RANGE = 64.0;
     private static final DustParticleOptions TRAIL = new DustParticleOptions(new Vector3f(0.3F, 0.8F, 1.0F), 0.8F);
 

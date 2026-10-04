@@ -24,7 +24,7 @@ import net.minecraft.world.phys.Vec3;
 public class StarfallBowItem extends TacticalWeaponItem {
 
     public static final int CAPACITY = 2_000_000, PER_SHOT = 120_000, DRAW = 20, MIN_DRAW = 5, STARS = 12;
-    public static final float ARROW_DAMAGE = 25.0F, STAR_DAMAGE = 10.0F, WEIGHT = 4.0F;
+    public static final float ARROW_DAMAGE = 250.0F, STAR_DAMAGE = 100.0F, WEIGHT = 4.0F;
     public static final double RANGE = 64.0, RAIN_RADIUS = 5.0, STAR_RADIUS = 2.5;
     public static final int COLOR = 0xFFE89A, CORE = 0xFFFFFF, SKY = 0x9AB8FF;
 

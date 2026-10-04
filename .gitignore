@@ -32,3 +32,6 @@ forge*changelog.txt
 .run/
 libs/*.jar
 agents/*.jar
+
+# Local reference material (third-party wiki transcriptions, not for publishing)
+.ref/

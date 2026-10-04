@@ -44,10 +44,10 @@ public final class Batch3T1 {
      */
     public static class VenomStinger extends SkillWeaponItem {
         public static final int COLOR = 0x8AE060;
-        public static final float LUNGE_DAMAGE = 6.0F;
+        public static final float LUNGE_DAMAGE = 20.0F;
 
         public VenomStinger(Properties p) {
-            super(p, 80_000, 2.0F, false, 6.0, 2.0, 0, 5_000, 30);
+            super(p, 80_000, 2.0F, false, 18.0, 2.0, 0, 5_000, 30);
         }
 
         @Override
@@ -117,7 +117,7 @@ public final class Batch3T1 {
             Fx.line(level, Fx.opt(ModParticles.SPARK.get(), 0xFFD070, 0.15F, 6), user.getEyePosition().add(user.getLookAngle()), at, 0.8);
             int n = 0;
             for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, new AABB(at, at).inflate(RADIUS), e -> foe(user, e) && e.distanceToSqr(at) <= RADIUS * RADIUS * 1.4)) {
-                e.hurt(WeaponDamage.source(user, WeaponDamage.ENERGY, user, user), 4.0F);
+                e.hurt(WeaponDamage.source(user, WeaponDamage.ENERGY, user, user), 12.0F);
                 e.addEffect(new MobEffectInstance(MobEffects.BLINDNESS, 100, 0));
                 e.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 80, 1));
                 e.addEffect(new MobEffectInstance(MobEffects.GLOWING, 200, 0));
@@ -142,7 +142,7 @@ public final class Batch3T1 {
         public static final double RANGE = 10.0, HALF_ANGLE = 35.0;
 
         public GaleFan(Properties p) {
-            super(p, 60_000, 1.5F, false, 4.0, 1.8, 0, 4_000, 20);
+            super(p, 60_000, 1.5F, false, 12.0, 1.8, 0, 4_000, 20);
         }
 
         @Override
@@ -156,7 +156,7 @@ public final class Batch3T1 {
             Vec3 look = user.getLookAngle();
             int mobs = 0, shots = 0;
             for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, user.getBoundingBox().inflate(RANGE), e -> foe(user, e) && inCone(user, e, RANGE, HALF_ANGLE))) {
-                e.hurt(WeaponUtil.melee(user), 3.0F);
+                e.hurt(WeaponUtil.melee(user), 10.0F);
                 e.setDeltaMovement(e.getDeltaMovement().add(look.x * 2.0, 0.5, look.z * 2.0));
                 e.hurtMarked = true;
                 mobs++;
@@ -193,7 +193,7 @@ public final class Batch3T1 {
         static final String TAG = "AutomataFrostHits";
 
         public FrostKnuckle(Properties p) {
-            super(p, 60_000, 3.0F, false, 7.0, 1.8, 0, 3_000, 40);
+            super(p, 60_000, 3.0F, false, 21.0, 1.8, 0, 3_000, 40);
         }
 
         @Override
@@ -212,7 +212,7 @@ public final class Batch3T1 {
             if (hits >= 3) {
                 target.getPersistentData().remove(TAG);
                 target.invulnerableTime = 0;
-                target.hurt(WeaponUtil.melee(attacker), 6.0F);
+                target.hurt(WeaponUtil.melee(attacker), 18.0F);
                 target.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 40, 3));
                 Fx.burst(level, Fx.opt(ModParticles.HEX.get(), COLOR, 0.25F, 16), at, 14, 0.35);
                 level.playSound(null, target.blockPosition(), SoundEvents.GLASS_BREAK, SoundSource.PLAYERS, 1.0F, 1.2F);
@@ -235,7 +235,7 @@ public final class Batch3T1 {
         public static int nova(ServerLevel level, LivingEntity user) {
             int n = 0;
             for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, user.getBoundingBox().inflate(4, 1.5, 4), e -> foe(user, e) && e.distanceTo(user) <= 4 + e.getBbWidth())) {
-                e.hurt(WeaponUtil.melee(user), 4.0F);
+                e.hurt(WeaponUtil.melee(user), 12.0F);
                 Frostbite.apply(e);
                 Frostbite.apply(e);
                 n++;

@@ -38,7 +38,7 @@ public final class Batch3T2 {
         public static final float LEECH = 3.5F;
 
         public CrimsonSickle(Properties p) {
-            super(p, 500_000, 4.0F, false, 12.0, 1.4, 0, 25_000, 80);
+            super(p, 500_000, 4.0F, false, 60.0, 1.4, 0, 25_000, 80);
         }
 
         @Override
@@ -61,7 +61,7 @@ public final class Batch3T2 {
             int n = 0;
             for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, user.getBoundingBox().inflate(6), e -> foe(user, e) && e.distanceTo(user) <= 6 + e.getBbWidth())) {
                 e.invulnerableTime = 0;
-                e.hurt(WeaponUtil.melee(user), 6.0F);
+                e.hurt(WeaponUtil.melee(user), 30.0F);
                 e.addEffect(new MobEffectInstance(MobEffects.WITHER, 80, 1));
                 for (int i = 0; i < 6; i++) {
                     Vec3 from = mid(e).add((level.random.nextDouble() - 0.5) * 0.6, (level.random.nextDouble() - 0.5) * 0.6, (level.random.nextDouble() - 0.5) * 0.6);
@@ -100,7 +100,7 @@ public final class Batch3T2 {
         public static List<LivingEntity> levitate(ServerLevel level, LivingEntity user) {
             List<LivingEntity> lifted = level.getEntitiesOfClass(LivingEntity.class, user.getBoundingBox().inflate(8), e -> foe(user, e) && e.distanceTo(user) <= 8 + e.getBbWidth());
             for (LivingEntity e : lifted) {
-                e.hurt(WeaponDamage.source(user, WeaponDamage.ENERGY, user, user), 6.0F);
+                e.hurt(WeaponDamage.source(user, WeaponDamage.ENERGY, user, user), 50.0F);
                 e.addEffect(new MobEffectInstance(MobEffects.LEVITATION, LIFT, 2));
                 Fx.spray(level, Fx.opt(ModParticles.GLOW.get(), COLOR, 0.25F, 20), e.position(), 8, 0.4, 0.02);
             }
@@ -113,7 +113,7 @@ public final class Batch3T2 {
                     e.setDeltaMovement(0, -3.0, 0);
                     e.hurtMarked = true;
                     e.invulnerableTime = 0;
-                    e.hurt(WeaponDamage.source(user, WeaponDamage.ENERGY, user, user), 8.0F);
+                    e.hurt(WeaponDamage.source(user, WeaponDamage.ENERGY, user, user), 65.0F);
                     Fx.line(level, Fx.opt(ModParticles.GLOW.get(), COLOR, 0.3F, 8), mid(e).add(0, 3, 0), mid(e), 0.3);
                 }
                 level.playSound(null, user.blockPosition(), SoundEvents.ANVIL_LAND, SoundSource.PLAYERS, 0.8F, 0.6F);
@@ -158,7 +158,7 @@ public final class Batch3T2 {
             List<LivingEntity> hit = new ArrayList<>();
             LivingEntity cur = ray.hits().get(0);
             Vec3 from = muzzle;
-            float damage = 10.0F;
+            float damage = 60.0F;
             while (cur != null && hit.size() < BOUNCES) {
                 hit.add(cur);
                 Fx.line(level, Fx.opt(ModParticles.GLOW.get(), 0xFFFFFF, 0.1F, 6), from, mid(cur), 0.4);
@@ -186,7 +186,7 @@ public final class Batch3T2 {
         public static final int COLOR = 0x80E0FF;
 
         public SpectralChain(Properties p) {
-            super(p, 400_000, 3.0F, false, 7.0, 1.6, 0, 15_000, 40);
+            super(p, 400_000, 3.0F, false, 50.0, 1.6, 0, 15_000, 40);
         }
 
         @Override
@@ -199,7 +199,7 @@ public final class Batch3T2 {
             WeaponUtil.Ray ray = WeaponUtil.ray(level, user, user.getEyePosition(), user.getLookAngle(), 20, 1.2, 1);
             if (ray.hits().isEmpty() || !foe(user, ray.hits().get(0))) return null;
             LivingEntity target = ray.hits().get(0);
-            target.hurt(WeaponUtil.melee(user), 10.0F);
+            target.hurt(WeaponUtil.melee(user), 60.0F);
             target.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 30, 4));
             target.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, 60, 0));
             Vec3 to = target.position().subtract(user.position());
@@ -253,7 +253,7 @@ public final class Batch3T2 {
             if (!near.isEmpty()) {
                 for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, new AABB(at, at).inflate(3.0), e -> foe(user, e))) {
                     e.invulnerableTime = 0;
-                    e.hurt(WeaponDamage.source(user, WeaponDamage.ARC, user, user), 14.0F);
+                    e.hurt(WeaponDamage.source(user, WeaponDamage.ARC, user, user), 70.0F);
                     e.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 60, 2));
                     WeaponUtil.lightning(level, at.add(0, 0.3, 0), mid(e), COLOR);
                 }
@@ -280,7 +280,7 @@ public final class Batch3T2 {
         public static final int COLOR = 0xFF4020;
 
         public BerserkAxe(Properties p) {
-            super(p, 500_000, 12.0F, true, 18.0, 0.9, 0, 30_000, 400);
+            super(p, 500_000, 12.0F, true, 90.0, 0.9, 0, 30_000, 400);
         }
 
         /** 近接ダメージの倍率（体力が満タンで 1、20% 以下で 2） */
@@ -338,7 +338,7 @@ public final class Batch3T2 {
             int n = 0;
             for (LivingEntity e : ray.hits()) {
                 if (!foe(user, e)) continue;
-                e.hurt(WeaponDamage.source(user, WeaponDamage.ENERGY, user, user), 12.0F);
+                e.hurt(WeaponDamage.source(user, WeaponDamage.ENERGY, user, user), 75.0F);
                 e.addEffect(new MobEffectInstance(MobEffects.CONFUSION, 100, 0));
                 e.setDeltaMovement(e.getDeltaMovement().add(look.x * 1.5, 0.4, look.z * 1.5));
                 e.hurtMarked = true;

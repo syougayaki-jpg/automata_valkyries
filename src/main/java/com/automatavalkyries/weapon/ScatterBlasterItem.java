@@ -22,7 +22,7 @@ import java.util.Map;
 public class ScatterBlasterItem extends TacticalWeaponItem {
 
     public static final int CAPACITY = 100_000, PER_SHOT = 5_000, PELLETS = 8, COOLDOWN = 16;
-    public static final float PELLET_DAMAGE = 4.0F, WEIGHT = 5.0F;
+    public static final float PELLET_DAMAGE = 10.0F, WEIGHT = 5.0F;
     public static final double RANGE = 18.0, SPREAD = 0.12;
     public static final int COLOR = 0xFF8A50, CORE = 0xFFE0C0;
 

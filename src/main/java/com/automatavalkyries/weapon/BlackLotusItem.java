@@ -22,7 +22,7 @@ import net.minecraft.world.phys.Vec3;
 public class BlackLotusItem extends TacticalWeaponItem {
 
     public static final int CAPACITY = 1_500_000, PER_STORM = 100_000, DURATION = 120, COOLDOWN = 200, PETALS = 8, TICK_RATE = 10;
-    public static final float STORM_DAMAGE = 8.0F, BURST_DAMAGE = 16.0F, WEIGHT = 2.0F;
+    public static final float STORM_DAMAGE = 100.0F, BURST_DAMAGE = 200.0F, WEIGHT = 2.0F;
     public static final double ORBIT = 2.5, REACH = 3.5, BURST_RANGE = 12.0;
     public static final int PINK = 0xFF8AC8, BLACK = 0x3A1028, WHITE = 0xFFE8F4;
 

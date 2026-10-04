@@ -409,6 +409,14 @@ public class WeaponGameTests {
         return z;
     }
 
+    /** {@link #tough} より硬い的（T3 の一撃で倒れないように。2026-10-04 の攻撃力の調整で T3 は 100〜500） */
+    private static Zombie sturdy(GameTestHelper helper, Vec3 at) {
+        Zombie z = tough(helper, at);
+        z.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH).setBaseValue(5000);
+        z.setHealth(5000);
+        return z;
+    }
+
     /** アークランサー: 稲妻が近くの敵へ跳ぶ */
     @GameTest(template = TEMPLATE, batch = "weapon_arc", timeoutTicks = 400)
     public static void arcLancerChains(GameTestHelper helper) {
@@ -512,7 +520,7 @@ public class WeaponGameTests {
     @GameTest(template = TEMPLATE, batch = "weapon_chrono", timeoutTicks = 360)
     public static void chronoRepeaterEchoes(GameTestHelper helper) {
         Zombie user = facingX(helper, new Vec3(0.5, 2, 2.5));
-        Zombie target = tough(helper, new Vec3(4.5, 2, 2.5));
+        Zombie target = sturdy(helper, new Vec3(4.5, 2, 2.5));
         whenLoaded(helper, () -> {
             com.automatavalkyries.weapon.ChronoRepeaterItem.fire(helper.getLevel(), user);
             helper.succeedWhen(() -> helper.assertTrue(target.getHealth() <= target.getMaxHealth() - 3 * com.automatavalkyries.weapon.ChronoRepeaterItem.DAMAGE * 0.9F, // ハスクの防具の分を見込む
@@ -861,11 +869,11 @@ public class WeaponGameTests {
     @GameTest(template = TEMPLATE, batch = "weapon2_starfall", timeoutTicks = 400)
     public static void starfallBowHits(GameTestHelper helper) {
         Zombie user = facingX(helper, new Vec3(0.5, 2, 2.5));
-        Zombie target = tough(helper, new Vec3(4.5, 2, 2.5));
+        Zombie target = sturdy(helper, new Vec3(4.5, 2, 2.5));
         whenLoaded(helper, () -> {
             com.automatavalkyries.weapon.StarfallBowItem.loose(helper.getLevel(), user, 0.5F); // 途中まで引いた矢（星は降らない）
             float afterArrow = target.getHealth();
-            helper.assertTrue(afterArrow < target.getMaxHealth() && afterArrow > target.getMaxHealth() - 20, "half-drawn arrow damage is off: " + afterArrow);
+            helper.assertTrue(afterArrow < target.getMaxHealth() && afterArrow > target.getMaxHealth() - com.automatavalkyries.weapon.StarfallBowItem.ARROW_DAMAGE * 0.8F, "half-drawn arrow damage is off: " + afterArrow);
             com.automatavalkyries.weapon.StarfallBowItem.star(helper.getLevel(), user, target.position());
             helper.assertTrue(target.getHealth() < afterArrow, "falling star missed");
             sweep(helper);
@@ -1175,7 +1183,7 @@ public class WeaponGameTests {
     @GameTest(template = TEMPLATE, batch = "weapon3_nova", timeoutTicks = 400)
     public static void novaLanceBursts(GameTestHelper helper) {
         Zombie user = facingX(helper, new Vec3(0.5, 2, 2.5));
-        Zombie target = tough(helper, new Vec3(3.5, 2, 2.5));
+        Zombie target = sturdy(helper, new Vec3(3.5, 2, 2.5));
         whenLoaded(helper, () -> {
             com.automatavalkyries.weapon.Batch3T3.NovaLance.nova(helper.getLevel(), user, new Vec3(target.getX(), target.getY(0.5), target.getZ()));
             helper.assertTrue(target.getHealth() <= target.getMaxHealth() - 25 && target.getRemainingFireTicks() > 0, "nova too weak: " + target.getHealth());

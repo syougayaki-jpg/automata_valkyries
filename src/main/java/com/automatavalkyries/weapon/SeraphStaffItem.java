@@ -26,7 +26,7 @@ public class SeraphStaffItem extends TacticalWeaponItem {
 
     public static final int CAPACITY = 2_000_000, PER_CAST = 150_000, COOLDOWN = 160, BUFF = 200;
     public static final double RADIUS = 10.0;
-    public static final float HEAL = 12.0F, SMITE_DAMAGE = 14.0F, WEIGHT = 5.0F;
+    public static final float HEAL = 12.0F, SMITE_DAMAGE = 120.0F, WEIGHT = 5.0F;
     public static final int COLOR = 0xFFF4C0, HOLY = 0xFFD870, LIFE = 0x9CFFB0;
 
     public SeraphStaffItem(Properties properties) {

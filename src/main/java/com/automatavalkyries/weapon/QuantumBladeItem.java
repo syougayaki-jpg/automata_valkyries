@@ -26,7 +26,7 @@ import net.minecraft.world.phys.Vec3;
 public class QuantumBladeItem extends TacticalWeaponItem {
 
     public static final int CAPACITY = 400_000, PER_SLASH = 20_000, SLASH_INTERVAL = 6;
-    public static final double DAMAGE = 20.0, DULL_DAMAGE = 5.0, SPEED = 1.8;
+    public static final double DAMAGE = 200.0, DULL_DAMAGE = 50.0, SPEED = 1.8;
     public static final float WEIGHT = 7.0F;
 
     private final Multimap<Attribute, AttributeModifier> charged = modifiers(DAMAGE), dull = modifiers(DULL_DAMAGE);

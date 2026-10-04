@@ -28,8 +28,8 @@ import org.jetbrains.annotations.Nullable;
 public class MirageDaggerItem extends TacticalWeaponItem {
 
     public static final int CAPACITY = 400_000, PER_BLINK = 20_000, COOLDOWN = 60;
-    public static final double DAMAGE = 8.0, SPEED = 2.4, RANGE = 16.0;
-    public static final float BACKSTAB_DAMAGE = 20.0F, WEIGHT = 1.5F;
+    public static final double DAMAGE = 50.0, SPEED = 2.4, RANGE = 16.0;
+    public static final float BACKSTAB_DAMAGE = 100.0F, WEIGHT = 1.5F;
     public static final int COLOR = 0xC890FF, CORE = 0xF4E8FF;
 
     private final Multimap<Attribute, AttributeModifier> modifiers = ImmutableMultimap.of(

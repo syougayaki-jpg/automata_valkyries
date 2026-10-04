@@ -23,7 +23,7 @@ import java.util.List;
 public class PlasmaFlamerItem extends TacticalWeaponItem {
 
     public static final int CAPACITY = 600_000, PER_PULSE = 600, INTERVAL = 2;
-    public static final float PULSE_DAMAGE = 2.5F, WEIGHT = 9.0F;
+    public static final float PULSE_DAMAGE = 12.0F, WEIGHT = 9.0F;
     public static final double RANGE = 9.0, HALF_ANGLE = 18.0;
     public static final int COLOR = 0x60A0FF, CORE = 0xE0F0FF, EMBER = 0xFF8040;
 

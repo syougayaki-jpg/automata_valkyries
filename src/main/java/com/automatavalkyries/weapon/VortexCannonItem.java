@@ -21,7 +21,7 @@ public class VortexCannonItem extends TacticalWeaponItem {
 
     public static final int CAPACITY = 800_000, PER_SHOT = 40_000, COOLDOWN = 80, DURATION = 40;
     public static final double RANGE = 32.0, PULL_RADIUS = 7.0, BURST_RADIUS = 4.0;
-    public static final float BURST_DAMAGE = 16.0F, WEIGHT = 10.0F;
+    public static final float BURST_DAMAGE = 80.0F, WEIGHT = 10.0F;
     public static final int COLOR = 0x7AFFD0, CORE = 0xE8FFF6;
 
     public VortexCannonItem(Properties properties) {

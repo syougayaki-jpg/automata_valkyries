@@ -72,7 +72,7 @@ public class MiningToolItem extends TacticalWeaponItem {
         this.tier = tier;
         this.speed = new float[]{0, 12F, 20F, 32F, 60F}[tier];
         this.perBlock = new int[]{0, 50, 100, 200, 400}[tier];
-        double damage = kind == Kind.DRILL ? new double[]{0, 6, 9, 13, 20}[tier] : new double[]{0, 8, 12, 17, 26}[tier];
+        double damage = kind == Kind.DRILL ? new double[]{0, 12, 55, 120, 1000}[tier] : new double[]{0, 16, 65, 150, 1200}[tier];
         double attackSpeed = kind == Kind.DRILL ? 1.4 : 1.1;
         this.modifiers = ImmutableMultimap.of(
                 Attributes.ATTACK_DAMAGE, new AttributeModifier(BASE_ATTACK_DAMAGE_UUID, "Tool modifier", damage - 1.0, AttributeModifier.Operation.ADDITION),

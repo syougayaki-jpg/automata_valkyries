@@ -27,8 +27,8 @@ import net.minecraft.world.phys.Vec3;
 public class VoidScytheItem extends TacticalWeaponItem {
 
     public static final int CAPACITY = 3_000_000, PER_HIT = 30_000, PER_REAP = 150_000, COOLDOWN = 80;
-    public static final double DAMAGE = 40.0, DULL_DAMAGE = 8.0, SPEED = 0.9, REAP_RADIUS = 6.0;
-    public static final float REAP_DAMAGE = 30.0F, LIFESTEAL = 0.2F, WEIGHT = 14.0F;
+    public static final double DAMAGE = 350.0, DULL_DAMAGE = 70.0, SPEED = 0.9, REAP_RADIUS = 6.0;
+    public static final float REAP_DAMAGE = 250.0F, LIFESTEAL = 0.2F, WEIGHT = 14.0F;
     public static final int VOID = 0x6A2AB0, DEEP = 0x1A0828, EDGE = 0xD8A8FF;
 
     private final Multimap<Attribute, AttributeModifier> charged = modifiers(DAMAGE), dull = modifiers(DULL_DAMAGE);

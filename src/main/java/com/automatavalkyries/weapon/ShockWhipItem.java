@@ -31,8 +31,8 @@ import java.util.UUID;
 public class ShockWhipItem extends TacticalWeaponItem {
 
     public static final int CAPACITY = 80_000, PER_LASH = 8_000, COOLDOWN = 20;
-    public static final double DAMAGE = 6.0, SPEED = 1.6, REACH = 2.0, LASH_RANGE = 8.0, HALF_ANGLE = 25.0;
-    public static final float LASH_DAMAGE = 8.0F, WEIGHT = 2.5F;
+    public static final double DAMAGE = 18.0, SPEED = 1.6, REACH = 2.0, LASH_RANGE = 8.0, HALF_ANGLE = 25.0;
+    public static final float LASH_DAMAGE = 24.0F, WEIGHT = 2.5F;
     public static final int COLOR = 0xFFE060;
     private static final UUID REACH_UUID = UUID.fromString("5b6c7d8e-9fa0-4b1c-8d2e-3f4a5b6c7d8e");
 

@@ -22,7 +22,7 @@ import org.jetbrains.annotations.Nullable;
 public class TwinBlasterItem extends TacticalWeaponItem {
 
     public static final int CAPACITY = 120_000, PER_SHOT = 800, INTERVAL = 3;
-    public static final float SHOT_DAMAGE = 3.0F, WEIGHT = 3.0F;
+    public static final float SHOT_DAMAGE = 10.0F, WEIGHT = 3.0F;
     public static final double RANGE = 32.0;
     public static final int COLOR = 0x6AF0FF, CORE = 0xE8FFFF;
 

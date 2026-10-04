@@ -25,7 +25,7 @@ import net.minecraft.world.phys.Vec3;
  */
 public class JavelinEntity extends ThrowableProjectile {
 
-    public static final float SPEED = 2.4F, DAMAGE = 18.0F, STRIKE_DAMAGE = 25.0F;
+    public static final float SPEED = 2.4F, DAMAGE = 70.0F, STRIKE_DAMAGE = 100.0F;
     public static final double STRIKE_RADIUS = 4.0;
     public static final int FUSE = 20, LIFETIME = 120;
     public static final int COLOR = 0xFFE860, CORE = 0xFFFFF0;

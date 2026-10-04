@@ -26,8 +26,8 @@ import net.minecraft.world.phys.Vec3;
 public class EclipseBladeItem extends TacticalWeaponItem {
 
     public static final int CAPACITY = 2_000_000, PER_HIT = 20_000, MARKS = 5, MARK_LIFE = 200;
-    public static final double DAMAGE = 22.0, DULL_DAMAGE = 8.0, SPEED = 1.6;
-    public static final float BURST_DAMAGE = 60.0F, HEAL = 10.0F, WEIGHT = 4.0F;
+    public static final double DAMAGE = 220.0, DULL_DAMAGE = 60.0, SPEED = 1.6;
+    public static final float BURST_DAMAGE = 500.0F, HEAL = 10.0F, WEIGHT = 4.0F;
     public static final int COLOR = 0xFFC840, DARK = 0x200830;
     static final String TAG = "AutomataEclipse", COUNT = "Marks", TIME = "Time";
 

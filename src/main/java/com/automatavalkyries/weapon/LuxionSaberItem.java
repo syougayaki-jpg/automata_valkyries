@@ -32,7 +32,7 @@ import org.joml.Vector3f;
 public class LuxionSaberItem extends TacticalWeaponItem {
 
     public static final int CAPACITY = 300_000, PER_HIT = 15_000, BLINK_COOLDOWN = 10;
-    public static final double DAMAGE = 28.0, DULL_DAMAGE = 6.0, SPEED = 3.5, BLINK_RANGE = 15.0;
+    public static final double DAMAGE = 90.0, DULL_DAMAGE = 20.0, SPEED = 3.5, BLINK_RANGE = 15.0;
     public static final float WEIGHT = 2.5F;
     private static final DustParticleOptions GOLD = new DustParticleOptions(new Vector3f(1.0F, 0.9F, 0.55F), 1.2F);
     private static final DustParticleOptions WHITE = new DustParticleOptions(new Vector3f(1.0F, 1.0F, 1.0F), 1.5F);

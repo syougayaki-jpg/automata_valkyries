@@ -40,7 +40,7 @@ import java.util.Set;
 public class RagnarokEdgeItem extends ChargedWeaponItem {
 
     public static final int CAPACITY = 15_000_000, PER_CLEAVE = 3_000_000, CHARGE = 60, STEPS = 16, TWILIGHT_TICKS = 100;
-    public static final double DAMAGE = 120.0, DULL_DAMAGE = 30.0, SPEED = 1.0, RANGE = 128.0, HALF_WIDTH = 6.0, HALF_THICK = 5.0, TWILIGHT_RANGE = 96.0;
+    public static final double DAMAGE = 1200.0, DULL_DAMAGE = 240.0, SPEED = 1.0, RANGE = 128.0, HALF_WIDTH = 6.0, HALF_THICK = 5.0, TWILIGHT_RANGE = 96.0;
     public static final long DAMAGE_VALUE = Integer.MAX_VALUE;
     public static final float CLEAVE_DAMAGE = (float) DAMAGE_VALUE, WEIGHT = 18.0F;
     /** 黄昏の色: 金・橙・茜・紫 */

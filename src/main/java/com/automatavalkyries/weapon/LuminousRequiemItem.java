@@ -38,7 +38,7 @@ import java.util.List;
 public class LuminousRequiemItem extends ChargedWeaponItem {
 
     public static final int CAPACITY = 40_000_000, PER_CAST = 8_000_000, CHARGE = 40, STOP = 100, DELAY = 20;
-    public static final double DAMAGE = 200.0, DULL_DAMAGE = 40.0, SPEED = 1.2, RADIUS = 64.0;
+    public static final double DAMAGE = 1500.0, DULL_DAMAGE = 300.0, SPEED = 1.2, RADIUS = 64.0;
     public static final long DAMAGE_VALUE = Integer.MAX_VALUE;
     public static final float WEIGHT = 15.0F;
     public static final int STAR = 0xC8E0FF, GOLD = 0xFFE8A0, ROSE = 0xFFB0E0, CORE = 0xFFFFFF, CRYSTAL = 0xBDF4FF, CYAN = 0x60E0FF;

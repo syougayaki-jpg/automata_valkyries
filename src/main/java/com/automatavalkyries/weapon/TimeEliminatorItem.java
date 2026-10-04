@@ -40,7 +40,7 @@ import java.util.List;
 public class TimeEliminatorItem extends TacticalWeaponItem {
 
     public static final int CAPACITY = 2_000_000, PER_HIT = 100_000, STOP_TICKS = 60;
-    public static final double DAMAGE = 75.0, DULL_DAMAGE = 9.0, SPEED = 1.0;
+    public static final double DAMAGE = 400.0, DULL_DAMAGE = 50.0, SPEED = 1.0;
     public static final float WEIGHT = 15.0F;
     private static final DustParticleOptions VIOLET = new DustParticleOptions(new Vector3f(0.6F, 0.45F, 1.0F), 1.4F);
 

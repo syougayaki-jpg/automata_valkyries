@@ -29,7 +29,7 @@ import java.util.Set;
  */
 public class QuantumSlashEntity extends ThrowableProjectile {
 
-    public static final float SPEED = 1.6F, DAMAGE = 18.0F;
+    public static final float SPEED = 1.6F, DAMAGE = 180.0F;
     public static final double RANGE = 16.0, HALF_WIDTH = 1.5;
     public static final int LIFETIME = (int) Math.ceil(RANGE / SPEED);
     public static final int COLOR_CORE = 0xE8F0FF, COLOR_EDGE = 0x8A7CFF, COLOR_GLOW = 0x5AE8FF;

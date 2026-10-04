@@ -26,8 +26,8 @@ import org.jetbrains.annotations.Nullable;
 public class HeatPileBunkerItem extends TacticalWeaponItem {
 
     public static final int CAPACITY = 150_000, PER_STRIKE = 15_000, COOLDOWN = 40;
-    public static final double DAMAGE = 7.0, SPEED = 1.2, REACH = 4.0;
-    public static final float STRIKE_DAMAGE = 24.0F, WEIGHT = 6.0F;
+    public static final double DAMAGE = 20.0, SPEED = 1.2, REACH = 4.0;
+    public static final float STRIKE_DAMAGE = 50.0F, WEIGHT = 6.0F;
     public static final int COLOR = 0xFF6A20, CORE = 0xFFE0A0;
 
     private final Multimap<Attribute, AttributeModifier> modifiers = ImmutableMultimap.of(

@@ -22,7 +22,7 @@ import org.joml.Vector3f;
  */
 public class NecrosisNeedleEntity extends ThrowableProjectile {
 
-    public static final float SPEED = 1.8F, DAMAGE = 14.0F;
+    public static final float SPEED = 1.8F, DAMAGE = 35.0F;
     public static final double SEEK_RANGE = 12.0, TURN = 0.25;
     public static final int LIFETIME = 80;
     private static final DustParticleOptions TRAIL = new DustParticleOptions(new Vector3f(0.44F, 0.82F, 0.63F), 0.7F);

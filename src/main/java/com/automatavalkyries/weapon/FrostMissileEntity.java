@@ -24,7 +24,7 @@ import org.jetbrains.annotations.Nullable;
  */
 public class FrostMissileEntity extends ThrowableProjectile {
 
-    public static final float DAMAGE = 6.0F;
+    public static final float DAMAGE = 60.0F;
     public static final double MAX_SPEED = 1.6, SEEK_RANGE = 128.0;
     public static final int LIFETIME = 160, LAUNCH = 6;
 

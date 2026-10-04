@@ -122,7 +122,7 @@ public class UpgradeGameTests {
         int tier = keys.indexOf("gui.automata_valkyries.tip.tier"), custom = keys.indexOf("upgrade.automata_valkyries.summary"),
                 overload = keys.indexOf("gui.automata_valkyries.tip.overload_off"), shift = keys.indexOf("gui.automata_valkyries.tip.shift");
         helper.assertTrue(tier == 0 && custom > tier + 1 && overload == custom + 1 && shift == overload + 1, "tooltip order is off: " + keys);
-        helper.assertTrue(lines.get(1).getString().contains("12") || lines.get(1).getString().contains("15"), "attack line missing: " + lines.get(1).getString());
+        helper.assertTrue(lines.get(1).getString().contains("46.8"), "attack line missing: " + lines.get(1).getString());
         helper.assertTrue(com.automatavalkyries.registry.ModCreativeTabs.group(ModWeapons.PHOTON_EDGE.get()) == com.automatavalkyries.registry.ModCreativeTabs.Group.WEAPONS
                 && com.automatavalkyries.registry.ModCreativeTabs.group(ModItems.INGOT_ASTRITE.get()) == com.automatavalkyries.registry.ModCreativeTabs.Group.MATERIALS
                 && com.automatavalkyries.registry.ModCreativeTabs.group(com.automatavalkyries.registry.ModBossDrops.MEMORY_STELLA.get()) == com.automatavalkyries.registry.ModCreativeTabs.Group.SPECIAL

@@ -30,7 +30,7 @@ import java.util.UUID;
 public class ArcLancerItem extends TacticalWeaponItem {
 
     public static final int CAPACITY = 30_000, PER_HIT = 1_500, CHAINS = 3;
-    public static final double DAMAGE = 9.0, DULL_DAMAGE = 3.0, SPEED = 1.4, REACH = 1.5, CHAIN_RANGE = 6.0;
+    public static final double DAMAGE = 30.0, DULL_DAMAGE = 10.0, SPEED = 1.4, REACH = 1.5, CHAIN_RANGE = 6.0;
     public static final float WEIGHT = 4.5F;
     public static final int COLOR = 0x7FD8FF;
     private static final UUID REACH_UUID = UUID.fromString("8a1d2c3e-4f5a-4b6c-8d7e-9f0a1b2c3d4e");

@@ -37,7 +37,7 @@
 - 基地ストラクチャ（§10.1）の大きさ・生成条件・頻度、Tier 3 浮遊要塞の生成方法
 - GENESIS-ZERO の「半径 64m の地形を完全復元」の基準（いつの時点の地形に戻すか）
 - `core_genesis_luminal` の毎秒 1,000,000 FE の出し先（そのマシン自身か、隣接するマシンへ配るか）
-- §12.2 お掃除ルーチンの対象（すべてのドロップアイテムか、除外があるか）、§12.3 ボイスの再生方法（テキストのみか、音声ファイルか）
+- ~~§12.2 お掃除ルーチンの対象、§12.3 ボイスの再生方法~~ → 2026-10-04 に決定: 全部＋除外リスト、頭上の吹き出し＋チャット（音声ファイル無し）（`docs/SPEC_VALKYRIE_GUI_AI.md` §4）
 
 ---
 
@@ -296,7 +296,7 @@ LittleMaidMobの「愛着・お世話」要素を最新AIゴールとして実�
 public void adjustSyncRate(EntityValkyrie valkyrie, int delta, SyncReason reason) {
     int current = valkyrie.getSyncRate();
     valkyrie.setSyncRate(Mth.clamp(current + delta, 0, 100));
-    // 100%到達時: 裏ボスのハッキング完全無効化フラグ付与
+    // ~~100%到達時: 裏ボスのハッキング完全無効化フラグ付与~~ → 2026-10-04 にユーザー判断で削除（SPEC_VALKYRIE_GUI_AI.md §4）
 }
 ```
 

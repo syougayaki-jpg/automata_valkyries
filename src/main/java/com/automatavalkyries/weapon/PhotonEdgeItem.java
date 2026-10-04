@@ -31,7 +31,7 @@ import org.joml.Vector3f;
 public class PhotonEdgeItem extends TacticalWeaponItem {
 
     public static final int CAPACITY = 40_000, PER_HIT = 2_000, COMBO_WINDOW = 30;
-    public static final double DAMAGE = 12.0, DULL_DAMAGE = 4.0, SPEED = 2.2, SWEEP_RANGE = 4.0;
+    public static final double DAMAGE = 36.0, DULL_DAMAGE = 12.0, SPEED = 2.2, SWEEP_RANGE = 4.0;
     public static final float WEIGHT = 4.0F;
 
     private static final DustParticleOptions SLASH_CORE = new DustParticleOptions(new Vector3f(1.0F, 1.0F, 1.0F), 1.5F);

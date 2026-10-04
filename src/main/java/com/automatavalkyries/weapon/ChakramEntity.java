@@ -27,7 +27,7 @@ import java.util.Set;
  */
 public class ChakramEntity extends ThrowableProjectile {
 
-    public static final float SPEED = 1.4F, DAMAGE = 12.0F;
+    public static final float SPEED = 1.4F, DAMAGE = 60.0F;
     public static final int OUT_TICKS = 12, LIFETIME = 60;
     public static final double RADIUS = 0.9;
     public static final int COLOR = 0xFF5AD8, CORE = 0xFFE0F8;
