@@ -19,6 +19,7 @@ public class ClientModEvents {
             net.minecraft.client.gui.screens.MenuScreens.register(com.automatavalkyries.registry.ModMachines.MENU.get(), MachineScreen::new);
             net.minecraft.client.gui.screens.MenuScreens.register(com.automatavalkyries.registry.ModChrono.MENU.get(), ChronoScreen::new);
             net.minecraft.client.gui.screens.MenuScreens.register(com.automatavalkyries.registry.ModUpgrades.MENU.get(), UpgradeStationScreen::new);
+            net.minecraft.client.gui.screens.MenuScreens.register(com.automatavalkyries.registry.ModEntities.VALKYRIE_MENU.get(), ValkyrieScreen::new);
             // クロノリンク・マシンのアイテムは、ブロックと同じくティアごとの見た目（models/item/<id>.json の overrides）
             net.minecraft.resources.ResourceLocation tier = net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "tier");
             for (var block : com.automatavalkyries.registry.ModChrono.MACHINES.values()) {

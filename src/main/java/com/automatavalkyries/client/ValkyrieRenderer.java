@@ -24,6 +24,7 @@ public class ValkyrieRenderer extends GeoEntityRenderer<ValkyrieEntity> {
         this.shadowRadius = 0.45F;
         addRenderLayer(new AutoGlowingGeoLayer<>(this));
         addRenderLayer(new CoreStarsLayer(this));
+        addRenderLayer(new HeldItemLayer(this));
     }
 
     /** バニラの横倒しはしない（機能停止はモデル側で座り込む予定） */
@@ -35,6 +36,44 @@ public class ValkyrieRenderer extends GeoEntityRenderer<ValkyrieEntity> {
     @Override
     public int getPackedOverlay(ValkyrieEntity animatable, float u) {
         return OverlayTexture.pack(OverlayTexture.u(u), OverlayTexture.v(animatable.hurtTime > 0));
+    }
+
+    /**
+     * 手に持った兵装（右手 = 主、左手 = 副。段階 2、2026-10-05 ユーザー指定「手持ちの兵装だけ出す」）。腕の骨の先（手首）へ動かして描く。位置・向きは【仮】
+     */
+    static class HeldItemLayer extends software.bernie.geckolib.renderer.layer.BlockAndItemGeoLayer<ValkyrieEntity> {
+        /** 腕の骨の付け根から手首までの長さ（px）。腕は付け根 y=20.1 から y=11 まで */
+        private static final float ARM_LENGTH = 8.6F / 16.0F;
+
+        HeldItemLayer(GeoRenderer<ValkyrieEntity> renderer) {
+            super(renderer);
+        }
+
+        @Override
+        protected net.minecraft.world.item.ItemStack getStackForBone(GeoBone bone, ValkyrieEntity animatable) {
+            return switch (bone.getName()) {
+                case "right_arm" -> animatable.getMainHandItem();
+                case "left_arm" -> animatable.getOffhandItem();
+                default -> null;
+            };
+        }
+
+        @Override
+        protected net.minecraft.world.item.ItemDisplayContext getTransformTypeForStack(GeoBone bone, net.minecraft.world.item.ItemStack stack, ValkyrieEntity animatable) {
+            return bone.getName().equals("left_arm") ? net.minecraft.world.item.ItemDisplayContext.THIRD_PERSON_LEFT_HAND
+                    : net.minecraft.world.item.ItemDisplayContext.THIRD_PERSON_RIGHT_HAND;
+        }
+
+        @Override
+        protected void renderStackForBone(PoseStack poseStack, GeoBone bone, net.minecraft.world.item.ItemStack stack, ValkyrieEntity animatable,
+                                          MultiBufferSource bufferSource, float partialTick, int packedLight, int packedOverlay) {
+            poseStack.pushPose();
+            poseStack.translate(0.0F, -ARM_LENGTH, 0.0F);
+            poseStack.mulPose(com.mojang.math.Axis.XP.rotationDegrees(-90.0F));
+            poseStack.scale(0.8F, 0.8F, 0.8F);
+            super.renderStackForBone(poseStack, bone, stack, animatable, bufferSource, partialTick, packedLight, packedOverlay);
+            poseStack.popPose();
+        }
     }
 
     /**

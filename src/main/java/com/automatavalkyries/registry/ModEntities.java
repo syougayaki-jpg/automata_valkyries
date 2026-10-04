@@ -39,6 +39,10 @@ public class ModEntities {
                             .clientTrackingRange(10)
                             .build("valkyrie"));
 
+    /** 戦術兵姫のメニュー（換装・状態・作戦指示。段階 2、2026-10-05） */
+    public static final RegistryObject<net.minecraft.world.inventory.MenuType<com.automatavalkyries.menu.ValkyrieMenu>> VALKYRIE_MENU =
+            ModMachines.MENUS.register("valkyrie", () -> net.minecraftforge.common.extensions.IForgeMenuType.create(com.automatavalkyries.menu.ValkyrieMenu::new));
+
     @SubscribeEvent
     public static void registerAttributes(EntityAttributeCreationEvent event) {
         event.put(VALKYRIE.get(), com.automatavalkyries.entity.ValkyrieEntity.createAttributes().build());

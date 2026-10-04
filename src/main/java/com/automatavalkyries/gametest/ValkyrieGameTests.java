@@ -158,6 +158,86 @@ public class ValkyrieGameTests {
         }, v);
     }
 
+    // ------------------------------------------------------------------ 段階 2: 装備・シールド・電力・作戦指示
+
+    /** 兵装を 1 つ探す（両手持ちか） */
+    private static net.minecraft.world.item.ItemStack weapon(boolean twoHanded) {
+        for (var entry : com.automatavalkyries.registry.ModItems.ITEMS.getEntries()) {
+            if (entry.get() instanceof com.automatavalkyries.weapon.TacticalWeaponItem w && w.twoHanded() == twoHanded) return new net.minecraft.world.item.ItemStack(w);
+        }
+        throw new IllegalStateException("no weapon with twoHanded=" + twoHanded);
+    }
+
+    /** 装備の枠の決まり: 外装・背部・チップは入らない、両手持ちと左手は取り合う、弾薬庫は素体タイプの枠数まで、保存して読み直しても残る */
+    @GameTest(template = TEMPLATE, batch = "valkyrie")
+    public static void valkyrieEquipmentRulesAndSave(GameTestHelper helper) {
+        ValkyrieEntity v = helper.spawn(ModEntities.VALKYRIE.get(), 1, 2, 1);
+        var inv = v.getInventory();
+        var ammo = new net.minecraft.world.item.ItemStack(com.automatavalkyries.registry.ModWeapons.AMMO_AP_ROUND.get(), 16);
+        helper.assertFalse(inv.accepts(com.automatavalkyries.entity.ValkyrieInventory.HEAD, ammo), "an unimplemented slot accepted an item");
+        helper.assertTrue(inv.accepts(com.automatavalkyries.entity.ValkyrieInventory.AMMO, ammo), "ammo was refused by the magazine");
+        int last = com.automatavalkyries.entity.ValkyrieInventory.AMMO + v.getBody().ammoSlots;
+        helper.assertFalse(inv.accepts(last, ammo), "a magazine slot beyond the body type's count accepted ammo");
+        var two = weapon(true);
+        var one = weapon(false);
+        inv.setItem(com.automatavalkyries.entity.ValkyrieInventory.MAIN_HAND, two);
+        helper.assertFalse(inv.accepts(com.automatavalkyries.entity.ValkyrieInventory.OFF_HAND, one), "the off hand accepted a weapon while a two-handed weapon is held");
+        inv.setItem(com.automatavalkyries.entity.ValkyrieInventory.MAIN_HAND, one.copy());
+        inv.setItem(com.automatavalkyries.entity.ValkyrieInventory.AMMO, ammo);
+        inv.setItem(com.automatavalkyries.entity.ValkyrieInventory.CORE, ((com.automatavalkyries.weapon.LuminalCoreItem) com.automatavalkyries.registry.ModWeapons.CORE_BASIC.get()).charged());
+        CompoundTag saved = new CompoundTag();
+        v.saveWithoutId(saved);
+        ValkyrieEntity copy = ModEntities.VALKYRIE.get().create(helper.getLevel());
+        copy.load(saved);
+        var ci = copy.getInventory();
+        helper.assertTrue(ci.getItem(com.automatavalkyries.entity.ValkyrieInventory.MAIN_HAND).is(one.getItem())
+                && ci.getItem(com.automatavalkyries.entity.ValkyrieInventory.AMMO).getCount() == 16
+                && ci.getItem(com.automatavalkyries.entity.ValkyrieInventory.CORE).is(com.automatavalkyries.registry.ModWeapons.CORE_BASIC.get()), "equipment was not saved");
+        helper.assertTrue(Math.abs(copy.carriedWeight() - (((com.automatavalkyries.weapon.TacticalWeaponItem) one.getItem()).weight() + 5.0F)) < 0.01F, "carried weight is wrong: " + copy.carriedWeight());
+        v.releaseAndDiscard();
+        helper.succeed();
+    }
+
+    /** シールドが HP より先にダメージを受ける */
+    @GameTest(template = TEMPLATE, batch = "valkyrie")
+    public static void valkyrieShieldAbsorbsDamage(GameTestHelper helper) {
+        ValkyrieEntity v = helper.spawn(ModEntities.VALKYRIE.get(), 1, 2, 1);
+        float hp = com.automatavalkyries.protect.DirectRead.health(v), shield = v.getShield();
+        v.hurt(helper.getLevel().damageSources().generic(), 8.0F);
+        helper.assertTrue(com.automatavalkyries.protect.DirectRead.health(v) == hp && v.getShield() < shield, "shield did not take the hit: hp=" + com.automatavalkyries.protect.DirectRead.health(v) + " shield=" + v.getShield());
+        v.releaseAndDiscard();
+        helper.succeed();
+    }
+
+    /** 電力 0 で休眠し、コアから補充されると起きる */
+    @GameTest(template = TEMPLATE, batch = "valkyrie", timeoutTicks = 60)
+    public static void valkyrieSleepsWithoutPowerAndWakesWithCore(GameTestHelper helper) {
+        ValkyrieEntity v = helper.spawn(ModEntities.VALKYRIE.get(), 1, 2, 1);
+        v.setEnergy(1);
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(v.isAsleep(), "did not fall asleep at zero power"))
+                .thenExecute(() -> v.getInventory().setItem(com.automatavalkyries.entity.ValkyrieInventory.CORE,
+                        ((com.automatavalkyries.weapon.LuminalCoreItem) com.automatavalkyries.registry.ModWeapons.CORE_BASIC.get()).charged()))
+                .thenWaitUntil(() -> helper.assertTrue(!v.isAsleep() && v.getEnergy() > ValkyrieEntity.WAKE_ENERGY, "did not wake after the core recharged her"))
+                .thenExecute(v::releaseAndDiscard)
+                .thenSucceed();
+    }
+
+    /** 作戦指示の値は範囲に収まり、防衛半径・巡回範囲が拠点の範囲に効く */
+    @GameTest(template = TEMPLATE, batch = "valkyrie")
+    public static void valkyrieOrdersAreClampedAndApplied(GameTestHelper helper) {
+        ValkyrieEntity v = helper.spawn(ModEntities.VALKYRIE.get(), 1, 2, 1);
+        v.orders.set(com.automatavalkyries.entity.ValkyrieOrders.Field.DEFEND_RADIUS, 9999);
+        v.orders.set(com.automatavalkyries.entity.ValkyrieOrders.Field.PATROL_RADIUS, 40);
+        v.orders.set(com.automatavalkyries.entity.ValkyrieOrders.Field.POLICY, -5);
+        v.setMode(ValkyrieEntity.Mode.DEFEND);
+        helper.assertTrue(v.homeRadius == com.automatavalkyries.entity.ValkyrieOrders.Field.DEFEND_RADIUS.max, "defense radius was not clamped/applied: " + v.homeRadius);
+        v.setMode(ValkyrieEntity.Mode.PATROL);
+        helper.assertTrue(v.homeRadius == 40 && v.orders.policy == com.automatavalkyries.entity.ValkyrieOrders.Policy.AGGRESSIVE, "patrol range/policy not applied");
+        v.releaseAndDiscard();
+        helper.succeed();
+    }
+
     /** その持ち主の兵姫（呼び出しは新しい UUID で戻るので、持ち主で探す） */
     @org.jetbrains.annotations.Nullable
     private static ValkyrieEntity ownedBy(GameTestHelper helper, UUID owner) {

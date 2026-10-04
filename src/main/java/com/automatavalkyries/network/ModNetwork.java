@@ -71,5 +71,12 @@ public final class ModNetwork {
                 .decoder(RescueDiscardPacket::decode)
                 .consumerMainThread(RescueDiscardPacket::handle)
                 .add();
+
+        // 戦術兵姫のメニューの操作（段階 2）
+        CHANNEL.messageBuilder(ValkyrieCommandPacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(ValkyrieCommandPacket::encode)
+                .decoder(ValkyrieCommandPacket::decode)
+                .consumerMainThread(ValkyrieCommandPacket::handle)
+                .add();
     }
 }
