@@ -8,6 +8,7 @@
 | `GenElenorSkin.java` | `textures/entity/elenor.png` | エレノアのテクスチャ（128x128）。色は先頭の `C` マップ、パーツは各 `map` / `box` 呼び出しで調整 |
 | `GenOreTextures.java` | `textures/item/*.png` | 鉱石・インゴット・テスト用の抹殺の棒の仮テクスチャ |
 | `GenEmpty.java` | `data/automata_valkyries/structures/empty.nbt` | GameTest 用の空ストラクチャ |
+| `gen_valkyrie_sounds.py` | `sounds/valkyrie/*.ogg`・`sounds.json`・字幕（lang） | 戦術兵姫の効果音を波形の計算で合成（Python。`pip install numpy soundfile` が要る）。音ごとに a/b/c の 3 つ。数値は各関数で調整し、`python tools/gen_valkyrie_sounds.py [名前の一部]` で作り直す |
 | `GeoPreview.java` | 任意の PNG | GeckoLib モデルを 3 ポーズ × 4 方向で描画して確認（ゲーム起動不要） |
 
 ```bash
