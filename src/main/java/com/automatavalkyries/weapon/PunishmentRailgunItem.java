@@ -32,6 +32,13 @@ import java.util.Set;
  */
 public class PunishmentRailgunItem extends ChargedWeaponItem {
 
+    /** 弾の威力（説明に出す）: T4 は左クリックの通常攻撃の火力（2026-10-05 ユーザー指定。チャージ攻撃はカンスト） */
+    @Override
+    public float[] shotDamage() {
+        return new float[]{T4NormalAttacks.THUNDER_DAMAGE, 1};
+    }
+
+
     public static final int CAPACITY = 25_000_000, PER_SHOT = 5_000_000, CHARGE = 600;
     public static final long DAMAGE_VALUE = Integer.MAX_VALUE;
     public static final float DAMAGE = (float) DAMAGE_VALUE, WEIGHT = 40.0F;

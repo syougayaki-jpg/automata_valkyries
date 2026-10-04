@@ -20,6 +20,8 @@ import java.util.Map;
 public class ValkyrieModel extends DefaultedEntityGeoModel<ValkyrieEntity> {
 
     private static final String TEXTURE = "textures/entity/valkyrie_type_v";
+    /** 機能停止で腰を落とす量（px。脚 12.5px を前へ投げ出して地面に座る） */
+    private static final float SIT_DROP = 11.0F;
     /** 表情ごとの立体のまつ毛: {上下 px, 鼻側を下げる角度（度）, 見せるか 1/0}（tools/gen_valkyrie_v.py の LASH_POSE） */
     private static final Map<String, float[]> LASH_POSE = new HashMap<>();
     static {
@@ -63,26 +65,40 @@ public class ValkyrieModel extends DefaultedEntityGeoModel<ValkyrieEntity> {
         float limb = state.getLimbSwing();
         float idle = 1.0F - walk;
         float attack = Mth.sin(entity.getAttackAnim(pt) * Mth.PI);
+        // 死亡モーション → 機能停止（0〜1 でなめらかに）: 前半で膝が折れて前へ崩れ、後半でぺたんと座り込んでうなだれる
+        float d = Mth.lerp(pt, entity.downAnimO, entity.downAnim);
+        float buckle = smooth(d / 0.4F) * (1.0F - smooth((d - 0.4F) / 0.6F)); // 前半だけ立つ山
+        float down = smooth((d - 0.25F) / 0.75F);                               // 座り込みの進み
+        float up = 1.0F - smooth(d / 0.3F);
+        walk *= up;
+        idle = 1.0F - walk;
 
         // ---- 体: 立っている間はゆっくり呼吸（胸がわずかに上下）、歩くと小さく弾む
         CoreGeoBone body = bone("body");
-        body.setPosY(Mth.sin(age * 0.08F) * 0.12F * idle + Math.abs(Mth.sin(limb * 0.6662F)) * 0.35F * walk);
-        body.setRotX(-0.06F * walk); // 歩くと少し前のめり
+        body.setPosY((Mth.sin(age * 0.08F) * 0.12F * idle + Math.abs(Mth.sin(limb * 0.6662F)) * 0.35F * walk) * up);
+        body.setRotX(-0.06F * walk - 0.45F * buckle - 0.22F * down); // 歩くと少し前のめり、崩れるときは前へ、座るとうなだれる
+        body.setRotZ(0.08F * buckle);                                   // 崩れるときに少し傾く
+        bone("root").setPosY(-SIT_DROP * down - 1.2F * buckle);
+        CoreGeoBone head = bone("head");
+        head.setRotX(head.getRotX() * up - 0.35F * buckle - 0.5F * down);
+        head.setRotY(head.getRotY() * up);
 
         // ---- 脚
         float legSwing = Mth.cos(limb * 0.6662F) * 1.1F * walk;
-        bone("right_leg").setRotX(legSwing);
-        bone("left_leg").setRotX(-legSwing);
+        bone("right_leg").setRotX(legSwing * up - 0.3F * buckle + 1.45F * down); // 膝が折れて（後ろへ）から前へ投げ出す
+        bone("left_leg").setRotX(-legSwing * up - 0.2F * buckle + 1.45F * down);
+        bone("right_leg").setRotZ(0.1F * down);
+        bone("left_leg").setRotZ(-0.1F * down);
 
         // ---- 腕: 歩きの振り＋立ち姿の自然な開き（ゆらぎ）
         float armSwing = Mth.cos(limb * 0.6662F + Mth.PI) * 0.7F * walk;
         float armOut = 0.08F + Mth.cos(age * 0.07F) * 0.03F * idle;
         CoreGeoBone rightArm = bone("right_arm");
         CoreGeoBone leftArm = bone("left_arm");
-        rightArm.setRotX(armSwing + attack * 1.4F);
-        leftArm.setRotX(-armSwing);
-        rightArm.setRotZ(armOut);
-        leftArm.setRotZ(-armOut);
+        rightArm.setRotX((armSwing + attack * 1.4F) * up + 0.5F * buckle + 0.25F * down); // 崩れるときに腕が前へ垂れる
+        leftArm.setRotX(-armSwing * up + 0.45F * buckle + 0.25F * down);
+        rightArm.setRotZ(armOut + 0.15F * down);
+        leftArm.setRotZ(-armOut - 0.15F * down);
 
         // ---- 髪: エンティティのばね（前へ進むほど後ろへ流れる）を後ろ髪の 3 段へ配る。横髪・リボンも少し
         float swing = Mth.lerp(pt, entity.hairSwingO, entity.hairSwing);
@@ -108,11 +124,17 @@ public class ValkyrieModel extends DefaultedEntityGeoModel<ValkyrieEntity> {
             b.setRotZ(lash[1] * Mth.DEG_TO_RAD * (side < 0 ? 1 : -1)); // 鼻側を下げる向き: 右目は時計回り、左目は反時計回り
         }
 
-        // ---- 胸のコア: ゆっくり脈打つ
-        float pulse = 1.0F + Mth.sin(age * 0.12F) * 0.05F;
+        // ---- 胸のコア: ゆっくり脈打つ。崩れ落ちる間はちらついて弱まる
+        float flicker = buckle > 0.05F ? (Mth.sin(age * 2.7F) > 0 ? 0.8F : 1.0F) : 1.0F;
+        float pulse = (1.0F + Mth.sin(age * 0.12F) * 0.05F * up) * (1.0F - 0.15F * smooth(d)) * flicker;
         CoreGeoBone core = bone("core");
         core.setScaleX(pulse);
         core.setScaleY(pulse);
+    }
+
+    private static float smooth(float t) {
+        t = Mth.clamp(t, 0.0F, 1.0F);
+        return t * t * (3.0F - 2.0F * t);
     }
 
     private CoreGeoBone bone(String name) {

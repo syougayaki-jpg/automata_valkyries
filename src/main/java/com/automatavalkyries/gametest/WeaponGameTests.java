@@ -644,9 +644,32 @@ public class WeaponGameTests {
      * 組（batch）を足すと後の試験の置き場所がずれて新しい区画に当たるので、一度に当てて確かめる試験はこれを通す（2026-10-04）
      */
     private static void whenLoaded(GameTestHelper helper, Runnable body, net.minecraft.world.entity.Entity... mobs) {
+        // 区画によってはエンティティが見える状態まで読み込まれないことがある（2026-10-04、試験の並びが変わってブラックロータスで毎回）。
+        // 終わるまで mob のいる区画を強制的に読み込んでおく
+        java.util.Set<net.minecraft.world.level.ChunkPos> forced = forceChunks(helper, mobs);
+        Runnable inner = body;
+        body = () -> {
+            try {
+                inner.run();
+            } finally {
+                for (net.minecraft.world.level.ChunkPos c : forced) helper.getLevel().setChunkForced(c.x, c.z, false);
+            }
+        };
         helper.startSequence().thenWaitUntil(() -> {
-            for (net.minecraft.world.entity.Entity e : mobs) helper.assertTrue(helper.getLevel().getEntity(e.getUUID()) == e, "mob not in the world yet");
+            for (net.minecraft.world.entity.Entity e : mobs) helper.assertTrue(helper.getLevel().getEntity(e.getUUID()) == e,
+                    "mob not in the world yet (removed=" + e.getRemovalReason() + ", added=" + e.isAddedToWorld() + ", sameLevel=" + (e.level() == helper.getLevel())
+                            + ", byId=" + helper.getLevel().getEntity(e.getId()) + ", uuid=" + e.getUUID() + ", pos=" + e.blockPosition() + ")");
         }).thenExecute(body);
+    }
+
+    /** mob のいる区画を強制的に読み込む（まだ強制されていなかった区画だけ返す。後で外す） */
+    static java.util.Set<net.minecraft.world.level.ChunkPos> forceChunks(GameTestHelper helper, net.minecraft.world.entity.Entity... mobs) {
+        java.util.Set<net.minecraft.world.level.ChunkPos> forced = new java.util.HashSet<>();
+        for (net.minecraft.world.entity.Entity e : mobs) {
+            net.minecraft.world.level.ChunkPos c = e.chunkPosition();
+            if (!helper.getLevel().getForcedChunks().contains(c.toLong()) && helper.getLevel().setChunkForced(c.x, c.z, true)) forced.add(c);
+        }
+        return forced;
     }
 
     /**

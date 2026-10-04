@@ -22,6 +22,9 @@ public final class ModUpgrades {
     /** カスタム・マキシマイザー（クリエイティブ用）: もう片方の手の兵装のカスタムを全部上限に */
     public static final RegistryObject<Item> CUSTOM_MAXIMIZER = ModItems.ITEMS.register("custom_maximizer",
             () -> new com.automatavalkyries.upgrade.CustomMaximizerItem(new Item.Properties().stacksTo(1).rarity(net.minecraft.world.item.Rarity.EPIC)));
+    /** オーバーロード・イグナイター（クリエイティブ用。2026-10-05）: 持ち物の兵装を全部まとめてオーバーロード化 */
+    public static final RegistryObject<Item> OVERLOAD_IGNITER = ModItems.ITEMS.register("overload_igniter",
+            () -> new com.automatavalkyries.upgrade.OverloadIgniterItem(new Item.Properties().stacksTo(1).rarity(net.minecraft.world.item.Rarity.EPIC)));
     public static final RegistryObject<MenuType<UpgradeStationMenu>> MENU = ModMachines.MENUS.register("upgrade_station",
             () -> IForgeMenuType.create(UpgradeStationMenu::new));
 

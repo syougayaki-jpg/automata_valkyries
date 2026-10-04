@@ -31,6 +31,13 @@ import java.util.List;
  */
 public class AvalancheLauncherItem extends TacticalWeaponItem {
 
+    /** 弾の威力（説明に出す） */
+    @Override
+    public float[] shotDamage() {
+        return new float[]{FrostMissileEntity.DAMAGE, MISSILES};
+    }
+
+
     public static final int CAPACITY = 15_000_000, PER_VOLLEY = 1_500_000, MISSILES = 64, PER_TICK = 2, RELOAD = 100;
     public static final double RANGE = 128.0;
     public static final float WEIGHT = 18.0F;

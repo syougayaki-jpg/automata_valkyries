@@ -31,6 +31,13 @@ import java.util.List;
  */
 public class RailRifleItem extends TacticalWeaponItem {
 
+    /** 弾の威力（説明に出す） */
+    @Override
+    public float[] shotDamage() {
+        return new float[]{DAMAGE, 1};
+    }
+
+
     public static final int CAPACITY = 500_000, PER_SHOT = 25_000, MAGAZINE = 12, COOLDOWN = 20, RELOAD = 40, PIERCE = 4;
     public static final float DAMAGE = 50.0F, ARMOR_IGNORE = 0.5F, WEIGHT = 12.0F;
     public static final double RANGE = 64.0;

@@ -25,6 +25,9 @@ sourceSets {
     // lifeguardhooks はブートストラップのクラスパスに置く呼び出し先（JDK だけ）。lifeguard は ASM を同梱する
     lifeguardhooks
     lifeguard
+    // オートマタヴァルキリー protect（戦術兵姫だけを守る Java エージェント）。valkyrieprotecthooks はブートストラップに置く呼び出し先（JDK だけ）
+    valkyrieprotecthooks
+    valkyrieprotect
 }
 def observerJarFile = layout.buildDirectory.file("libs/${mod_id}-observer.jar")
 tasks.register('observerJar', Jar) {
@@ -49,6 +52,38 @@ dependencies {
     lifeguardImplementation sourceSets.lifeguardhooks.output
     lifeguardImplementation 'org.ow2.asm:asm:9.8'
     lifeguardAsm 'org.ow2.asm:asm:9.8'
+    valkyrieprotectImplementation sourceSets.valkyrieprotecthooks.output
+    valkyrieprotectImplementation 'org.ow2.asm:asm:9.8'
+}
+def valkyrieProtectHooksJarFile = layout.buildDirectory.file("libs/${mod_id}-valkyrie-protect-hooks.jar")
+tasks.register('valkyrieProtectHooksJar', Jar) {
+    group = 'build'
+    description = 'Builds the Automata Valkyrie Protect bootstrap hooks'
+    from sourceSets.valkyrieprotecthooks.output
+    archiveFileName = "${mod_id}-valkyrie-protect-hooks.jar"
+}
+def valkyrieProtectJarFile = layout.buildDirectory.file("libs/${mod_id}-valkyrie-protect.jar")
+tasks.register('valkyrieProtectJar', Jar) {
+    group = 'build'
+    description = 'Builds the Automata Valkyrie Protect Java agent'
+    dependsOn 'valkyrieProtectHooksJar'
+    from sourceSets.valkyrieprotect.output
+    // ASM を同梱する（LifeGuard と同じ）
+    from({ configurations.lifeguardAsm.collect { zipTree(it) } }) {
+        exclude 'META-INF/**', 'module-info.class'
+    }
+    archiveFileName = "${mod_id}-valkyrie-protect.jar"
+    manifest {
+        attributes([
+                'Premain-Class'          : 'com.automatavalkyries.valkyrieprotect.ValkyrieProtectAgent',
+                'Agent-Class'            : 'com.automatavalkyries.valkyrieprotect.ValkyrieProtectAgent',
+                'Can-Retransform-Classes': 'true',
+                'Can-Redefine-Classes'   : 'false',
+                // 呼び出し先はブートストラップへ（vanilla の Entity からも見えるように）。同じフォルダの jar
+                'Boot-Class-Path'        : "${mod_id}-valkyrie-protect-hooks.jar",
+                'Implementation-Version' : mod_version
+        ])
+    }
 }
 def lifeguardHooksJarFile = layout.buildDirectory.file("libs/${mod_id}-lifeguard-hooks.jar")
 tasks.register('lifeguardHooksJar', Jar) {
@@ -113,10 +148,15 @@ tasks.register('flagDictionaryAgentJar', Jar) {
     }
 }
 tasks.named('assemble') {
+    dependsOn 'valkyrieProtectJar'
     dependsOn 'lifeguardJar'
     dependsOn 'observerJar'
     dependsOn 'eprotectPlusJar'
     dependsOn 'flagDictionaryAgentJar'
+}
+if (project.hasProperty('withValkyrieProtect')) {
+    tasks.matching { it.name.startsWith('prepareRun') || it.name in ['runClient', 'runServer', 'runGameTestServer'] }
+            .configureEach { dependsOn 'valkyrieProtectJar' }
 }
 if (project.hasProperty('withLifeGuard')) {
     tasks.matching { it.name.startsWith('prepareRun') || it.name in ['runClient', 'runServer', 'runGameTestServer'] }
@@ -206,6 +246,8 @@ minecraft {
 
             // -PwithObserver: 観察用の Java エージェント（クラスの書き換えを見張るだけ）を付けて起動する
             if (project.hasProperty('withLifeGuard')) jvmArg "-javaagent:${lifeguardJarFile.get().asFile.absolutePath}"
+            // -PwithValkyrieProtect: オートマタヴァルキリー protect の Java エージェント（戦術兵姫だけを守る）を付けて起動する
+            if (project.hasProperty('withValkyrieProtect')) jvmArg "-javaagent:${valkyrieProtectJarFile.get().asFile.absolutePath}"
             if (project.hasProperty('withObserver')) jvmArg "-javaagent:${observerJarFile.get().asFile.absolutePath}"
 
             // -PwithEprotectPlus / -PwithAllAgents / -PwithAllKillMods: Eprotect+ 高度防御・調査・迂回・真抹殺 Java エージェントを付けて起動する
@@ -334,6 +376,8 @@ dependencies {
     compileOnly fg.deobf("maven.modrinth:jei:15.62.0.217")
     // LifeGuard の呼び出し先（実行時はエージェントがブートストラップに置く。MOD の jar には入れない）
     compileOnly sourceSets.lifeguardhooks.output
+    // オートマタヴァルキリー protect の呼び出し先（同じく実行時はエージェントがブートストラップに置く）
+    compileOnly sourceSets.valkyrieprotecthooks.output
 
     // Mixin の refmap 生成用アノテーションプロセッサ
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
@@ -366,7 +410,8 @@ dependencies {
         runtimeOnly fg.deobf("curse.maven:hyperlink-1274604:7052766")
         runtimeOnly fg.deobf("curse.maven:the-trial-monolith-1462850:8561617")
         runtimeOnly fg.deobf("curse.maven:no-sugar-1476611:8000478")
-        runtimeOnly fg.deobf("maven.modrinth:omni-mobs:0.3.5.3")
+        // -PwithoutOmniMobs: Omni-Mobs だけ外す（2026-10-05、爆発のたびに Husk を大量に作る問題の切り分け用）
+        if (!project.hasProperty('withoutOmniMobs')) runtimeOnly fg.deobf("maven.modrinth:omni-mobs:0.3.5.3")
         runtimeOnly fg.deobf("maven.modrinth:imds-reborn:1.4.0")
         runtimeOnly fg.deobf("maven.modrinth:re-avaritia:1.20.1-1.4.2-release")
         runtimeOnly fg.deobf("maven.modrinth:more_avaritia:2.4")

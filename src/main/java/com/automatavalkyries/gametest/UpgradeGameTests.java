@@ -130,6 +130,40 @@ public class UpgradeGameTests {
         helper.succeed();
     }
 
+    /** オーバーロード・イグナイター: 持ち物の兵装を全部オーバーロード化し、スニークで全部戻す。兵装でない物には触らない */
+    @GameTest(template = TEMPLATE)
+    public static void overloadIgniterAppliesToWholeInventory(GameTestHelper helper) {
+        net.minecraft.world.entity.player.Player player = helper.makeMockPlayer();
+        player.getInventory().setItem(0, ((TacticalWeaponItem) ModWeapons.PHOTON_EDGE.get()).charged());
+        player.getInventory().setItem(5, ((TacticalWeaponItem) ModWeapons.SCATTER_BLASTER.get()).charged());
+        player.getInventory().setItem(9, new ItemStack(ModItems.INGOT_ASTRITE.get(), 3));
+        int n = com.automatavalkyries.upgrade.OverloadIgniterItem.applyAll(player.getInventory(), true);
+        helper.assertTrue(n == 2 && com.automatavalkyries.weapon.Overload.is(player.getInventory().getItem(0))
+                && com.automatavalkyries.weapon.Overload.is(player.getInventory().getItem(5)), "weapons were not all overloaded: " + n);
+        helper.assertFalse(player.getInventory().getItem(9).hasTag(), "a non-weapon item was touched");
+        helper.assertTrue(com.automatavalkyries.upgrade.OverloadIgniterItem.applyAll(player.getInventory(), true) == 0, "already overloaded weapons were counted again");
+        helper.assertTrue(com.automatavalkyries.upgrade.OverloadIgniterItem.applyAll(player.getInventory(), false) == 2
+                && !com.automatavalkyries.weapon.Overload.is(player.getInventory().getItem(0)), "revert did not work");
+        helper.succeed();
+    }
+
+    /** 銃の説明は弾の威力（複数発射なら 1 発のダメージ × 弾数）で出る */
+    @GameTest(template = TEMPLATE)
+    public static void gunTooltipShowsShotDamage(GameTestHelper helper) {
+        java.util.function.Function<net.minecraft.world.item.Item, String> text = item -> {
+            java.util.List<net.minecraft.network.chat.Component> lines = new java.util.ArrayList<>();
+            item.appendHoverText(((TacticalWeaponItem) item).charged(), helper.getLevel(), lines, net.minecraft.world.item.TooltipFlag.NORMAL);
+            StringBuilder b = new StringBuilder();
+            for (var l : lines) b.append(l.getString()).append(' ');
+            return b.toString();
+        };
+        String scatter = text.apply(ModWeapons.SCATTER_BLASTER.get());
+        helper.assertTrue(scatter.contains("10 × 8"), "scatter blaster does not show 10 x 8: " + scatter);
+        String rail = text.apply(ModWeapons.LINEAR_RAIL_RIFLE.get());
+        helper.assertTrue(rail.contains("50") && !rail.contains("× "), "rail rifle does not show 50: " + rail);
+        helper.succeed();
+    }
+
     /** 行の先頭の翻訳キー（「 ▸ 」の頭が付いた行は、その中身のキー） */
     private static String key(net.minecraft.network.chat.Component line) {
         if (line.getContents() instanceof net.minecraft.network.chat.contents.TranslatableContents t) return t.getKey();

@@ -1,0 +1,44 @@
+package com.automatavalkyries.valkyrieprotect.hooks;
+
+/**
+ * オートマタヴァルキリー protect のエージェント（{@code automata_valkyries-valkyrie-protect.jar}）が、vanilla の
+ * {@code Entity} / {@code LivingEntity} の消去・即死の入口（remove / setRemoved / kill / die / setHealth）の先頭に差し込む呼び出し先。
+ * <p>
+ * ブートストラップのクラスパスに置く（エージェント jar の Boot-Class-Path）。どのクラスローダーのクラスからも見えるように JDK だけに依存する。
+ * 判断（戦術兵姫なら断る・機能停止に置き換える）は MOD が {@link #filter} に入れる。入っていなければ素通し。
+ * </p>
+ */
+public final class ValkyrieHooks {
+
+    /** MOD 側の判断。true を返すとその呼び出しをそこで打ち切る（元の処理をしない） */
+    public interface Filter {
+        /** @param op "remove" / "setRemoved" / "kill" / "die" / "setHealth"、arg はその引数（消去の理由・ダメージの源・HP） */
+        boolean refuse(Object entity, String op, Object arg);
+    }
+
+    /** MOD が入れる */
+    public static volatile Filter filter;
+    /** エージェントが入れる: 自分の変換を最後（いちばん外側）へ並べ直し、対象のクラスを再変換する */
+    public static volatile Runnable ensureLast;
+    /** エージェントが入れる: 状態の表示 */
+    public static volatile java.util.function.Supplier<String> status;
+
+    private ValkyrieHooks() {}
+
+    public static boolean refuse(Object entity, String op, Object arg) {
+        Filter f = filter;
+        if (f == null) return false;
+        try {
+            return f.refuse(entity, op, arg);
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    /** setHealth 用（float を箱に入れる） */
+    public static boolean refuseHealth(Object entity, float value) {
+        Filter f = filter;
+        if (f == null || value > 0.0F) return false; // 正の HP は見ない（毎回の箱詰めを避ける）
+        return refuse(entity, "setHealth", value);
+    }
+}

@@ -82,6 +82,7 @@ public class AutomataValkyries {
         }
         event.enqueueWork(ModNetwork::register);
         com.automatavalkyries.protect.LifeGuardLink.install();
+        com.automatavalkyries.protect.valkyrie.ValkyrieAgentLink.install();
         com.automatavalkyries.protect.flag.FlagDictionary.ensureAgentProtection();
         event.enqueueWork(EprotectManager::registerChunkLoadingCallback);
         if (EprotectConfig.get(EprotectConfig.REPORT_FOREIGN_ENTITY_HOOKS)) {

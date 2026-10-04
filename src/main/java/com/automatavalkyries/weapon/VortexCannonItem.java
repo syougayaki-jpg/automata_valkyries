@@ -19,6 +19,13 @@ import net.minecraft.world.phys.Vec3;
  */
 public class VortexCannonItem extends TacticalWeaponItem {
 
+    /** 弾の威力（説明に出す） */
+    @Override
+    public float[] shotDamage() {
+        return new float[]{BURST_DAMAGE, 1};
+    }
+
+
     public static final int CAPACITY = 800_000, PER_SHOT = 40_000, COOLDOWN = 80, DURATION = 40;
     public static final double RANGE = 32.0, PULL_RADIUS = 7.0, BURST_RADIUS = 4.0;
     public static final float BURST_DAMAGE = 80.0F, WEIGHT = 10.0F;

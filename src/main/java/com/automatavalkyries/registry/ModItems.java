@@ -97,6 +97,9 @@ public class ModItems {
             new com.automatavalkyries.item.TerminusStickItem(com.automatavalkyries.item.TerminusStickItem.defaultProperties()));
 
     // ---- プレイヤー用（2026-10-04 ユーザー指定で作り直し。中身は protect/PlayerWard） ----
+    /** 救済通信機（2026-10-04 ユーザー指定）: オメガコア無しで消去された戦術兵姫をバックアップから呼び出す */
+    public static final RegistryObject<Item> RESCUE_COMMUNICATOR = ITEMS.register("rescue_communicator", () ->
+            new com.automatavalkyries.item.RescueCommunicatorItem(new Item.Properties().stacksTo(1)));
     public static final RegistryObject<Item> WARD_CHARM = ITEMS.register("ward_charm", () ->
             new com.automatavalkyries.item.WardCharmItem(com.automatavalkyries.item.WardCharmItem.defaultProperties()));
     /** 無敵の護符（2026-10-04 ユーザー指定）: ダメージをすべて無効にし HP を最大に保つ（中身は protect/InvincibleCharm） */

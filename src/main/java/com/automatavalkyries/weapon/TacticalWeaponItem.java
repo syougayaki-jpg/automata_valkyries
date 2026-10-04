@@ -158,6 +158,15 @@ public abstract class TacticalWeaponItem extends Item implements GeoItem {
      * ③ カスタム（アップグレード）④ オーバーロード化しているか（していればその効果）⑤ 詳しい説明（Shift を押している間だけ）⑥ フレーバーテキスト。
      * 同じ内容になるバニラの「利き手に持ったとき」の行は出さない（{@link #getDefaultTooltipHideFlags}）
      */
+    /**
+     * 弾の威力（2026-10-05 ユーザー指定「銃の武器攻撃力を弾の威力で表記、複数発射なら 1 発のダメージ × 弾数」）: {1 発のダメージ, 弾数}。
+     * 銃・砲・弓の兵装が上書きする（近接の攻撃力を持たない兵装の説明に出す）。null なら出さない
+     */
+    @Nullable
+    public float[] shotDamage() {
+        return null;
+    }
+
     @Override
     public void appendHoverText(ItemStack stack, @Nullable Level level, List<Component> tooltip, TooltipFlag flag) {
         String id = ForgeRegistries.ITEMS.getKey(this).getPath();
@@ -176,6 +185,13 @@ public abstract class TacticalWeaponItem extends Item implements GeoItem {
             tooltip.add(stat(line));
             double speed = attribute(stack, net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_SPEED, 4.0) * WeaponUpgrades.mult(stack, WeaponUpgrades.Stat.SPEED);
             tooltip.add(stat(Component.translatable("gui.automata_valkyries.tip.speed", number(speed))));
+        } else if (shotDamage() != null) {
+            float[] shot = shotDamage();
+            String each = shot[0] >= Integer.MAX_VALUE ? "2,147,483,647" : number(shot[0] * damageMult);
+            Component line = shot[1] > 1 ? Component.translatable("gui.automata_valkyries.tip.shot_multi", each, (int) shot[1])
+                    : Component.translatable("gui.automata_valkyries.tip.shot", each);
+            if (damageMult != 1.0 && shot[0] < Integer.MAX_VALUE) line = line.copy().append(Component.translatable("gui.automata_valkyries.tip.mult", number(damageMult)).withStyle(ChatFormatting.DARK_GRAY));
+            tooltip.add(stat(line));
         } else if (damageMult != 1.0) {
             tooltip.add(stat(Component.translatable("gui.automata_valkyries.tip.damage_mult", number(damageMult))));
         }

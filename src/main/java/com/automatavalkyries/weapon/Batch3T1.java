@@ -92,6 +92,13 @@ public final class Batch3T1 {
      * 4・盲目（5 秒）・鈍化 II（4 秒）・発光（10 秒、壁越しに見える）。1 発 6,000 FE、間隔 2 秒。
      */
     public static class FlashLauncher extends SkillWeaponItem {
+
+        /** 弾の威力（説明に出す） */
+        @Override
+        public float[] shotDamage() {
+            return new float[]{12.0F, 1};
+        }
+
         public static final int COLOR = 0xFFFFE0;
         public static final double RADIUS = 5.0;
 

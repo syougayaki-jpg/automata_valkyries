@@ -21,6 +21,13 @@ import org.jetbrains.annotations.Nullable;
  */
 public class TwinBlasterItem extends TacticalWeaponItem {
 
+    /** 弾の威力（説明に出す） */
+    @Override
+    public float[] shotDamage() {
+        return new float[]{SHOT_DAMAGE, 1};
+    }
+
+
     public static final int CAPACITY = 120_000, PER_SHOT = 800, INTERVAL = 3;
     public static final float SHOT_DAMAGE = 10.0F, WEIGHT = 3.0F;
     public static final double RANGE = 32.0;

@@ -16,6 +16,13 @@ import net.minecraft.world.phys.Vec3;
  */
 public class CatastropheBusterItem extends ChargedWeaponItem {
 
+    /** 弾の威力（説明に出す）: T4 は左クリックの通常攻撃の火力（2026-10-05 ユーザー指定。チャージ攻撃はカンスト） */
+    @Override
+    public float[] shotDamage() {
+        return new float[]{MiniCatastropheEntity.DAMAGE, 1};
+    }
+
+
     public static final int CAPACITY = 5_000_000, PER_SHOT = 1_000_000, CHARGE = 60;
     public static final float WEIGHT = 35.0F;
 

@@ -129,6 +129,13 @@ public final class Batch3T2 {
      * 跳ねるたびに 2 割ずつ強くなる（10 → 12 → 14.4 …、無敵時間を無視）。1 射 20,000 FE、間隔 1 秒。
      */
     public static class RicochetRifle extends SkillWeaponItem {
+
+        /** 弾の威力（説明に出す） */
+        @Override
+        public float[] shotDamage() {
+            return new float[]{60.0F, 1};
+        }
+
         public static final int COLOR = 0xFFB040, BOUNCES = 6;
 
         public RicochetRifle(Properties p) {
@@ -314,6 +321,13 @@ public final class Batch3T2 {
      * 1 射 35,000 FE、間隔 2 秒。
      */
     public static class SonicCannon extends SkillWeaponItem {
+
+        /** 弾の威力（説明に出す） */
+        @Override
+        public float[] shotDamage() {
+            return new float[]{75.0F, 1};
+        }
+
         public static final int COLOR = 0x90FFE0;
 
         public SonicCannon(Properties p) {

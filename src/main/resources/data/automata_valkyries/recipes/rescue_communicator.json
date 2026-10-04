@@ -1,0 +1,26 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    " R ",
+    "ICI",
+    "IPI"
+  ],
+  "key": {
+    "R": {
+      "item": "minecraft:redstone"
+    },
+    "I": {
+      "item": "automata_valkyries:ingot_astrite"
+    },
+    "C": {
+      "item": "automata_valkyries:crystal_luminal"
+    },
+    "P": {
+      "item": "minecraft:compass"
+    }
+  },
+  "result": {
+    "item": "automata_valkyries:rescue_communicator"
+  }
+}

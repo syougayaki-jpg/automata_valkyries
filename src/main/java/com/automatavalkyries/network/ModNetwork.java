@@ -54,5 +54,22 @@ public final class ModNetwork {
                 .decoder(TwilightPacket::decode)
                 .consumerMainThread(TwilightPacket::handle)
                 .add();
+
+        // 救済通信機（一覧と呼び出し）
+        CHANNEL.messageBuilder(RescueListPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(RescueListPacket::encode)
+                .decoder(RescueListPacket::decode)
+                .consumerMainThread(RescueListPacket::handle)
+                .add();
+        CHANNEL.messageBuilder(RescueRecallPacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(RescueRecallPacket::encode)
+                .decoder(RescueRecallPacket::decode)
+                .consumerMainThread(RescueRecallPacket::handle)
+                .add();
+        CHANNEL.messageBuilder(RescueDiscardPacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(RescueDiscardPacket::encode)
+                .decoder(RescueDiscardPacket::decode)
+                .consumerMainThread(RescueDiscardPacket::handle)
+                .add();
     }
 }

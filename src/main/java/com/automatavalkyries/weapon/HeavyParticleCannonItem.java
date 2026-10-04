@@ -25,6 +25,13 @@ import org.joml.Vector3f;
  */
 public class HeavyParticleCannonItem extends ChargedWeaponItem {
 
+    /** 弾の威力（説明に出す） */
+    @Override
+    public float[] shotDamage() {
+        return new float[]{DAMAGE, 1};
+    }
+
+
     public static final int CAPACITY = 4_000_000, PER_SHOT = 200_000, CHARGE = 30, BEAM_TICKS = 40, PULSE = 4;
     public static final float DAMAGE = 100.0F, WEIGHT = 28.0F;
     public static final double RANGE = 96.0, WIDTH = 1.2;

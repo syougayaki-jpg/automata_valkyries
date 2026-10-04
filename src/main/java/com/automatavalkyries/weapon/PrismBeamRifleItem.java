@@ -28,6 +28,13 @@ import java.util.List;
  */
 public class PrismBeamRifleItem extends TacticalWeaponItem {
 
+    /** 弾の威力（説明に出す） */
+    @Override
+    public float[] shotDamage() {
+        return new float[]{DAMAGE, 1};
+    }
+
+
     public static final int CAPACITY = 1_500_000, PER_TICK = 1_500, PULSE = 2, RAMP_TICKS = 60, SPLITS = 3;
     public static final float DAMAGE = 5.0F, WEIGHT = 9.0F;
     public static final double RANGE = 40.0, WIDTH = 0.6, SPLIT_RANGE = 8.0;

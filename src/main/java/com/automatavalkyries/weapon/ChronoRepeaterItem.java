@@ -20,6 +20,13 @@ import java.util.List;
  */
 public class ChronoRepeaterItem extends TacticalWeaponItem {
 
+    /** 弾の威力（説明に出す） */
+    @Override
+    public float[] shotDamage() {
+        return new float[]{DAMAGE, 1};
+    }
+
+
     public static final int CAPACITY = 1_200_000, PER_SHOT = 60_000, COOLDOWN = 20, ECHOES = 2, ECHO_GAP = 10;
     public static final float DAMAGE = 120.0F, WEIGHT = 5.0F;
     public static final double RANGE = 48.0;

@@ -17,6 +17,13 @@ import net.minecraft.world.phys.Vec3;
  */
 public class NecrosisNeedleItem extends TacticalWeaponItem {
 
+    /** 弾の威力（説明に出す） */
+    @Override
+    public float[] shotDamage() {
+        return new float[]{NecrosisNeedleEntity.DAMAGE, 1};
+    }
+
+
     public static final int CAPACITY = 200_000, PER_SHOT = 10_000, COOLDOWN = 8;
     public static final float WEIGHT = 6.0F;
 

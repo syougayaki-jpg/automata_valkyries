@@ -22,6 +22,13 @@ import net.minecraft.world.phys.Vec3;
  */
 public class GenesisHaloItem extends ChargedWeaponItem {
 
+    /** 弾の威力（説明に出す）: T4 は左クリックの通常攻撃の火力（2026-10-05 ユーザー指定。チャージ攻撃はカンスト） */
+    @Override
+    public float[] shotDamage() {
+        return new float[]{T4NormalAttacks.LASER_DAMAGE, 1};
+    }
+
+
     public static final int CAPACITY = 40_000_000, PER_SHOT = 8_000_000, CHARGE = 100;
     public static final int RING_PILLARS = 12, DELAY = 20, POUR = 60, PULSE = 5;
     /** カンストダメージ（int の上限）。保護対象（Eprotect のボス）には上限が掛かる */

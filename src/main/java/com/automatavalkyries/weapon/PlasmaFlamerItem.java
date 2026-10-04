@@ -22,6 +22,13 @@ import java.util.List;
  */
 public class PlasmaFlamerItem extends TacticalWeaponItem {
 
+    /** 弾の威力（説明に出す） */
+    @Override
+    public float[] shotDamage() {
+        return new float[]{PULSE_DAMAGE, 1};
+    }
+
+
     public static final int CAPACITY = 600_000, PER_PULSE = 600, INTERVAL = 2;
     public static final float PULSE_DAMAGE = 12.0F, WEIGHT = 9.0F;
     public static final double RANGE = 9.0, HALF_ANGLE = 18.0;

@@ -463,7 +463,8 @@ def build(expr):
         Cube([0.5, 22.2, 3.5], [1.8, 1.6, 0.5], faces(all=ribbon, side=fill('D')), key='ribbon_loop'),
     ]))
     # 後ろ髪: 広く厚く、外側に毛束を重ねて輪郭をふくらませる
-    B.append(Bone('hair_upper', 'body', [0, 24.5, 2.3], [
+    # 後ろ髪は頭に付ける（頭の向きに追従。2026-10-04 ユーザー指定）
+    B.append(Bone('hair_upper', 'head', [0, 24.5, 2.3], [
         Cube([-3.3, 17.5, 1.4], [6.6, 7.0, 1.9], faces(all=HAIR, up=fill('H'))),
         Cube([-3.8, 18.0, 1.6], [1.0, 6.5, 1.5], faces(all=HAIR_FLAT, up=fill('H')), key='strand_u'),
         Cube([2.8, 18.0, 1.6], [1.0, 6.5, 1.5], faces(all=HAIR_FLAT, up=fill('H')), key='strand_u'),
