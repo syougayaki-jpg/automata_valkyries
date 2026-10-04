@@ -261,6 +261,11 @@ public final class FlagDictionary {
     public static boolean isHarmfulDamageSource(DamageSource source) {
         if (source == null) return false;
         if (source.is(DamageTypes.GENERIC_KILL) || source.is(DamageTypes.FELL_OUT_OF_WORLD)) return true;
+        // このMOD 自身の兵装のダメージ（overload_pierce・armor_piercing など）は即死扱いにしない。名前の「pierc」が辞書の迂回に当たり、
+        // エレノアに兵装のダメージが一切入らなかった（2026-10-05 ユーザーの報告）。通常の被弾の上限（Eprotect.capFinalDamage）で受ける。
+        // このMOD のアイテムを即死扱いにしない（EprotectForgeEvents.isForeignKillItem）のと揃える
+        var ownType = source.typeHolder().unwrapKey().map(key -> key.location()).orElse(null);
+        if (ownType != null && com.automatavalkyries.AutomataValkyries.MODID.equals(ownType.getNamespace())) return false;
 
         String msgId = source.getMsgId();
         if (msgId != null) {

@@ -16,10 +16,13 @@ public abstract class FakeLifeSpoofMixin {
     @Inject(method = "getHealth", at = @At("RETURN"), cancellable = true)
     private void fakemod$spoofHealth(CallbackInfoReturnable<Float> cir) {
         if (((LivingEntity) (Object) this).getTags().contains(com.automatavalkyries.gametest.fake.FakeKillMod.LIFE_SPOOF_TAG)) cir.setReturnValue(1.0F);
+        else if (((LivingEntity) (Object) this).getTags().contains(com.automatavalkyries.gametest.fake.FakeKillMod.FULL_HEALTH_SPOOF_TAG))
+            cir.setReturnValue(((LivingEntity) (Object) this).getMaxHealth());
     }
 
     @Inject(method = "isDeadOrDying", at = @At("RETURN"), cancellable = true)
     private void fakemod$spoofDeadOrDying(CallbackInfoReturnable<Boolean> cir) {
         if (((LivingEntity) (Object) this).getTags().contains(com.automatavalkyries.gametest.fake.FakeKillMod.LIFE_SPOOF_TAG)) cir.setReturnValue(true);
+        else if (((LivingEntity) (Object) this).getTags().contains(com.automatavalkyries.gametest.fake.FakeKillMod.FULL_HEALTH_SPOOF_TAG)) cir.setReturnValue(false);
     }
 }

@@ -24,6 +24,10 @@ public interface LivingEntityAccessor {
     @Invoker("dropCustomDeathLoot")
     void automata_valkyries$dropCustomDeathLoot(net.minecraft.world.damagesource.DamageSource source, int looting, boolean recentlyHit);
 
+    /** 死亡演出の 1 Tick（他 MOD に isDeadOrDying を書き換えられて vanilla が呼ばないとき、Eprotect が代わりに進める） */
+    @Invoker("tickDeath")
+    void automata_valkyries$tickDeath();
+
     /** 装備の落とし物 */
     @Invoker("dropEquipment")
     void automata_valkyries$dropEquipment();

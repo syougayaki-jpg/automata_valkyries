@@ -16,6 +16,8 @@ public final class FakeKillMod {
     public static final String PACKAGE = "com.automatavalkyries.gametest.fake.";
     /** この印の付いた個体の生死の getter を偽装する（{@code FakeLifeSpoofMixin}） */
     public static final String LIFE_SPOOF_TAG = "automata_valkyries_test_life_spoof";
+    /** getHealth が常に最大 HP を返す（被弾の HP が最大 HP から引かれる再現。2026-10-05 のエレノアの不具合） */
+    public static final String FULL_HEALTH_SPOOF_TAG = "automata_valkyries_test_full_health_spoof";
     /** この印の付いた個体の Tick を包み（guardEntityTick）の入口で打ち切る（{@code FakeTimeStopMixin}） */
     public static final String TIME_STOP_TAG = "automata_valkyries_test_time_stop";
 

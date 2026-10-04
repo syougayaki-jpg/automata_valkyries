@@ -84,6 +84,14 @@ public class Eprotect {
     /** hurt() の実行中か。この間の die() だけを正規の死亡として扱う */
     private int hurtDepth = 0;
     private float lastValidHealth = -1.0F;
+    /**
+     * 被弾の最中に HP から引く最終ダメージ（上限の後。{@link #notePendingDamage}）。-1 は無し。
+     * HP の書き込み（{@link #filterHealth}）で「実際の HP − このダメージ」に直す（2026-10-05: 他 MOD のエージェント・ASM が getHealth を書き換えて
+     * 最大 HP を返すと、vanilla の setHealth(getHealth() - ダメージ) が最大 HP から引かれ、何度当てても最大 HP − 1 撃分に戻っていた）
+     */
+    private float pendingDamage = -1.0F;
+    /** 前の Tick の死亡演出のカウンタ（{@link #tick} で進んだかを見る） */
+    private int deathTimeSeen = -1;
     /** 被弾量の時間窓の開始時刻と、その窓で既に引いた量 */
     private long damageWindowStart = -DAMAGE_WINDOW_TICKS;
     private float damageInWindow = 0.0F;
@@ -209,6 +217,12 @@ public class Eprotect {
     /** 毎 Tick（サーバー側）に実行する自己修復 */
     public void tick() {
         ownTickRuns++;
+        // 撃破後の演出（tickDeath）は vanilla では isDeadOrDying() が真のときだけ進む。他 MOD が getHealth / isDeadOrDying を書き換えて
+        // 「生きている」と答えさせると演出が進まず、撃破したのに消えなかった（2026-10-05、エレノア）。この Tick に進んでいなければ代わりに進める
+        if (!owner.level().isClientSide && isDying() && owner.deathTime == deathTimeSeen) {
+            ((com.automatavalkyries.mixin.LivingEntityAccessor) owner).automata_valkyries$tickDeath();
+        }
+        deathTimeSeen = owner.deathTime;
         hurtDepth = 0; // hurt() 中に例外が出てカウンタが残った場合の保険
         dimensionChangeApproved = false; // 次元移動の途中で例外が出て許可が残った場合の保険
         if (!isGuardingRemoval()) return;
@@ -305,8 +319,26 @@ public class Eprotect {
     }
 
     /** die() の直接呼び出し（即死攻撃）を拒否したことを記録する（所有エンティティの die() と Mixin から呼ぶ） */
-    public void noteRefusedDeath() {
+    /** die() の直接呼び出しを断ったことを記録する。凶悪技術（ブラックリストの MOD・強化保護中）なら true（HP は最大へ戻す） */
+    public boolean noteRefusedDeath() {
         AttackLog.refused(owner, AttackOp.DIE);
+        return maliciousRefusal();
+    }
+
+    /**
+     * 即死系の操作（die の直接呼び出し・HP 0 の直書き）を断ったとき、呼んだ MOD がブラックリストなら強化保護を始め、凶悪技術の罰則（HP を最大へ）の対象か返す。
+     * 被弾（hurt）を通る攻撃には前から効いていたが、hurt を通らない die・HP 0 の直書き（More Avaritia 等）では強化保護も罰則も動いていなかった（2026-10-05 ユーザーの報告）。
+     * HP を戻すのは呼び出し側（書き込みの途中なので、ここで setHealth すると上書きされる）
+     */
+    private boolean maliciousRefusal() {
+        if (owner.level().isClientSide || !isProtectionActive()) return false;
+        String mod = CallerAttribution.foreignClassMod(owner);
+        boolean listed = mod != null && ModBlacklist.contains(mod);
+        if (listed) com.automatavalkyries.protect.plus.EprotectPlusLink.triggerBlacklistReinforcement(mod);
+        if (!listed && !isReinforcedActive()) return false;
+        lastValidHealth = owner.getMaxHealth();
+        AttackLog.repaired(owner, "malicious_penalty:max_health");
+        return true;
     }
 
     /** hurt() 経由で HP が尽きた場合だけ死亡を許可する（die() の直接呼び出しは拒否） */
@@ -326,8 +358,14 @@ public class Eprotect {
         hurtDepth++;
     }
 
+    /** 被弾の最終ダメージ（上限の後）を覚える。直後の HP の書き込みで実際の HP から引く */
+    public void notePendingDamage(float amount) {
+        pendingDamage = hurtDepth > 0 && amount > 0.0F ? amount : -1.0F;
+    }
+
     public void endHurt() {
         if (hurtDepth > 0) hurtDepth--;
+        if (hurtDepth == 0) pendingDamage = -1.0F;
         // 正規の被弾で減った HP を「直前の正常値」として記録（同 Tick 内の即死ハックで被弾前に戻らないように）
         float hp = DirectRead.health(owner);
         if (Float.isFinite(hp) && hp > 0.0F) lastValidHealth = hp;
@@ -422,7 +460,7 @@ public class Eprotect {
             float safeCurrent = Float.isFinite(current) && current > 0.0F ? current : fallback;
             if (health <= 0.0F) {
                 AttackLog.refused(owner, AttackOp.HEALTH_LOSS + ":zero");
-                return safeCurrent;
+                return maliciousRefusal() ? owner.getMaxHealth() : safeCurrent;
             }
             // hurt() を通らない HP の削り（setHealth(現在値 - x) の連打など）も拒否。
             // 最大 HP の引き下げに合わせた切り詰めと回復は通す。設定で許していても、ブラックリストの MOD からは拒否する
@@ -434,6 +472,16 @@ public class Eprotect {
                 if (blacklistedCaller(AttackOp.HEALTH_LOSS, false)) return safeCurrent;
             }
         } else {
+            // 被弾の HP の書き込みを「実際の HP − 最終ダメージ」に直す（getHealth が書き換えられて最大 HP から引かれた分を戻さない）
+            if (pendingDamage >= 0.0F) {
+                float actual = DirectRead.health(owner);
+                float corrected = actual - pendingDamage;
+                pendingDamage = -1.0F;
+                if (Float.isFinite(actual) && actual > 0.0F && health > corrected + 0.01F) {
+                    AttackLog.repaired(owner, "health_spoof_in_hurt");
+                    health = corrected;
+                }
+            }
             // hurt() 実行中であっても、1 撃の最大ダメージ（MAX_HIT_RATIO）を超える不当な HP 0 化を弾く
             float minAllowed = fallback - (owner.getMaxHealth() * MAX_HIT_RATIO + 1.0F);
             if (health <= 0.0F && minAllowed > 0.0F) {

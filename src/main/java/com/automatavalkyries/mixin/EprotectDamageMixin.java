@@ -104,7 +104,15 @@ public abstract class EprotectDamageMixin {
     @Inject(method = "hurt", at = @At("RETURN"))
     private void automata_valkyries$endHurt(DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
         Eprotect protect = automata_valkyries$getProtect();
-        if (protect != null) protect.endHurt();
+        if (protect == null) return;
+        // 正規の最後の一撃で実際の HP が尽きたのに死亡処理が呼ばれなかったら（他 MOD が getHealth / isDeadOrDying を書き換えて
+        // 「生きている」と答えさせると vanilla の hurt が die を呼ばない。2026-10-05、HP 0 → 修復で 50 に戻り撃破できなかった）、ここで呼ぶ
+        LivingEntity self = (LivingEntity) (Object) this;
+        if (!self.level().isClientSide && protect.isProtectionActive() && !protect.isDefeated() && !protect.isDying()
+                && !(com.automatavalkyries.protect.DirectRead.health(self) > 0.0F) && protect.canDie()) {
+            self.die(source);
+        }
+        protect.endHurt();
     }
 
     /** まな板剣などの NaN / 無限大 / 桁外れな値を上限値へ置き換える */
@@ -151,9 +159,9 @@ public abstract class EprotectDamageMixin {
 
             if (!protect.canDie()) {
                 ci.cancel();
-                protect.noteRefusedDeath();
+                boolean malicious = protect.noteRefusedDeath(); // 凶悪技術なら罰則で HP を最大へ
                 float current = com.automatavalkyries.protect.DirectRead.health(self);
-                float fallback = Float.isFinite(current) && current > 0.0F ? current : self.getMaxHealth();
+                float fallback = !malicious && Float.isFinite(current) && current > 0.0F ? current : self.getMaxHealth();
                 self.setHealth(fallback);
                 self.deathTime = 0;
             }
@@ -214,6 +222,11 @@ public abstract class EprotectDamageMixin {
                     return;
                 }
                 cir.setReturnValue(false);
+            } else if (!cir.getReturnValue() && (protect.canDie()
+                    || (protect.isDefeated() && !(com.automatavalkyries.protect.DirectRead.health((LivingEntity) (Object) this) > 0.0F)))) {
+                // 正規の最後の一撃で実際の HP が尽きたのに、他 MOD が getHealth を書き換えて最大 HP を返すと
+                // 「死んでいない」と判定され、撃破できずに修復で HP が戻っていた（2026-10-05）。実際の HP で死を認める
+                cir.setReturnValue(true);
             }
         }
     }

@@ -1233,4 +1233,88 @@ public class WeaponGameTests {
             });
         }, user, target);
     }
+
+    /**
+     * このMOD の兵装のダメージ（名前に「pierc」を含む overload_pierce・armor_piercing など）は、エレノアの保護に即死扱いで丸ごと拒否されず、
+     * 通常の被弾の上限の中で HP が減る（2026-10-05 ユーザーの報告「エレノアに兵装のダメージが入らない」）
+     */
+    @GameTest(template = TEMPLATE, timeoutTicks = 100)
+    public static void ownWeaponDamageHurtsElenor(GameTestHelper helper) {
+        var elenor = helper.spawnWithNoFreeWill(com.automatavalkyries.registry.ModEntities.ELENOR.get(), new BlockPos(2, 2, 2));
+        Zombie user = dummy(helper, new Vec3(0.5, 2, 0.5));
+        float before = elenor.getHealth();
+        for (var type : java.util.List.of(WeaponDamage.OVERLOAD_PIERCE, WeaponDamage.ARMOR_PIERCING)) {
+            helper.assertFalse(com.automatavalkyries.protect.flag.FlagDictionary.isHarmfulDamageSource(WeaponDamage.source(user, type, user, user)),
+                    type.location() + " was classified as kill damage");
+        }
+        elenor.invulnerableTime = 0;
+        elenor.hurt(WeaponDamage.source(user, WeaponDamage.OVERLOAD_PIERCE, user, user), 50.0F);
+        helper.assertTrue(elenor.getHealth() < before, "Elenor took no damage from this mod's weapon damage: " + before + " -> " + elenor.getHealth());
+        elenor.getEprotect().triggerDespawn();
+        helper.succeed();
+    }
+
+    /** 実際の発射処理（レールライフル・パニッシュメント・レールガン）でエレノアの HP が減る */
+    @GameTest(template = TEMPLATE, batch = "weapon_elenor_fire", timeoutTicks = 100)
+    public static void realWeaponFireHurtsElenor(GameTestHelper helper) {
+        var elenor = helper.spawnWithNoFreeWill(com.automatavalkyries.registry.ModEntities.ELENOR.get(), new Vec3(4.5, 2, 2.5));
+        FakePlayer player = player(helper, new Vec3(0.5, 2, 2.5));
+        helper.runAfterDelay(2, () -> {
+            player.moveTo(player.getX(), elenor.getEyeY() - player.getEyeHeight(), player.getZ(), -90.0F, 0.0F);
+            player.setYHeadRot(-90.0F);
+            float before = elenor.getHealth();
+            RailRifleItem.fire(helper.getLevel(), player);
+            float afterRifle = elenor.getHealth();
+            elenor.invulnerableTime = 0;
+            Zombie user = facingX(helper, new Vec3(0.5, 2, 2.5));
+            com.automatavalkyries.weapon.PunishmentRailgunItem.fire(helper.getLevel(), user, 16, 4);
+            float afterRailgun = elenor.getHealth();
+            helper.assertTrue(afterRifle < before && afterRailgun < afterRifle,
+                    "Elenor HP: before=" + before + " rifle=" + afterRifle + " railgun=" + afterRailgun + " max=" + elenor.getMaxHealth());
+            elenor.getEprotect().triggerDespawn();
+            sweep(helper);
+            helper.succeed();
+        });
+    }
+
+    /** getHealth が最大 HP を返すよう書き換えられていても、エレノアの HP は被弾のたびに実際の HP から減る（2026-10-05） */
+    @GameTest(template = TEMPLATE, timeoutTicks = 100)
+    public static void elenorDamageStacksDespiteHealthSpoof(GameTestHelper helper) {
+        var elenor = helper.spawnWithNoFreeWill(com.automatavalkyries.registry.ModEntities.ELENOR.get(), new BlockPos(2, 2, 2));
+        Zombie user = dummy(helper, new Vec3(0.5, 2, 0.5));
+        elenor.addTag(com.automatavalkyries.gametest.fake.FakeKillMod.FULL_HEALTH_SPOOF_TAG);
+        float max = elenor.getMaxHealth();
+        elenor.invulnerableTime = 0;
+        elenor.hurt(WeaponDamage.source(user, WeaponDamage.ENERGY, user, user), 20.0F);
+        float first = com.automatavalkyries.protect.DirectRead.health(elenor);
+        elenor.getEprotect().resetDamageWindow();
+        elenor.invulnerableTime = 0;
+        elenor.hurt(WeaponDamage.source(user, WeaponDamage.ENERGY, user, user), 20.0F);
+        float second = com.automatavalkyries.protect.DirectRead.health(elenor);
+        elenor.removeTag(com.automatavalkyries.gametest.fake.FakeKillMod.FULL_HEALTH_SPOOF_TAG);
+        helper.assertTrue(first < max && second < first - 1.0F,
+                "the second hit was subtracted from the spoofed max health: max=" + max + " first=" + first + " second=" + second);
+        elenor.getEprotect().triggerDespawn();
+        helper.succeed();
+    }
+
+    /** getHealth が最大 HP を返すよう書き換えられていても、エレノアは正規のダメージで倒せる（撃破の判定が見かけの HP に騙されない） */
+    @GameTest(template = TEMPLATE, timeoutTicks = 200)
+    public static void elenorCanBeDefeatedDespiteHealthSpoof(GameTestHelper helper) {
+        var elenor = helper.spawnWithNoFreeWill(com.automatavalkyries.registry.ModEntities.ELENOR.get(), new BlockPos(2, 2, 2));
+        Zombie user = dummy(helper, new Vec3(0.5, 2, 0.5));
+        elenor.addTag(com.automatavalkyries.gametest.fake.FakeKillMod.FULL_HEALTH_SPOOF_TAG);
+        for (int i = 0; i < 100 && !elenor.getEprotect().isDefeated(); i++) {
+            elenor.invulnerableTime = 0;
+            elenor.getEprotect().resetDamageWindow();
+            elenor.hurt(WeaponDamage.source(user, WeaponDamage.ENERGY, user, user), 1000.0F);
+        }
+        float actual = com.automatavalkyries.protect.DirectRead.health(elenor);
+        helper.assertTrue(elenor.getEprotect().isDefeated(), "Elenor could not be defeated while getHealth is spoofed (actual hp=" + actual + ")");
+        // 撃破演出の後に正規に消える（isDeadOrDying も書き換えられていても）
+        helper.runAfterDelay(com.automatavalkyries.entity.ElenorEntity.DEATH_TICKS + 10, () -> {
+            helper.assertTrue(elenor.isRemoved(), "defeated Elenor was not removed while the spoof is active");
+            helper.succeed();
+        });
+    }
 }

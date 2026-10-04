@@ -127,9 +127,10 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
     public void baseTick() {
         super.baseTick();
         if (!this.level().isClientSide) {
-            protect.tick();
+            protect.tick(); // 撃破後の演出が進まないときの代行もここ（Eprotect#tick）
             tickRetreat();
-            bossEvent.setProgress(Math.max(0.0F, Math.min(1.0F, this.getHealth() / this.getMaxHealth())));
+            // 実際の HP で出す（他 MOD のエージェントが getHealth を書き換えて最大 HP を返すと、削れていても満タンに見えていた。2026-10-05）
+            bossEvent.setProgress(Math.max(0.0F, Math.min(1.0F, com.automatavalkyries.protect.DirectRead.health(this) / this.getMaxHealth())));
         } else {
             protect.clientTick();
         }
@@ -183,9 +184,9 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
     public void die(DamageSource source) {
         // hurt() を経ない die() の直接呼び出し（即死攻撃）は無視し、健全なHPへの復帰と特権カウンターを適用
         if (!protect.canDie()) {
-            protect.noteRefusedDeath();
+            boolean malicious = protect.noteRefusedDeath(); // 凶悪技術なら罰則で HP を最大へ
             float current = com.automatavalkyries.protect.DirectRead.health(this);
-            float fallback = Float.isFinite(current) && current > 0.0F ? current : this.getMaxHealth();
+            float fallback = !malicious && Float.isFinite(current) && current > 0.0F ? current : this.getMaxHealth();
             this.setHealth(fallback);
             this.deathTime = 0;
             com.automatavalkyries.protect.KillModCounters.counterAll(this);
