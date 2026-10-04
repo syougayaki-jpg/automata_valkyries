@@ -189,6 +189,10 @@ minecraft {
             // "REGISTRYDUMP": For getting the contents of all registries.
             property 'forge.logging.markers', 'REGISTRIES'
 
+            // 他の MOD の Mixin の refmap（SRG 名）を開発環境の名前へ読み替える（MDK の既定と同じ。Moonlight Lib などが開発環境で動くように）
+            property 'mixin.env.remapRefMap', 'true'
+            property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
+
             // Recommended logging level for the console
             // You can set various levels here.
             // Please read: https://stackoverflow.com/questions/2031163/when-to-use-the-different-log-levels
@@ -458,6 +462,19 @@ dependencies {
     }
     if (project.hasProperty('withWitherzilla')) {
         runtimeOnly fg.deobf("maven.modrinth:witherzilla:1.7")                  // Witherzilla 1.7
+    }
+    // ダメージの確かめ用の的（2026-10-04 ユーザー指定）: ./gradlew runClient -PwithDummy
+    //   MmmMmmMmmMmm は refmap を持たず Mixin の注釈に SRG 名を直書きしているので、開発環境（公式名）ではそのままだと起動時に落ちる。
+    //   SRG 名を公式名に置き換えた写し build/devmods/dummmmmmy-*-dev.jar を読み込む（無ければ置き換え前の物。作り方は docs の手順）
+    if (project.hasProperty('withDummy')) {
+        def devDummy = project.file('build/devmods/dummmmmmy-1.20-2.0.12-forge-dev.jar')
+        if (devDummy.exists()) runtimeOnly fg.deobf(files(devDummy))
+        else runtimeOnly fg.deobf("maven.modrinth:mmmmmmmmmmmm:1.20-2.0.12-forge")  // MmmMmmMmmMmm（ダミー人形）1.20-2.0.12
+        runtimeOnly fg.deobf("maven.modrinth:moonlight:1.20-2.16.35-forge")    // Moonlight Lib（MmmMmmMmmMmm が必須）
+    }
+    // The Trial Monolith だけ（他の即死系 MOD 抜きで試す）: ./gradlew runClient -PwithTrialMonolith
+    if (project.hasProperty('withTrialMonolith')) {
+        runtimeOnly fg.deobf("curse.maven:the-trial-monolith-1462850:8561617")  // The Trial Monolith 1.4.9
     }
 
     // Example mod dependency with JEI - using fg.deobf() ensures the dependency is remapped to your development mappings

@@ -153,22 +153,161 @@ public abstract class TacticalWeaponItem extends Item implements GeoItem {
                 .withStyle(s -> s.withColor(Overload.CRIMSON).withBold(true)));
     }
 
+    /**
+     * 説明（2026-10-04 ユーザー指定で整理）: ① ティア・持ち方・重量 ② 今の性能（攻撃力・攻撃速度・チャージ・クールタイム・電力・弾数）
+     * ③ カスタム（アップグレード）④ オーバーロード化しているか（していればその効果）⑤ 詳しい説明（Shift を押している間だけ）⑥ フレーバーテキスト。
+     * 同じ内容になるバニラの「利き手に持ったとき」の行は出さない（{@link #getDefaultTooltipHideFlags}）
+     */
     @Override
     public void appendHoverText(ItemStack stack, @Nullable Level level, List<Component> tooltip, TooltipFlag flag) {
-        if (Overload.is(stack)) {
-            boolean t4 = Overload.isT4(this);
-            tooltip.add(Component.translatable(this instanceof ChargedWeaponItem ? "gui.automata_valkyries.overload_charged" : "gui.automata_valkyries.overload",
-                    String.format("%.0f", Overload.damageMult(this)), Math.round((1 - Overload.CHARGE_MULT) * 100)).withStyle(s -> s.withColor(Overload.GOLD)));
-            if (t4) tooltip.add(Component.translatable("gui.automata_valkyries.overload_t4", String.format("%.1f", Overload.RANGE_MULT)).withStyle(s -> s.withColor(Overload.CRIMSON)));
-        }
-        if (capacity > 0) tooltip.add(ItemEnergy.tooltip(stack, capacity(stack)));
-        WeaponUpgrades.appendTooltip(stack, tooltip);
-        appendStatus(stack, tooltip);
         String id = ForgeRegistries.ITEMS.getKey(this).getPath();
-        tooltip.add(Component.translatable("item.automata_valkyries." + id + ".desc", descArgs()).withStyle(ChatFormatting.GRAY));
-        Component kind = Component.translatable(twoHanded ? "gui.automata_valkyries.two_handed_tag" : "gui.automata_valkyries.one_handed_tag");
-        tooltip.add(Component.translatable("gui.automata_valkyries.weight", String.valueOf(weight)).append(" / ").append(kind)
-                .withStyle(ChatFormatting.DARK_GRAY));
+        // ① ティア・持ち方・重量
+        int tier = WeaponTiers.of(this);
+        String kindKey = id.startsWith("tool_") ? "tool" : id.startsWith("module_") ? "module" : "weapon";
+        tooltip.add(Component.translatable("gui.automata_valkyries.tip.tier", tier, Component.translatable("gui.automata_valkyries.tip.kind." + kindKey),
+                Component.translatable(twoHanded ? "gui.automata_valkyries.two_handed_tag" : "gui.automata_valkyries.one_handed_tag"), String.valueOf(weight))
+                .withStyle(s -> s.withColor(TIER_COLORS[Math.max(1, Math.min(4, tier))])));
+        // ② 今の性能
+        double damageMult = WeaponUpgrades.mult(stack, WeaponUpgrades.Stat.DAMAGE) * (Overload.is(stack) ? Overload.damageMult(this) : 1.0);
+        double attack = attribute(stack, net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE, 1.0);
+        if (attack > 1.0) {
+            Component line = Component.translatable("gui.automata_valkyries.tip.attack", number(attack * damageMult));
+            if (damageMult != 1.0) line = line.copy().append(Component.translatable("gui.automata_valkyries.tip.mult", number(damageMult)).withStyle(ChatFormatting.DARK_GRAY));
+            tooltip.add(stat(line));
+            double speed = attribute(stack, net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_SPEED, 4.0) * WeaponUpgrades.mult(stack, WeaponUpgrades.Stat.SPEED);
+            tooltip.add(stat(Component.translatable("gui.automata_valkyries.tip.speed", number(speed))));
+        } else if (damageMult != 1.0) {
+            tooltip.add(stat(Component.translatable("gui.automata_valkyries.tip.damage_mult", number(damageMult))));
+        }
+        if (this instanceof ChargedWeaponItem charged) {
+            tooltip.add(stat(Component.translatable("gui.automata_valkyries.tip.charge", seconds(charged.chargeTicks(stack)))));
+        }
+        int cooldown = cooldownTicks();
+        if (cooldown > 0) tooltip.add(stat(Component.translatable("gui.automata_valkyries.tip.cooldown", seconds(WeaponUpgrades.ticks(stack, cooldown)))));
+        if (capacity > 0) tooltip.add(stat(ItemEnergy.tooltip(stack, capacity(stack))));
+        List<Component> status = new java.util.ArrayList<>();
+        appendStatus(stack, status);
+        for (Component c : status) tooltip.add(stat(c));
+        // ③ カスタム
+        tooltip.add(WeaponUpgrades.summary(stack));
+        // ④ オーバーロード
+        if (Overload.is(stack)) {
+            tooltip.add(Component.translatable("gui.automata_valkyries.tip.overload_on").withStyle(s -> s.withColor(Overload.CRIMSON).withBold(true)));
+            tooltip.add(indent(Component.translatable(this instanceof ChargedWeaponItem ? "gui.automata_valkyries.overload_charged" : "gui.automata_valkyries.overload",
+                    String.format("%.0f", Overload.damageMult(this)), Math.round((1 - Overload.CHARGE_MULT) * 100)).withStyle(s -> s.withColor(Overload.GOLD))));
+            if (Overload.isT4(this)) {
+                tooltip.add(indent(Component.translatable("gui.automata_valkyries.overload_t4", String.format("%.1f", Overload.RANGE_MULT)).withStyle(s -> s.withColor(Overload.CRIMSON))));
+            }
+        } else {
+            tooltip.add(Component.translatable("gui.automata_valkyries.tip.overload_off").withStyle(ChatFormatting.DARK_GRAY));
+        }
+        // ⑤ 詳しい説明（Shift）
+        if (shiftDown()) {
+            for (String line : wrap(formatted("item.automata_valkyries." + id + ".desc", descArgs()))) {
+                tooltip.add(Component.literal(line).withStyle(ChatFormatting.GRAY));
+            }
+        } else {
+            tooltip.add(Component.translatable("gui.automata_valkyries.tip.shift").withStyle(ChatFormatting.DARK_GRAY));
+        }
+        // ⑥ フレーバーテキスト
+        String flavorKey = "item.automata_valkyries." + id + ".flavor";
+        if (net.minecraft.locale.Language.getInstance().has(flavorKey)) {
+            for (String line : wrap(net.minecraft.locale.Language.getInstance().getOrDefault(flavorKey))) {
+                tooltip.add(Component.literal(line).withStyle(s -> s.withColor(0x9A7AC8).withItalic(true)));
+            }
+        }
+    }
+
+    private static final int[] TIER_COLORS = {0xFFFFFF, 0x7FE0FF, 0xFFA040, 0xFF5A9A, 0xFFE070};
+
+    /** 性能の行の頭 */
+    private static Component stat(Component line) {
+        return Component.literal(" ▸ ").withStyle(ChatFormatting.DARK_GRAY).append(line.copy().withStyle(s -> s.getColor() == null ? s.withColor(ChatFormatting.WHITE) : s));
+    }
+
+    private static Component indent(Component line) {
+        return Component.literal("   ").append(line);
+    }
+
+    private static String number(double v) {
+        return v >= 100 || Math.abs(v - Math.rint(v)) < 1.0E-6 ? NumberFormat.getIntegerInstance().format(Math.round(v)) : String.format("%.1f", v);
+    }
+
+    private static String seconds(int ticks) {
+        return String.format("%.2f", ticks / 20.0).replaceAll("0$", "").replaceAll("\\.0$", "");
+    }
+
+    /** 利き手に持ったときの属性の値（プレイヤーの基本値 base を足す） */
+    private double attribute(ItemStack stack, net.minecraft.world.entity.ai.attributes.Attribute attribute, double base) {
+        double v = base;
+        for (net.minecraft.world.entity.ai.attributes.AttributeModifier m : getAttributeModifiers(net.minecraft.world.entity.EquipmentSlot.MAINHAND, stack).get(attribute)) {
+            if (m.getOperation() == net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADDITION) v += m.getAmount();
+        }
+        return v;
+    }
+
+    /** 技・連射の待ち時間（Tick。無ければ 0）。既定はクラスの定数（COOLDOWN・SLASH_INTERVAL・BLINK_COOLDOWN）から */
+    public int cooldownTicks() {
+        for (String name : new String[]{"COOLDOWN", "SLASH_INTERVAL", "BLINK_COOLDOWN"}) {
+            try {
+                java.lang.reflect.Field f = getClass().getField(name);
+                if (f.getType() == int.class && java.lang.reflect.Modifier.isStatic(f.getModifiers())) return f.getInt(null);
+            } catch (ReflectiveOperationException ignored) {
+            }
+        }
+        return 0;
+    }
+
+    /** 説明を翻訳して引数を入れる（クライアントの言語） */
+    private static String formatted(String key, Object[] args) {
+        String pattern = net.minecraft.locale.Language.getInstance().getOrDefault(key);
+        try {
+            return String.format(pattern, args);
+        } catch (java.util.IllegalFormatException e) {
+            return pattern;
+        }
+    }
+
+    /** 読みやすく折り返す（文ごとに行を分け、長い文は日本語なら 30 文字、英語なら 52 文字くらいで折る） */
+    static List<String> wrap(String text) {
+        List<String> lines = new java.util.ArrayList<>();
+        for (String sentence : text.split("(?<=[。！？])|(?<=[.!?])\\s+")) {
+            String t = sentence.strip();
+            if (t.isEmpty()) continue;
+            boolean cjk = t.codePoints().anyMatch(c -> c >= 0x3000);
+            if (cjk) {
+                while (t.length() > 30) {
+                    int cut = 30;
+                    for (int k = 30; k > 18; k--) if ("、・（）".indexOf(t.charAt(k - 1)) >= 0) { cut = k; break; }
+                    lines.add(t.substring(0, cut));
+                    t = t.substring(cut);
+                }
+                lines.add(t);
+            } else {
+                StringBuilder line = new StringBuilder();
+                for (String word : t.split(" ")) {
+                    if (line.length() + word.length() + 1 > 52 && line.length() > 0) {
+                        lines.add(line.toString());
+                        line.setLength(0);
+                    }
+                    if (line.length() > 0) line.append(' ');
+                    line.append(word);
+                }
+                if (line.length() > 0) lines.add(line.toString());
+            }
+        }
+        return lines;
+    }
+
+    /** Shift を押しているか（説明はクライアントでだけ作る） */
+    private static boolean shiftDown() {
+        return net.minecraftforge.fml.loading.FMLEnvironment.dist.isClient() && com.automatavalkyries.client.TooltipKeys.shift();
+    }
+
+    /** バニラの「利き手に持ったとき: 攻撃力・攻撃速度」の行は、② と同じなので出さない */
+    @Override
+    public int getDefaultTooltipHideFlags(ItemStack stack) {
+        return ItemStack.TooltipPart.MODIFIERS.getMask();
     }
 
     /** 弾数などの追加の行 */

@@ -94,6 +94,13 @@ public class ModItems {
     public static final RegistryObject<Item> TERMINUS_STICK = ITEMS.register("terminus_stick", () ->
             new com.automatavalkyries.item.TerminusStickItem(com.automatavalkyries.item.TerminusStickItem.defaultProperties()));
 
+    // ---- プレイヤー用（2026-10-04 ユーザー指定で作り直し。中身は protect/PlayerWard） ----
+    public static final RegistryObject<Item> WARD_CHARM = ITEMS.register("ward_charm", () ->
+            new com.automatavalkyries.item.WardCharmItem(com.automatavalkyries.item.WardCharmItem.defaultProperties()));
+    /** 無敵の護符（2026-10-04 ユーザー指定）: ダメージをすべて無効にし HP を最大に保つ（中身は protect/InvincibleCharm） */
+    public static final RegistryObject<Item> INVINCIBLE_CHARM = ITEMS.register("invincible_charm", () ->
+            new com.automatavalkyries.item.InvincibleCharmItem(com.automatavalkyries.item.InvincibleCharmItem.defaultProperties()));
+
     private static RegistryObject<Item> effect(String name, Rarity rarity, java.util.List<net.minecraft.core.particles.ParticleOptions> particles,
                                                int interval, boolean foil) {
         return ITEMS.register(name, () -> new com.automatavalkyries.item.EffectMaterialItem(new Item.Properties().rarity(rarity),

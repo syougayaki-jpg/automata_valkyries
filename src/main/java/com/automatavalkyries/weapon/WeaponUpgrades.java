@@ -199,6 +199,21 @@ public final class WeaponUpgrades {
         }
     }
 
+    /** 説明の 1 行のまとめ（「カスタム: 攻撃力 +30%・攻撃速度 +10%」。何も上げていなければ「カスタム: なし」） */
+    public static Component summary(ItemStack stack) {
+        net.minecraft.network.chat.MutableComponent line = Component.translatable("upgrade.automata_valkyries.summary").withStyle(s -> s.withColor(0x60D8FF));
+        boolean any = false;
+        for (Stat stat : Stat.values()) {
+            int level = level(stack, stat);
+            if (level <= 0) continue;
+            line.append(Component.literal(any ? " ・ " : " ").withStyle(s -> s.withColor(0x5A6A7A)))
+                    .append(Component.translatable("upgrade.automata_valkyries.summary_part", stat.title(), level * 10).withStyle(s -> s.withColor(stat.color)));
+            any = true;
+        }
+        if (!any) line.append(Component.literal(" ").append(Component.translatable("upgrade.automata_valkyries.summary_none")).withStyle(s -> s.withColor(0x5A6A7A)));
+        return line;
+    }
+
     /** 説明の行（上げた能力だけ） */
     public static void appendTooltip(ItemStack stack, List<Component> tooltip) {
         for (Stat stat : Stat.values()) {

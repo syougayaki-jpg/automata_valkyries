@@ -1,6 +1,7 @@
 package com.automatavalkyries.weapon;
 
 import com.automatavalkyries.item.DebugKillStickItem;
+import com.automatavalkyries.item.SuperKillStickItem;
 import com.automatavalkyries.protect.IEprotected;
 import com.automatavalkyries.registry.ModParticles;
 import net.minecraft.server.level.ServerLevel;
@@ -27,7 +28,7 @@ import net.minecraftforge.fml.common.Mod;
  *       持ち主の与えるダメージをティアごとに T1 ×40・T2 ×15・T3 ×6・T4 ×2 して、どれも T4 並みの 1,000 前後以上にする。{@link #damageMult}）、チャージ時間 ×{@link #CHARGE_MULT}、
  *       エフェクトが派手に（当たった所に紅と金の閃光・衝撃波、溜め・放つときの紅と金の光）</li>
  *   <li>T4 兵装はさらに: 攻撃範囲 ×{@link #RANGE_MULT}（チャージ攻撃・通常攻撃）、持っている間の加護の純粋強化（耐性 IV・再生 VI ほか）、
- *       チャージ攻撃が即死（{@link #kill}: 抹殺の棒と同じ汎用の軽い即死。MOD ごとの専用の対策はしない。
+ *       チャージ攻撃が即死（{@link #kill}: 超抹殺の棒と同じ汎用の手段。MOD ごとの専用の対策はしない。
  *       保護対象（このMOD のボス・兵姫）には被弾上限が優先）</li>
  *   <li>全兵装: 無敵時間の貫通（当たった直後の無敵時間を消してから当てる）と防御無視（防具・防具強度で減らない）。
  *       クリック長押しでオート連打（クライアント、{@code client/OverloadClient}）（2026-10-04 ユーザー指定）</li>
@@ -95,14 +96,24 @@ public final class Overload {
     }
 
     /**
-     * 即死（2026-10-04 ユーザー指定「専用対策はせず、普通の抹殺の棒と同じ程度の軽い即死」）: 抹殺の棒の汎用の手段
-     * （最大ダメージ・/kill・強制デスフラグ・Tick 停止。{@link DebugKillStickItem#annihilateGeneric}）。MOD ごとの専用の対策はしない。
-     * 保護対象（このMOD のボス・兵姫）とプレイヤーには何もしない（被弾上限を優先）
+     * 即死（2026-10-04 ユーザー指定「超抹殺の棒まで引き上げて」。MOD ごとの専用の対策はしない）: 超抹殺の棒の汎用の手段
+     * <ol>
+     *   <li>抹殺の棒の汎用の手段（最大ダメージ・/kill・強制デスフラグ・Tick 停止。{@link DebugKillStickItem#annihilateGeneric}）</li>
+     *   <li>深い追い出し（追跡・Tick 一覧・UUID 登録・検索表・区画から直接外し、ワールドとの接続を差し替え、消去フラグを直書き。{@link SuperKillStickItem#evict}）</li>
+     *   <li>同じ個体の再登録拒否（{@link SuperKillStickItem#refuseRejoin}）</li>
+     * </ol>
+     * ふつうの死亡処理の落とし物が出なかった相手には、バニラと同じ落とし物と経験値を補う（{@link DeathLootFallback}）。
+     * 抹殺の棒の MOD ごとの手段（IMDS-Reborn・Hyperlink のまね）は使わない。保護対象（このMOD のボス・兵姫）とプレイヤーには何もしない（被弾上限を優先）
      */
     public static void kill(LivingEntity victim, LivingEntity attacker) {
         if (victim.isRemoved() || victim == attacker || victim instanceof Player || victim instanceof IEprotected) return;
         if (!(victim.level() instanceof ServerLevel level)) return;
-        DebugKillStickItem.annihilateGeneric(level, WeaponDamage.source(attacker, WeaponDamage.ENERGY, attacker, attacker), victim);
+        net.minecraft.world.damagesource.DamageSource source = WeaponDamage.source(attacker, WeaponDamage.ENERGY, attacker, attacker);
+        DeathLootFallback.before(victim);
+        DebugKillStickItem.annihilateGeneric(level, source, victim);
+        DeathLootFallback.after(level, victim, source, attacker); // 死亡処理を通らずに消える相手にも、落とし物と経験値を
+        SuperKillStickItem.evict(level, victim);
+        SuperKillStickItem.refuseRejoin(victim);
     }
 
     /** 与えるダメージを上げ（防具などで減る前の値に掛ける）、当たった所に紅と金の閃光を出す */

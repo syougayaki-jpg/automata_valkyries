@@ -95,4 +95,47 @@ public class UpgradeGameTests {
         z.discard();
         helper.succeed();
     }
+
+    /** カスタム・マキシマイザー: もう片方の手の兵装のカスタムを全部上限に、スニークで 0 に */
+    @GameTest(template = TEMPLATE, batch = "upgrades")
+    public static void customMaximizerMaxesAll(GameTestHelper helper) {
+        FakePlayer player = player(helper);
+        player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(com.automatavalkyries.registry.ModUpgrades.CUSTOM_MAXIMIZER.get()));
+        player.setItemInHand(InteractionHand.OFF_HAND, ((TacticalWeaponItem) ModWeapons.PHOTON_EDGE.get()).charged());
+        player.getMainHandItem().use(helper.getLevel(), player, InteractionHand.MAIN_HAND);
+        for (Stat stat : Stat.values()) helper.assertTrue(WeaponUpgrades.level(player.getOffhandItem(), stat) == WeaponUpgrades.MAX_LEVEL, stat + " not maxed");
+        player.setShiftKeyDown(true);
+        player.getMainHandItem().use(helper.getLevel(), player, InteractionHand.MAIN_HAND);
+        for (Stat stat : Stat.values()) helper.assertTrue(WeaponUpgrades.level(player.getOffhandItem(), stat) == 0, stat + " not reset");
+        helper.succeed();
+    }
+
+    /** 説明の並び: ① ティア → ② 性能 → ③ カスタム → ④ オーバーロード → ⑤ Shift の案内（サーバーでは Shift は押されていない）。クリエイティブのタブの振り分け */
+    @GameTest(template = TEMPLATE, batch = "upgrades")
+    public static void tooltipOrderAndTabs(GameTestHelper helper) {
+        ItemStack edge = ((TacticalWeaponItem) ModWeapons.PHOTON_EDGE.get()).charged();
+        WeaponUpgrades.setLevel(edge, Stat.DAMAGE, 3);
+        java.util.List<net.minecraft.network.chat.Component> lines = new java.util.ArrayList<>();
+        edge.getItem().appendHoverText(edge, helper.getLevel(), lines, net.minecraft.world.item.TooltipFlag.NORMAL);
+        java.util.List<String> keys = new java.util.ArrayList<>();
+        for (var line : lines) keys.add(key(line));
+        int tier = keys.indexOf("gui.automata_valkyries.tip.tier"), custom = keys.indexOf("upgrade.automata_valkyries.summary"),
+                overload = keys.indexOf("gui.automata_valkyries.tip.overload_off"), shift = keys.indexOf("gui.automata_valkyries.tip.shift");
+        helper.assertTrue(tier == 0 && custom > tier + 1 && overload == custom + 1 && shift == overload + 1, "tooltip order is off: " + keys);
+        helper.assertTrue(lines.get(1).getString().contains("12") || lines.get(1).getString().contains("15"), "attack line missing: " + lines.get(1).getString());
+        helper.assertTrue(com.automatavalkyries.registry.ModCreativeTabs.group(ModWeapons.PHOTON_EDGE.get()) == com.automatavalkyries.registry.ModCreativeTabs.Group.WEAPONS
+                && com.automatavalkyries.registry.ModCreativeTabs.group(ModItems.INGOT_ASTRITE.get()) == com.automatavalkyries.registry.ModCreativeTabs.Group.MATERIALS
+                && com.automatavalkyries.registry.ModCreativeTabs.group(com.automatavalkyries.registry.ModBossDrops.MEMORY_STELLA.get()) == com.automatavalkyries.registry.ModCreativeTabs.Group.SPECIAL
+                && com.automatavalkyries.registry.ModCreativeTabs.group(ModWeapons.REQUIEM_BACKDROP.get()) == com.automatavalkyries.registry.ModCreativeTabs.Group.HIDDEN, "tab groups are off");
+        helper.succeed();
+    }
+
+    /** 行の先頭の翻訳キー（「 ▸ 」の頭が付いた行は、その中身のキー） */
+    private static String key(net.minecraft.network.chat.Component line) {
+        if (line.getContents() instanceof net.minecraft.network.chat.contents.TranslatableContents t) return t.getKey();
+        for (var sib : line.getSiblings()) {
+            if (sib.getContents() instanceof net.minecraft.network.chat.contents.TranslatableContents t) return t.getKey();
+        }
+        return line.getString();
+    }
 }

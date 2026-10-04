@@ -74,6 +74,11 @@ public abstract class SkillWeaponItem extends TacticalWeaponItem {
     }
 
     @Override
+    public int cooldownTicks() {
+        return cooldown;
+    }
+
+    @Override
     protected Object[] descArgs() {
         return new Object[]{format(perUse)};
     }

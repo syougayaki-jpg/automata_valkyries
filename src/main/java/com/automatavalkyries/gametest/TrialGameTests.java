@@ -140,6 +140,7 @@ public class TrialGameTests {
         helper.assertTrue(b.isAlive(), "plain weapon killed outright");
         Overload.overkill(a, over);
         helper.assertTrue(a.isDeadOrDying(), "overloaded T4 did not kill outright: " + a.getHealth());
+        helper.assertTrue(a.isRemoved() && helper.getLevel().getEntity(a.getUUID()) == null, "killed entity is still in the world (super annihilation eviction)");
         var elenor = helper.spawnWithNoFreeWill(com.automatavalkyries.registry.ModEntities.ELENOR.get(), new BlockPos(5, 2, 2));
         Overload.overkill(elenor, over);
         helper.assertTrue(elenor.isAlive(), "protected boss was killed outright");
@@ -177,6 +178,48 @@ public class TrialGameTests {
         helper.succeed();
     }
 
+    /** 落とし物の補い: 生きたままの相手にも、戦利品テーブルの物とプレイヤーが倒した分の経験値が落ちる（羊: 羊毛は必ず落ちる） */
+    @GameTest(template = TEMPLATE, batch = "trials_loot", timeoutTicks = 100)
+    public static void deathLootFallbackDrops(GameTestHelper helper) {
+        FakePlayer over = player(helper, new Vec3(0.5, 2, 0.5));
+        var sheep = helper.spawn(EntityType.SHEEP, new Vec3(3.5, 2, 3.5));
+        sheep.setNoAi(true);
+        var source = helper.getLevel().damageSources().playerAttack(over);
+        com.automatavalkyries.weapon.DeathLootFallback.drop(helper.getLevel(), sheep, source, over);
+        var area = new net.minecraft.world.phys.AABB(helper.absolutePos(new BlockPos(3, 2, 3))).inflate(4);
+        helper.assertTrue(helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, area,
+                e -> e.getItem().is(net.minecraft.tags.ItemTags.WOOL)).size() >= 1, "no wool dropped");
+        helper.assertTrue(!helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.ExperienceOrb.class, area).isEmpty(), "no experience dropped");
+        for (var e : helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.Entity.class, area, e -> !(e instanceof net.minecraft.world.entity.player.Player))) e.discard();
+        helper.succeed();
+    }
+
+    /** The Trial Monolith（-PwithTrialMonolith）: オーバーロードの T4 の超抹殺で消え、落とし物か経験値が落ちる（その MOD が無ければ素通り） */
+    @GameTest(template = TEMPLATE, batch = "trials_monolith_loot", timeoutTicks = 200)
+    public static void overloadKillDropsTrialMonolithLoot(GameTestHelper helper) {
+        if (!net.minecraftforge.fml.ModList.get().isLoaded("the_trial_monolith")) {
+            helper.succeed();
+            return;
+        }
+        var type = net.minecraftforge.registries.ForgeRegistries.ENTITY_TYPES.getValue(
+                net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("the_trial_monolith", "trial_monolith"));
+        FakePlayer over = player(helper, new Vec3(0.5, 2, 0.5));
+        over.setItemInHand(InteractionHand.MAIN_HAND, Overload.apply(((TacticalWeaponItem) ModWeapons.GENESIS_HALO.get()).charged()));
+        helper.runAfterDelay(2, () -> {
+            var boss = (net.minecraft.world.entity.LivingEntity) helper.spawn(type, new BlockPos(3, 2, 3));
+            helper.runAfterDelay(5, () -> {
+                Overload.overkill(boss, over);
+                var area = new net.minecraft.world.phys.AABB(helper.absolutePos(new BlockPos(3, 2, 3))).inflate(8);
+                int items = helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, area).size();
+                int orbs = helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.ExperienceOrb.class, area).size();
+                com.automatavalkyries.AutomataValkyries.LOGGER.info("[loot-check] trial monolith: removed={} items={} orbs={} xpReward={}", boss.isRemoved(), items, orbs, boss.getExperienceReward());
+                helper.assertTrue(boss.isRemoved(), "trial monolith was not annihilated");
+                helper.assertTrue(items + orbs > 0, "no loot or experience from the trial monolith");
+                helper.succeed();
+            });
+        });
+    }
+
     /** オーバーロードの T4 兵装を持っている間の加護は純粋強化（耐性 IV、ほかは 2 段上） */
     @GameTest(template = TEMPLATE, batch = "trials")
     public static void overloadT4Blessing(GameTestHelper helper) {
@@ -187,6 +230,90 @@ public class TrialGameTests {
         helper.assertTrue(z.getEffect(net.minecraft.world.effect.MobEffects.DAMAGE_RESISTANCE).getAmplifier() == 3, "resistance is not IV");
         helper.assertTrue(z.getEffect(net.minecraft.world.effect.MobEffects.DAMAGE_BOOST).getAmplifier() == 5, "strength is not VI");
         z.discard();
+        helper.succeed();
+    }
+
+    /**
+     * 守護の護符（2026-10-04 作り直し）: 持っているプレイヤーは /kill 型のダメージ・die() の直接呼び出し・被弾以外の HP 0 化を受けない。
+     * 通常のダメージ（エレノアの攻撃と同じ、mob の近接）は通り、命に届く量なら倒れる。持っていなければ守られない
+     */
+    @GameTest(template = TEMPLATE, batch = "ward_charm", timeoutTicks = 100)
+    public static void wardCharmRefusesInstantKillOnly(GameTestHelper helper) {
+        // FakePlayer はどのダメージも受けず die() も空なので、ふつうに傷つくテスト用のプレイヤーを使う
+        var warded = helper.makeMockPlayer();
+        var plain = helper.makeMockPlayer();
+        warded.getInventory().add(new ItemStack(com.automatavalkyries.registry.ModItems.WARD_CHARM.get()));
+        com.automatavalkyries.protect.PlayerWard.refresh(warded);
+        com.automatavalkyries.protect.PlayerWard.refresh(plain);
+        helper.assertTrue(com.automatavalkyries.protect.PlayerWard.isActive(warded), "ward is not active");
+        helper.assertFalse(com.automatavalkyries.protect.PlayerWard.isActive(plain), "player without the charm is warded");
+        float before = warded.getHealth();
+        warded.hurt(helper.getLevel().damageSources().genericKill(), Float.MAX_VALUE);
+        helper.assertTrue(warded.getHealth() == before && warded.isAlive(), "/kill-type damage went through: " + warded.getHealth());
+        warded.setHealth(0F);
+        helper.assertTrue(warded.getHealth() == before, "health was zeroed outside of damage");
+        warded.die(helper.getLevel().damageSources().generic());
+        helper.assertFalse(warded.isDeadOrDying(), "direct die() went through");
+        var elenor = helper.spawnWithNoFreeWill(com.automatavalkyries.registry.ModEntities.ELENOR.get(), new BlockPos(3, 2, 3));
+        var ordinary = helper.getLevel().damageSources().mobAttack(elenor);
+        warded.invulnerableTime = 0;
+        warded.hurt(ordinary, 4F);
+        helper.assertTrue(warded.getHealth() < before, "ordinary damage (Elenor's attack) was blocked");
+        warded.invulnerableTime = 0;
+        warded.hurt(ordinary, 1000F);
+        helper.assertTrue(warded.isDeadOrDying(), "lethal ordinary damage did not kill the warded player");
+        plain.hurt(helper.getLevel().damageSources().genericKill(), Float.MAX_VALUE);
+        helper.assertTrue(plain.isDeadOrDying(), "/kill did not kill the player without the charm");
+        elenor.retreat();
+        helper.succeed();
+    }
+
+    /** 無敵の護符: 持っているプレイヤーはどのダメージも受けず、HP を減らされても最大のまま。持っていなければふつうに減る */
+    @GameTest(template = TEMPLATE, batch = "invincible_charm", timeoutTicks = 100)
+    public static void invincibleCharmNullifiesDamage(GameTestHelper helper) {
+        var guarded = helper.makeMockPlayer();
+        var plain = helper.makeMockPlayer();
+        guarded.getInventory().add(new ItemStack(com.automatavalkyries.registry.ModItems.INVINCIBLE_CHARM.get()));
+        com.automatavalkyries.protect.InvincibleCharm.refresh(guarded);
+        com.automatavalkyries.protect.InvincibleCharm.refresh(plain);
+        float max = guarded.getMaxHealth();
+        guarded.hurt(helper.getLevel().damageSources().magic(), 10F);
+        guarded.invulnerableTime = 0;
+        guarded.hurt(helper.getLevel().damageSources().genericKill(), Float.MAX_VALUE);
+        helper.assertTrue(guarded.getHealth() == max && guarded.isAlive(), "damage went through the invincibility charm: " + guarded.getHealth());
+        guarded.setHealth(1F);
+        helper.assertTrue(guarded.getHealth() == max, "health was lowered: " + guarded.getHealth());
+        guarded.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
+        guarded.knockback(2.0, 1.0, 0.0);
+        guarded.push(1.0, 0.5, 0.0);
+        helper.assertTrue(guarded.getDeltaMovement().lengthSqr() == 0, "invincible player was knocked back: " + guarded.getDeltaMovement());
+        plain.hurt(helper.getLevel().damageSources().magic(), 10F);
+        helper.assertTrue(plain.getHealth() < plain.getMaxHealth(), "player without the charm took no damage");
+        helper.succeed();
+    }
+
+    /** 護符を手放させない: 捨てずに持ち物から無くなった護符は戻る。無敵の護符は無くなっても少しの間は無敵が続く */
+    @GameTest(template = TEMPLATE, batch = "charm_keeper", timeoutTicks = 100)
+    public static void charmsAreKeptAndInvincibilityLingers(GameTestHelper helper) {
+        var player = helper.makeMockPlayer();
+        player.getInventory().add(new ItemStack(com.automatavalkyries.registry.ModItems.WARD_CHARM.get()));
+        player.getInventory().add(new ItemStack(com.automatavalkyries.registry.ModItems.INVINCIBLE_CHARM.get()));
+        com.automatavalkyries.protect.CharmKeeper.keep(player);
+        com.automatavalkyries.protect.InvincibleCharm.refresh(player);
+        player.getInventory().clearContent(); // 他の処理に持ち物から消された
+        com.automatavalkyries.protect.InvincibleCharm.refresh(player);
+        helper.assertTrue(com.automatavalkyries.protect.InvincibleCharm.isActive(player), "invincibility ended as soon as the charm left");
+        com.automatavalkyries.protect.CharmKeeper.keep(player);
+        helper.assertTrue(player.getInventory().countItem(com.automatavalkyries.registry.ModItems.WARD_CHARM.get()) == 1
+                && player.getInventory().countItem(com.automatavalkyries.registry.ModItems.INVINCIBLE_CHARM.get()) == 1, "charms were not returned");
+        // 地面に落とされた護符は拾い直す（新しく作らない）
+        var ward = player.getInventory().items.stream().filter(st -> st.is(com.automatavalkyries.registry.ModItems.WARD_CHARM.get())).findFirst().orElseThrow();
+        var dropped = new net.minecraft.world.entity.item.ItemEntity(helper.getLevel(), player.getX(), player.getY(), player.getZ(), ward.copy());
+        ward.setCount(0);
+        helper.getLevel().addFreshEntity(dropped);
+        com.automatavalkyries.protect.CharmKeeper.keep(player);
+        helper.assertTrue(dropped.isRemoved(), "the dropped charm was not picked up");
+        helper.assertTrue(player.getInventory().countItem(com.automatavalkyries.registry.ModItems.WARD_CHARM.get()) == 1, "ward charm count is off after pick-up");
         helper.succeed();
     }
 

@@ -98,10 +98,16 @@ public class GenesisHaloItem extends ChargedWeaponItem {
         Overload.blessExtras(user); // オーバーロードなら耐性 IV・再生 VI
     }
 
+    /** 通常攻撃の間隔（Tick） */
+    @Override
+    public int cooldownTicks() {
+        return 8;
+    }
+
     /** 通常攻撃（左クリック。空振りでも。0.4 秒に 1 回・60,000 FE）: 中心のクリスタルからきらきらの光線（{@link T4NormalAttacks}） */
     @Override
     public boolean onEntitySwing(ItemStack stack, LivingEntity entity) {
-        if (entity.level() instanceof ServerLevel level && T4NormalAttacks.ready(entity, stack, 8, 60_000)) {
+        if (entity.level() instanceof ServerLevel level && T4NormalAttacks.ready(entity, stack, cooldownTicks(), 60_000)) {
             T4NormalAttacks.genesisLaser(level, entity);
         }
         return false;

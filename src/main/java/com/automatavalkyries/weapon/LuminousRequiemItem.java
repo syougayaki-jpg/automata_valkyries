@@ -90,10 +90,16 @@ public class LuminousRequiemItem extends ChargedWeaponItem {
         return !player.isCreative();
     }
 
+    /** 通常攻撃の間隔（Tick） */
+    @Override
+    public int cooldownTicks() {
+        return 6;
+    }
+
     /** 通常攻撃（左クリック。空振りでも。0.3 秒に 1 回・50,000 FE）: 虹の斬撃が飛ぶ（{@link T4NormalAttacks}） */
     @Override
     public boolean onEntitySwing(ItemStack stack, LivingEntity entity) {
-        if (entity.level() instanceof ServerLevel level && T4NormalAttacks.ready(entity, stack, 6, 50_000)) {
+        if (entity.level() instanceof ServerLevel level && T4NormalAttacks.ready(entity, stack, cooldownTicks(), 50_000)) {
             T4NormalAttacks.rainbowSlash(level, entity);
         }
         return false;

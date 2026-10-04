@@ -94,10 +94,16 @@ public class RagnarokEdgeItem extends ChargedWeaponItem {
         Overload.blessExtras(user); // オーバーロードなら耐性 IV・再生 VI
     }
 
+    /** 通常攻撃の間隔（Tick） */
+    @Override
+    public int cooldownTicks() {
+        return 12;
+    }
+
     /** 通常攻撃（左クリック。空振りでも。0.6 秒に 1 回・80,000 FE）: 赤黒い横薙ぎの斬撃がまわりに起きる（{@link T4NormalAttacks}） */
     @Override
     public boolean onEntitySwing(ItemStack stack, LivingEntity entity) {
-        if (entity.level() instanceof ServerLevel level && T4NormalAttacks.ready(entity, stack, 12, 80_000)) {
+        if (entity.level() instanceof ServerLevel level && T4NormalAttacks.ready(entity, stack, cooldownTicks(), 80_000)) {
             T4NormalAttacks.twilightSweep(level, entity);
         }
         return false;

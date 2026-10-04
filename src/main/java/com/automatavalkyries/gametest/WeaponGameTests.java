@@ -170,15 +170,18 @@ public class WeaponGameTests {
     /** クリエイティブのタブにアーモリー（T1〜T4）・兵装・コア・弾薬が並ぶ */
     @GameTest(template = TEMPLATE)
     public static void creativeTabListsArmoryAndWeapons(GameTestHelper helper) {
-        net.minecraft.world.item.CreativeModeTab tab = com.automatavalkyries.registry.ModCreativeTabs.MAIN_TAB.get();
-        tab.buildContents(new net.minecraft.world.item.CreativeModeTab.ItemDisplayParameters(
-                helper.getLevel().enabledFeatures(), true, helper.getLevel().registryAccess()));
-        java.util.Collection<ItemStack> items = tab.getDisplayItems();
+        var params = new net.minecraft.world.item.CreativeModeTab.ItemDisplayParameters(helper.getLevel().enabledFeatures(), true, helper.getLevel().registryAccess());
+        // タブは分けた（2026-10-04）: アーモリーは「マシン」、兵装・ルミナルコア・弾は「兵装」
+        net.minecraft.world.item.CreativeModeTab machines = com.automatavalkyries.registry.ModCreativeTabs.MACHINES_TAB.get();
+        machines.buildContents(params);
         net.minecraft.world.item.Item armory = ModChrono.MACHINES.get(ChronoMachineType.TACTICAL_ARMORY).get().asItem();
-        long armories = items.stream().filter(s -> s.is(armory)).count();
-        helper.assertTrue(armories == 4, "armory stacks in tab: " + armories + " of " + items.size());
+        long armories = machines.getDisplayItems().stream().filter(s -> s.is(armory)).count();
+        helper.assertTrue(armories == 4, "armory stacks in machines tab: " + armories + " of " + machines.getDisplayItems().size());
+        net.minecraft.world.item.CreativeModeTab weapons = com.automatavalkyries.registry.ModCreativeTabs.WEAPONS_TAB.get();
+        weapons.buildContents(params);
+        java.util.Collection<ItemStack> items = weapons.getDisplayItems();
         for (net.minecraft.world.item.Item item : new net.minecraft.world.item.Item[]{ModWeapons.PHOTON_EDGE.get(), ModWeapons.CORE_BASIC.get(), ModWeapons.AMMO_AP_ROUND.get()}) {
-            helper.assertTrue(items.stream().anyMatch(s -> s.is(item)), item + " missing from tab");
+            helper.assertTrue(items.stream().anyMatch(s -> s.is(item)), item + " missing from weapons tab");
         }
         helper.succeed();
     }

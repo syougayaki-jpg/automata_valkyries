@@ -19,6 +19,9 @@ public final class ModUpgrades {
             BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_CYAN).strength(5.0F, 1200.0F).requiresCorrectToolForDrops()
                     .sound(SoundType.METAL).lightLevel(state -> 7)));
     public static final RegistryObject<Item> STATION_ITEM = ModItems.ITEMS.register("upgrade_station", () -> new BlockItem(STATION.get(), new Item.Properties()));
+    /** カスタム・マキシマイザー（クリエイティブ用）: もう片方の手の兵装のカスタムを全部上限に */
+    public static final RegistryObject<Item> CUSTOM_MAXIMIZER = ModItems.ITEMS.register("custom_maximizer",
+            () -> new com.automatavalkyries.upgrade.CustomMaximizerItem(new Item.Properties().stacksTo(1).rarity(net.minecraft.world.item.Rarity.EPIC)));
     public static final RegistryObject<MenuType<UpgradeStationMenu>> MENU = ModMachines.MENUS.register("upgrade_station",
             () -> IForgeMenuType.create(UpgradeStationMenu::new));
 

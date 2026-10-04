@@ -43,10 +43,16 @@ public class CatastropheBusterItem extends ChargedWeaponItem {
         Overload.blessExtras(user); // オーバーロードなら耐性 IV・再生 VI
     }
 
+    /** 通常攻撃の間隔（Tick） */
+    @Override
+    public int cooldownTicks() {
+        return 15;
+    }
+
     /** 通常攻撃（左クリック。空振りでも。0.75 秒に 1 回・100,000 FE）: 敵を追う極小のカタストロフを撃つ（{@link T4NormalAttacks}） */
     @Override
     public boolean onEntitySwing(ItemStack stack, LivingEntity entity) {
-        if (entity.level() instanceof ServerLevel level && T4NormalAttacks.ready(entity, stack, 15, 100_000)) {
+        if (entity.level() instanceof ServerLevel level && T4NormalAttacks.ready(entity, stack, cooldownTicks(), 100_000)) {
             T4NormalAttacks.miniCatastrophe(level, entity);
         }
         return false;
