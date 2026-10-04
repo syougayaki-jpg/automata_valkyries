@@ -78,7 +78,7 @@ public class LuxionSaberItem extends TacticalWeaponItem {
         }
         LivingEntity target = findTarget(player);
         if (target == null) return InteractionResultHolder.pass(stack);
-        player.getCooldowns().addCooldown(this, BLINK_COOLDOWN);
+        player.getCooldowns().addCooldown(this, WeaponUpgrades.cooldown(player, this, BLINK_COOLDOWN));
         if (level instanceof ServerLevel server) {
             WeaponPower.use(player, stack, PER_HIT);
             blink(server, player, target, stack);

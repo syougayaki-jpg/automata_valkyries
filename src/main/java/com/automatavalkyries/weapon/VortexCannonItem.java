@@ -41,7 +41,7 @@ public class VortexCannonItem extends TacticalWeaponItem {
             notEnoughPower(player);
             return InteractionResultHolder.fail(stack);
         }
-        player.getCooldowns().addCooldown(this, COOLDOWN);
+        player.getCooldowns().addCooldown(this, WeaponUpgrades.cooldown(player, this, COOLDOWN));
         if (level instanceof ServerLevel server) {
             WeaponPower.use(player, stack, PER_SHOT);
             fire(server, player);

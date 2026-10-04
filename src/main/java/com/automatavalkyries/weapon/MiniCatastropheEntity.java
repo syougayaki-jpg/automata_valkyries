@@ -145,8 +145,7 @@ public class MiniCatastropheEntity extends ThrowableProjectile {
             double d = to.length();
             if (d > pullRadius + e.getBbWidth()) continue;
             if (d <= blastRadius + e.getBbWidth()) {
-                e.invulnerableTime = 0;
-                e.hurt(WeaponDamage.source(this, WeaponDamage.CATASTROPHE, this, causing), DAMAGE);
+                T4NormalAttacks.hit(e, this, WeaponDamage.CATASTROPHE, this, causing, DAMAGE);
             }
             if (d > 0.3) {
                 e.setDeltaMovement(e.getDeltaMovement().add(to.normalize().scale(Math.min(0.8, 2.0 / d))));

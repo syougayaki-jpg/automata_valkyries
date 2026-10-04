@@ -42,7 +42,7 @@ public class ScatterBlasterItem extends TacticalWeaponItem {
             notEnoughPower(player);
             return InteractionResultHolder.fail(gun);
         }
-        player.getCooldowns().addCooldown(this, COOLDOWN);
+        player.getCooldowns().addCooldown(this, WeaponUpgrades.cooldown(player, this, COOLDOWN));
         if (level instanceof ServerLevel server) {
             WeaponPower.use(player, gun, PER_SHOT);
             fire(server, player);

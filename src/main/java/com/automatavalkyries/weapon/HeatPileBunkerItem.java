@@ -55,7 +55,7 @@ public class HeatPileBunkerItem extends TacticalWeaponItem {
             notEnoughPower(player);
             return InteractionResultHolder.fail(stack);
         }
-        player.getCooldowns().addCooldown(this, COOLDOWN);
+        player.getCooldowns().addCooldown(this, WeaponUpgrades.cooldown(player, this, COOLDOWN));
         if (level instanceof ServerLevel server) {
             WeaponPower.use(player, stack, PER_STRIKE);
             strike(server, player);

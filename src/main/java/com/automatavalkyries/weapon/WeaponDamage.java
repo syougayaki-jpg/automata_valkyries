@@ -52,6 +52,14 @@ public final class WeaponDamage {
     public static final ResourceKey<DamageType> RAGNAROK =
             ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "ragnarok"));
 
+    /** オーバーロードの T4 兵装の通常攻撃（ウィザーの出現直後の無敵などの「無敵」を通る。2026-10-04 ユーザー指定） */
+    public static final ResourceKey<DamageType> OVERLOAD_PIERCE =
+            ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "overload_pierce"));
+
+    /** オーバーロードの T4 兵装の通常攻撃の割合ダメージ（最大 HP の 1%。無敵・防具・エンチャント・状態異常・耐性を通り、強化の倍率は掛けない） */
+    public static final ResourceKey<DamageType> OVERLOAD_REND =
+            ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "overload_rend"));
+
     private WeaponDamage() {}
 
     public static DamageSource source(Entity context, ResourceKey<DamageType> type, @Nullable Entity direct, @Nullable Entity causing) {

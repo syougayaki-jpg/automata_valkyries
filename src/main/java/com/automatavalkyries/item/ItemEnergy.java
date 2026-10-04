@@ -43,6 +43,11 @@ public final class ItemEnergy {
     }
 
     public static ICapabilityProvider provider(ItemStack stack, int capacity, int maxTransfer) {
+        return new Provider(stack, () -> capacity, maxTransfer);
+    }
+
+    /** 容量が後から変わる物（兵装のエネルギー容量のアップグレード）。容量はそのつど読む */
+    public static ICapabilityProvider provider(ItemStack stack, java.util.function.IntSupplier capacity, int maxTransfer) {
         return new Provider(stack, capacity, maxTransfer);
     }
 
@@ -64,10 +69,11 @@ public final class ItemEnergy {
 
     private static final class Provider implements ICapabilityProvider, IEnergyStorage {
         private final ItemStack stack;
-        private final int capacity, maxTransfer;
+        private final java.util.function.IntSupplier capacity;
+        private final int maxTransfer;
         private final LazyOptional<IEnergyStorage> self = LazyOptional.of(() -> this);
 
-        Provider(ItemStack stack, int capacity, int maxTransfer) {
+        Provider(ItemStack stack, java.util.function.IntSupplier capacity, int maxTransfer) {
             this.stack = stack;
             this.capacity = capacity;
             this.maxTransfer = maxTransfer;
@@ -81,7 +87,7 @@ public final class ItemEnergy {
         @Override
         public int receiveEnergy(int maxReceive, boolean simulate) {
             int stored = get(stack);
-            int received = Math.min(capacity - stored, Math.min(maxTransfer, maxReceive));
+            int received = Math.min(capacity.getAsInt() - stored, Math.min(maxTransfer, maxReceive));
             if (!simulate && received > 0) set(stack, stored + received);
             return Math.max(0, received);
         }
@@ -95,7 +101,7 @@ public final class ItemEnergy {
         }
 
         @Override public int getEnergyStored() { return get(stack); }
-        @Override public int getMaxEnergyStored() { return capacity; }
+        @Override public int getMaxEnergyStored() { return capacity.getAsInt(); }
         @Override public boolean canExtract() { return true; }
         @Override public boolean canReceive() { return true; }
     }

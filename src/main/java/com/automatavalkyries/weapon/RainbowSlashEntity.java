@@ -129,8 +129,7 @@ public class RainbowSlashEntity extends ThrowableProjectile {
             }
             if (!touched) continue;
             hit.add(target.getId());
-            target.invulnerableTime = 0;
-            target.hurt(WeaponDamage.source(this, WeaponDamage.ENERGY, this, owner), DAMAGE);
+            T4NormalAttacks.hit(target, this, WeaponDamage.ENERGY, this, owner, DAMAGE);
             if (level() instanceof ServerLevel server) {
                 Vec3 at = new Vec3(target.getX(), target.getY(0.55), target.getZ());
                 for (int k = 0; k < 3; k++) Fx.slash(server, at, rainbow(k / 3.0 + tickCount * 0.05), 1.8F - k * 0.2F, 7, roll() + k * 1.05F);

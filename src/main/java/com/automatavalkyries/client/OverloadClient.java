@@ -25,11 +25,39 @@ public final class OverloadClient {
 
     private OverloadClient() {}
 
+    private static int autoTicks;
+
+    /**
+     * オート連打（2026-10-04 ユーザー指定「クリック長押しでオート連打」）: オーバーロードの兵装を持って攻撃ボタンを押し続けている間、
+     * 攻撃の溜め（攻撃速度）が満ちるたびに（最短 2 Tick ごと）自動で振る。照準が敵ならその敵を攻撃、何も無ければ空振り（T4 の通常攻撃が出る）。
+     * ブロックを狙っているときは、いつもどおり掘る
+     */
+    private static void autoAttack(Minecraft mc) {
+        var player = mc.player;
+        if (mc.screen != null || mc.gameMode == null || !mc.options.keyAttack.isDown() || !Overload.holding(player) || player.isUsingItem()) {
+            autoTicks = 0;
+            return;
+        }
+        if (++autoTicks < 2 || player.getAttackStrengthScale(0.5F) < 1.0F) return;
+        var hit = mc.hitResult;
+        if (hit instanceof net.minecraft.world.phys.EntityHitResult entityHit) {
+            mc.gameMode.attack(player, entityHit.getEntity());
+        } else if (hit == null || hit.getType() == net.minecraft.world.phys.HitResult.Type.MISS) {
+            player.resetAttackStrengthTicker();
+            net.minecraftforge.common.ForgeHooks.onEmptyLeftClick(player);
+        } else {
+            return; // ブロック: 掘るのに任せる
+        }
+        player.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
+        autoTicks = 0;
+    }
+
     @SubscribeEvent
     public static void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.player == null || mc.isPaused()) return;
+        autoAttack(mc);
         RandomSource r = mc.level.random;
         for (Entity entity : mc.level.entitiesForRendering()) {
             if (!(entity instanceof LivingEntity e) || e.isInvisible() || e.distanceToSqr(mc.player) > 48 * 48 || !Overload.holding(e)) continue;

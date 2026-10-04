@@ -29,9 +29,10 @@ public abstract class ChargedWeaponItem extends TacticalWeaponItem {
 
     public int chargeTicks() { return chargeTicks; }
 
-    /** その兵装のチャージ時間（オーバーロードなら短い。{@link Overload#CHARGE_MULT}） */
+    /** その兵装のチャージ時間（オーバーロードなら短い。{@link Overload#CHARGE_MULT}。チャージ・クールタイムのアップグレードでも短い） */
     public int chargeTicks(ItemStack stack) {
-        return Overload.is(stack) ? Math.max(1, Math.round(chargeTicks * Overload.CHARGE_MULT)) : chargeTicks;
+        int base = Overload.is(stack) ? Math.max(1, Math.round(chargeTicks * Overload.CHARGE_MULT)) : chargeTicks;
+        return WeaponUpgrades.ticks(stack, base);
     }
 
     /** 撃つ（チャージしきって離したとき、サーバーで） */
@@ -119,7 +120,7 @@ public abstract class ChargedWeaponItem extends TacticalWeaponItem {
                 // チャージしきる前に離した: 引き出した分を戻す
                 int drawn = stack.getOrCreateTag().getInt("Drawn");
                 if (!(user instanceof Player p && p.getAbilities().instabuild)) {
-                    com.automatavalkyries.item.ItemEnergy.set(stack, Math.min(capacity, com.automatavalkyries.item.ItemEnergy.get(stack) + drawn));
+                    com.automatavalkyries.item.ItemEnergy.set(stack, Math.min(capacity(stack), com.automatavalkyries.item.ItemEnergy.get(stack) + drawn));
                 }
                 playUse(user, stack, "use");
             }

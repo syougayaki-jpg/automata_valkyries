@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/cube_bottom_top",
+  "textures": {
+    "top": "automata_valkyries:block/upgrade_station_top",
+    "side": "automata_valkyries:block/upgrade_station_side",
+    "bottom": "automata_valkyries:block/upgrade_station_bottom"
+  }
+}

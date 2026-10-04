@@ -1,0 +1,19 @@
+{
+  "replace": false,
+  "values": [
+    "automata_valkyries:core_singularity_chronos",
+    "automata_valkyries:core_genesis_luminal",
+    "automata_valkyries:core_catastrophe_nano",
+    "automata_valkyries:core_astrite",
+    "automata_valkyries:core_phononium",
+    "automata_valkyries:core_ceruleas",
+    "automata_valkyries:core_tin",
+    "automata_valkyries:core_lead",
+    "automata_valkyries:core_silver",
+    "automata_valkyries:core_nickel",
+    "automata_valkyries:core_zinc",
+    "automata_valkyries:core_aluminum",
+    "automata_valkyries:core_osmium",
+    "automata_valkyries:core_uranium"
+  ]
+}

@@ -65,7 +65,7 @@ public abstract class SkillWeaponItem extends TacticalWeaponItem {
         if (level instanceof ServerLevel server) {
             if (!skill(server, player, stack)) return InteractionResultHolder.fail(stack);
             WeaponPower.use(player, stack, perUse);
-            if (cooldown > 0) player.getCooldowns().addCooldown(this, cooldown);
+            if (cooldown > 0) player.getCooldowns().addCooldown(this, WeaponUpgrades.cooldown(player, this, cooldown));
             playUse(player, stack);
         }
         if (recoil() > 0) clientKick(player);

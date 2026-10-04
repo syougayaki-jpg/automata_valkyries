@@ -59,6 +59,11 @@ public abstract class TacticalWeaponItem extends Item implements GeoItem {
     }
 
     public int capacity() { return capacity; }
+
+    /** その兵装の容量（エネルギー容量のアップグレードで増える。{@link WeaponUpgrades}） */
+    public int capacity(ItemStack stack) {
+        return (int) Math.min(Integer.MAX_VALUE, Math.round(capacity * WeaponUpgrades.mult(stack, WeaponUpgrades.Stat.ENERGY)));
+    }
     public float weight() { return weight; }
     public boolean twoHanded() { return twoHanded; }
 
@@ -116,17 +121,17 @@ public abstract class TacticalWeaponItem extends Item implements GeoItem {
 
     @Override
     public void inventoryTick(ItemStack stack, Level level, Entity entity, int slot, boolean selected) {
-        if (!level.isClientSide() && capacity > 0) WeaponPower.topUp(entity, stack, capacity);
+        if (!level.isClientSide() && capacity > 0) WeaponPower.topUp(entity, stack, capacity(stack));
     }
 
     @Override
     public @Nullable ICapabilityProvider initCapabilities(ItemStack stack, @Nullable CompoundTag nbt) {
-        return capacity > 0 ? ItemEnergy.provider(stack, capacity, Math.max(1, capacity / 20)) : null;
+        return capacity > 0 ? ItemEnergy.provider(stack, () -> capacity(stack), Math.max(1, capacity / 20)) : null;
     }
 
     @Override public boolean isBarVisible(ItemStack stack) { return capacity > 0; }
-    @Override public int getBarWidth(ItemStack stack) { return ItemEnergy.barWidth(stack, capacity); }
-    @Override public int getBarColor(ItemStack stack) { return ItemEnergy.barColor(stack, capacity); }
+    @Override public int getBarWidth(ItemStack stack) { return ItemEnergy.barWidth(stack, capacity(stack)); }
+    @Override public int getBarColor(ItemStack stack) { return ItemEnergy.barColor(stack, capacity(stack)); }
 
     @Override
     public boolean shouldCauseReequipAnimation(ItemStack oldStack, ItemStack newStack, boolean slotChanged) {
@@ -156,7 +161,8 @@ public abstract class TacticalWeaponItem extends Item implements GeoItem {
                     String.format("%.0f", Overload.damageMult(this)), Math.round((1 - Overload.CHARGE_MULT) * 100)).withStyle(s -> s.withColor(Overload.GOLD)));
             if (t4) tooltip.add(Component.translatable("gui.automata_valkyries.overload_t4", String.format("%.1f", Overload.RANGE_MULT)).withStyle(s -> s.withColor(Overload.CRIMSON)));
         }
-        if (capacity > 0) tooltip.add(ItemEnergy.tooltip(stack, capacity));
+        if (capacity > 0) tooltip.add(ItemEnergy.tooltip(stack, capacity(stack)));
+        WeaponUpgrades.appendTooltip(stack, tooltip);
         appendStatus(stack, tooltip);
         String id = ForgeRegistries.ITEMS.getKey(this).getPath();
         tooltip.add(Component.translatable("item.automata_valkyries." + id + ".desc", descArgs()).withStyle(ChatFormatting.GRAY));

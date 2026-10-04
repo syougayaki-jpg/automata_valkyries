@@ -1,0 +1,19 @@
+{
+  "replace": false,
+  "values": [
+    "automata_valkyries:orb_chronos",
+    "automata_valkyries:orb_luminal",
+    "automata_valkyries:orb_nano",
+    "automata_valkyries:orb_astrite",
+    "automata_valkyries:orb_phononium",
+    "automata_valkyries:orb_ceruleas",
+    "automata_valkyries:orb_tin",
+    "automata_valkyries:orb_lead",
+    "automata_valkyries:orb_silver",
+    "automata_valkyries:orb_nickel",
+    "automata_valkyries:orb_zinc",
+    "automata_valkyries:orb_aluminum",
+    "automata_valkyries:orb_osmium",
+    "automata_valkyries:orb_uranium"
+  ]
+}

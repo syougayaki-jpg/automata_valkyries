@@ -55,7 +55,7 @@ public class MirageDaggerItem extends TacticalWeaponItem {
         if (level instanceof ServerLevel server) {
             if (blink(server, player) == null) return InteractionResultHolder.fail(stack);
             WeaponPower.use(player, stack, PER_BLINK);
-            player.getCooldowns().addCooldown(this, COOLDOWN);
+            player.getCooldowns().addCooldown(this, WeaponUpgrades.cooldown(player, this, COOLDOWN));
             playUse(player, stack);
         }
         player.swing(hand);

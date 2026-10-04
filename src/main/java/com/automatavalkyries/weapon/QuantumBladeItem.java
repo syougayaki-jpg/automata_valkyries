@@ -54,7 +54,7 @@ public class QuantumBladeItem extends TacticalWeaponItem {
             CompoundTag tag = stack.getOrCreateTag();
             long now = level.getGameTime();
             if (now >= tag.getLong("NextSlash") && WeaponPower.use(entity, stack, PER_SLASH)) {
-                tag.putLong("NextSlash", now + SLASH_INTERVAL);
+                tag.putLong("NextSlash", now + WeaponUpgrades.ticks(stack, SLASH_INTERVAL));
                 slash(level, entity);
                 playUse(entity, stack);
             }

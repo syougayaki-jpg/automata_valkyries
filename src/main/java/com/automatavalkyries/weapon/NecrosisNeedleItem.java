@@ -32,7 +32,7 @@ public class NecrosisNeedleItem extends TacticalWeaponItem {
             level.playSound(null, player.blockPosition(), SoundEvents.DISPENSER_FAIL, SoundSource.PLAYERS, 0.8F, 1.4F);
             return InteractionResultHolder.fail(gun);
         }
-        player.getCooldowns().addCooldown(this, COOLDOWN);
+        player.getCooldowns().addCooldown(this, WeaponUpgrades.cooldown(player, this, COOLDOWN));
         if (level instanceof ServerLevel server) {
             WeaponPower.use(player, gun, PER_SHOT);
             fire(server, player);

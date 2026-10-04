@@ -65,7 +65,7 @@ public class RailRifleItem extends TacticalWeaponItem {
                 level.playSound(null, player.blockPosition(), SoundEvents.DISPENSER_FAIL, SoundSource.PLAYERS, 0.8F, 1.2F);
                 return InteractionResultHolder.fail(rifle);
             }
-            player.getCooldowns().addCooldown(this, RELOAD);
+            player.getCooldowns().addCooldown(this, WeaponUpgrades.cooldown(player, this, RELOAD));
             level.playSound(null, player.blockPosition(), SoundEvents.CROSSBOW_LOADING_END, SoundSource.PLAYERS, 1.0F, 0.7F);
             return InteractionResultHolder.sidedSuccess(rifle, level.isClientSide());
         }
@@ -74,7 +74,7 @@ public class RailRifleItem extends TacticalWeaponItem {
             level.playSound(null, player.blockPosition(), SoundEvents.DISPENSER_FAIL, SoundSource.PLAYERS, 0.8F, 0.8F);
             return InteractionResultHolder.fail(rifle);
         }
-        player.getCooldowns().addCooldown(this, COOLDOWN);
+        player.getCooldowns().addCooldown(this, WeaponUpgrades.cooldown(player, this, COOLDOWN));
         if (level instanceof ServerLevel server) {
             WeaponPower.use(player, rifle, PER_SHOT);
             if (!player.getAbilities().instabuild) setRounds(rifle, rounds(rifle) - 1);

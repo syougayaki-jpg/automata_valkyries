@@ -94,6 +94,25 @@ public class TrialGameTests {
         helper.succeed();
     }
 
+    /** オーバーロードの兵装は無敵時間を貫通し、防具を無視する（ネザライトの胴でも、T1 のフォトンエッジの ×40 がそのまま入る） */
+    @GameTest(template = TEMPLATE, batch = "trials")
+    public static void overloadPiercesFramesAndArmor(GameTestHelper helper) {
+        FakePlayer over = player(helper, new Vec3(0.5, 2, 0.5));
+        over.setItemInHand(InteractionHand.MAIN_HAND, Overload.apply(((TacticalWeaponItem) ModWeapons.PHOTON_EDGE.get()).charged()));
+        Zombie husk = helper.spawn(EntityType.HUSK, new Vec3(2.5, 2, 2.5));
+        husk.setNoAi(true);
+        husk.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH).setBaseValue(1000);
+        husk.setHealth(1000);
+        husk.setItemSlot(net.minecraft.world.entity.EquipmentSlot.CHEST, new ItemStack(net.minecraft.world.item.Items.NETHERITE_CHESTPLATE));
+        husk.hurt(helper.getLevel().damageSources().playerAttack(over), 2F);
+        helper.assertTrue(Math.abs(husk.getHealth() - 920F) < 0.05F, "armor was not ignored: " + husk.getHealth());
+        husk.invulnerableTime = 20; // 当たった直後の無敵時間の最中
+        husk.hurt(helper.getLevel().damageSources().playerAttack(over), 2F);
+        helper.assertTrue(Math.abs(husk.getHealth() - 840F) < 0.1F, "invulnerability frames blocked the hit: " + husk.getHealth());
+        husk.discard();
+        helper.succeed();
+    }
+
     /** オーバーロードのチャージ兵装はチャージ時間が 7 割 */
     @GameTest(template = TEMPLATE, batch = "trials")
     public static void overloadShortensCharge(GameTestHelper helper) {
@@ -126,6 +145,35 @@ public class TrialGameTests {
         helper.assertTrue(elenor.isAlive(), "protected boss was killed outright");
         elenor.retreat();
         b.discard();
+        helper.succeed();
+    }
+
+    /**
+     * オーバーロードの T4 兵装の通常攻撃: 出現直後で無敵のウィザーにも当たる（オーバーロードでなければ当たらない）。
+     * 割合ダメージは最大 HP の 1% ちょうど（強化・オーバーロードの倍率を掛けない）
+     */
+    @GameTest(template = TEMPLATE, batch = "trials_wither", timeoutTicks = 100)
+    public static void overloadNormalAttackPiercesWither(GameTestHelper helper) {
+        FakePlayer over = player(helper, new Vec3(0.5, 2, 0.5)), plain = player(helper, new Vec3(0.5, 2, 6.5));
+        ItemStack ragnarok = ((TacticalWeaponItem) ModWeapons.RAGNAROK_EDGE.get()).charged();
+        over.setItemInHand(InteractionHand.MAIN_HAND, Overload.apply(ragnarok));
+        plain.setItemInHand(InteractionHand.MAIN_HAND, ragnarok);
+        net.minecraft.world.entity.boss.wither.WitherBoss wither = helper.spawn(EntityType.WITHER, new Vec3(3.5, 2, 3.5));
+        wither.setNoAi(true);
+        wither.makeInvulnerable();
+        float before = wither.getHealth();
+        com.automatavalkyries.weapon.T4NormalAttacks.hit(wither, plain, com.automatavalkyries.weapon.WeaponDamage.RAGNAROK, plain, plain, 50F);
+        helper.assertTrue(wither.getHealth() == before, "plain weapon hurt the invulnerable wither");
+        com.automatavalkyries.weapon.T4NormalAttacks.hit(wither, over, com.automatavalkyries.weapon.WeaponDamage.RAGNAROK, over, over, 50F);
+        helper.assertTrue(wither.getHealth() < before, "overloaded normal attack did not pierce the wither's invulnerability");
+        wither.discard();
+        Zombie husk = helper.spawn(EntityType.HUSK, new Vec3(3.5, 2, 0.5));
+        husk.setNoAi(true);
+        husk.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH).setBaseValue(1000);
+        husk.setHealth(1000);
+        com.automatavalkyries.weapon.T4NormalAttacks.hit(husk, over, com.automatavalkyries.weapon.WeaponDamage.ENERGY, over, over, 0F);
+        helper.assertTrue(Math.abs(husk.getHealth() - 990F) < 0.01F, "rend is not 1% of max HP: " + husk.getHealth());
+        husk.discard();
         helper.succeed();
     }
 

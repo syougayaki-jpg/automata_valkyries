@@ -1,0 +1,19 @@
+{
+  "replace": false,
+  "values": [
+    "automata_valkyries:star_chronos",
+    "automata_valkyries:star_luminal",
+    "automata_valkyries:star_nano",
+    "automata_valkyries:star_astrite",
+    "automata_valkyries:star_phononium",
+    "automata_valkyries:star_ceruleas",
+    "automata_valkyries:star_tin",
+    "automata_valkyries:star_lead",
+    "automata_valkyries:star_silver",
+    "automata_valkyries:star_nickel",
+    "automata_valkyries:star_zinc",
+    "automata_valkyries:star_aluminum",
+    "automata_valkyries:star_osmium",
+    "automata_valkyries:star_uranium"
+  ]
+}

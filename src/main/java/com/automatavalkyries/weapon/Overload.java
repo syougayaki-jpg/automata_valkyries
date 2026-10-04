@@ -29,6 +29,8 @@ import net.minecraftforge.fml.common.Mod;
  *   <li>T4 兵装はさらに: 攻撃範囲 ×{@link #RANGE_MULT}（チャージ攻撃・通常攻撃）、持っている間の加護の純粋強化（耐性 IV・再生 VI ほか）、
  *       チャージ攻撃が即死（{@link #kill}: 抹殺の棒と同じ汎用の軽い即死。MOD ごとの専用の対策はしない。
  *       保護対象（このMOD のボス・兵姫）には被弾上限が優先）</li>
+ *   <li>全兵装: 無敵時間の貫通（当たった直後の無敵時間を消してから当てる）と防御無視（防具・防具強度で減らない）。
+ *       クリック長押しでオート連打（クライアント、{@code client/OverloadClient}）（2026-10-04 ユーザー指定）</li>
  *   <li>見た目: エンチャントの輝き、名前に「オーバーロード」、光る部分が紅と金に脈打つ、刃の光が紅に、持っている間は紅と金の放電が散る（クライアント）</li>
  * </ul>
  */
@@ -106,10 +108,42 @@ public final class Overload {
     /** 与えるダメージを上げ（防具などで減る前の値に掛ける）、当たった所に紅と金の閃光を出す */
     @SubscribeEvent(priority = EventPriority.HIGH)
     public static void onHurt(LivingHurtEvent event) {
+        if (event.getSource().is(WeaponDamage.OVERLOAD_REND)) return; // 割合ダメージはそのまま
         if (event.getSource().getEntity() instanceof LivingEntity attacker && attacker != event.getEntity() && holding(attacker)) {
             event.setAmount(event.getAmount() * damageMult(attacker.getMainHandItem().getItem()));
             if (attacker.level() instanceof ServerLevel level) hitFlash(level, event.getEntity());
         }
+    }
+
+    /** オーバーロードの兵装の持ち主の攻撃か */
+    private static boolean fromOverloaded(net.minecraft.world.damagesource.DamageSource source, LivingEntity victim) {
+        return source.getEntity() instanceof LivingEntity attacker && attacker != victim && holding(attacker);
+    }
+
+    /** 無敵時間の貫通: 攻撃が始まる所（無敵時間の判定より前）で、当たった直後の無敵時間を消す */
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
+    public static void onAttack(net.minecraftforge.event.entity.living.LivingAttackEvent event) {
+        if (fromOverloaded(event.getSource(), event.getEntity())) event.getEntity().invulnerableTime = 0;
+    }
+
+    /**
+     * 防御無視: 防具・防具強度で減る分を先に足しておく（倍率を掛け終わった最後に。防具で減った後がちょうど元の値になる量を求める）。
+     * 防具を通らない種類のダメージは何もしない
+     */
+    @SubscribeEvent(priority = EventPriority.LOWEST)
+    public static void onHurtIgnoreArmor(LivingHurtEvent event) {
+        LivingEntity victim = event.getEntity();
+        if (!fromOverloaded(event.getSource(), victim) || event.getSource().is(net.minecraft.tags.DamageTypeTags.BYPASSES_ARMOR)) return;
+        float armor = victim.getArmorValue(), toughness = (float) victim.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ARMOR_TOUGHNESS);
+        float want = event.getAmount();
+        if (armor <= 0 || want <= 0 || !Float.isFinite(want)) return;
+        float x = want;
+        for (int i = 0; i < 12; i++) {
+            float after = net.minecraft.world.damagesource.CombatRules.getDamageAfterAbsorb(x, armor, toughness);
+            if (after <= 0) break;
+            x = x * want / after;
+        }
+        event.setAmount(x);
     }
 
     /** 当たった所の派手な光: 紅と金の閃光・火花・衝撃波・斬撃の閃き（無敵時間の間に重ねて当たったときは火花だけ） */

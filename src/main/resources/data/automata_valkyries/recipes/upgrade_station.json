@@ -1,0 +1,26 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    " L ",
+    "AEA",
+    "AWA"
+  ],
+  "key": {
+    "L": {
+      "item": "automata_valkyries:crystal_luminal"
+    },
+    "A": {
+      "tag": "forge:ingots/astrite"
+    },
+    "E": {
+      "item": "minecraft:enchanting_table"
+    },
+    "W": {
+      "item": "automata_valkyries:weapon_workbench"
+    }
+  },
+  "result": {
+    "item": "automata_valkyries:upgrade_station"
+  }
+}

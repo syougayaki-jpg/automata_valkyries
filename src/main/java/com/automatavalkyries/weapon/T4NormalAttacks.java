@@ -49,8 +49,27 @@ public final class T4NormalAttacks {
         CompoundTag tag = stack.getOrCreateTag();
         long now = level.getGameTime();
         if (now < tag.getLong("NextNormal") || !WeaponPower.use(user, stack, cost)) return false;
-        tag.putLong("NextNormal", now + interval);
+        tag.putLong("NextNormal", now + WeaponUpgrades.ticks(stack, interval));
         return true;
+    }
+
+    /** オーバーロードの T4 兵装の通常攻撃の割合ダメージ（最大 HP に対する割合） */
+    public static final float REND_RATIO = 0.01F;
+
+    /**
+     * 通常攻撃の 1 回の当たり（無敵時間を消して当てる）。撃った者がオーバーロードの T4 兵装を持っていれば、ウィザーの無敵も通る種類で当て、
+     * さらに最大 HP の 1% の割合ダメージ（{@link WeaponDamage#OVERLOAD_REND}）を足す（2026-10-04 ユーザー指定）
+     */
+    public static boolean hit(LivingEntity victim, Entity context, net.minecraft.resources.ResourceKey<net.minecraft.world.damagesource.DamageType> type,
+                              @Nullable Entity direct, @Nullable Entity causing, float amount) {
+        boolean over = causing instanceof LivingEntity living && Overload.holdingT4(living);
+        victim.invulnerableTime = 0;
+        boolean hurt = victim.hurt(WeaponDamage.source(context, over ? WeaponDamage.OVERLOAD_PIERCE : type, direct, causing), amount);
+        if (over && victim.isAlive()) {
+            victim.invulnerableTime = 0;
+            hurt |= victim.hurt(WeaponDamage.source(context, WeaponDamage.OVERLOAD_REND, direct, causing), victim.getMaxHealth() * REND_RATIO);
+        }
+        return hurt;
     }
 
     static boolean foe(@Nullable Entity owner, LivingEntity e) {
@@ -89,8 +108,7 @@ public final class T4NormalAttacks {
         List<LivingEntity> hit = level.getEntitiesOfClass(LivingEntity.class, user.getBoundingBox().inflate(radius + 1, 3 * Overload.range(user), radius + 1),
                 e -> foe(user, e) && Math.hypot(e.getX() - c.x, e.getZ() - c.z) <= radius + e.getBbWidth() * 0.5);
         for (LivingEntity e : hit) {
-            e.invulnerableTime = 0;
-            e.hurt(WeaponDamage.source(user, WeaponDamage.RAGNAROK, user, user), SWEEP_DAMAGE);
+            hit(e, user, WeaponDamage.RAGNAROK, user, user, SWEEP_DAMAGE);
             Vec3 out = new Vec3(e.getX() - c.x, 0, e.getZ() - c.z);
             if (out.lengthSqr() > 1.0E-4) {
                 out = out.normalize();
@@ -172,8 +190,7 @@ public final class T4NormalAttacks {
         Vec3 muzzle = user.getEyePosition().add(user.getLookAngle().scale(1.4)).add(0, -0.25, 0);
         level.addFreshEntity(new T4StrikeEntity(level, T4StrikeEntity.ARC, muzzle, target != null ? target.position().add(0, target.getBbHeight() * 0.6, 0) : ground, 0.35F, 0F, 5));
         if (target == null) return null;
-        target.invulnerableTime = 0;
-        target.hurt(WeaponDamage.source(user, WeaponDamage.ARC, user, user), THUNDER_DAMAGE);
+        hit(target, user, WeaponDamage.ARC, user, user, THUNDER_DAMAGE);
         // 放電: 的から近くの敵へ跳ぶ（近い順に 5 体まで）
         Vec3 from = target.position().add(0, target.getBbHeight() * 0.5, 0);
         double arcRange = ARC_RANGE * k;
@@ -185,8 +202,7 @@ public final class T4NormalAttacks {
             if (n++ >= ARC_TARGETS * k) break;
             Vec3 to = e.position().add(0, e.getBbHeight() * 0.5, 0);
             level.addFreshEntity(new T4StrikeEntity(level, T4StrikeEntity.ARC, from, to, 0.5F, 0F, 7));
-            e.invulnerableTime = 0;
-            e.hurt(WeaponDamage.source(user, WeaponDamage.ARC, user, user), ARC_DAMAGE);
+            hit(e, user, WeaponDamage.ARC, user, user, ARC_DAMAGE);
             Fx.burst(level, Fx.opt(ModParticles.SPARK.get(), THUNDER_CORE, 0.3F, 8), to, 8, 0.4);
         }
         return target;
@@ -222,8 +238,7 @@ public final class T4NormalAttacks {
         int hits = 0;
         for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, new AABB(start, end).inflate(1.5 * k), e -> foe(user, e))) {
             if (e.getBoundingBox().inflate(0.6 * k).clip(start, end).isEmpty() && !e.getBoundingBox().inflate(0.6 * k).contains(start)) continue;
-            e.invulnerableTime = 0;
-            e.hurt(WeaponDamage.source(user, WeaponDamage.ENERGY, user, user), LASER_DAMAGE);
+            hit(e, user, WeaponDamage.ENERGY, user, user, LASER_DAMAGE);
             Vec3 at = new Vec3(e.getX(), e.getY(0.55), e.getZ());
             Fx.star(level, at, 0xFFFFFF, 0.8F, 8, Vec3.ZERO);
             Fx.burst(level, Fx.opt(ModParticles.STAR.get(), GenesisHaloItem.GOLD, 0.25F, 12), at, 8, 0.3);

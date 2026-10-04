@@ -53,7 +53,7 @@ public class AvalancheLauncherItem extends TacticalWeaponItem {
             level.playSound(null, player.blockPosition(), SoundEvents.DISPENSER_FAIL, SoundSource.PLAYERS, 0.8F, 0.8F);
             return InteractionResultHolder.fail(stack);
         }
-        player.getCooldowns().addCooldown(this, MISSILES / PER_TICK + RELOAD);
+        player.getCooldowns().addCooldown(this, WeaponUpgrades.cooldown(player, this, MISSILES / PER_TICK + RELOAD));
         if (level instanceof ServerLevel server) {
             start(server, player, stack, hand);
             // もう片方の手にもアバランチがあれば、同時に斉射（128 連装）
