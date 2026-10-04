@@ -31,8 +31,17 @@ public class ModEntities {
                             .clientTrackingRange(10)
                             .build("farthest_elenor"));
 
+    /** 戦術兵姫（仮。2026-10-04、見た目と動きの確認用。身長 約 27px） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.ValkyrieEntity>> VALKYRIE =
+            ENTITY_TYPES.register("valkyrie", () ->
+                    EntityType.Builder.of(com.automatavalkyries.entity.ValkyrieEntity::new, MobCategory.CREATURE)
+                            .sized(0.6F, 1.7F)
+                            .clientTrackingRange(10)
+                            .build("valkyrie"));
+
     @SubscribeEvent
     public static void registerAttributes(EntityAttributeCreationEvent event) {
+        event.put(VALKYRIE.get(), com.automatavalkyries.entity.ValkyrieEntity.createAttributes().build());
         event.put(ELENOR.get(), ElenorEntity.createAttributes().build());
         event.put(FARTHEST_ELENOR.get(), ElenorEntity.createAttributes().build());
     }

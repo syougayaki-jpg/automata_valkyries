@@ -81,6 +81,8 @@ public class ModItems {
     // ---- スポーンエッグ ----
     public static final RegistryObject<Item> ELENOR_SPAWN_EGG = ITEMS.register("elenor_spawn_egg", () ->
             new ForgeSpawnEggItem(ModEntities.ELENOR, 0x512da8, 0xe040fb, new Item.Properties()));
+    public static final RegistryObject<Item> VALKYRIE_SPAWN_EGG = ITEMS.register("valkyrie_spawn_egg", () ->
+            new ForgeSpawnEggItem(ModEntities.VALKYRIE, 0xf4f6fa, 0x3be8ff, new Item.Properties()));
     public static final RegistryObject<Item> FARTHEST_ELENOR_SPAWN_EGG = ITEMS.register("farthest_elenor_spawn_egg", () ->
             new ForgeSpawnEggItem(ModEntities.FARTHEST_ELENOR, 0x120018, 0xb00020, new Item.Properties()));
 

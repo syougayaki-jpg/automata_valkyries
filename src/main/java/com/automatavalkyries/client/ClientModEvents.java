@@ -37,6 +37,7 @@ public class ClientModEvents {
     @SubscribeEvent
     public static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerEntityRenderer(ModEntities.ELENOR.get(), ElenorRenderer::new);
+        event.registerEntityRenderer(ModEntities.VALKYRIE.get(), ValkyrieRenderer::new);
         // 最果てのエレノアはエレノアと同じ見た目（ElenorRenderer は ElenorEntity 用なので型だけ合わせる）
         event.registerEntityRenderer(ModEntities.FARTHEST_ELENOR.get(), context -> {
             @SuppressWarnings({"unchecked", "rawtypes"})

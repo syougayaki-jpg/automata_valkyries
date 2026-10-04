@@ -11,6 +11,7 @@ import java.util.List;
 public class GeoPreview {
     static class Bone { String name, parent; double[] pivot; double rx, ry, rz; List<double[][]> quads = new ArrayList<>(); }
     static Map<String, Bone> bones = new LinkedHashMap<>();
+    static boolean valkyrie;
     static BufferedImage tex;
     static int TW, TH;
 
@@ -32,9 +33,11 @@ public class GeoPreview {
             if (o.has("cubes")) for (JsonElement ce : o.getAsJsonArray("cubes")) addCube(b, ce.getAsJsonObject());
             bones.put(b.name, b);
         }
-        String[] poses = {"idle", "walk", "spread", "death"};
-        double[] views = {0, 35, 90, 180};
-        int s = 7, cw = 30 * s, ch = 40 * s;
+        // 任意の引数: [拡大率] [ポーズのカンマ区切り] [向き（度）のカンマ区切り]。兵姫のモデル（識別子に valkyrie）はスカートの無い姿勢で描く
+        valkyrie = geo.getAsJsonObject("description").get("identifier").getAsString().contains("valkyrie");
+        String[] poses = a.length > 4 ? a[4].split(",") : new String[]{"idle", "walk", "spread", "death"};
+        double[] views = a.length > 5 ? Arrays.stream(a[5].split(",")).mapToDouble(Double::parseDouble).toArray() : new double[]{0, 35, 90, 180};
+        int s = a.length > 3 ? Integer.parseInt(a[3]) : 7, cw = 30 * s, ch = 40 * s;
         BufferedImage out = new BufferedImage(cw * views.length, ch * poses.length, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = out.createGraphics();
         g.setColor(new Color(0x9fb8d6)); g.fillRect(0, 0, out.getWidth(), out.getHeight());
@@ -111,6 +114,11 @@ public class GeoPreview {
         double upper = 0.1 + walk * 0.2;
         double mid = Math.max(0.1, Math.atan((0.2 + 4 * slope) / 6)) + 0.03 + walk * 0.1;
         double tip = Math.max(mid, Math.atan(1.05 * slope) + 0.03) + walk * 0.1;
+        if (valkyrie) { // スカートが無いので髪は背中に沿って少しだけ後ろへ、腕は少しだけ開く
+            upper = 0.06 + walk * 0.15; mid = upper + 0.04 + walk * 0.08; tip = mid + 0.04 + walk * 0.08;
+            m.put("right_arm", new double[]{armSwing + attackArc * 1.6 + 0.35 * death, N, 0.1 + 0.15 * death, 0});
+            m.put("left_arm", new double[]{-armSwing + 0.35 * death, N, -0.1 - 0.15 * death, 0});
+        }
         m.put("hair_upper", new double[]{-upper, N, N, 0});
         m.put("hair_mid", new double[]{-(mid - upper), N, N, 0});
         m.put("hair_tip", new double[]{-(tip - mid), N, N, 0});

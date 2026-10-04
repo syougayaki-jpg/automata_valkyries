@@ -1,5 +1,7 @@
 {
   "itemGroup.automata_valkyries.main": "戦術兵姫: 素材・部品",
+  "entity.automata_valkyries.valkyrie": "戦術兵姫 Type-V",
+  "item.automata_valkyries.valkyrie_spawn_egg": "戦術兵姫のスポーンエッグ",
   "entity.automata_valkyries.elenor": "エレノア",
   "entity.automata_valkyries.farthest_elenor": "最果てのエレノア",
   "entity.automata_valkyries.elenor.defeat_speech": "エレノア: 「あら、もう終わりですか？ 期待外れですね……♪」",

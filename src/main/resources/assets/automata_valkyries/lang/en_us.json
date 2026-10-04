@@ -1,5 +1,7 @@
 {
   "itemGroup.automata_valkyries.main": "Tactical Valkyries: Materials",
+  "entity.automata_valkyries.valkyrie": "Tactical Valkyrie Type-V",
+  "item.automata_valkyries.valkyrie_spawn_egg": "Tactical Valkyrie Spawn Egg",
   "entity.automata_valkyries.elenor": "Elenor",
   "entity.automata_valkyries.farthest_elenor": "Elenor of the Farthest End",
   "entity.automata_valkyries.elenor.defeat_speech": "Elenor: \"Oh, is that all? How disappointing...♪\"",

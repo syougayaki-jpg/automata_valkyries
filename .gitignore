@@ -35,3 +35,6 @@ agents/*.jar
 
 # Local reference material (third-party wiki transcriptions, not for publishing)
 .ref/
+
+# Python bytecode from tools/
+__pycache__/
