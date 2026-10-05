@@ -85,6 +85,8 @@ public class ModItems {
             new ForgeSpawnEggItem(ModEntities.VALKYRIE, 0xf4f6fa, 0x3be8ff, new Item.Properties()));
     public static final RegistryObject<Item> FARTHEST_ELENOR_SPAWN_EGG = ITEMS.register("farthest_elenor_spawn_egg", () ->
             new ForgeSpawnEggItem(ModEntities.FARTHEST_ELENOR, 0x120018, 0xb00020, new Item.Properties()));
+    public static final RegistryObject<Item> PROTECT_DUMMY_ZOMBIE_SPAWN_EGG = ITEMS.register("protect_dummy_zombie_spawn_egg", () ->
+            new ForgeSpawnEggItem(ModEntities.PROTECT_DUMMY_ZOMBIE, 0x00aa00, 0xffd700, new Item.Properties()));
 
     // ---- テスト用 ----
     public static final RegistryObject<Item> DEBUG_KILL_STICK = ITEMS.register("debug_kill_stick", () ->
@@ -103,11 +105,17 @@ public class ModItems {
             new com.automatavalkyries.item.TacticalRemoteItem(new Item.Properties().stacksTo(1)));
     public static final RegistryObject<Item> RESCUE_COMMUNICATOR = ITEMS.register("rescue_communicator", () ->
             new com.automatavalkyries.item.RescueCommunicatorItem(new Item.Properties().stacksTo(1)));
+    /** 退去願い（2026-10-05 ユーザー指定）: 検証用のダミーゾンビに正規の退場をしてもらう */
+    public static final RegistryObject<Item> EVICTION_NOTICE = ITEMS.register("eviction_notice", () ->
+            new com.automatavalkyries.item.EvictionNoticeItem(new Item.Properties().stacksTo(1)));
     public static final RegistryObject<Item> WARD_CHARM = ITEMS.register("ward_charm", () ->
             new com.automatavalkyries.item.WardCharmItem(com.automatavalkyries.item.WardCharmItem.defaultProperties()));
     /** 無敵の護符（2026-10-04 ユーザー指定）: ダメージをすべて無効にし HP を最大に保つ（中身は protect/InvincibleCharm） */
     public static final RegistryObject<Item> INVINCIBLE_CHARM = ITEMS.register("invincible_charm", () ->
             new com.automatavalkyries.item.InvincibleCharmItem(com.automatavalkyries.item.InvincibleCharmItem.defaultProperties()));
+    /** 特権守護の核（2026-10-04 ユーザー指定）: 魂（UUID）に Java エージェントの不可侵特権を刻印する（中身は protect/AgentPlayerProtection） */
+    public static final RegistryObject<Item> PRIVILEGE_AEGIS = ITEMS.register("privilege_aegis", () ->
+            new com.automatavalkyries.item.PrivilegeAegisItem(com.automatavalkyries.item.PrivilegeAegisItem.defaultProperties()));
 
     private static RegistryObject<Item> effect(String name, Rarity rarity, java.util.List<net.minecraft.core.particles.ParticleOptions> particles,
                                                int interval, boolean foil) {

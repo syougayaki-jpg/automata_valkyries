@@ -7,6 +7,7 @@ import org.spongepowered.asm.mixin.Pseudo;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
  * The Trial Monolith の魂ダメージ。加算（addSoulDamage / setSoulDamage）はすべて setSoulDamageForce を通るので、そこで止める。
@@ -40,6 +41,11 @@ public final class TrialMonolithMixins {
                 at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardSoulKill(Entity entity, CallbackInfo ci) {
             if (EprotectCompat.shieldAttack(entity, "trial_monolith:soulKill")) ci.cancel();
+        }
+
+        @Inject(method = {"isImmuneToSoulDamage", "isSoulProtected"}, at = @At("HEAD"), cancellable = true, require = 0)
+        private static void automata_valkyries$guardSoulProtected(Entity entity, CallbackInfoReturnable<Boolean> cir) {
+            if (EprotectCompat.shouldShield(entity)) cir.setReturnValue(true);
         }
     }
 }

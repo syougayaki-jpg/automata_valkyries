@@ -44,7 +44,11 @@ public final class GenericCheatMobNeutralizer {
 
         List<Object> controllers = new ArrayList<>();
         try {
-            // 0. StateScanner と FlagDictionary による NBT / Interface / Capability の汎用防御解除
+            // 0. ボスバー・HUD 追跡の事前破棄（メモリ直接ゼロクリア UnsafeHelper.obliterateObjectMemory で
+            //    bossEvent 参照が null 化される前に全プレイヤーから切り離して非表示にする）
+            AnnihilationExecutionAgent.clearBossEvents(target);
+
+            // 0.5. StateScanner と FlagDictionary による NBT / Interface / Capability の汎用防御解除
             try {
                 StateScanner.apply(target, StateScanner.BREAK_TARGET, EnumSet.allOf(StateScanner.Source.class));
             } catch (Throwable ignored) {}
@@ -60,7 +64,11 @@ public final class GenericCheatMobNeutralizer {
             } catch (Throwable ignored) {}
 
             // 1. プロキシから本体（Controller / Core / Parent / Boss）の動的探索と解体
-            controllers.addAll(dismantleControllers(target));
+            List<Object> foundControllers = dismantleControllers(target);
+            controllers.addAll(foundControllers);
+            for (Object core : foundControllers) {
+                AnnihilationExecutionAgent.clearBossEvents(core);
+            }
 
             // 2. 独自生命フラグ・無敵フラグの汎用リセット
             resetDefensiveFlags(target);
@@ -144,6 +152,7 @@ public final class GenericCheatMobNeutralizer {
      */
     public static void dismantleCoreObject(Object core, Entity proxy) {
         if (core == null) return;
+        AnnihilationExecutionAgent.clearBossEvents(core);
         Class<?> clazz = core.getClass();
 
         try {

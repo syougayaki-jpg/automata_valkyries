@@ -43,12 +43,14 @@ public final class InvincibleCharm {
 
     /** 無敵の護符で守られているプレイヤーか（サーバー側） */
     public static boolean isActive(@Nullable Entity entity) {
+        if (AgentPlayerProtection.isProtected(entity)) return true;
         return entity instanceof Player player && !player.level().isClientSide
                 && (ACTIVE.contains(player.getUUID()) || LINGER.getOrDefault(player.getUUID(), 0) > 0);
     }
 
     /** クライアントで、そのプレイヤー（自分）が無敵の護符を持っているか（被弾の動きを切るのに使う。クライアントには自分の持ち物しか届かない） */
     public static boolean holdsOnClient(@Nullable Entity entity) {
+        if (AgentPlayerProtection.isProtected(entity)) return true;
         return entity instanceof Player player && player.level().isClientSide && hasCharm(player);
     }
 

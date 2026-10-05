@@ -43,10 +43,19 @@ public class ModEntities {
     public static final RegistryObject<net.minecraft.world.inventory.MenuType<com.automatavalkyries.menu.ValkyrieMenu>> VALKYRIE_MENU =
             ModMachines.MENUS.register("valkyrie", () -> net.minecraftforge.common.extensions.IForgeMenuType.create(com.automatavalkyries.menu.ValkyrieMenu::new));
 
+    /** 終焉機構の保護対象外・Eprotect+ 検証用ダミーゾンビ */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.ProtectDummyZombieEntity>> PROTECT_DUMMY_ZOMBIE =
+            ENTITY_TYPES.register("protect_dummy_zombie", () ->
+                    EntityType.Builder.of(com.automatavalkyries.entity.ProtectDummyZombieEntity::new, MobCategory.MONSTER)
+                            .sized(0.6F, 1.95F)
+                            .clientTrackingRange(8)
+                            .build("protect_dummy_zombie"));
+
     @SubscribeEvent
     public static void registerAttributes(EntityAttributeCreationEvent event) {
         event.put(VALKYRIE.get(), com.automatavalkyries.entity.ValkyrieEntity.createAttributes().build());
         event.put(ELENOR.get(), ElenorEntity.createAttributes().build());
         event.put(FARTHEST_ELENOR.get(), ElenorEntity.createAttributes().build());
+        event.put(PROTECT_DUMMY_ZOMBIE.get(), com.automatavalkyries.entity.ProtectDummyZombieEntity.createAttributes().build());
     }
 }

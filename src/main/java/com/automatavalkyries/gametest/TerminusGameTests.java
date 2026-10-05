@@ -23,6 +23,8 @@ import com.mojang.authlib.GameProfile;
 
 import com.automatavalkyries.protect.attack.ModBlacklist;
 import com.automatavalkyries.protect.plus.EprotectPlusLink;
+import net.minecraft.server.level.ServerBossEvent;
+import net.minecraft.world.BossEvent;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.monster.Zombie;
@@ -334,6 +336,52 @@ public class TerminusGameTests {
         }
 
         helper.succeed();
+    }
+
+    /**
+     * TerminusEngine:
+     * ボスバー（ServerBossEvent）を持つエンティティに対して終焉執行を行った際、
+     * ボスバーが全プレイヤーから解除され、非表示化されること（侵略者のモノリス対策）。
+     */
+    @GameTest(template = TEMPLATE, timeoutTicks = 100)
+    public static void terminusEngineCleansUpBossBars(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        Player attacker = helper.makeMockPlayer();
+        ServerPlayer mockPlayer = new FakePlayer(level, new GameProfile(UUID.randomUUID(), "boss-viewer"));
+
+        MockBossWithBar boss = new MockBossWithBar(level);
+        boss.setPos(helper.absolutePos(new BlockPos(2, 2, 2)).getCenter());
+        level.addFreshEntity(boss);
+        ServerBossEvent event = boss.bossEvent;
+        event.addPlayer(mockPlayer);
+        helper.assertTrue(event.getPlayers().contains(mockPlayer), "Mock player was not registered to bossEvent");
+        helper.assertTrue(event.isVisible(), "Boss event was not visible");
+
+        boolean done = TerminusEngine.executeTerminus(level, attacker, boss);
+        helper.assertTrue(done, "Terminus execution failed on MockBossWithBar");
+
+        helper.assertTrue(event.getPlayers().isEmpty(), "BossEvent still contains players after Terminus");
+        helper.assertFalse(event.isVisible(), "BossEvent is still visible after Terminus");
+        helper.assertTrue(boss.isRemoved(), "Boss entity was not removed");
+
+        helper.succeed();
+    }
+
+    public static class MockBossWithBar extends Zombie {
+        public final ServerBossEvent bossEvent = new ServerBossEvent(
+                Component.literal("Mock Monolith Boss"),
+                BossEvent.BossBarColor.PURPLE,
+                BossEvent.BossBarOverlay.PROGRESS);
+
+        public MockBossWithBar(ServerLevel level) {
+            super(EntityType.ZOMBIE, level);
+        }
+
+        @Override
+        public void stopSeenByPlayer(ServerPlayer player) {
+            super.stopSeenByPlayer(player);
+            this.bossEvent.removePlayer(player);
+        }
     }
 
     public static class FakeUnknownCheatCore {

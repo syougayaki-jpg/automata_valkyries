@@ -10,8 +10,11 @@ import com.automatavalkyries.mixin.LivingEntityAccessor;
 import com.automatavalkyries.mixin.ServerLevelTickListAccessor;
 import com.automatavalkyries.network.AnnihilatedEntitiesPacket;
 import com.automatavalkyries.network.ModNetwork;
+import com.automatavalkyries.entity.ValkyrieEntity;
+import com.automatavalkyries.protect.AgentPlayerProtection;
 import com.automatavalkyries.protect.IEprotected;
 import com.automatavalkyries.util.UnsafeHelper;
+import com.automatavalkyries.weapon.DeathLootFallback;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import net.minecraft.core.SectionPos;
 import net.minecraft.core.particles.ParticleTypes;
@@ -21,10 +24,12 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.player.Player;
+import org.jetbrains.annotations.Nullable;
 import net.minecraft.world.level.entity.EntityInLevelCallback;
 import net.minecraft.world.level.entity.EntityLookup;
 import net.minecraft.world.level.entity.EntitySection;
@@ -47,6 +52,8 @@ import net.minecraftforge.network.PacketDistributor;
 
 import java.io.File;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -135,11 +142,16 @@ public final class AnnihilationExecutionAgent {
             return;
         }
         if (entity != null && isAnnihilated(entity)) {
+            if (entity instanceof IEprotected p && p.getEprotect() != null && p.getEprotect().isProtectionActive()) {
+                ANNIHILATED_INSTANCES.remove(entity);
+                ANNIHILATED_UUIDS.remove(entity.getUUID());
+                return;
+            }
             event.setCanceled(true);
             entity.discard();
             AutomataValkyries.LOGGER.info("[AnnihilationAgent] Blocked and canceled re-join of annihilated entity: {} ({})",
                     entity.getName().getString(), entity.getUUID());
-        } else if (entity != null && !(entity instanceof Player) && !(entity instanceof IEprotected) && SpawnBanZone.shouldRefuse(entity)) {
+        } else if (entity != null && !(entity instanceof Player) && !(entity instanceof IEprotected protectedEntity && !protectedEntity.isTerminusTestTarget()) && SpawnBanZone.shouldRefuse(entity)) {
             // 消した直後に、同じ種類の個体が別の UUID で作り直された（復活）
             event.setCanceled(true);
             entity.discard();
@@ -152,7 +164,11 @@ public final class AnnihilationExecutionAgent {
      */
     @SubscribeEvent(priority = EventPriority.LOWEST, receiveCanceled = true)
     public static void onLivingHurt(LivingHurtEvent event) {
-        if (isThreadAnnihilating() || isAnnihilated(event.getEntity())) {
+        LivingEntity entity = event.getEntity();
+        if (entity instanceof Player || (entity instanceof IEprotected protectedEntity && !protectedEntity.isTerminusTestTarget()) || AgentPlayerProtection.isProtected(entity)) {
+            return;
+        }
+        if (isThreadAnnihilating() || isAnnihilated(entity)) {
             event.setCanceled(false);
         }
     }
@@ -162,7 +178,11 @@ public final class AnnihilationExecutionAgent {
      */
     @SubscribeEvent(priority = EventPriority.LOWEST, receiveCanceled = true)
     public static void onLivingDeath(LivingDeathEvent event) {
-        if (isThreadAnnihilating() || isAnnihilated(event.getEntity())) {
+        LivingEntity entity = event.getEntity();
+        if (entity instanceof Player || (entity instanceof IEprotected protectedEntity && !protectedEntity.isTerminusTestTarget()) || AgentPlayerProtection.isProtected(entity)) {
+            return;
+        }
+        if (isThreadAnnihilating() || isAnnihilated(entity)) {
             event.setCanceled(false);
         }
     }
@@ -202,6 +222,9 @@ public final class AnnihilationExecutionAgent {
      */
     public static void spoofAndDisconnectTracking(ServerLevel level, Entity entity) {
         if (entity == null) return;
+        if (entity instanceof IEprotected p && p.getEprotect() != null && p.getEprotect().isProtectionActive()) {
+            return;
+        }
 
         try {
             // (1) ChunkMap の追跡解除 ＆ クライアントへの追跡切断パケット送信
@@ -280,23 +303,55 @@ public final class AnnihilationExecutionAgent {
     }
 
     /**
-     * リフレクションでエンティティの ServerBossEvent を検索し、全プレイヤーから非表示にする。
+     * リフレクションでエンティティ（およびコントローラー・本体）の ServerBossEvent を検索し、全プレイヤーから非表示にする。
+     * また、エンティティの stopSeenByPlayer(ServerPlayer) を全プレイヤーに対して明示的に呼び出す。
      */
-    private static void clearBossEvents(Entity entity) {
-        Class<?> clz = entity.getClass();
+    public static void clearBossEvents(Object target) {
+        if (target == null) return;
+
+        // 1. もし Entity であれば、stopSeenByPlayer を呼んでバニラ／MOD 固有の視界・ボスバー後始末を走らせる
+        if (target instanceof Entity entity && entity.level() instanceof ServerLevel level) {
+            try {
+                for (ServerPlayer player : level.players()) {
+                    try {
+                        entity.stopSeenByPlayer(player);
+                    } catch (Throwable ignored) {}
+                }
+            } catch (Throwable ignored) {}
+        }
+
+        // 2. クラス階層を走査し、ServerBossEvent / BossEvent フィールドおよびゲッターを検索して全プレイヤーから削除・非表示化
+        Class<?> clz = target.getClass();
         while (clz != null && clz != Object.class) {
             for (Field f : clz.getDeclaredFields()) {
-                if (ServerBossEvent.class.isAssignableFrom(f.getType())) {
+                if (Modifier.isStatic(f.getModifiers())) continue;
+                try {
+                    f.setAccessible(true);
+                    Object val = f.get(target);
+                    if (val instanceof ServerBossEvent bossEvent) {
+                        bossEvent.removeAllPlayers();
+                        bossEvent.setVisible(false);
+                    }
+                } catch (Throwable ignored) {}
+            }
+
+            // メソッド（getBossEvent, getBossBar 等引数なし）も検査
+            for (Method m : clz.getDeclaredMethods()) {
+                if (Modifier.isStatic(m.getModifiers())) continue;
+                if (m.getParameterCount() == 0 && (ServerBossEvent.class.isAssignableFrom(m.getReturnType())
+                        || m.getName().toLowerCase().contains("bossbar")
+                        || m.getName().toLowerCase().contains("bossevent"))) {
                     try {
-                        f.setAccessible(true);
-                        ServerBossEvent bossEvent = (ServerBossEvent) f.get(entity);
-                        if (bossEvent != null) {
+                        m.setAccessible(true);
+                        Object val = m.invoke(target);
+                        if (val instanceof ServerBossEvent bossEvent) {
                             bossEvent.removeAllPlayers();
                             bossEvent.setVisible(false);
                         }
                     } catch (Throwable ignored) {}
                 }
             }
+
             clz = clz.getSuperclass();
         }
     }
@@ -644,14 +699,27 @@ public final class AnnihilationExecutionAgent {
      * 単一のエンティティに対して超絶抹殺を実行する。
      *
      * @param level 実行対象のワールド
-     * @param attacker 攻撃者（プレイヤー）
+     * @param attacker 攻撃者（プレイヤーまたは他エンティティ）
      * @param target 抹消対象
      * @return 抹消に成功した場合 true
      */
-    public static boolean annihilateEntity(ServerLevel level, Player attacker, LivingEntity target) {
+    public static boolean annihilateEntity(ServerLevel level, @Nullable Entity attacker, LivingEntity target) {
+        return annihilateEntity(level, attacker, target, true);
+    }
+
+    /**
+     * 単一のエンティティに対して超絶抹殺を実行する（効果音の有無を指定可能）。
+     *
+     * @param level 実行対象のワールド
+     * @param attacker 攻撃者（プレイヤーまたは他エンティティ）
+     * @param target 抹消対象
+     * @param playSound 効果音を鳴らすか
+     * @return 抹消に成功した場合 true
+     */
+    public static boolean annihilateEntity(ServerLevel level, @Nullable Entity attacker, LivingEntity target, boolean playSound) {
         List<UUID> uuids = new ArrayList<>();
         List<Integer> ids = new ArrayList<>();
-        boolean done = annihilateEntity(level, attacker, target, true, true, uuids, ids);
+        boolean done = annihilateEntity(level, attacker, target, playSound, true, uuids, ids);
         notifyClients(level, uuids, ids);
         return done;
     }
@@ -661,21 +729,15 @@ public final class AnnihilationExecutionAgent {
      * @param expand    つながった同じ MOD の個体（乗客・乗り物）もまとめて消すか（つながった個体からはさらに広げない）
      * @param uuids / ids 抹消した個体をクライアントへ知らせるために集める（部位エンティティの ID も含む）
      */
-    private static boolean annihilateEntity(ServerLevel level, Player attacker, LivingEntity target, boolean playSound, boolean expand,
+    private static boolean annihilateEntity(ServerLevel level, @Nullable Entity attacker, LivingEntity target, boolean playSound, boolean expand,
                                             List<UUID> uuids, List<Integer> ids) {
-        // 兵姫などの保護対象は範囲版と同じく対象外（抹消のブラックリストと eprotect の入り直しが競合する）
-        if (target == null || target instanceof Player || target instanceof IEprotected) return false;
+        // 兵姫などの保護対象は範囲版と同じく対象外（抹消のブラックリストと eprotect の入り直しが競合する）（※検証ダミーは対象）
+        if (target == null || target instanceof Player || (target instanceof IEprotected protectedEntity && !protectedEntity.isTerminusTestTarget())) return false;
         if (ANNIHILATED_INSTANCES.contains(target) && target.isRemoved()) return false; // つながりで既に消した個体
         List<Entity> connected = expand ? ModProtectionBreaker.connectedEntities(target) : List.of();
         // 追跡偽装で座標を NaN にするので、演出の位置は先に取っておく
         Vec3 origin = target.position().add(0.0, target.getBbHeight() / 2.0, 0.0);
-        uuids.add(target.getUUID());
-        ids.add(target.getId());
-        if (target.isMultipartEntity() && target.getParts() != null) {
-            for (PartEntity<?> part : target.getParts()) {
-                if (part != null) ids.add(part.getId());
-            }
-        }
+        final boolean[] defended = new boolean[1];
 
         runWithEventSuppression(() -> {
             // (1) ブラックリスト登録
@@ -693,11 +755,25 @@ public final class AnnihilationExecutionAgent {
             target.stopRiding();
 
             // (3) バニラ即死・デスフラグ・無敵リセット
+            DamageSource deathSource = attacker instanceof Player p
+                    ? level.damageSources().playerAttack(p)
+                    : (attacker instanceof LivingEntity living ? level.damageSources().mobAttack(living) : level.damageSources().generic());
+            DeathLootFallback.before(target);
             target.invulnerableTime = 0;
             target.setHealth(0.0F);
             ((LivingEntityAccessor) target).automata_valkyries$setDead(true);
-            target.die(level.damageSources().playerAttack(attacker));
+            target.die(deathSource);
             target.kill();
+            DeathLootFallback.after(level, target, deathSource, attacker instanceof LivingEntity killer ? killer : null);
+
+            // Eprotect+ 防御層による遮断: 不正な消去理由直書き・区画排除を拒絶（Eprotect+ の守護が勝つ）
+            if (target instanceof IEprotected p && p.getEprotect() != null && p.getEprotect().isProtectionActive()) {
+                AutomataValkyries.LOGGER.info("[AnnihilationAgent] Target {} is defended by Eprotect+; eviction blocked by Eprotect+", target.getName().getString());
+                ANNIHILATED_UUIDS.remove(target.getUUID());
+                ANNIHILATED_INSTANCES.remove(target);
+                defended[0] = true;
+                return;
+            }
 
             // (4) 追跡偽装・区画・一覧からの完全切り離し
             spoofAndDisconnectTracking(level, target);
@@ -710,6 +786,18 @@ public final class AnnihilationExecutionAgent {
             // (6) 死亡処理の途中で静的な一覧へ戻されていれば、もう一度取り除く
             ModProtectionBreaker.afterErase(target, context);
         });
+
+        if (defended[0]) {
+            return false;
+        }
+
+        uuids.add(target.getUUID());
+        ids.add(target.getId());
+        if (target.isMultipartEntity() && target.getParts() != null) {
+            for (PartEntity<?> part : target.getParts()) {
+                if (part != null) ids.add(part.getId());
+            }
+        }
 
         // (6') 同じ種類の作り直し（別の UUID での復活）を、しばらくの間この近くで拒否する（他 MOD の種類だけ）
         SpawnBanZone.banNear(level, target, origin);
@@ -749,7 +837,7 @@ public final class AnnihilationExecutionAgent {
         AABB box = attacker.getBoundingBox().inflate(radius);
         List<Entity> entities = level.getEntities(attacker, box, e -> {
             if (e instanceof Player) return false;
-            if (e instanceof IEprotected) return false; // 兵姫などの味方は保護
+            if (e instanceof IEprotected protectedEntity && !protectedEntity.isTerminusTestTarget()) return false; // 兵姫などの味方は保護
             return e instanceof LivingEntity;
         });
 

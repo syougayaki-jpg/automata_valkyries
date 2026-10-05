@@ -36,7 +36,7 @@ public final class CharmKeeper {
     private CharmKeeper() {}
 
     static Item[] charms() {
-        return new Item[]{ModItems.WARD_CHARM.get(), ModItems.INVINCIBLE_CHARM.get()};
+        return new Item[]{ModItems.WARD_CHARM.get(), ModItems.INVINCIBLE_CHARM.get(), ModItems.PRIVILEGE_AEGIS.get()};
     }
 
     @SubscribeEvent

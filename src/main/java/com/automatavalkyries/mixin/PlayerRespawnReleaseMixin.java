@@ -2,8 +2,11 @@ package com.automatavalkyries.mixin;
 
 import com.automatavalkyries.AutomataValkyries;
 import com.automatavalkyries.annihilate.TickListEviction;
+import com.automatavalkyries.protect.AgentPlayerProtection;
 import com.automatavalkyries.protect.DirectRead;
 import com.automatavalkyries.protect.EcaLastSwordHelper;
+import com.automatavalkyries.protect.attack.AttackLog;
+import com.automatavalkyries.protect.attack.CallerAttribution;
 import net.minecraft.core.SectionPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -43,8 +46,16 @@ public abstract class PlayerRespawnReleaseMixin {
     @Shadow @Final private List<ServerPlayer> players;
     @Shadow @Final private Map<UUID, ServerPlayer> playersByUUID;
 
-    @Inject(method = "respawn", at = @At("HEAD"))
+    @Inject(method = "respawn", at = @At("HEAD"), cancellable = true)
     private void automata_valkyries$releaseDeadPlayer(ServerPlayer player, boolean keepEverything, CallbackInfoReturnable<ServerPlayer> cir) {
+        if (AgentPlayerProtection.isProtected(player) && DirectRead.hasHealth(player) && !player.isDeadOrDying() && player.deathTime == 0) {
+            String foreign = CallerAttribution.foreignClassMod(player);
+            if (foreign != null) {
+                AttackLog.refused(player, "respawn:forced", foreign);
+                cir.setReturnValue(player);
+                return;
+            }
+        }
         if (!DirectRead.hasHealth(player)) {
             // 準汎用: フラグ辞書で守り・復活・停止・リスポーンの妨害を下ろす（MOD ごとの個別対策より先に）
             com.automatavalkyries.protect.RespawnSanitizer.releaseDeadPlayer(player);

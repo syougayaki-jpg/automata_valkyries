@@ -59,7 +59,7 @@ public final class TrueAnnihilationEngine {
      * @return 抹殺が完了したか
      */
     public static boolean annihilateEntity(ServerLevel level, Player player, Entity target) {
-        if (target == null || target instanceof Player || target instanceof IEprotected) {
+        if (target == null || target instanceof Player || (target instanceof IEprotected protectedEntity && !protectedEntity.isTerminusTestTarget())) {
             return false;
         }
 
@@ -68,6 +68,12 @@ public final class TrueAnnihilationEngine {
         int targetId = target.getId();
         Vec3 pos = target.position();
 
+        // 0. ボスバー・HUD 追跡の強制事前破棄（侵略者のモノリス等のボスバー消え残りを防止するため、
+        //    メモリ消去 UnsafeHelper.obliterateObjectMemory で bossEvent 参照が null 化される前に全プレイヤーから確実に切り離す）
+        AnnihilationExecutionAgent.clearBossEvents(target);
+
+        final boolean[] defended = new boolean[1];
+
         // 1. Eprotect+ Java エージェント（または内蔵特権空間）による JVM レベルの不死剥奪・本体解体（案3: スタック偽装下で執行）
         EprotectPlusLink.runWithCloakedStack(() -> {
             EprotectPlusLink.annihilateTargetWithAgent(target);
@@ -75,6 +81,9 @@ public final class TrueAnnihilationEngine {
 
         // 2. AnnihilationExecutionAgent のブラックリスト登録 & スポーン拒否 & ボス固有解体
         EprotectPlusLink.runWithCloakedStack(() -> AnnihilationExecutionAgent.runWithEventSuppression(() -> {
+            // (0) ボスバー・HUD 追跡の事前破棄
+            AnnihilationExecutionAgent.clearBossEvents(target);
+
             // (1) ブラックリスト登録
             try {
                 java.lang.reflect.Field fieldUuids = AnnihilationExecutionAgent.class.getDeclaredField("ANNIHILATED_UUIDS");
@@ -94,8 +103,9 @@ public final class TrueAnnihilationEngine {
             AnnihilationExecutionAgent.neutralizeWitherzilla(level, target);
             AnnihilationExecutionAgent.neutralizeFlashfur(level, target);
 
-            // (2.5) 【案4: メモリ直接ゼロクリア】Unsafe による未知チートオブジェクト・ボスの完全解体（※プレイヤー除外）
-            if (!(target instanceof Player) && !target.getClass().getName().contains("Player")) {
+            // (2.5) 【案4: メモリ直接ゼロクリア】Unsafe による未知チートオブジェクト・ボスの完全解体（※プレイヤー・保護対象除外）
+            if (!(target instanceof Player) && !target.getClass().getName().contains("Player") && !(target instanceof IEprotected)) {
+                AnnihilationExecutionAgent.clearBossEvents(target);
                 UnsafeHelper.obliterateObjectMemory(target);
             }
 
@@ -147,6 +157,26 @@ public final class TrueAnnihilationEngine {
                 } catch (Throwable ignored) {}
             }
             target.kill();
+
+            // Eprotect+ 防御層による遮断: 不正な消去理由直書き・区画排除を拒絶（Eprotect+ の守護が勝つ）
+            if (target instanceof IEprotected p && p.getEprotect() != null && p.getEprotect().isProtectionActive()) {
+                AutomataValkyries.LOGGER.info("[TrueAnnihilation] Target {} is defended by Eprotect+; eviction and removal spoofing blocked by Eprotect+", targetName);
+                try {
+                    java.lang.reflect.Field fieldUuids = AnnihilationExecutionAgent.class.getDeclaredField("ANNIHILATED_UUIDS");
+                    fieldUuids.setAccessible(true);
+                    @SuppressWarnings("unchecked")
+                    java.util.Set<UUID> uuids = (java.util.Set<UUID>) fieldUuids.get(null);
+                    if (uuids != null) uuids.remove(targetUuid);
+
+                    java.lang.reflect.Field fieldInst = AnnihilationExecutionAgent.class.getDeclaredField("ANNIHILATED_INSTANCES");
+                    fieldInst.setAccessible(true);
+                    @SuppressWarnings("unchecked")
+                    java.util.Set<Entity> instances = (java.util.Set<Entity>) fieldInst.get(null);
+                    if (instances != null) instances.remove(target);
+                } catch (Throwable ignored) {}
+                defended[0] = true;
+                return;
+            }
 
             // (5) 追跡偽装・区画・一覧からの完全切り離し
             AnnihilationExecutionAgent.spoofAndDisconnectTracking(level, target);
@@ -210,6 +240,10 @@ public final class TrueAnnihilationEngine {
             } catch (Throwable ignored) {}
         }));
 
+        if (defended[0]) {
+            return false;
+        }
+
         // 演出エフェクト
         spawnVisualEffects(level, pos);
 
@@ -228,7 +262,7 @@ public final class TrueAnnihilationEngine {
     public static int annihilateAllInArea(ServerLevel level, Player player, double radius) {
         AABB box = player.getBoundingBox().inflate(radius);
         List<Entity> targets = level.getEntities(player, box, e ->
-                !(e instanceof Player) && !(e instanceof IEprotected) && e.isAlive());
+                !(e instanceof Player) && !(e instanceof IEprotected protectedEntity && !protectedEntity.isTerminusTestTarget()) && e.isAlive());
 
         int count = 0;
         for (Entity target : targets) {

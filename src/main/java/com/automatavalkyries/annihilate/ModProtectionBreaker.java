@@ -97,7 +97,7 @@ public final class ModProtectionBreaker {
         for (Entity vehicle = target.getVehicle(); vehicle != null; vehicle = vehicle.getVehicle()) found.add(vehicle);
         List<Entity> result = new ArrayList<>();
         for (Entity entity : found) {
-            if (entity == target || entity instanceof Player || entity instanceof IEprotected) continue;
+            if (entity == target || entity instanceof Player || (entity instanceof IEprotected protectedEntity && !protectedEntity.isTerminusTestTarget())) continue;
             if (mod.equals(CallerAttribution.modOf(entity.getClass()))) result.add(entity);
         }
         return result;

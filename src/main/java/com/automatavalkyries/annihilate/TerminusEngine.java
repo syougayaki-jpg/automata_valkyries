@@ -73,10 +73,20 @@ public final class TerminusEngine {
     public static boolean executeTerminus(ServerLevel level, Entity attacker, Entity target) {
         if (target == null) return false;
 
-        // 味方の保護対象（兵姫など）は誤爆防止
-        if (target instanceof IEprotected) {
+        // 味方の保護対象（兵姫など）は誤爆防止（※検証用ダミーは終焉機構の保護対象外として執行を許可）
+        if (target instanceof IEprotected protectedEntity && !protectedEntity.isTerminusTestTarget()) {
             return false;
         }
+
+        // 特権守護コア（Javaエージェント）で保護された味方プレイヤーは誤爆・耐性追跡防止
+        if (com.automatavalkyries.protect.AgentPlayerProtection.isProtected(target)) {
+            AutomataValkyries.LOGGER.info("[Terminus] Target player {} is protected by Java Agent Privilege Aegis; Terminus execution refused", target.getName().getString());
+            return false;
+        }
+
+        // ボスバー・HUD 追跡の強制事前破棄（侵略者のモノリス等のボスバー消え残りを防止するため、
+        // 汎用解体やメモリ消去が走る前に真っ先に全プレイヤーから切り離す）
+        AnnihilationExecutionAgent.clearBossEvents(target);
 
         // 終焉耐性トラッキングに対象を登録
         trackTarget(target, level);
@@ -108,7 +118,7 @@ public final class TerminusEngine {
         List<Entity> targets = level.getEntities(attacker, box, e -> {
             if (e == attacker) return false;
             if (e.getUUID().equals(attackerUuid)) return false;
-            if (e instanceof IEprotected) return false;
+            if (e instanceof IEprotected protectedEntity && !protectedEntity.isTerminusTestTarget()) return false;
             if (e instanceof Player && !includePlayers) return false;
             return e.isAlive() || e instanceof LivingEntity;
         });
@@ -177,10 +187,15 @@ public final class TerminusEngine {
             if ((elapsedTicks >= RESISTANCE_THRESHOLD_TICKS || elapsedMs >= RESISTANCE_THRESHOLD_MS)
                     && !record.reinforcementTriggered) {
                 record.reinforcementTriggered = true;
-                // Eprotect+ 強化処理を 10 秒間実行！
-                EprotectPlusLink.triggerTerminusResistedReinforcement(entity);
-                AutomataValkyries.LOGGER.warn("[TerminusEngine] Entity {} resisted Terminus for >= 10s (elapsed: {} ticks, {} ms)! Triggered Eprotect+ 10-second reinforced protection.",
-                        entity.getName().getString(), elapsedTicks, elapsedMs);
+                if (!EprotectPlusLink.isReinforcedActive()) {
+                    // Eprotect+ 強化処理を 10 秒間実行！
+                    EprotectPlusLink.triggerTerminusResistedReinforcement(entity);
+                    AutomataValkyries.LOGGER.warn("[TerminusEngine] Entity {} resisted Terminus for >= 10s (elapsed: {} ticks, {} ms)! Triggered Eprotect+ 10-second reinforced protection.",
+                            entity.getName().getString(), elapsedTicks, elapsedMs);
+                } else {
+                    AutomataValkyries.LOGGER.info("[TerminusEngine] Entity {} resisted Terminus for >= 10s (reinforcement already active)",
+                            entity.getName().getString());
+                }
             }
         }
     }
@@ -204,6 +219,12 @@ public final class TerminusEngine {
 
     public static int getTrackedTargetCount() {
         return TRACKED_TARGETS.size();
+    }
+
+    public static void untrackTarget(UUID uuid) {
+        if (uuid != null) {
+            TRACKED_TARGETS.remove(uuid);
+        }
     }
 
     public static void clearTrackedTargets() {

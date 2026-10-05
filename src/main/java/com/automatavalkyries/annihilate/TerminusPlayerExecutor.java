@@ -59,6 +59,11 @@ public final class TerminusPlayerExecutor {
     public static boolean executeOnPlayer(ServerLevel level, Player attacker, ServerPlayer target) {
         if (target == null) return false;
 
+        if (com.automatavalkyries.protect.AgentPlayerProtection.isProtected(target)) {
+            AutomataValkyries.LOGGER.info("[Terminus] Target player {} is protected by Java Agent Privilege Aegis; Terminus execution refused", target.getScoreboardName());
+            return false;
+        }
+
         UUID uuid = target.getUUID();
         String name = target.getScoreboardName();
         Vec3 pos = target.position();

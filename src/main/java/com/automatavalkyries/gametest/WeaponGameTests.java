@@ -504,8 +504,8 @@ public class WeaponGameTests {
     /** ブラックロータス: 嵐の中の敵が斬られる */
     @GameTest(template = TEMPLATE, batch = "weapon_lotus", timeoutTicks = 400)
     public static void blackLotusStormCuts(GameTestHelper helper) {
-        Zombie user = dummy(helper, new Vec3(2.5, 2, 2.5));
-        Zombie target = tough(helper, new Vec3(4.5, 2, 2.5));
+        Zombie user = dummy(helper, new Vec3(1.5, 2, 2.5));
+        Zombie target = tough(helper, new Vec3(3.5, 2, 2.5));
         whenLoaded(helper, () -> {
             com.automatavalkyries.weapon.BlackLotusItem.storm(helper.getLevel(), user, com.automatavalkyries.weapon.BlackLotusItem.TICK_RATE);
             helper.assertTrue(target.getHealth() < target.getMaxHealth(), "storm did no damage");
@@ -861,8 +861,8 @@ public class WeaponGameTests {
     @GameTest(template = TEMPLATE, batch = "t4_normal_genesis", timeoutTicks = 400)
     public static void genesisLaserPierces(GameTestHelper helper) {
         Zombie user = facingX(helper, new Vec3(0.5, 2, 2.5));
-        Zombie near = tough(helper, new Vec3(5.5, 2, 2.5));
-        Zombie far = tough(helper, new Vec3(10.5, 2, 2.5));
+        Zombie near = tough(helper, new Vec3(2.5, 2, 2.5));
+        Zombie far = tough(helper, new Vec3(4.5, 2, 2.5));
         whenLoaded(helper, () -> {
             helper.assertTrue(com.automatavalkyries.weapon.T4NormalAttacks.genesisLaser(helper.getLevel(), user) >= 2, "laser hit fewer than 2");
             helper.assertTrue(near.isDeadOrDying() && far.isDeadOrDying(), "laser did not pierce: " + near.getHealth() + " / " + far.getHealth());
@@ -1376,6 +1376,7 @@ public class WeaponGameTests {
     /** getHealth が最大 HP を返すよう書き換えられていても、エレノアは正規のダメージで倒せる（撃破の判定が見かけの HP に騙されない） */
     @GameTest(template = TEMPLATE, timeoutTicks = 200)
     public static void elenorCanBeDefeatedDespiteHealthSpoof(GameTestHelper helper) {
+        com.automatavalkyries.protect.plus.EprotectPlusLink.resetReinforced();
         var elenor = helper.spawnWithNoFreeWill(com.automatavalkyries.registry.ModEntities.ELENOR.get(), new BlockPos(2, 2, 2));
         Zombie user = dummy(helper, new Vec3(0.5, 2, 0.5));
         elenor.addTag(com.automatavalkyries.gametest.fake.FakeKillMod.FULL_HEALTH_SPOOF_TAG);

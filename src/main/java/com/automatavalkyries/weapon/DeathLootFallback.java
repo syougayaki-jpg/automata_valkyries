@@ -19,6 +19,7 @@ import net.minecraftforge.event.entity.living.LivingDropsEvent;
 import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -53,16 +54,16 @@ public final class DeathLootFallback {
     }
 
     /** 抹殺の後に呼ぶ: ふつうの落とし物が出ていなければ補う */
-    public static void after(ServerLevel level, LivingEntity victim, DamageSource source, LivingEntity killer) {
+    public static void after(ServerLevel level, LivingEntity victim, DamageSource source, @Nullable LivingEntity killer) {
         if (DROPPED.remove(victim)) return;
         drop(level, victim, source, killer);
     }
 
     /** バニラの死んだときの落とし物と同じこと（相手の上書きを通さない）。GameTest からも呼ぶ */
-    public static void drop(ServerLevel level, LivingEntity victim, DamageSource source, LivingEntity killer) {
+    public static void drop(ServerLevel level, LivingEntity victim, DamageSource source, @Nullable LivingEntity killer) {
         if (!level.getGameRules().getBoolean(GameRules.RULE_DOMOBLOOT)) return;
         Player player = killer instanceof Player p ? p : null;
-        int looting = ForgeHooks.getLootingLevel(victim, killer, source);
+        int looting = killer != null ? ForgeHooks.getLootingLevel(victim, killer, source) : 0;
         victim.captureDrops(new ArrayList<>());
         try {
             LootTable table = level.getServer().getLootData().getLootTable(victim.getLootTable());

@@ -13,6 +13,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.entity.player.Player;
 import com.automatavalkyries.annihilate.AnnihilationExecutionAgent;
+import com.automatavalkyries.annihilate.TerminusEngine;
 import com.automatavalkyries.mixin.ChunkMapAccessor;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import net.minecraftforge.common.MinecraftForge;
@@ -384,6 +385,15 @@ public class KillModGameTests {
     }
 
     /**
+     * 終焉の魔杖（TerminusEngine）× 侵略者のモノリス。
+     * ボスバーの後始末（clearBossEvents）が走り、ボスバーおよびエンティティが完全に消去されること
+     */
+    @GameTest(template = TEMPLATE, timeoutTicks = 200)
+    public static void terminusErasesInvaderMonolithAndClearsBossBar(GameTestHelper helper) {
+        annihilateTrialMonolithBossWithTerminus(helper, "invader_monolith");
+    }
+
+    /**
      * 超絶抹殺の棒 × テッセラクトビースト（エンティティは代理で、本体のコントローラーが代理を作り直す）。
      * 代理を消すだけでは復活するので、本体ごと消えていること
      */
@@ -442,6 +452,32 @@ public class KillModGameTests {
                     // 消した直後は、同じ種類の作り直し（別の UUID での復活）も近くでは拒否される
                     net.minecraft.world.entity.Entity recreated = helper.spawn(type, new BlockPos(3, 2, 3));
                     helper.assertTrue(level.getEntity(recreated.getUUID()) == null, path + " was re-created right after the annihilation");
+                    helper.succeed();
+                });
+            });
+        });
+    }
+
+    private static void annihilateTrialMonolithBossWithTerminus(GameTestHelper helper, String path) {
+        if (!loaded(helper, "the_trial_monolith")) return;
+        var type = net.minecraftforge.registries.ForgeRegistries.ENTITY_TYPES.getValue(
+                net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("the_trial_monolith", path));
+        if (type == null) {
+            helper.fail("Entity type the_trial_monolith:" + path + " is not registered");
+            return;
+        }
+        ServerLevel level = helper.getLevel();
+        helper.runAfterDelay(2, () -> {
+            net.minecraft.world.entity.Entity boss = helper.spawn(type, new BlockPos(3, 2, 3));
+            helper.runAfterDelay(5, () -> {
+                helper.assertTrue(boss instanceof net.minecraft.world.entity.LivingEntity, path + " is not a living entity");
+                boolean done = TerminusEngine.executeTerminus(level, helper.makeMockPlayer(), boss);
+                helper.assertTrue(done, "Terminus execution failed on " + path);
+                helper.runAfterDelay(60, () -> {
+                    net.minecraft.world.phys.AABB area = new net.minecraft.world.phys.AABB(helper.absolutePos(new BlockPos(3, 2, 3))).inflate(64.0D);
+                    var remaining = level.getEntities(type, area, e -> true);
+                    helper.assertTrue(remaining.isEmpty(), path + " survived or came back: " + remaining);
+                    helper.assertTrue(level.getEntity(boss.getUUID()) == null, path + " is still in the level lookup");
                     helper.succeed();
                 });
             });

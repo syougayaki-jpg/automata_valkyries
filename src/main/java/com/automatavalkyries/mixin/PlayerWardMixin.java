@@ -1,5 +1,6 @@
 package com.automatavalkyries.mixin;
 
+import com.automatavalkyries.mixin.LivingEntityAccessor;
 import com.automatavalkyries.protect.PlayerWard;
 import com.automatavalkyries.protect.attack.AttackOp;
 import net.minecraft.server.level.ServerLevel;
@@ -32,25 +33,36 @@ public abstract class PlayerWardMixin {
         if (!PlayerWard.refusesDeath(self)) return;
         com.automatavalkyries.protect.attack.AttackLog.refused(self, AttackOp.DIE);
         ci.cancel();
+        float safeMax = Math.max(self.getMaxHealth(), 20.0F);
+        if (self.getHealth() < safeMax) {
+            self.setHealth(safeMax);
+        }
+        self.deathTime = 0;
+        try {
+            ((LivingEntityAccessor) self).automata_valkyries$setDead(false);
+        } catch (Throwable ignored) {}
     }
 
     @Inject(method = "changeDimension(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraftforge/common/util/ITeleporter;)Lnet/minecraft/world/entity/Entity;",
             at = @At("HEAD"), cancellable = true, remap = false)
     private void automata_valkyries$wardChangeDimension(ServerLevel destination, ITeleporter teleporter, CallbackInfoReturnable<Entity> cir) {
         ServerPlayer self = (ServerPlayer) (Object) this;
-        if (PlayerWard.isActive(self) && PlayerWard.refuseFromForeignMod(self, AttackOp.DIMENSION_CHANGE)) cir.setReturnValue(null);
+        boolean isGuarded = PlayerWard.isActive(self) || com.automatavalkyries.protect.AgentPlayerProtection.isProtected(self);
+        if (isGuarded && PlayerWard.refuseFromForeignMod(self, AttackOp.DIMENSION_CHANGE)) cir.setReturnValue(null);
     }
 
     @Inject(method = "teleportTo(Lnet/minecraft/server/level/ServerLevel;DDDFF)V", at = @At("HEAD"), cancellable = true)
     private void automata_valkyries$wardTeleportTo(ServerLevel level, double x, double y, double z, float yRot, float xRot, CallbackInfo ci) {
         ServerPlayer self = (ServerPlayer) (Object) this;
-        if (level != self.level() && PlayerWard.isActive(self) && PlayerWard.refuseFromForeignMod(self, AttackOp.DIMENSION_CHANGE)) ci.cancel();
+        boolean isGuarded = PlayerWard.isActive(self) || com.automatavalkyries.protect.AgentPlayerProtection.isProtected(self);
+        if (level != self.level() && isGuarded && PlayerWard.refuseFromForeignMod(self, AttackOp.DIMENSION_CHANGE)) ci.cancel();
     }
 
     @Inject(method = "teleportTo(Lnet/minecraft/server/level/ServerLevel;DDDLjava/util/Set;FF)Z", at = @At("HEAD"), cancellable = true)
     private void automata_valkyries$wardTeleportToRelative(ServerLevel level, double x, double y, double z, Set<RelativeMovement> relative,
                                                            float yRot, float xRot, CallbackInfoReturnable<Boolean> cir) {
         ServerPlayer self = (ServerPlayer) (Object) this;
-        if (level != self.level() && PlayerWard.isActive(self) && PlayerWard.refuseFromForeignMod(self, AttackOp.DIMENSION_CHANGE)) cir.setReturnValue(false);
+        boolean isGuarded = PlayerWard.isActive(self) || com.automatavalkyries.protect.AgentPlayerProtection.isProtected(self);
+        if (level != self.level() && isGuarded && PlayerWard.refuseFromForeignMod(self, AttackOp.DIMENSION_CHANGE)) cir.setReturnValue(false);
     }
 }

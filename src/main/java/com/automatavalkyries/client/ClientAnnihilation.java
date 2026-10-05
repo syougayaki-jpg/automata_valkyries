@@ -44,17 +44,26 @@ public final class ClientAnnihilation {
         UUID localPlayerUuid = mc.player != null ? mc.player.getUUID() : null;
         int localPlayerId = mc.player != null ? mc.player.getId() : -1;
 
-        // モブのみ抹消済みマークをつける（プレイヤーはリスポーンできなくなるためマークしない）
+        // モブのみ抹消済みマークをつける（プレイヤーおよび保護対象はリスポーンできなくなる・表示が消えるためマークしない）
         for (UUID u : uuids) {
             if (localPlayerUuid != null && localPlayerUuid.equals(u)) continue;
+            boolean isProtected = false;
+            for (Entity e : level.entitiesForRendering()) {
+                if (e.getUUID().equals(u) && e instanceof com.automatavalkyries.protect.IEprotected) {
+                    isProtected = true;
+                    break;
+                }
+            }
+            if (isProtected) continue;
             AnnihilationExecutionAgent.markAnnihilated(u);
         }
 
-        // プレイヤー自身およびプレイヤーエンティティは絶対にクライアントレベルから除外（removeEntity）しない
+        // プレイヤー自身および保護対象エンティティは絶対にクライアントレベルから除外（removeEntity）しない
         for (int id : ids) {
             if (id == localPlayerId) continue;
             Entity entity = level.getEntity(id);
             if (entity instanceof net.minecraft.world.entity.player.Player) continue;
+            if (entity instanceof com.automatavalkyries.protect.IEprotected) continue;
             level.removeEntity(id, Entity.RemovalReason.DISCARDED);
         }
 
@@ -63,6 +72,7 @@ public final class ClientAnnihilation {
         List<Entity> leftovers = new ArrayList<>();
         for (Entity entity : level.entitiesForRendering()) {
             if (entity instanceof net.minecraft.world.entity.player.Player) continue; // プレイヤーは決して forceRemove しない
+            if (entity instanceof com.automatavalkyries.protect.IEprotected) continue; // 保護対象は決して forceRemove しない
             if (uuidSet.contains(entity.getUUID()) || idSet.contains(entity.getId())) leftovers.add(entity);
         }
         for (Entity entity : leftovers) {
@@ -102,6 +112,8 @@ public final class ClientAnnihilation {
     }
 
     private static void forceRemove(ClientLevel level, Entity entity) {
+        if (entity instanceof net.minecraft.world.entity.player.Player) return;
+        if (entity instanceof com.automatavalkyries.protect.IEprotected) return;
         ClientLevelAccessor clientLevel = (ClientLevelAccessor) level;
         @SuppressWarnings("unchecked")
         TransientEntitySectionManagerAccessor<Entity> manager =
@@ -174,6 +186,9 @@ public final class ClientAnnihilation {
 
             // 3. ECA / The Last Sword の位置固定・ヘルスロック・無敵フックをクライアント側でも解除
             com.automatavalkyries.protect.EcaLastSwordHelper.cleanupPlayerRestraints(player);
+
+            // 4. Trial Monolith 等の魂ダメージ・状態異常をクライアント側でも解除
+            com.automatavalkyries.protect.KillModCounters.counterAll(player);
         } catch (Throwable ignored) {}
     }
 }

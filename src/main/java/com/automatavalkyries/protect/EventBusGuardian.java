@@ -48,7 +48,7 @@ public final class EventBusGuardian {
                 listenersField.setAccessible(true);
                 Object listenersObj = listenersField.get(bus);
                 if (listenersObj instanceof Map<?, ?> map) {
-                    if (map.isEmpty() || !map.containsKey(LivingAttackEvent.class)) {
+                    if (map.isEmpty() || !map.containsKey(EprotectForgeEvents.class)) {
                         needsReRegister = true;
                     }
                 }

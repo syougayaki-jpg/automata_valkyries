@@ -158,6 +158,7 @@ public final class EprotectPlusLink {
      * 強化処理（指定ミリ秒）を発動する。
      */
     public static void triggerReinforcedProtection(long durationMs, String reason) {
+        boolean alreadyActive = isReinforcedActive();
         long targetUntil = System.currentTimeMillis() + durationMs;
         LOCAL_REINFORCED_UNTIL_MS.updateAndGet(prev -> Math.max(prev, targetUntil));
         LOCAL_REINFORCED_REASON = reason != null ? reason : "UNKNOWN";
@@ -170,13 +171,15 @@ public final class EprotectPlusLink {
             } catch (Throwable ignored) {}
         }
 
-        // 強化処理開始時に能動的バイトコード点検を執行
-        enforceBytecodeIntegrity();
+        if (!alreadyActive) {
+            // 強化処理開始時に能動的バイトコード点検を執行
+            enforceBytecodeIntegrity();
 
-        recordProtection("EprotectPlusLink", reason, "reinforced_mode",
-                "Eprotect+ 強化処理発動（期間: " + durationMs + "ms, 理由: " + LOCAL_REINFORCED_REASON + "）");
-        AutomataValkyries.LOGGER.info("[eprotect-plus] >>> REINFORCED PROTECTION ACTIVATED <<< Duration: {}ms, Reason: {}",
-                durationMs, LOCAL_REINFORCED_REASON);
+            recordProtection("EprotectPlusLink", reason, "reinforced_mode",
+                    "Eprotect+ 強化処理発動（期間: " + durationMs + "ms, 理由: " + LOCAL_REINFORCED_REASON + "）");
+            AutomataValkyries.LOGGER.info("[eprotect-plus] >>> REINFORCED PROTECTION ACTIVATED <<< Duration: {}ms, Reason: {}",
+                    durationMs, LOCAL_REINFORCED_REASON);
+        }
     }
 
     /**
@@ -253,6 +256,9 @@ public final class EprotectPlusLink {
 
     // ---- 調査 (Investigation) 記録 -------------------------------------------
 
+    private static final Map<String, Long> LAST_LOCAL_INTERFERENCE_MS = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final long LOCAL_INTERFERENCE_THROTTLE_MS = 5000L;
+
     public static void recordInterference(String target, String caller, String op, String details) {
         Class<?> type = bridge();
         if (type != null) {
@@ -264,6 +270,13 @@ public final class EprotectPlusLink {
         }
 
         LOCAL_INTERFERENCES.incrementAndGet();
+        String key = (target != null ? target : "") + "#" + (op != null ? op : "");
+        long now = System.currentTimeMillis();
+        Long prev = LAST_LOCAL_INTERFERENCE_MS.get(key);
+        if (prev != null && (now - prev) < LOCAL_INTERFERENCE_THROTTLE_MS) {
+            return;
+        }
+        LAST_LOCAL_INTERFERENCE_MS.put(key, now);
         recordLocal("調査・干渉検知", target, caller, op, "検知・解析完了", details);
     }
 

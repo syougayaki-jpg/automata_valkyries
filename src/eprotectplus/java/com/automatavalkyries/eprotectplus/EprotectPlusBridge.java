@@ -88,8 +88,18 @@ public final class EprotectPlusBridge {
         }
     }
 
+    private static final Map<String, Long> LAST_INTERFERENCE_MS = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final long INTERFERENCE_THROTTLE_MS = 5000L;
+
     public static void recordInterference(String target, String caller, String op, String details) {
         INTERFERENCE_COUNT.incrementAndGet();
+        String key = (target != null ? target : "") + "#" + (op != null ? op : "");
+        long now = System.currentTimeMillis();
+        Long prev = LAST_INTERFERENCE_MS.get(key);
+        if (prev != null && (now - prev) < INTERFERENCE_THROTTLE_MS) {
+            return;
+        }
+        LAST_INTERFERENCE_MS.put(key, now);
         recordEvent("調査・干渉検知", target, caller, op, "検知・解析完了", details);
     }
 

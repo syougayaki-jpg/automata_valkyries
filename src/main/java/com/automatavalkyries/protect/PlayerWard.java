@@ -69,11 +69,13 @@ public final class PlayerWard {
      */
     public static boolean refusesDeath(Player player) {
         if (InvincibleCharm.isActive(player)) return true;
+        if (AgentPlayerProtection.isProtected(player)) return true;
         return isActive(player) && !inHurt(player);
     }
 
     /** 護符で守られている、生きているプレイヤーか（サーバー側） */
     public static boolean isActive(@Nullable Entity entity) {
+        if (AgentPlayerProtection.isProtected(entity)) return true;
         if (!(entity instanceof Player player) || player.level().isClientSide || !WARDED.contains(player.getUUID())) return false;
         if (READING_HEALTH.get()) return true;
         READING_HEALTH.set(true);

@@ -140,13 +140,13 @@ public final class AttackLog {
     }
 
     /** Mixin を経ない直書きを修復した（誰が書いたかは分からない） */
-    public static void repaired(Entity target, String kind) {
+    public static void repaired(@Nullable Entity target, String kind) {
         if (!enabled(target)) return;
         record(target, CallerAttribution.UNKNOWN, AttackOp.REPAIR + ":" + kind, Outcome.REPAIRED, "(direct write)", null, null);
     }
 
     /** 見つけたが直せない異常（読み出しの偽装など） */
-    public static void detected(Entity target, String op) {
+    public static void detected(@Nullable Entity target, String op) {
         if (!enabled(target)) return;
         record(target, CallerAttribution.UNKNOWN, op, Outcome.DETECTED, "(spoofed read)", null, null);
     }
@@ -157,7 +157,7 @@ public final class AttackLog {
      *
      * @param evidence 手がかり（Mixin のクラスと処理の名前など）
      */
-    public static void detected(Entity target, String op, String mod, String evidence) {
+    public static void detected(@Nullable Entity target, String op, String mod, String evidence) {
         if (!enabled(target)) return;
         record(target, mod, op, Outcome.DETECTED, evidence, null, null);
     }
@@ -201,8 +201,10 @@ public final class AttackLog {
 
     // ---- 内部 --------------------------------------------------------------
 
-    private static boolean enabled(Entity target) {
-        return !target.level().isClientSide && EprotectConfig.get(EprotectConfig.ATTACK_LOG_ENABLED);
+    private static boolean enabled(@Nullable Entity target) {
+        if (!EprotectConfig.get(EprotectConfig.ATTACK_LOG_ENABLED)) return false;
+        if (target != null && target.level().isClientSide) return false;
+        return true;
     }
 
     /** 自動登録で数える MOD（直接の呼び出し元が他 MOD ならそれ、無ければ最寄りの他 MOD は数えない） */
@@ -235,7 +237,7 @@ public final class AttackLog {
         return a;
     }
 
-    private static void record(Entity target, String mod, String op, Outcome outcome, String frame,
+    private static void record(@Nullable Entity target, String mod, String op, Outcome outcome, String frame,
                                @Nullable String via, @Nullable String chargeMod) {
         String key = mod + "|" + op + "|" + outcome;
         Entry entry = ENTRIES.get(key);
@@ -248,7 +250,7 @@ public final class AttackLog {
             Entry existing = ENTRIES.putIfAbsent(key, created);
             entry = existing != null ? existing : created;
             if (existing == null) {
-                created.firstTime = target.level().getGameTime();
+                created.firstTime = target != null ? target.level().getGameTime() : 0L;
                 String line = String.format("%s %s [%s] first seen on %s at %s%s", mod, op, outcome, describe(target), frame,
                         via != null ? " via " + via : "");
                 AutomataValkyries.LOGGER.warn("[eprotect-attack] {}", line);
@@ -260,19 +262,22 @@ public final class AttackLog {
             entry.pending.increment();
         }
         entry.count.increment();
-        entry.lastTime = target.level().getGameTime();
+        entry.lastTime = target != null ? target.level().getGameTime() : 0L;
         entry.target = describe(target);
         entry.frame = frame;
         entry.via = via;
 
-        if (outcome != Outcome.DETECTED) com.automatavalkyries.protect.flag.FlagWatchAgent.noteAttack(target, op);
+        if (target != null) {
+            if (outcome != Outcome.DETECTED) com.automatavalkyries.protect.flag.FlagWatchAgent.noteAttack(target, op);
 
-        if (outcome.countsTowardAuto && chargeMod != null) {
-            ModBlacklist.noteAttack(target, chargeMod);
+            if (outcome.countsTowardAuto && chargeMod != null) {
+                ModBlacklist.noteAttack(target, chargeMod);
+            }
         }
     }
 
-    private static String describe(Entity target) {
+    private static String describe(@Nullable Entity target) {
+        if (target == null) return "global";
         String uuid = target.getUUID().toString();
         return BuiltInRegistries.ENTITY_TYPE.getKey(target.getType()) + "#" + uuid.substring(0, 8);
     }

@@ -152,7 +152,7 @@ public class TimeEliminatorItem extends TacticalWeaponItem {
         }
         buffs.forEach(target::removeEffect);
         target.setAbsorptionAmount(0);
-        if (!(target instanceof IEprotected) && !(target instanceof Player)) target.setInvulnerable(false);
+        if (!(target instanceof IEprotected protectedEntity && !protectedEntity.isTerminusTestTarget()) && !(target instanceof Player)) target.setInvulnerable(false);
         target.addEffect(new MobEffectInstance(ModWeapons.CAUSAL_STOP.get(), STOP_TICKS, 0, false, true, true));
     }
 

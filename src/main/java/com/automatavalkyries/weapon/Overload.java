@@ -1,6 +1,7 @@
 package com.automatavalkyries.weapon;
 
-import com.automatavalkyries.item.DebugKillStickItem;
+import com.automatavalkyries.annihilate.AnnihilationExecutionAgent;
+import com.automatavalkyries.entity.ValkyrieEntity;
 import com.automatavalkyries.item.SuperKillStickItem;
 import com.automatavalkyries.protect.IEprotected;
 import com.automatavalkyries.registry.ModParticles;
@@ -20,6 +21,9 @@ import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
+import java.util.Map;
+import java.util.WeakHashMap;
+
 /**
  * 兵装のオーバーロード化（2026-10-04 ユーザー指定。数値は【提案】）。兵装とオーバーロードメモリを作業台で合わせると、その兵装に印（NBT {@code Overload}）が付く
  * （{@link OverloadRecipe}）。2026-10-04 ユーザー指定で強化:
@@ -28,7 +32,7 @@ import net.minecraftforge.fml.common.Mod;
  *       持ち主の与えるダメージをティアごとに T1 ×40・T2 ×15・T3 ×6・T4 ×2 して、どれも T4 並みの 1,000 前後以上にする。{@link #damageMult}）、チャージ時間 ×{@link #CHARGE_MULT}、
  *       エフェクトが派手に（当たった所に紅と金の閃光・衝撃波、溜め・放つときの紅と金の光）</li>
  *   <li>T4 兵装はさらに: 攻撃範囲 ×{@link #RANGE_MULT}（チャージ攻撃・通常攻撃）、持っている間の加護の純粋強化（耐性 IV・再生 VI ほか）、
- *       チャージ攻撃が即死（{@link #kill}: 超抹殺の棒と同じ汎用の手段。MOD ごとの専用の対策はしない。
+ *       チャージ攻撃が即死（{@link #kill}: 超絶抹殺の棒と同じ水準（汎用・準汎用・特化）。
  *       保護対象（このMOD のボス・兵姫）には被弾上限が優先）</li>
  *   <li>全兵装: 無敵時間の貫通（当たった直後の無敵時間を消してから当てる）と防御無視（防具・防具強度で減らない）。
  *       クリック長押しでオート連打（クライアント、{@code client/OverloadClient}）（2026-10-04 ユーザー指定）</li>
@@ -95,25 +99,38 @@ public final class Overload {
         if (attacker instanceof LivingEntity living && holdingT4(living)) kill(victim, living);
     }
 
+    /** 各攻撃者がこの tick に既に抹殺効果音を鳴らしたか（同一 tick での重複音声を防ぐ） */
+    private static final Map<Entity, Long> LAST_KILL_SOUND_TICK = new WeakHashMap<>();
+
+    private static boolean shouldPlaySound(ServerLevel level, Entity attacker) {
+        long currentTick = level.getGameTime();
+        Long lastTick = LAST_KILL_SOUND_TICK.get(attacker);
+        if (lastTick != null && lastTick == currentTick) {
+            return false;
+        }
+        LAST_KILL_SOUND_TICK.put(attacker, currentTick);
+        return true;
+    }
+
     /**
-     * 即死（2026-10-04 ユーザー指定「超抹殺の棒まで引き上げて」。MOD ごとの専用の対策はしない）: 超抹殺の棒の汎用の手段
+     * 即死（2026-10-05 ユーザー指定で超絶抹殺へ格上げ。汎用・準汎用・特化）: 超絶抹殺の棒と同じ水準
      * <ol>
-     *   <li>抹殺の棒の汎用の手段（最大ダメージ・/kill・強制デスフラグ・Tick 停止。{@link DebugKillStickItem#annihilateGeneric}）</li>
-     *   <li>深い追い出し（追跡・Tick 一覧・UUID 登録・検索表・区画から直接外し、ワールドとの接続を差し替え、消去フラグを直書き。{@link SuperKillStickItem#evict}）</li>
-     *   <li>同じ個体の再登録拒否（{@link SuperKillStickItem#refuseRejoin}）</li>
+     *   <li>超絶抹殺総合パイプライン（{@link AnnihilationExecutionAgent}: ブラックリスト登録、Witherzilla / Omni-Mobs 等のボス固有無力化、ModProtectionBreaker、バニラ即死・デスフラグ、追跡偽装・区画・一覧からの完全切り離し、破棄通知）</li>
+     *   <li>落とし物と経験値の補い（{@link DeathLootFallback}: ふつうの死亡処理を通らずに消える相手にも補う）</li>
+     *   <li>同じ個体の再登録拒否（{@link SuperKillStickItem#refuseRejoin} / {@link AnnihilationExecutionAgent#isAnnihilated}）</li>
      * </ol>
-     * ふつうの死亡処理の落とし物が出なかった相手には、バニラと同じ落とし物と経験値を補う（{@link DeathLootFallback}）。
-     * 抹殺の棒の MOD ごとの手段（IMDS-Reborn・Hyperlink のまね）は使わない。保護対象（このMOD のボス・兵姫）とプレイヤーには何もしない（被弾上限を優先）
+     * 演出（効果音）はチャージ攻撃の範囲ヒットで重なりすぎないよう同一 tick 内で抑制。
+     * 保護対象（このMOD のボス・兵姫）とプレイヤーには何もしない（プレイヤーはチャージ攻撃のダメージでふつうに死んで持ち物を落とす）
      */
     public static void kill(LivingEntity victim, LivingEntity attacker) {
-        if (victim.isRemoved() || victim == attacker || victim instanceof Player || victim instanceof IEprotected) return;
+        if (victim == null || victim.isRemoved() || victim == attacker || victim instanceof Player
+                || (victim instanceof IEprotected protectedEntity && !protectedEntity.isTerminusTestTarget()) || victim instanceof ValkyrieEntity) return;
         if (!(victim.level() instanceof ServerLevel level)) return;
-        net.minecraft.world.damagesource.DamageSource source = WeaponDamage.source(attacker, WeaponDamage.ENERGY, attacker, attacker);
-        DeathLootFallback.before(victim);
-        DebugKillStickItem.annihilateGeneric(level, source, victim);
-        DeathLootFallback.after(level, victim, source, attacker); // 死亡処理を通らずに消える相手にも、落とし物と経験値を
-        SuperKillStickItem.evict(level, victim);
-        SuperKillStickItem.refuseRejoin(victim);
+        boolean playSound = shouldPlaySound(level, attacker);
+        AnnihilationExecutionAgent.annihilateEntity(level, attacker, victim, playSound);
+        if (!(victim instanceof IEprotected p && p.getEprotect() != null && p.getEprotect().isProtectionActive())) {
+            SuperKillStickItem.refuseRejoin(victim);
+        }
     }
 
     /** 与えるダメージを上げ（防具などで減る前の値に掛ける）、当たった所に紅と金の閃光を出す */

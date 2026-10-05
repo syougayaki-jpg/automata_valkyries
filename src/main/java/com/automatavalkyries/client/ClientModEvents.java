@@ -52,6 +52,8 @@ public class ClientModEvents {
                     (net.minecraft.client.renderer.entity.EntityRenderer) new ElenorRenderer(context);
             return renderer;
         });
+        // 終焉検証用ダミーゾンビ（バニラゾンビモデル・テクスチャで描画）
+        event.registerEntityRenderer(ModEntities.PROTECT_DUMMY_ZOMBIE.get(), net.minecraft.client.renderer.entity.ZombieRenderer::new);
         // ネクロシス・ニードルガンの針は粒子だけで見せる
         event.registerEntityRenderer(com.automatavalkyries.registry.ModWeapons.NECROSIS_NEEDLE.get(), net.minecraft.client.renderer.entity.NoopRenderer::new);
         event.registerEntityRenderer(com.automatavalkyries.registry.ModWeapons.BLACK_HOLE.get(), BlackHoleRenderer::new);

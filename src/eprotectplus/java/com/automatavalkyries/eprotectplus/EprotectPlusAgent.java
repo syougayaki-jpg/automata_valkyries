@@ -143,8 +143,8 @@ public final class EprotectPlusAgent {
             }
         }
 
-        // 調査記録: 干渉ログを出力
-        if (foreign || critical || !neuteredMethods.isEmpty()) {
+        // 調査記録: 干渉ログを出力（外部MODの干渉または無力化メソッド検知時のみ。自エージェントの正常な再監査は間引く）
+        if (foreign || !neuteredMethods.isEmpty()) {
             EprotectPlusBridge.recordInterference(className, caller, "retransform/redefine",
                     "Neutered=" + neuteredMethods + ", Critical=" + critical + ", Foreign=" + foreign);
         }

@@ -1,6 +1,7 @@
 package com.automatavalkyries.client;
 
 import com.automatavalkyries.AutomataValkyries;
+import com.automatavalkyries.protect.AgentPlayerProtection;
 import com.automatavalkyries.protect.DirectRead;
 import com.automatavalkyries.registry.ModItems;
 import net.minecraft.client.Minecraft;
@@ -45,16 +46,26 @@ public final class DeathScreenDiagnostics {
             server = sp == null ? "player not found"
                     : String.format("health=%.1f directHealth=%.1f alive=%s removed=%s", sp.getHealth(), DirectRead.health(sp), sp.isAlive(), sp.isRemoved());
         }
-        boolean charm = has(local, ModItems.WARD_CHARM.get()) || has(local, ModItems.INVINCIBLE_CHARM.get());
+        boolean charm = has(local, ModItems.WARD_CHARM.get())
+                || has(local, ModItems.INVINCIBLE_CHARM.get())
+                || has(local, ModItems.PRIVILEGE_AEGIS.get())
+                || AgentPlayerProtection.isProtected(local);
         ServerPlayer onServer = integrated == null ? null : integrated.getPlayerList().getPlayer(local.getUUID());
-        boolean serverAlive = onServer != null && DirectRead.health(onServer) > 0.0F;
+        boolean serverAlive = onServer == null || DirectRead.health(onServer) > 0.0F || AgentPlayerProtection.isProtected(onServer);
         long now = local.level().getGameTime();
         boolean repeat = charm && serverAlive && now - lastSuppressed <= 2;
         if (charm && serverAlive) lastSuppressed = now;
         if (!repeat) AutomataValkyries.LOGGER.info("[charm-check] DEATH SCREEN on client: client health={} alive={} | ward={} invincible={} | server: {}{}",
-                local.getHealth(), local.isAlive(), has(local, ModItems.WARD_CHARM.get()), has(local, ModItems.INVINCIBLE_CHARM.get()), server,
-                charm && serverAlive ? " -> suppressed (alive on the server)" : "");
+                local.getHealth(), local.isAlive(), has(local, ModItems.WARD_CHARM.get()),
+                has(local, ModItems.INVINCIBLE_CHARM.get()) || has(local, ModItems.PRIVILEGE_AEGIS.get()) || AgentPlayerProtection.isProtected(local),
+                server, charm && serverAlive ? " -> suppressed (alive on the server)" : "");
         // 護符を持っていて、サーバーでは実際の HP が残っている（生きている）なら、画面だけの死なので死亡画面を出さない（2026-10-04 ユーザー指定）
-        if (charm && serverAlive) event.setCanceled(true);
+        if (charm && serverAlive) {
+            event.setCanceled(true);
+            if (local.getHealth() <= 0.0F || !local.isAlive()) {
+                local.setHealth(Math.max(local.getMaxHealth(), 20.0F));
+                local.deathTime = 0;
+            }
+        }
     }
 }

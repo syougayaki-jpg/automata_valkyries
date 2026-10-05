@@ -46,13 +46,20 @@ public final class InvincibleCharmMixin {
     public abstract static class TrueHealth {
         private static boolean automata_valkyries$guarded(Object self) {
             if (!(self instanceof net.minecraft.world.entity.player.Player player)) return false;
-            return InvincibleCharm.isActive(player) || InvincibleCharm.holdsOnClient(player) || com.automatavalkyries.protect.PlayerWard.isActive(player);
+            return InvincibleCharm.isActive(player)
+                    || InvincibleCharm.holdsOnClient(player)
+                    || com.automatavalkyries.protect.PlayerWard.isActive(player)
+                    || com.automatavalkyries.protect.AgentPlayerProtection.isProtected(player);
         }
 
         @Inject(method = "getHealth", at = @At("RETURN"), cancellable = true)
         private void automata_valkyries$trueHealth(org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable<Float> cir) {
             if (!automata_valkyries$guarded(this)) return;
             float actual = com.automatavalkyries.protect.DirectRead.health((LivingEntity) (Object) this);
+            if (actual <= 0.0F || !Float.isFinite(actual)) {
+                float max = ((LivingEntity) (Object) this).getMaxHealth();
+                actual = Float.isFinite(max) && max > 0.0F ? Math.max(max, 20.0F) : 20.0F;
+            }
             if (cir.getReturnValueF() != actual) cir.setReturnValue(actual);
         }
 
@@ -61,6 +68,7 @@ public final class InvincibleCharmMixin {
             if (!automata_valkyries$guarded(this)) return;
             LivingEntity self = (LivingEntity) (Object) this;
             boolean actual = !com.automatavalkyries.protect.DirectRead.isRemoved(self) && com.automatavalkyries.protect.DirectRead.health(self) > 0.0F;
+            if (com.automatavalkyries.protect.AgentPlayerProtection.isProtected(self)) actual = true;
             if (cir.getReturnValueZ() != actual) cir.setReturnValue(actual);
         }
 
@@ -68,6 +76,7 @@ public final class InvincibleCharmMixin {
         private void automata_valkyries$trueDying(org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable<Boolean> cir) {
             if (!automata_valkyries$guarded(this)) return;
             boolean actual = com.automatavalkyries.protect.DirectRead.health((LivingEntity) (Object) this) <= 0.0F;
+            if (com.automatavalkyries.protect.AgentPlayerProtection.isProtected((LivingEntity) (Object) this)) actual = false;
             if (cir.getReturnValueZ() != actual) cir.setReturnValue(actual);
         }
     }

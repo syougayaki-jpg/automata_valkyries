@@ -1,5 +1,6 @@
 package com.automatavalkyries.mixin;
 
+import com.automatavalkyries.AutomataValkyries;
 import com.automatavalkyries.protect.Eprotect;
 import com.automatavalkyries.protect.IEprotected;
 import com.automatavalkyries.protect.KillModCounters;
@@ -46,7 +47,10 @@ public abstract class EprotectDamageMixin {
             }
 
             // 強化モード中・ブラックリストMOD相手でも、HEAD で遮断するのは即死系の攻撃だけ（通常攻撃は通して上限に掛ける）
-            if ((isReinforced || isBlacklisted) && com.automatavalkyries.protect.EprotectForgeEvents.isLethalAttack(source, amount)) {
+            // このMOD自身の兵装や vanilla のダメージは即死技術として扱わず、被弾上限・防御ロジックに任せる
+            boolean isSelf = AutomataValkyries.MODID.equals(sourceMod);
+            boolean isGuardedMod = !isSelf && (isBlacklisted || (isReinforced && !"minecraft".equals(sourceMod)));
+            if (isGuardedMod && com.automatavalkyries.protect.EprotectForgeEvents.isLethalAttack(source, amount)) {
                 cir.setReturnValue(false);
                 cir.cancel();
                 protect.penalizeMaliciousAttack();
@@ -68,7 +72,8 @@ public abstract class EprotectDamageMixin {
             if (isBlacklisted) {
                 com.automatavalkyries.protect.Eprotect.reinforceAgainst(sourceMod);
             }
-            if (isBlacklisted || com.automatavalkyries.protect.EprotectForgeEvents.isLethalAttack(source, amount)
+            boolean isSelf = AutomataValkyries.MODID.equals(sourceMod);
+            if (isBlacklisted || (!isSelf && com.automatavalkyries.protect.EprotectForgeEvents.isLethalAttack(source, amount))
                     || FlagDictionary.isHarmfulDamageSource(source) || com.automatavalkyries.protect.EprotectForgeEvents.isAttackerHoldingKillItem(source)) {
                 cir.setReturnValue(false);
                 cir.cancel();
@@ -89,7 +94,9 @@ public abstract class EprotectDamageMixin {
         if (inScope) {
             boolean isReinforced = com.automatavalkyries.protect.plus.EprotectPlusLink.isReinforcedActive() || (protect != null && protect.isReinforcedActive());
             String sourceMod = com.automatavalkyries.protect.EprotectForgeEvents.getSourceMod(damageSource);
-            boolean guarded = isReinforced || com.automatavalkyries.protect.attack.ModBlacklist.contains(sourceMod);
+            boolean isBlacklisted = com.automatavalkyries.protect.attack.ModBlacklist.contains(sourceMod);
+            boolean isSelf = AutomataValkyries.MODID.equals(sourceMod);
+            boolean guarded = !isSelf && (isBlacklisted || (isReinforced && !"minecraft".equals(sourceMod)));
             boolean malicious = guarded && com.automatavalkyries.protect.EprotectForgeEvents.isLethalAttack(damageSource, damageAmount);
             if (malicious
                     || FlagDictionary.isHarmfulDamageSource(damageSource)

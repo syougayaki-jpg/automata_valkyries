@@ -28,6 +28,7 @@ public class EprotectGameTests {
     private static final String TEMPLATE = "empty";
 
     private static ElenorEntity spawnElenor(GameTestHelper helper) {
+        com.automatavalkyries.protect.plus.EprotectPlusLink.resetReinforced();
         return helper.spawnWithNoFreeWill(ModEntities.ELENOR.get(), new BlockPos(2, 2, 2));
     }
 

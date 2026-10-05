@@ -36,6 +36,8 @@ public class EprotectManager {
     private static final int SCAN_INTERVAL = 1;
     /** 攻撃の記録の増分をまとめて出す間隔（Tick） */
     private static final int ATTACK_LOG_FLUSH_INTERVAL = 100;
+    /** バイトコード整合性の定期点検間隔（Tick: 60秒 = 1200 ticks） */
+    private static final int BYTECODE_INTEGRITY_CHECK_INTERVAL = 1200;
 
     private final Map<UUID, Eprotect> protectedEntities = new HashMap<>();
     private int tickCounter = 0;
@@ -139,6 +141,8 @@ public class EprotectManager {
         ++tickCounter;
         if (tickCounter % ATTACK_LOG_FLUSH_INTERVAL == 0) {
             AttackLog.flush();
+        }
+        if (tickCounter % BYTECODE_INTEGRITY_CHECK_INTERVAL == 0) {
             com.automatavalkyries.protect.plus.EprotectPlusLink.enforceBytecodeIntegrity();
         }
         EventBusGuardian.ensureEventBusIntegrity();

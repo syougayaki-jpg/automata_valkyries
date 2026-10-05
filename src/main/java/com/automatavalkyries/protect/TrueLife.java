@@ -25,6 +25,10 @@ final class TrueLife implements LifeHooks.LifeFilter {
 
     @Override
     public float health(Object entity, float value) {
+        if (entity instanceof LivingEntity living && AgentPlayerProtection.isProtected(living)) {
+            float max = living.getMaxHealth();
+            return Float.isFinite(max) && max > 0.0F ? Math.max(max, 20.0F) : 20.0F;
+        }
         LivingEntity living = protectedLiving(entity);
         if (living == null) return value;
         float real = DirectRead.health(living);
@@ -35,6 +39,9 @@ final class TrueLife implements LifeHooks.LifeFilter {
 
     @Override
     public boolean deadOrDying(Object entity, boolean value) {
+        if (entity instanceof LivingEntity living && AgentPlayerProtection.isProtected(living)) {
+            return false;
+        }
         if (!value) return false;
         LivingEntity living = protectedLiving(entity);
         if (living == null || !DirectRead.hasHealth(living)) return value;
@@ -44,6 +51,9 @@ final class TrueLife implements LifeHooks.LifeFilter {
 
     @Override
     public boolean alive(Object entity, boolean value) {
+        if (entity instanceof LivingEntity living && AgentPlayerProtection.isProtected(living)) {
+            return true;
+        }
         if (value) return true;
         LivingEntity living = protectedLiving(entity);
         if (living == null || !DirectRead.isAlive(living)) return value;

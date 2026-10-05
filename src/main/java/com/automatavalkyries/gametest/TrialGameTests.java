@@ -21,7 +21,13 @@ import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
+import com.automatavalkyries.annihilate.AnnihilationExecutionAgent;
+import com.automatavalkyries.item.SuperKillStickItem;
+import com.automatavalkyries.weapon.RagnarokEdgeItem;
+import com.automatavalkyries.weapon.WeaponDamage;
+import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.common.util.FakePlayer;
+import net.minecraftforge.event.entity.EntityJoinLevelEvent;
 import net.minecraftforge.gametest.GameTestHolder;
 import net.minecraftforge.gametest.PrefixGameTestTemplate;
 
@@ -366,6 +372,161 @@ public class TrialGameTests {
         helper.assertTrue(arena.getBlockState(c.below()).is(Blocks.SEA_LANTERN), "no center light");
         helper.assertTrue(arena.getBlockState(c.offset(TrialManager.ARENA_RADIUS / 2, -1, 0)).isSolid(), "no floor");
         helper.assertTrue(arena.getBlockState(c.offset(TrialManager.ARENA_RADIUS + 1, 3, 0)).is(Blocks.BARRIER), "no wall");
+        helper.succeed();
+    }
+
+    /**
+     * 超絶抹殺: オーバーロード T4 兵装のチャージ攻撃（Overload.overkill）で、
+     * 通常の mob が抹消され（AnnihilationExecutionAgent）、同じ UUID でのワールド再参加が拒否される
+     */
+    @GameTest(template = TEMPLATE, batch = "trials_annihilation", timeoutTicks = 100)
+    public static void overloadT4AnnihilationBlocksRejoin(GameTestHelper helper) {
+        FakePlayer over = player(helper, new Vec3(0.5, 2, 0.5));
+        ItemStack ragnarok = ((TacticalWeaponItem) ModWeapons.RAGNAROK_EDGE.get()).charged();
+        over.setItemInHand(InteractionHand.MAIN_HAND, Overload.apply(ragnarok));
+
+        Zombie target = helper.spawn(EntityType.HUSK, new Vec3(3.5, 2, 0.5));
+        UUID targetUuid = target.getUUID();
+        Overload.overkill(target, over);
+
+        helper.assertTrue(target.isRemoved(), "target mob was not removed");
+        helper.assertTrue(AnnihilationExecutionAgent.isAnnihilated(targetUuid), "UUID was not registered in annihilation blacklist");
+        helper.assertTrue(SuperKillStickItem.isRefused(target), "instance was not registered in refuse list");
+
+        // 同じ UUID での再登録が拒否されることを検証
+        Zombie rejoining = new Zombie(EntityType.HUSK, helper.getLevel());
+        rejoining.setUUID(targetUuid);
+        var joinEvent = new EntityJoinLevelEvent(rejoining, helper.getLevel());
+        MinecraftForge.EVENT_BUS.post(joinEvent);
+        helper.assertTrue(joinEvent.isCanceled(), "entity with annihilated UUID was not blocked on rejoin");
+        helper.assertTrue(rejoining.isRemoved(), "rejoining entity was not discarded");
+
+        helper.succeed();
+    }
+
+    /**
+     * 超絶抹殺でのドロップ補正: 抹消された mob の戦利品（羊毛等）およびプレイヤー討伐時の経験値オーブが正常に出現する（DeathLootFallback）
+     */
+    @GameTest(template = TEMPLATE, batch = "trials_annihilation_loot", timeoutTicks = 100)
+    public static void overloadT4AnnihilationDropsLootAndExp(GameTestHelper helper) {
+        FakePlayer over = player(helper, new Vec3(0.5, 2, 0.5));
+        ItemStack ragnarok = ((TacticalWeaponItem) ModWeapons.RAGNAROK_EDGE.get()).charged();
+        over.setItemInHand(InteractionHand.MAIN_HAND, Overload.apply(ragnarok));
+
+        var sheep = helper.spawn(EntityType.SHEEP, new Vec3(3.5, 2, 3.5));
+        sheep.setNoAi(true);
+        Overload.overkill(sheep, over);
+
+        var area = new net.minecraft.world.phys.AABB(helper.absolutePos(new BlockPos(3, 2, 3))).inflate(6);
+        var items = helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, area,
+                e -> e.getItem().is(net.minecraft.tags.ItemTags.WOOL));
+        var orbs = helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.ExperienceOrb.class, area);
+
+        helper.assertTrue(!items.isEmpty(), "no wool dropped by annihilated sheep");
+        helper.assertTrue(!orbs.isEmpty(), "no exp orbs dropped by annihilated sheep");
+
+        for (var e : helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.Entity.class, area, e -> !(e instanceof net.minecraft.world.entity.player.Player))) {
+            e.discard();
+        }
+        helper.succeed();
+    }
+
+    /**
+     * プレイヤー安全性: プレイヤーは抹殺対象から除外され、チャージ攻撃のダメージによって通常通り死亡し、持ち物をドロップする
+     */
+    @GameTest(template = TEMPLATE, batch = "trials_player_safety", timeoutTicks = 100)
+    public static void overloadT4PlayerTakesDamageNotAnnihilated(GameTestHelper helper) {
+        FakePlayer over = player(helper, new Vec3(0.5, 2, 0.5));
+        ItemStack ragnarok = ((TacticalWeaponItem) ModWeapons.RAGNAROK_EDGE.get()).charged();
+        over.setItemInHand(InteractionHand.MAIN_HAND, Overload.apply(ragnarok));
+
+        var testPlayer = helper.makeMockPlayer();
+        testPlayer.getAbilities().invulnerable = false;
+        Vec3 pos = helper.absoluteVec(new Vec3(2.5, 2, 2.5));
+        testPlayer.moveTo(pos.x, pos.y, pos.z, 0.0F, 0.0F);
+        ItemStack apple = new ItemStack(net.minecraft.world.item.Items.APPLE, 5);
+        testPlayer.getInventory().add(apple);
+
+        // チャージ攻撃の直撃（ダメージ + overkill）
+        testPlayer.invulnerableTime = 0;
+        testPlayer.hurt(WeaponDamage.source(over, WeaponDamage.RAGNAROK, over, over), RagnarokEdgeItem.CLEAVE_DAMAGE);
+        Overload.overkill(testPlayer, over);
+
+        // プレイヤーは抹殺されない（ブラックリスト未登録、インスタンス拒否なし）
+        helper.assertFalse(AnnihilationExecutionAgent.isAnnihilated(testPlayer.getUUID()), "player UUID was annihilated");
+        helper.assertFalse(SuperKillStickItem.isRefused(testPlayer), "player was added to refuse list");
+        helper.assertTrue(testPlayer.isDeadOrDying(), "player was not killed by lethal charge damage");
+
+        // 死亡に伴うアイテムドロップの検証（ServerPlayer は死亡時にインベントリを dropAll してワールドに ItemEntity を出現させる）
+        var area = testPlayer.getBoundingBox().inflate(6);
+        var droppedItems = helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, area,
+                e -> e.getItem().is(net.minecraft.world.item.Items.APPLE));
+        helper.assertTrue(!droppedItems.isEmpty() || testPlayer.getInventory().isEmpty()
+                || testPlayer.level().getGameRules().getBoolean(net.minecraft.world.level.GameRules.RULE_KEEPINVENTORY),
+                "player items were not dropped on death");
+
+        for (var it : droppedItems) it.discard();
+        helper.succeed();
+    }
+
+    /**
+     * 保護対象の免除: エレノア（IEprotected）および戦術兵姫（ValkyrieEntity）は抹殺されない
+     */
+    @GameTest(template = TEMPLATE, batch = "trials_protected_exemption", timeoutTicks = 100)
+    public static void overloadT4ProtectedEntitiesAreNotAnnihilated(GameTestHelper helper) {
+        FakePlayer over = player(helper, new Vec3(0.5, 2, 0.5));
+        ItemStack ragnarok = ((TacticalWeaponItem) ModWeapons.RAGNAROK_EDGE.get()).charged();
+        over.setItemInHand(InteractionHand.MAIN_HAND, Overload.apply(ragnarok));
+
+        // エレノア
+        var elenor = helper.spawnWithNoFreeWill(com.automatavalkyries.registry.ModEntities.ELENOR.get(), new BlockPos(3, 2, 3));
+        Overload.overkill(elenor, over);
+        helper.assertTrue(elenor.isAlive() && !elenor.isRemoved(), "Elenor was annihilated or removed");
+        helper.assertFalse(AnnihilationExecutionAgent.isAnnihilated(elenor), "Elenor was registered in annihilation blacklist");
+        elenor.retreat();
+
+        // 戦術兵姫
+        var valkyrie = helper.spawnWithNoFreeWill(com.automatavalkyries.registry.ModEntities.VALKYRIE.get(), new BlockPos(5, 2, 3));
+        Overload.overkill(valkyrie, over);
+        helper.assertTrue(!valkyrie.isRemoved(), "Valkyrie was removed by overkill");
+        helper.assertFalse(AnnihilationExecutionAgent.isAnnihilated(valkyrie), "Valkyrie was registered in annihilation blacklist");
+        valkyrie.discard();
+
+        helper.succeed();
+    }
+
+    /**
+     * 発動条件の限定: オーバーロードしていない兵装、または T4 未満の兵装では抹殺（Overload.overkill）が発動しない
+     */
+    @GameTest(template = TEMPLATE, batch = "trials_condition_check", timeoutTicks = 100)
+    public static void nonOverloadOrNonT4DoesNotAnnihilate(GameTestHelper helper) {
+        FakePlayer plainT4 = player(helper, new Vec3(0.5, 2, 0.5));
+        FakePlayer overT1 = player(helper, new Vec3(0.5, 2, 4.5));
+
+        ItemStack plainRagnarok = ((TacticalWeaponItem) ModWeapons.RAGNAROK_EDGE.get()).charged(); // 非オーバーロード T4
+        plainT4.setItemInHand(InteractionHand.MAIN_HAND, plainRagnarok);
+
+        ItemStack overPhotonEdge = Overload.apply(((TacticalWeaponItem) ModWeapons.PHOTON_EDGE.get()).charged()); // オーバーロード T1
+        overT1.setItemInHand(InteractionHand.MAIN_HAND, overPhotonEdge);
+
+        Zombie mobA = helper.spawn(EntityType.HUSK, new Vec3(3.5, 2, 0.5));
+        mobA.setNoAi(true);
+        mobA.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.DAMAGE_RESISTANCE, 200, 4));
+
+        Zombie mobB = helper.spawn(EntityType.HUSK, new Vec3(3.5, 2, 4.5));
+        mobB.setNoAi(true);
+        mobB.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.DAMAGE_RESISTANCE, 200, 4));
+
+        Overload.overkill(mobA, plainT4);
+        helper.assertTrue(mobA.isAlive() && !mobA.isRemoved(), "plain T4 weapon triggered overkill");
+        helper.assertFalse(AnnihilationExecutionAgent.isAnnihilated(mobA), "mobA was marked annihilated by plain T4");
+
+        Overload.overkill(mobB, overT1);
+        helper.assertTrue(mobB.isAlive() && !mobB.isRemoved(), "overloaded T1 weapon triggered overkill");
+        helper.assertFalse(AnnihilationExecutionAgent.isAnnihilated(mobB), "mobB was marked annihilated by T1");
+
+        mobA.discard();
+        mobB.discard();
         helper.succeed();
     }
 }

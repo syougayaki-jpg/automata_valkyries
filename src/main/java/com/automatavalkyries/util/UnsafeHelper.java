@@ -163,8 +163,9 @@ public final class UnsafeHelper {
      */
     public static void obliterateObjectMemory(Object target) {
         if (target == null || THE_UNSAFE == null) return;
-        // プレイヤーに対する執行を厳格に除外
+        // プレイヤーおよび保護対象（Eprotect+）に対する執行を厳格に除外
         if (target.getClass().getName().contains("Player")) return;
+        if (target instanceof com.automatavalkyries.protect.IEprotected) return;
 
         Class<?> clazz = target.getClass();
         // Entity, LivingEntity, Mob 等のバニラ基底クラスに達するまで（MOD 側のサブクラス階層のみ走査）
@@ -194,6 +195,14 @@ public final class UnsafeHelper {
                     } else if (type == double.class) {
                         putDouble(target, offset, 0.0D);
                     } else {
+                        // ServerBossEvent の参照を消す前に全プレイヤーから切り離して非表示化
+                        try {
+                            Object obj = getObject(target, offset);
+                            if (obj instanceof net.minecraft.server.level.ServerBossEvent sbe) {
+                                sbe.removeAllPlayers();
+                                sbe.setVisible(false);
+                            }
+                        } catch (Throwable ignored) {}
                         // 参照型は null クリアして内部コントローラー・リスト・プロキシを強制切断
                         putObject(target, offset, null);
                     }

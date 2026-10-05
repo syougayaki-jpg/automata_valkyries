@@ -24,13 +24,18 @@ public abstract class PlayerWardLivingMixin {
     @Inject(method = "hurt", at = @At("HEAD"), cancellable = true)
     private void automata_valkyries$wardHurt(DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
         LivingEntity self = (LivingEntity) (Object) this;
-        if (!(self instanceof Player) || !PlayerWard.isActive(self)) return;
+        if (!(self instanceof Player player)) return;
+        if (com.automatavalkyries.protect.InvincibleCharm.isActive(player) || com.automatavalkyries.protect.AgentPlayerProtection.isProtected(player)) {
+            cir.setReturnValue(false);
+            return;
+        }
+        if (!PlayerWard.isActive(self)) return;
         if (PlayerWard.isInstantKill(source)) {
             AttackLog.refused(self, AttackOp.KILL_DAMAGE + ":" + source.getMsgId());
             cir.setReturnValue(false);
             return;
         }
-        PlayerWard.enterHurt((Player) self);
+        PlayerWard.enterHurt(player);
     }
 
     @Inject(method = "hurt", at = @At("RETURN"))
@@ -41,8 +46,16 @@ public abstract class PlayerWardLivingMixin {
     @ModifyVariable(method = "setHealth", at = @At("HEAD"), argsOnly = true)
     private float automata_valkyries$wardSetHealth(float health) {
         LivingEntity living = (LivingEntity) (Object) this;
-        // 無敵の護符: HP は常に最大（2026-10-04 ユーザー指定）
-        if (com.automatavalkyries.protect.InvincibleCharm.isActive(living) && !(health >= living.getMaxHealth())) return living.getMaxHealth();
+        // 無敵の護符・特権守護: HP は常に最大（最低 20.0F 保証）
+        if (com.automatavalkyries.protect.InvincibleCharm.isActive(living) || com.automatavalkyries.protect.AgentPlayerProtection.isProtected(living)) {
+            var maxAttr = living.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH);
+            if (maxAttr != null && maxAttr.getBaseValue() < 20.0D) {
+                maxAttr.setBaseValue(20.0D);
+            }
+            float max = living.getMaxHealth();
+            float safeMax = Float.isFinite(max) && max > 0.0F ? Math.max(max, 20.0F) : 20.0F;
+            if (health < safeMax) return safeMax;
+        }
         if (health > 0.0F && Float.isFinite(health)) return health;
         LivingEntity self = (LivingEntity) (Object) this;
         if (!(self instanceof Player player) || PlayerWard.inHurt(player) || !PlayerWard.isActive(self)) return health;
@@ -58,5 +71,13 @@ public abstract class PlayerWardLivingMixin {
         if (!((Object) this instanceof Player player) || !PlayerWard.refusesDeath(player)) return;
         AttackLog.refused(player, AttackOp.DIE);
         ci.cancel();
+        float safeMax = Math.max(player.getMaxHealth(), 20.0F);
+        if (player.getHealth() < safeMax) {
+            player.setHealth(safeMax);
+        }
+        player.deathTime = 0;
+        try {
+            ((LivingEntityAccessor) player).automata_valkyries$setDead(false);
+        } catch (Throwable ignored) {}
     }
 }

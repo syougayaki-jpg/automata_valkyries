@@ -15,8 +15,18 @@ public final class EprotectCompat {
 
     /** この対象へのキル処理を拒否すべきか */
     public static boolean shouldShield(@Nullable Entity entity) {
-        if (!SpecificCountermeasures.enabled()) return false; // 準汎用の層だけを測る設定
         if (entity instanceof PartEntity<?> part) entity = part.getParent();
+        if (entity == null) return false;
+
+        // 特権守護コア（Javaエージェント）または護符によるプレイヤー保護
+        if (AgentPlayerProtection.isProtected(entity)
+                || InvincibleCharm.isActive(entity)
+                || InvincibleCharm.holdsOnClient(entity)
+                || PlayerWard.isActive(entity)) {
+            return true;
+        }
+
+        if (!SpecificCountermeasures.enabled()) return false; // 準汎用の層だけを測る設定
 
         if (!(entity instanceof IEprotected provider)) return false;
         Eprotect protect = provider.getEprotect();
