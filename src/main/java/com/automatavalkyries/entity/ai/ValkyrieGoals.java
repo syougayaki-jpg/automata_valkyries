@@ -30,6 +30,29 @@ public final class ValkyrieGoals {
     /** これ以上離れたら持ち主のそばへテレポート */
     public static final double TELEPORT_DIST = 24.0;
     private static final double START_DIST = 5.0, STOP_DIST = 2.5;
+    /** 道をたどる速さの上限（ブロック/Tick 相当の移動速度。オメガコアの速度 3 倍で道の点を通り過ぎ、ジグザグに動いていた。2026-10-06） */
+    public static final double MAX_PATH_SPEED = 0.5;
+
+    /** 道をたどるときの速さの倍率（移動速度×倍率が {@link #MAX_PATH_SPEED} を超えないように） */
+    public static double pathSpeed(ValkyrieEntity v, double modifier) {
+        double attr = v.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED);
+        return attr <= 0 ? modifier : Math.min(modifier, MAX_PATH_SPEED / attr);
+    }
+
+    /**
+     * 持ち主の足元の地面（飛んでいる・空中にいる持ち主の真下の立てる所）。32 ブロック下まで無ければ null。
+     * 飛んでいる持ち主の空中の位置へ道を探して失敗し続け、めちゃくちゃに動いていた（2026-10-06）。兵姫は常時は飛ばない（§3）
+     */
+    @Nullable
+    public static BlockPos groundBelow(Entity owner) {
+        BlockPos p = owner.blockPosition();
+        for (int i = 0; i < 32; i++, p = p.below()) {
+            BlockPos below = p.below();
+            if (!owner.level().getBlockState(below).getCollisionShape(owner.level(), below).isEmpty()
+                    && owner.level().getBlockState(p).getCollisionShape(owner.level(), p).isEmpty()) return p;
+        }
+        return null;
+    }
 
     private ValkyrieGoals() {}
 
@@ -44,19 +67,31 @@ public final class ValkyrieGoals {
             setFlags(EnumSet.of(Flag.MOVE, Flag.LOOK));
         }
 
+        @Nullable private BlockPos ground;
+
+        /** 追う先: 持ち主の足元の地面（地上にいれば持ち主の位置そのもの） */
+        private Vec3 goal(Player o) {
+            if (o.onGround() || o.isPassenger()) return o.position();
+            ground = groundBelow(o);
+            return ground != null ? Vec3.atBottomCenterOf(ground) : null;
+        }
+
         @Override
         public boolean canUse() {
             if (v.getMode() != Mode.FOLLOW || v.isShutdown() || v.isPassenger()) return false;
             Player o = v.getOwner();
             if (o == null || o.isSpectator()) return false;
             owner = o;
-            return v.distanceToSqr(o) > START_DIST * START_DIST || (o.isPassenger() && !v.isPassenger());
+            Vec3 g = goal(o);
+            if (g == null) return false;
+            return v.position().distanceToSqr(g) > START_DIST * START_DIST || (o.isPassenger() && !v.isPassenger());
         }
 
         @Override
         public boolean canContinueToUse() {
-            return owner != null && owner.isAlive() && v.getMode() == Mode.FOLLOW && !v.isShutdown() && !v.isPassenger()
-                    && (v.distanceToSqr(owner) > STOP_DIST * STOP_DIST || owner.isPassenger());
+            if (owner == null || !owner.isAlive() || v.getMode() != Mode.FOLLOW || v.isShutdown() || v.isPassenger()) return false;
+            Vec3 g = goal(owner);
+            return g != null && (v.position().distanceToSqr(g) > STOP_DIST * STOP_DIST || owner.isPassenger());
         }
 
         @Override
@@ -74,16 +109,18 @@ public final class ValkyrieGoals {
         public void tick() {
             if (owner == null) return;
             v.getLookControl().setLookAt(owner, 10.0F, v.getMaxHeadXRot());
-            double dist = v.distanceTo(owner);
+            Vec3 g = goal(owner);
+            if (g == null) return;
+            double dist = Math.sqrt(v.position().distanceToSqr(g));
             Entity vehicle = owner.getVehicle();
-            if (vehicle != null && dist < 4.0 && v.startRiding(vehicle)) return; // 同乗（空いていなければ失敗して並走）
+            if (vehicle != null && v.distanceTo(owner) < 4.0 && v.startRiding(vehicle)) return; // 同乗（空いていなければ失敗して並走）
             if (dist > TELEPORT_DIST) {
-                v.teleportNear(owner);
+                v.teleportNear(BlockPos.containing(g));
                 return;
             }
             if (--repath <= 0) {
                 repath = 10;
-                v.getNavigation().moveTo(owner, dist > 10 ? 1.35 : 1.1);
+                v.getNavigation().moveTo(g.x, g.y, g.z, pathSpeed(v, dist > 10 ? 1.35 : 1.1));
             }
         }
     }
@@ -113,7 +150,7 @@ public final class ValkyrieGoals {
         @Override
         public void start() {
             BlockPos home = v.getHome();
-            if (home != null) v.getNavigation().moveTo(home.getX() + 0.5, home.getY(), home.getZ() + 0.5, 1.1);
+            if (home != null) v.getNavigation().moveTo(home.getX() + 0.5, home.getY(), home.getZ() + 0.5, pathSpeed(v, 1.1));
         }
     }
 
@@ -122,7 +159,7 @@ public final class ValkyrieGoals {
         private final ValkyrieEntity v;
 
         public Wander(ValkyrieEntity v) {
-            super(v, 0.8, 80);
+            super(v, 0.8, 200); // 平均 10 秒に 1 回（4 秒ごとでは落ち着きがなかった。2026-10-06）
             this.v = v;
         }
 

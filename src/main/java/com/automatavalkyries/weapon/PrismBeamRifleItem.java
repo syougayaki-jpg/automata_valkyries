@@ -25,8 +25,11 @@ import java.util.List;
  * プリズムビームライフル（T2、追加の兵装。2026-10-03 こちらが考えた）: 両手の連続照射ライフル。右クリックを押している間、虹色の光線を出し続ける
  * （射程 40、線上 8 体まで、毎 Tick 1,500 FE）。0.1 秒ごとに 2 ダメージで、照射し続けるほど強くなる（3 秒で 3 倍）。
  * 最初に当たった敵で光が分かれ（プリズム）、8 ブロック以内の別の敵 3 体へ半分のダメージの光が走る。
+ * <p>オーバーロード（{@link OverloadArts}。2026-10-05 ユーザー指定）: 「虹の大分光」に変わる。光線は太さ 2.4（4 倍）・射程 60・線上 24 体まで貫き、
+ * 白い芯のまわりを虹の 6 色の光が螺旋に巻く。最初に当たった敵の所に回る虹の陣と光の輪が浮かび、そこから 24 ブロック以内の別の敵 12 体へ虹の光が分かれる。
+ * 撃ち始めと、照射し続ける間 2 秒ごとに紅と金の衝撃波が足元に広がる</p>
  */
-public class PrismBeamRifleItem extends TacticalWeaponItem {
+public class PrismBeamRifleItem extends TacticalWeaponItem implements ValkyrieArts.Usable {
 
     /** 弾の威力（説明に出す） */
     @Override
@@ -38,6 +41,9 @@ public class PrismBeamRifleItem extends TacticalWeaponItem {
     public static final int CAPACITY = 1_500_000, PER_TICK = 1_500, PULSE = 2, RAMP_TICKS = 60, SPLITS = 3;
     public static final float DAMAGE = 5.0F, WEIGHT = 9.0F;
     public static final double RANGE = 40.0, WIDTH = 0.6, SPLIT_RANGE = 8.0;
+    /** オーバーロード: 射程・太さ・貫く数・分かれる先を探す距離・分かれる数 */
+    public static final double OVER_RANGE = 60.0, OVER_WIDTH = 2.4, OVER_SPLIT_RANGE = 24.0;
+    public static final int OVER_PIERCE = 24, OVER_SPLITS = 12;
 
     public PrismBeamRifleItem(Properties properties) {
         super(properties, CAPACITY, WEIGHT, true);
@@ -59,6 +65,16 @@ public class PrismBeamRifleItem extends TacticalWeaponItem {
         player.startUsingItem(hand);
         if (level instanceof ServerLevel) level.playSound(null, player.blockPosition(), SoundEvents.BEACON_ACTIVATE, SoundSource.PLAYERS, 0.8F, 1.8F);
         return InteractionResultHolder.consume(stack);
+    }
+
+    /** 戦術兵姫が照射する（収束しきるまで）（{@link ValkyrieArts}）。80 Tick 押し続けて離す。電力は onUseTick のまま */
+    @Override
+    public boolean valkyrieUse(ServerLevel level, LivingEntity user, ItemStack stack, @org.jetbrains.annotations.Nullable LivingEntity target) {
+        if (!canWield(user, InteractionHand.MAIN_HAND)) return false;
+        if (user.isUsingItem() && user.getUseItem() == stack) return true;
+        if (!WeaponPower.has(user, stack, PER_TICK) || !ValkyrieArts.hold(level, user, stack, target, 80)) return false;
+        level.playSound(null, user.blockPosition(), SoundEvents.BEACON_ACTIVATE, SoundSource.PLAYERS, 0.8F, 1.8F);
+        return true;
     }
 
     @Override
@@ -88,6 +104,10 @@ public class PrismBeamRifleItem extends TacticalWeaponItem {
 
     /** 照射の 1 Tick（兵姫に持たせたときも同じ処理） */
     public static void beam(ServerLevel level, LivingEntity user, int t) {
+        if (OverloadArts.active(user)) {
+            overBeam(level, user, t);
+            return;
+        }
         Vec3 eye = user.getEyePosition(), look = user.getLookAngle();
         Vec3 muzzle = eye.add(look.scale(0.9)).add(0, -0.2, 0);
         WeaponUtil.Ray ray = WeaponUtil.ray(level, user, eye, look, RANGE, WIDTH, 8);
@@ -123,6 +143,68 @@ public class PrismBeamRifleItem extends TacticalWeaponItem {
             if (t % 4 == 0) Fx.spray(level, Fx.opt(ModParticles.GLOW.get(), 0xFFFFFF, 0.8F, 4), from, 1, 0, 0);
         }
         if (t % 10 == 0) level.playSound(null, user.blockPosition(), SoundEvents.BEACON_AMBIENT, SoundSource.PLAYERS, 0.9F, 1.0F + rampOf(t) * 0.33F);
+    }
+
+    /** オーバーロードの照射の 1 Tick: 太さ 2.4・射程 60・24 体まで貫く虹の螺旋の光線、24 ブロック以内の 12 体へ分かれる虹の光 */
+    private static void overBeam(ServerLevel level, LivingEntity user, int t) {
+        Vec3 eye = user.getEyePosition(), look = user.getLookAngle();
+        Vec3 muzzle = eye.add(look.scale(0.9)).add(0, -0.2, 0);
+        WeaponUtil.Ray ray = WeaponUtil.ray(level, user, eye, look, OVER_RANGE, OVER_WIDTH, OVER_PIERCE);
+        float hue = (t * 0.035F) % 1F;
+        if (t % 40 == 0) {
+            OverloadArts.flourish(level, user, 6.0F);
+            Fx.beamRing(level, muzzle, look, Overload.GOLD, 2.0F, 12);
+        }
+        // 虹の螺旋: 白い芯のまわりを 6 色の光が巻く（太さ 2.4）
+        Fx.line(level, Fx.opt(ModParticles.GLOW.get(), 0xFFFFFF, 0.6F, 2), muzzle, ray.end(), 1.0);
+        Vec3 side = look.cross(new Vec3(0, 1, 0));
+        if (side.lengthSqr() < 1.0E-4) side = new Vec3(1, 0, 0);
+        side = side.normalize();
+        Vec3 up = side.cross(look).normalize();
+        double length = ray.end().distanceTo(muzzle), radius = OVER_WIDTH * 0.5;
+        for (double d = 0; d < length; d += 2.0) {
+            for (int k = 0; k < 6; k++) {
+                double a = d * 0.5 - t * 0.4 + k * Math.PI / 3;
+                Vec3 p = muzzle.add(look.scale(d)).add(side.scale(Math.cos(a) * radius)).add(up.scale(Math.sin(a) * radius));
+                int color = Color.HSBtoRGB((hue + k / 6F) % 1F, 0.8F, 1F) & 0xFFFFFF;
+                Fx.spray(level, Fx.opt(ModParticles.GLOW.get(), color, 0.3F, 3), p, 1, 0, 0);
+            }
+        }
+        if (t % 4 == 0) Fx.beamRing(level, muzzle.add(look.scale(2 + (t / 4 % 6) * 1.5)), look, Color.HSBtoRGB(hue, 0.7F, 1F) & 0xFFFFFF, (float) radius + 0.3F, 6);
+        Fx.burst(level, Fx.opt(ModParticles.SPARK.get(), Color.HSBtoRGB(hue, 0.75F, 1F) & 0xFFFFFF, 0.35F, 6), ray.end(), 4, 0.35);
+        boolean pulse = t % PULSE == 0;
+        float damage = DAMAGE * rampOf(t);
+        if (pulse) {
+            for (LivingEntity target : ray.hits()) {
+                target.invulnerableTime = 0;
+                target.hurt(WeaponDamage.source(user, WeaponDamage.ENERGY, user, user), damage);
+            }
+        }
+        if (!ray.hits().isEmpty()) {
+            LivingEntity first = ray.hits().get(0);
+            Vec3 from = new Vec3(first.getX(), first.getY(0.6), first.getZ());
+            List<LivingEntity> others = new ArrayList<>(level.getEntitiesOfClass(LivingEntity.class, first.getBoundingBox().inflate(OVER_SPLIT_RANGE),
+                    e -> e != user && !ray.hits().contains(e) && e.isAlive() && e instanceof Enemy && e.distanceTo(first) <= OVER_SPLIT_RANGE + e.getBbWidth()));
+            others.sort(Comparator.comparingDouble(e -> e.distanceToSqr(first)));
+            for (int i = 0; i < Math.min(OVER_SPLITS, others.size()); i++) {
+                LivingEntity other = others.get(i);
+                Vec3 to = new Vec3(other.getX(), other.getY(0.6), other.getZ());
+                if (pulse) { // 分かれた光は当たりの Tick に描く（粒を絞る）
+                    int split = Color.HSBtoRGB((hue + i / (float) OVER_SPLITS) % 1F, 0.75F, 1F) & 0xFFFFFF;
+                    Fx.line(level, Fx.opt(ModParticles.GLOW.get(), split, 0.35F, 4), from, to, 1.5);
+                    other.invulnerableTime = 0;
+                    other.hurt(WeaponDamage.source(user, WeaponDamage.ENERGY, user, user), damage / 2);
+                    if (t % 10 == 0 && i < 6) OverloadArts.impact(level, to);
+                }
+            }
+            // プリズムの所: 回る虹の陣と光の輪
+            if (t % 6 == 0) {
+                Fx.mandala(level, from, Color.HSBtoRGB(hue, 0.6F, 1F) & 0xFFFFFF, 2.5F, 8, true, (t / 6) % 2 == 0);
+                Fx.beamRing(level, from, look, Overload.GOLD, 3.0F, 8);
+            }
+            if (t % 4 == 0) Fx.spray(level, Fx.opt(ModParticles.GLOW.get(), 0xFFFFFF, 1.6F, 4), from, 1, 0, 0);
+        }
+        if (t % 10 == 0) level.playSound(null, user.blockPosition(), SoundEvents.BEACON_AMBIENT, SoundSource.PLAYERS, 1.2F, 0.8F + rampOf(t) * 0.33F);
     }
 
     @Override

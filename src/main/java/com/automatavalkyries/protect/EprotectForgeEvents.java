@@ -42,7 +42,7 @@ public class EprotectForgeEvents {
             String sourceMod = getSourceMod(source);
             boolean isBlacklisted = ModBlacklist.contains(sourceMod);
             if (isBlacklisted) {
-                EprotectPlusLink.triggerBlacklistReinforcement(sourceMod);
+                com.automatavalkyries.protect.Eprotect.reinforceAgainst(sourceMod);
             }
 
             boolean isReinforced = EprotectPlusLink.isReinforcedActive() || protect.isReinforcedActive();
@@ -65,7 +65,7 @@ public class EprotectForgeEvents {
             String sourceMod = getSourceMod(source);
             boolean isBlacklisted = ModBlacklist.contains(sourceMod);
             if (isBlacklisted) {
-                EprotectPlusLink.triggerBlacklistReinforcement(sourceMod);
+                com.automatavalkyries.protect.Eprotect.reinforceAgainst(sourceMod);
             }
             if (isLethalAttack(source, event.getAmount()) || isInstantKillSource(source) || isAttackerHoldingKillItem(source) || isBlacklisted) {
                 event.setCanceled(true);
@@ -117,7 +117,7 @@ public class EprotectForgeEvents {
             String sourceMod = getSourceMod(source);
             boolean isBlacklisted = ModBlacklist.contains(sourceMod);
             if (isBlacklisted) {
-                EprotectPlusLink.triggerBlacklistReinforcement(sourceMod);
+                com.automatavalkyries.protect.Eprotect.reinforceAgainst(sourceMod);
             }
 
             boolean isReinforced = EprotectPlusLink.isReinforcedActive() || protect.isReinforcedActive();
@@ -147,7 +147,7 @@ public class EprotectForgeEvents {
             String sourceMod = getSourceMod(source);
             boolean isBlacklisted = ModBlacklist.contains(sourceMod);
             if (isBlacklisted) {
-                EprotectPlusLink.triggerBlacklistReinforcement(sourceMod);
+                com.automatavalkyries.protect.Eprotect.reinforceAgainst(sourceMod);
             }
             if (isLethalAttack(source, event.getAmount()) || isInstantKillSource(source) || isAttackerHoldingKillItem(source) || isBlacklisted) {
                 event.setCanceled(true);

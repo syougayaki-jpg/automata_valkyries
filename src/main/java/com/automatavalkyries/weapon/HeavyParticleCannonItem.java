@@ -22,6 +22,9 @@ import org.joml.Vector3f;
  * （0.2 秒ごとに 20.0 ダメージ。1 射 200,000 FE）。光線は向いた方へ 96 ブロック（元仕様に射程の値は無く、ユーザー指定で 32 の 3 倍）、太さ 1.2 で、線上の全員を貫く。
  * 照射の 0.2 秒ごとの当たりは無敵時間を待たない（毎回入る）。ガリアフォートの「ダメージ 1 固定の場」を無効にする特性は、
  * ガリアフォートを実装したら、ダメージの種類 {@link WeaponDamage#PARTICLE_BEAM} で見分けてつなぐ。
+ * <p>オーバーロード（{@link OverloadArts}。2026-10-05 ユーザー指定）: 「超重粒子砲」に変わる。光線の太さが 4.8（4 倍、当たりの半径 2.4）になり、
+ * 白熱の芯・紫の極太の外層・紫と紅と金の 3 本の螺旋が巻き、8 ブロックごとに紅と金の光線の輪が流れる。照射を始めると紅と金の衝撃波が足元に広がり、
+ * 光線の先では 0.2 秒ごとに半径 5 の爆発が起きて、まわりの敵も焼く</p>
  */
 public class HeavyParticleCannonItem extends ChargedWeaponItem {
 
@@ -35,6 +38,8 @@ public class HeavyParticleCannonItem extends ChargedWeaponItem {
     public static final int CAPACITY = 4_000_000, PER_SHOT = 200_000, CHARGE = 30, BEAM_TICKS = 40, PULSE = 4;
     public static final float DAMAGE = 100.0F, WEIGHT = 28.0F;
     public static final double RANGE = 96.0, WIDTH = 1.2;
+    /** オーバーロード: 光線の太さ・光線の先の爆発の半径 */
+    public static final double OVER_WIDTH = 4.8, OVER_BLAST = 5.0;
     private static final DustParticleOptions CORE = new DustParticleOptions(new Vector3f(1.0F, 0.9F, 1.0F), 2.0F);
     private static final DustParticleOptions EDGE = new DustParticleOptions(new Vector3f(0.7F, 0.35F, 1.0F), 1.6F);
 
@@ -82,6 +87,10 @@ public class HeavyParticleCannonItem extends ChargedWeaponItem {
         HitResult block = level.clip(new ClipContext(eye, end, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, user));
         if (block.getType() != HitResult.Type.MISS) end = block.getLocation();
         Vec3 stop = end;
+        if (OverloadArts.active(user)) {
+            overBeamTick(level, user, step, look, start, stop);
+            return;
+        }
         // 極太の光線: 白い芯・紫の外層・まわりを螺旋に巡るきらめき。当たった所に衝撃波と光の飛沫
         double length = stop.distanceTo(start);
         Fx.line(level, Fx.opt(com.automatavalkyries.registry.ModParticles.GLOW.get(), Fx.WHITE, 0.5F, 3), start, stop, 0.6);
@@ -106,6 +115,61 @@ public class HeavyParticleCannonItem extends ChargedWeaponItem {
                 e -> e != user && e.isAlive() && !e.isSpectator() && e.getBoundingBox().inflate(WIDTH * 0.5).clip(start, stop).isPresent())) {
             target.invulnerableTime = 0;
             target.hurt(WeaponDamage.source(user, WeaponDamage.PARTICLE_BEAM, user, user), DAMAGE);
+        }
+    }
+
+    /** オーバーロードの照射の 1 Tick: 太さ 4.8 の光線、3 本の螺旋、流れる光線の輪、光線の先の半径 5 の爆発 */
+    private static void overBeamTick(ServerLevel level, LivingEntity user, int step, Vec3 look, Vec3 start, Vec3 stop) {
+        double radius = OVER_WIDTH * 0.5;
+        double length = stop.distanceTo(start);
+        if (step == 0) {
+            OverloadArts.flourish(level, user, 8.0F);
+            Fx.beamRing(level, start, look, Overload.GOLD, (float) radius + 1.5F, 14);
+            Fx.beamRing(level, start, look, Overload.CRIMSON, (float) radius + 3.0F, 18);
+        }
+        Fx.line(level, Fx.opt(com.automatavalkyries.registry.ModParticles.GLOW.get(), Overload.HOT, 1.3F, 3), start, stop, 1.0);
+        Fx.line(level, Fx.opt(com.automatavalkyries.registry.ModParticles.GLOW.get(), Fx.VIOLET, 2.8F, 3), start, stop, 1.4);
+        Vec3 side = look.cross(new Vec3(0, 1, 0));
+        if (side.lengthSqr() < 1.0E-4) side = new Vec3(1, 0, 0);
+        side = side.normalize();
+        Vec3 up = side.cross(look).normalize();
+        int[] strands = {Fx.LAVENDER, Overload.CRIMSON, Overload.GOLD};
+        for (double d = 0; d < length; d += 2.0) {
+            for (int k = 0; k < 3; k++) {
+                double a = d * 0.45 + step * 0.5 + k * Math.PI * 2 / 3;
+                Vec3 p = start.add(look.scale(d)).add(side.scale(Math.cos(a) * radius)).add(up.scale(Math.sin(a) * radius));
+                Fx.spray(level, Fx.opt(com.automatavalkyries.registry.ModParticles.SPARK.get(), strands[k], 0.35F, 6), p, 1, 0, 0);
+            }
+        }
+        if (step % 4 == 0) { // 流れる光線の輪（8 ブロックごと）
+            int k = 0;
+            for (double d = 4 + (step / 4 % 2) * 4; d < length; d += 8, k++) {
+                Fx.beamRing(level, start.add(look.scale(d)), look, k % 2 == 0 ? Overload.CRIMSON : Overload.GOLD, (float) radius + 0.4F, 8);
+            }
+            Fx.shockwave(level, stop, Fx.VIOLET, (float) OVER_BLAST + 1, 10);
+            Fx.shockwave(level, stop, Overload.CRIMSON, (float) OVER_BLAST * 0.6F, 12);
+        }
+        Fx.burst(level, Fx.opt(com.automatavalkyries.registry.ModParticles.GLOW.get(), Fx.LAVENDER, 0.8F, 12), stop, 8, 0.6);
+        Fx.burst(level, Fx.opt(com.automatavalkyries.registry.ModParticles.SPARK.get(), Overload.GOLD, 0.4F, 10), stop, 8, 0.7);
+        if (step % 10 == 0) {
+            level.playSound(null, user.blockPosition(), SoundEvents.BEACON_AMBIENT, SoundSource.PLAYERS, 1.6F, 1.2F);
+            level.playSound(null, stop.x, stop.y, stop.z, SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 0.8F, 1.4F);
+        }
+        if (step % PULSE != 0) return;
+        java.util.Set<LivingEntity> hit = new java.util.HashSet<>();
+        for (LivingEntity target : level.getEntitiesOfClass(LivingEntity.class, new AABB(start, stop).inflate(OVER_WIDTH),
+                e -> e != user && e.isAlive() && !e.isSpectator() && e.getBoundingBox().inflate(radius).clip(start, stop).isPresent())) {
+            target.invulnerableTime = 0;
+            target.hurt(WeaponDamage.source(user, WeaponDamage.PARTICLE_BEAM, user, user), DAMAGE);
+            hit.add(target);
+        }
+        int shown = 0;
+        for (LivingEntity target : level.getEntitiesOfClass(LivingEntity.class, new AABB(stop, stop).inflate(OVER_BLAST),
+                e -> e != user && e.isAlive() && !e.isSpectator() && !hit.contains(e) && !e.isAlliedTo(user)
+                        && e.distanceToSqr(stop) <= (OVER_BLAST + e.getBbWidth()) * (OVER_BLAST + e.getBbWidth()))) {
+            target.invulnerableTime = 0;
+            target.hurt(WeaponDamage.source(user, WeaponDamage.PARTICLE_BEAM, user, user), DAMAGE);
+            if (shown++ < 6) OverloadArts.impact(level, new Vec3(target.getX(), target.getY(0.5), target.getZ()));
         }
     }
 

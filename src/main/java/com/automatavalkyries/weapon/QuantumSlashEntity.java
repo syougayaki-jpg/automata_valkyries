@@ -26,6 +26,7 @@ import java.util.Set;
  * クアンタムブレードの三日月の斬撃。重力が無く、毎 Tick 1.6 ブロックまっすぐ飛ぶ（射程 16 ブロック = 10 Tick）。
  * 刃は進む向きに直角な面にあり、roll（縦・横・斜め）の向きに幅 3 ブロック。刃が通り抜けた所の敵へ 1 回ずつ 18 ダメージ（貫通）。
  * 撃った者には当たらない。刃の中心が壁に当たると、そこで砕けて消える。
+ * オーバーロードの斬撃（{@link QuantumBladeItem} のオーバーロード）は射程が 2 倍（32 ブロック）で、斬った所に紅と金の閃きが重なる。
  */
 public class QuantumSlashEntity extends ThrowableProjectile {
 
@@ -36,6 +37,9 @@ public class QuantumSlashEntity extends ThrowableProjectile {
     private static final EntityDataAccessor<Float> ROLL = SynchedEntityData.defineId(QuantumSlashEntity.class, EntityDataSerializers.FLOAT);
 
     private final Set<Integer> hit = new HashSet<>();
+    /** 飛ぶ Tick 数（オーバーロードは 2 倍）と、オーバーロードの斬撃か（サーバーだけで使う） */
+    private int lifetime = LIFETIME;
+    private boolean overloaded;
 
     public QuantumSlashEntity(EntityType<? extends QuantumSlashEntity> type, Level level) {
         super(type, level);
@@ -56,6 +60,12 @@ public class QuantumSlashEntity extends ThrowableProjectile {
 
     public void setRoll(float roll) {
         entityData.set(ROLL, roll);
+    }
+
+    /** オーバーロードの斬撃にする（射程 2 倍・斬った所に紅と金の閃き） */
+    public void overload() {
+        overloaded = true;
+        lifetime = LIFETIME * 2;
     }
 
     @Override
@@ -85,7 +95,7 @@ public class QuantumSlashEntity extends ThrowableProjectile {
             BlockHitResult wall = level().clip(new ClipContext(before, after, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, this));
             if (wall.getType() != HitResult.Type.MISS) after = wall.getLocation();
             cut(before, after);
-            if (wall.getType() != HitResult.Type.MISS || tickCount > LIFETIME) {
+            if (wall.getType() != HitResult.Type.MISS || tickCount > lifetime) {
                 shatter(after);
                 return;
             }
@@ -121,6 +131,7 @@ public class QuantumSlashEntity extends ThrowableProjectile {
                 Fx.spray(server, Fx.opt(ModParticles.GLOW.get(), COLOR_GLOW, 1.1F, 8), at, 1, 0, 0);
                 Fx.burst(server, Fx.opt(ModParticles.HEX.get(), COLOR_EDGE, 0.16F, 14), at, 10, 0.25);
                 Fx.burst(server, Fx.opt(ModParticles.SPARK.get(), COLOR_CORE, 0.32F, 10), at, 12, 0.4);
+                if (overloaded) OverloadArts.impact(server, at);
             }
         }
     }

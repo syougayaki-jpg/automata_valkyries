@@ -33,7 +33,9 @@ public class ValkyrieGameTests {
                 for (net.minecraft.world.level.ChunkPos c : forced) helper.getLevel().setChunkForced(c.x, c.z, false);
             }
         };
+        int[] waited = {0};
         helper.startSequence().thenWaitUntil(() -> {
+            WeaponGameTests.kickStuckChunks(helper, waited, vs);
             for (ValkyrieEntity v : vs) {
                 helper.assertTrue(helper.getLevel().getEntity(v.getUUID()) == v, "not in the world yet");
                 helper.assertTrue(helper.getLevel().areEntitiesLoaded(net.minecraft.world.level.ChunkPos.asLong(v.blockPosition())), "entities not loaded yet");

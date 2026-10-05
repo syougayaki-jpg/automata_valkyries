@@ -180,7 +180,12 @@ def head_down(x, y, w, h):
 # 2026-10-04 ユーザー指定: 光は小さく、瞳の解像度を下げ、丸くしすぎず、ジト目（上まぶたが平ら）にする（四角の中でも可愛く見える）。
 # 同日「目尻を下げたまま水平にジト目に保ち目の横幅を減らして」「もう一幅だけ狭めて」: まぶたは水平、目尻の 1 列だけ 1 段下げる。横は 5 ドット
 EYE_W, EYE_H = 5, 8
-ROW = 1.75 / EYE_H         # 目の 1 ドットの大きさ（px）
+# 2026-10-05 ユーザー指定「戦術兵姫はプレイヤーより少し小さいので、素体の目を比率だけ大きく」: 体の比（プレイヤー 32px / 兵姫 27px）だけ目を大きくする。
+# ドット数（解像度）は変えず、目の中心の位置もそのまま
+EYE_SCALE = 32.0 / 27.0
+EYE_PX_H = 1.75 * EYE_SCALE  # 目の板の高さ（px）
+EYE_Y0 = 22.875 - EYE_PX_H / 2  # 目の板の下端（中心 22.875 は前と同じ）
+ROW = EYE_PX_H / EYE_H     # 目の 1 ドットの大きさ（px）
 EYE_WIDTH = EYE_W * ROW    # 目の板の横幅（px）
 # まぶた: (中央の段, 傾き)。傾きは 1 列あたりの段数で、正で鼻側が下がる（怒り）、負で目尻が下がる（悲しみ）
 LID = {
@@ -427,12 +432,12 @@ def build(expr):
     # 目: 顔の下半分に置いた独立の板（1 つ EYE_W x EYE_H ドット）。目の中心は左右 ±1.175px
     EX = {-1: -1.175 - EYE_WIDTH / 2, 1: 1.175 - EYE_WIDTH / 2}  # 目の板の左端
     B.append(Bone('eyes', 'head', [0, 22.9, -2.5], [
-        Cube([EX[-1], 22.0, -2.55], [EYE_WIDTH, 1.75, 0.01], faces(all=fill('.'), north=eye_grid(expr, False)), tex=[EYE_W, EYE_H, 1], only='north'),
-        Cube([EX[1], 22.0, -2.55], [EYE_WIDTH, 1.75, 0.01], faces(all=fill('.'), north=eye_grid(expr, True)), tex=[EYE_W, EYE_H, 1], only='north'),
+        Cube([EX[-1], EYE_Y0, -2.55], [EYE_WIDTH, EYE_PX_H, 0.01], faces(all=fill('.'), north=eye_grid(expr, False)), tex=[EYE_W, EYE_H, 1], only='north'),
+        Cube([EX[1], EYE_Y0, -2.55], [EYE_WIDTH, EYE_PX_H, 0.01], faces(all=fill('.'), north=eye_grid(expr, True)), tex=[EYE_W, EYE_H, 1], only='north'),
     ]))
     # 立体のまつ毛（2026-10-04 ユーザー指定「まつ毛を薄く出して立体感を」）: 目の板より少し前に出た細い棒と、目尻のはね。
     # 位置は通常の表情（ジト目のまぶた = 目の 3 段目）。表情ごとの上下・傾きは描画側で骨を動かす（LASH_POSE）
-    lash_y = 22.0 + 1.75 - LID['normal'][0] * ROW  # 通常のまぶたの高さ
+    lash_y = EYE_Y0 + EYE_PX_H - LID['normal'][0] * ROW  # 通常のまぶたの高さ
     for side, sx in (('right', -1), ('left', 1)):
         ex0 = EX[sx]
         outer = ex0 if sx < 0 else ex0 + EYE_WIDTH

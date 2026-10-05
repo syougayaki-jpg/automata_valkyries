@@ -35,6 +35,12 @@ public class ClientModEvents {
         com.automatavalkyries.client.particle.FxParticles.register(event);
     }
 
+    /** 追従中の兵姫の HUD */
+    @SubscribeEvent
+    public static void registerOverlays(net.minecraftforge.client.event.RegisterGuiOverlaysEvent event) {
+        ValkyrieHud.register(event);
+    }
+
     @SubscribeEvent
     public static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerEntityRenderer(ModEntities.ELENOR.get(), ElenorRenderer::new);

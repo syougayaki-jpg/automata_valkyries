@@ -27,6 +27,26 @@ public class ValkyrieRenderer extends GeoEntityRenderer<ValkyrieEntity> {
         addRenderLayer(new HeldItemLayer(this));
     }
 
+    /** T4 兵装・ジェネシス・ヘイロー・ルミナス・レクイエムの背の飾り（GeckoLib には RenderLivingEvent が来ないので、ここから呼ぶ） */
+    @Override
+    public void render(ValkyrieEntity entity, float entityYaw, float partialTick, PoseStack poseStack, MultiBufferSource bufferSource, int packedLight) {
+        super.render(entity, entityYaw, partialTick, poseStack, bufferSource, packedLight);
+        if (entity.isInvisible() || portraitPass) return;
+        T4BackdropClient.render(entity, poseStack, bufferSource, partialTick);
+        GenesisBackdropClient.render(entity, poseStack, bufferSource, partialTick);
+        RequiemBackdropClient.render(entity, poseStack, bufferSource, partialTick);
+        ValkyrieOverhead.render(entity, poseStack, bufferSource, partialTick, entityRenderDispatcher, getFont()); // 名前・バー・感情アイコン・吹き出し
+    }
+
+    /** HUD の顔（{@link ValkyrieHud#drawFace}）を描いている最中か: 背の飾り・頭上の表示・手の物・名札を出さない */
+    static boolean portraitPass;
+
+    /** 頭上の表示が出る距離ではバニラの名札を出さない（名前が二重にならないよう） */
+    @Override
+    public boolean shouldShowName(ValkyrieEntity animatable) {
+        return !portraitPass && !ValkyrieOverhead.suppressNameTag(animatable, entityRenderDispatcher) && super.shouldShowName(animatable);
+    }
+
     /** バニラの横倒しはしない（機能停止はモデル側で座り込む予定） */
     @Override
     protected float getDeathMaxRotation(ValkyrieEntity animatable) {
@@ -39,11 +59,18 @@ public class ValkyrieRenderer extends GeoEntityRenderer<ValkyrieEntity> {
     }
 
     /**
-     * 手に持った兵装（右手 = 主、左手 = 副。段階 2、2026-10-05 ユーザー指定「手持ちの兵装だけ出す」）。腕の骨の先（手首）へ動かして描く。位置・向きは【仮】
+     * 手に持った兵装（右手 = 主、左手 = 副。段階 2、2026-10-05 ユーザー指定「手持ちの兵装だけ出す」）。
+     * バニラのプレイヤーの持ち方（{@code ItemInHandLayer}: 腕の付け根から X -90°・Y 180°・(±1/16, 2/16, 手首まで) 動かして THIRD_PERSON で描く）を、
+     * GeckoLib の座標（バニラのモデルと違い X・Y を反転していない）へ直してそのまま行う。兵装の表示の向き（各兵装の thirdperson_*）がプレイヤーと同じに効く。
+     * 体が小さい（27px、プレイヤーは 32px）ので持つ物も同じ割合で小さくする
      */
     static class HeldItemLayer extends software.bernie.geckolib.renderer.layer.BlockAndItemGeoLayer<ValkyrieEntity> {
-        /** 腕の骨の付け根から手首までの長さ（px）。腕は付け根 y=20.1 から y=11 まで */
-        private static final float ARM_LENGTH = 8.6F / 16.0F;
+        /** 腕の付け根（y 20.1）から握る所（手首の少し上）までの長さ。腕は y 11.0 まで。プレイヤーは 12px の腕の 10px の所で持つ */
+        private static final float GRIP = 7.6F / 16.0F;
+        /** 実機で合わせた握る位置の補正（px、持つ物の座標。X は外向きが正、Y は前が正、Z は肩の向きが正） */
+        private static final float GRIP_FIX_X = -1.0F, GRIP_FIX_Y = -0.8F, GRIP_FIX_Z = -2.9F;
+        /** 体の大きさの比（兵姫 27px / プレイヤー 32px） */
+        private static final float BODY_SCALE = 27.0F / 32.0F;
 
         HeldItemLayer(GeoRenderer<ValkyrieEntity> renderer) {
             super(renderer);
@@ -51,6 +78,7 @@ public class ValkyrieRenderer extends GeoEntityRenderer<ValkyrieEntity> {
 
         @Override
         protected net.minecraft.world.item.ItemStack getStackForBone(GeoBone bone, ValkyrieEntity animatable) {
+            if (portraitPass) return null; // HUD の顔には手の物を描かない
             return switch (bone.getName()) {
                 case "right_arm" -> animatable.getMainHandItem();
                 case "left_arm" -> animatable.getOffhandItem();
@@ -67,10 +95,16 @@ public class ValkyrieRenderer extends GeoEntityRenderer<ValkyrieEntity> {
         @Override
         protected void renderStackForBone(PoseStack poseStack, GeoBone bone, net.minecraft.world.item.ItemStack stack, ValkyrieEntity animatable,
                                           MultiBufferSource bufferSource, float partialTick, int packedLight, int packedOverlay) {
+            boolean left = bone.getName().equals("left_arm");
             poseStack.pushPose();
-            poseStack.translate(0.0F, -ARM_LENGTH, 0.0F);
+            // 腕の付け根の位置・向き（GeckoLib が済ませている）で、バニラのモデルの座標（X・Y 反転）へ切り替える
+            poseStack.scale(-1.0F, -1.0F, 1.0F);
             poseStack.mulPose(com.mojang.math.Axis.XP.rotationDegrees(-90.0F));
-            poseStack.scale(0.8F, 0.8F, 0.8F);
+            poseStack.mulPose(com.mojang.math.Axis.YP.rotationDegrees(180.0F));
+            poseStack.translate((left ? -1.0F : 1.0F) / 16.0F * BODY_SCALE, 0.125F * BODY_SCALE, -GRIP);
+            poseStack.scale(BODY_SCALE, BODY_SCALE, BODY_SCALE);
+            // 実機で合わせた握る位置の補正（2026-10-05、ユーザーと /avhand で確認: 内へ 1・後ろへ 0.8・下へ 2.9 px。持つ物の座標）
+            poseStack.translate(GRIP_FIX_X / 16.0F, GRIP_FIX_Y / 16.0F, GRIP_FIX_Z / 16.0F);
             super.renderStackForBone(poseStack, bone, stack, animatable, bufferSource, partialTick, packedLight, packedOverlay);
             poseStack.popPose();
         }

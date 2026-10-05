@@ -6,7 +6,6 @@ import com.automatavalkyries.entity.ValkyrieOrders;
 import com.automatavalkyries.menu.ValkyrieMenu;
 import com.automatavalkyries.network.ModNetwork;
 import com.automatavalkyries.network.ValkyrieCommandPacket;
-import com.automatavalkyries.registry.ModWeapons;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
@@ -56,14 +55,9 @@ public class ValkyrieScreen extends AbstractContainerScreen<ValkyrieMenu> {
         return menu.valkyrie;
     }
 
-    /** コアの色（発光線）【仮】 */
+    /** コアの色（発光線）【仮】（HUD・頭上と同じ） */
     private int glow() {
-        ItemStack core = v().getCore();
-        if (core.is(ModWeapons.CORE_STELLA_GENESIS_OMEGA.get())) return 0xFFFFF4C8;
-        if (core.is(ModWeapons.CORE_CHRONO_GENESIS.get())) return 0xFFFFC24A;
-        if (core.is(ModWeapons.CORE_SINGULARITY.get())) return 0xFFC07CFF;
-        if (core.is(ModWeapons.CORE_HIGH_DENSITY.get())) return 0xFF4A8CFF;
-        return 0xFF3BE8FF;
+        return ValkyrieHud.glow(v());
     }
 
     // ------------------------------------------------------------------ 組み立て

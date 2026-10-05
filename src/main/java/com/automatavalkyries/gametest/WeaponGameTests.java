@@ -531,17 +531,21 @@ public class WeaponGameTests {
     /** ヴォイドサイズ: 刈り取りでまわりの敵を斬り、持ち主が回復する */
     @GameTest(template = TEMPLATE, batch = "weapon_scythe", timeoutTicks = 400)
     public static void voidScytheReapsAndHeals(GameTestHelper helper) {
+        // 相手は持ち主と同じ区画の 3 ブロック横に出し、両方が世界に入るのを待つ（相手が隣の区画にかかると、その区画を強制しても
+        // 相手が世界に入らないまま（byId=null）失敗していた。テストの置き場所しだいで、戦闘 AI のテストを足して置き場所がずれてから毎回。2026-10-06）
+        int userX = helper.absolutePos(new BlockPos(1, 2, 2)).getX();
+        double dx = (userX & 15) <= 12 ? 3.0 : -3.0;
         Zombie user = dummy(helper, new Vec3(1.5, 2, 2.5));
+        Zombie target = tough(helper, new Vec3(1.5 + dx, 2, 2.5));
         whenLoaded(helper, () -> {
             user.setHealth(5);
-            Zombie target = tough(helper, new Vec3(4.5, 2, 2.5));
-            // 新しく作られた区画に当たると、区画の準備が済むまで mob が世界に入らない（裏で区画を作る速さ次第）。入るまで刈り取りを繰り返す
             helper.succeedWhen(() -> {
                 if (target.getHealth() >= target.getMaxHealth()) com.automatavalkyries.weapon.VoidScytheItem.reap(helper.getLevel(), user);
-                helper.assertTrue(target.getHealth() < target.getMaxHealth(), "reap did no damage");
+                helper.assertTrue(target.getHealth() < target.getMaxHealth(), "reap did no damage: target hp=" + target.getHealth() + "/" + target.getMaxHealth()
+                        + " inWorld=" + (helper.getLevel().getEntity(target.getUUID()) == target) + " dist=" + String.format("%.2f", target.distanceTo(user)));
                 helper.assertTrue(user.getHealth() > 5, "no lifesteal");
             });
-        }, user);
+        }, user, target);
     }
 
     /** ジェネシス・ヘイロー: 光の柱が注いで、柱の中の敵を焼く（撃った者には当たらない） */
@@ -655,11 +659,82 @@ public class WeaponGameTests {
                 for (net.minecraft.world.level.ChunkPos c : forced) helper.getLevel().setChunkForced(c.x, c.z, false);
             }
         };
+        int[] waited = {0};
         helper.startSequence().thenWaitUntil(() -> {
+            kickStuckChunks(helper, waited, mobs);
             for (net.minecraft.world.entity.Entity e : mobs) helper.assertTrue(helper.getLevel().getEntity(e.getUUID()) == e,
                     "mob not in the world yet (removed=" + e.getRemovalReason() + ", added=" + e.isAddedToWorld() + ", sameLevel=" + (e.level() == helper.getLevel())
-                            + ", byId=" + helper.getLevel().getEntity(e.getId()) + ", uuid=" + e.getUUID() + ", pos=" + e.blockPosition() + ")");
+                            + ", byId=" + helper.getLevel().getEntity(e.getId()) + ", uuid=" + e.getUUID() + ", pos=" + e.blockPosition() + ", " + entityState(helper, e) + ")");
         }).thenExecute(body);
+    }
+
+    /** 世界に入らない mob の区画の読み込みを頼み直すまでの待ち（Tick） */
+    static final int KICK_AFTER = 40;
+
+    /**
+     * mob が {@link #KICK_AFTER} Tick たっても世界に入らなければ、その区画のエンティティの読み込みを頼み直す（1 回だけ）。
+     * GameTest の世界の特定の区画（2026-10-06 は x 192〜207・z 0〜15）で、強制読み込みしても区画のエンティティの読み込みが一度も頼まれず
+     * （読み込みの状態 FRESH・見え方 HIDDEN）、そこへ置かれたテストの mob が世界に入らないまま失敗していた（ユーザー指定で、原因を追わずテストの側で回避）
+     */
+    @SuppressWarnings("unchecked")
+    static void kickStuckChunks(GameTestHelper helper, int[] waited, net.minecraft.world.entity.Entity... mobs) {
+        if (waited[0]++ != KICK_AFTER) return;
+        var manager = (net.minecraft.world.level.entity.PersistentEntitySectionManager<net.minecraft.world.entity.Entity>)
+                ((com.automatavalkyries.mixin.ServerLevelTickListAccessor) helper.getLevel()).automata_valkyries$getEntityManager();
+        for (net.minecraft.world.entity.Entity e : mobs) {
+            if (helper.getLevel().getEntity(e.getUUID()) == e) continue;
+            com.automatavalkyries.AutomataValkyries.LOGGER.warn("[gametest] {} did not enter the world after {} ticks ({}); re-requesting entity loading for chunk {}",
+                    e, KICK_AFTER, entityState(helper, e), e.chunkPosition());
+            manager.updateChunkStatus(e.chunkPosition(), net.minecraft.server.level.FullChunkStatus.ENTITY_TICKING);
+        }
+    }
+
+    /** 世界に入らない mob の調べ: 区画の見え方・UUID の登録・ID の検索表・区画の一覧に載っているか・強制読み込み・区画の読み込みの状態 */
+    @SuppressWarnings("unchecked")
+    static String entityState(GameTestHelper helper, net.minecraft.world.entity.Entity e) {
+        try {
+            var level = helper.getLevel();
+            var manager = (com.automatavalkyries.mixin.EntityManagerAccessor<net.minecraft.world.entity.Entity>) (Object)
+                    ((com.automatavalkyries.mixin.ServerLevelTickListAccessor) level).automata_valkyries$getEntityManager();
+            long chunk = e.chunkPosition().toLong();
+            var section = manager.automata_valkyries$getSectionStorage().getSection(net.minecraft.core.SectionPos.asLong(e.blockPosition()));
+            return "vis=" + manager.automata_valkyries$getChunkVisibility().get(chunk)
+                    + " knownUuid=" + manager.automata_valkyries$getKnownUuids().contains(e.getUUID())
+                    + " lookupUuid=" + (manager.automata_valkyries$getVisibleEntityStorage().getEntity(e.getUUID()) != null)
+                    + " lookupId=" + (manager.automata_valkyries$getVisibleEntityStorage().getEntity(e.getId()) != null)
+                    + " inSection=" + (section != null && section.getEntities().anyMatch(x -> x == e))
+                    + " sectionStatus=" + (section == null ? "none" : section.getStatus())
+                    + " forced=" + level.getForcedChunks().contains(chunk)
+                    + " entitiesLoaded=" + level.areEntitiesLoaded(chunk)
+                    + " ticking=" + level.isPositionEntityTicking(e.blockPosition())
+                    + " loadStatus=" + reflectGet(manager, "chunkLoadStatuses", chunk)
+                    + " inChunk=" + manager.automata_valkyries$getSectionStorage().getExistingSectionsInChunk(chunk)
+                            .flatMap(sec -> sec.getEntities()).map(x -> x.getType().toShortString() + "#" + x.getId() + (x.isRemoved() ? "(removed " + x.getRemovalReason() + ")" : ""))
+                            .toList()
+                    + " unloadQueue=" + reflectContains(manager, "chunksToUnload", chunk);
+        } catch (Throwable t) {
+            return "state=" + t;
+        }
+    }
+
+    private static Object reflectGet(Object owner, String field, long key) {
+        try {
+            java.lang.reflect.Field f = net.minecraft.world.level.entity.PersistentEntitySectionManager.class.getDeclaredField(field);
+            f.setAccessible(true);
+            return ((it.unimi.dsi.fastutil.longs.Long2ObjectMap<?>) f.get(owner)).get(key);
+        } catch (Throwable t) {
+            return t.getClass().getSimpleName();
+        }
+    }
+
+    private static Object reflectContains(Object owner, String field, long key) {
+        try {
+            java.lang.reflect.Field f = net.minecraft.world.level.entity.PersistentEntitySectionManager.class.getDeclaredField(field);
+            f.setAccessible(true);
+            return ((it.unimi.dsi.fastutil.longs.LongSet) f.get(owner)).contains(key);
+        } catch (Throwable t) {
+            return t.getClass().getSimpleName();
+        }
     }
 
     /** mob のいる区画を強制的に読み込む（まだ強制されていなかった区画だけ返す。後で外す） */

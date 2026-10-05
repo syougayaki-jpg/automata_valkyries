@@ -28,8 +28,11 @@ import java.util.List;
  * 撃つときに前方 128 ブロック（ユーザー指定で 32 の 4 倍）・左右 60 度の敵を選び、ミサイルを順に割り振る
  * （{@link FrostMissileEntity}、1 発 6 ダメージで無敵時間を無視）。当たるたびに凍傷（移動速度と跳躍力が下がる、最大 V・5 秒）が重なる。
  * 斉射のあと 5 秒の再装填。
+ * <p>オーバーロード（{@link OverloadArts}。2026-10-05 ユーザー指定）: 「絶対零度の雪崩」。1 つにつき 64 発から 128 発に倍増し（同じ約 1.6 秒で
+ * 1 Tick に 4 発ずつ。両手なら 256 発）、撃ち始めに足元へ氷の陣と半径 12 の氷と紅金の衝撃波が開く。ミサイルは当たると（敵でも地面でも）半径 4.5 の
+ * 氷の爆発（{@link FrostMissileEntity#OVER_NOVA}）になり、まわりの敵（6 体まで）にも 1 発分の一撃と凍傷を重ねる</p>
  */
-public class AvalancheLauncherItem extends TacticalWeaponItem {
+public class AvalancheLauncherItem extends TacticalWeaponItem implements ValkyrieArts.Usable {
 
     /** 弾の威力（説明に出す） */
     @Override
@@ -39,6 +42,8 @@ public class AvalancheLauncherItem extends TacticalWeaponItem {
 
 
     public static final int CAPACITY = 15_000_000, PER_VOLLEY = 1_500_000, MISSILES = 64, PER_TICK = 2, RELOAD = 100;
+    /** オーバーロード: 1 つの斉射の発数・1 Tick の発数（同じ時間で倍） */
+    public static final int OVER_MISSILES = 128, OVER_PER_TICK = 4;
     public static final double RANGE = 128.0;
     public static final float WEIGHT = 18.0F;
 
@@ -73,11 +78,32 @@ public class AvalancheLauncherItem extends TacticalWeaponItem {
         return InteractionResultHolder.consume(stack);
     }
 
-    private void start(ServerLevel level, Player player, ItemStack stack, InteractionHand hand) {
+    /** 戦術兵姫が斉射する（{@link ValkyrieArts}）。斉射中・電力が足りなければ false */
+    @Override
+    public boolean valkyrieUse(ServerLevel level, LivingEntity user, ItemStack stack, @org.jetbrains.annotations.Nullable LivingEntity target) {
+        InteractionHand hand = ValkyrieArts.handOf(user, stack);
+        if (hand == null || volley(stack) > 0 || !WeaponPower.has(user, stack, PER_VOLLEY)) return false;
+        start(level, user, stack, hand);
+        return true;
+    }
+
+    private void start(ServerLevel level, LivingEntity player, ItemStack stack, InteractionHand hand) {
         WeaponPower.use(player, stack, PER_VOLLEY);
         HumanoidArm arm = hand == InteractionHand.MAIN_HAND ? player.getMainArm() : player.getMainArm().getOpposite();
-        stack.getOrCreateTag().putInt("Volley", MISSILES);
+        boolean over = OverloadArts.active(player);
+        stack.getOrCreateTag().putInt("Volley", over ? OVER_MISSILES : MISSILES);
+        stack.getOrCreateTag().putInt("Total", over ? OVER_MISSILES : MISSILES);
+        stack.getOrCreateTag().putInt("Rate", over ? OVER_PER_TICK : PER_TICK);
         stack.getOrCreateTag().putInt("Side", arm == HumanoidArm.RIGHT ? 1 : -1);
+        if (over) {
+            Vec3 feet = player.position().add(0, 0.05, 0);
+            Fx.mandala(level, feet, Fx.ICE, 8.0F, 40, false, hand == InteractionHand.MAIN_HAND);
+            Fx.shockwave(level, feet, 0xB8F4FF, 12.0F, 20);
+            Fx.burst(level, Fx.opt(ModParticles.HEX.get(), Fx.ICE, 0.3F, 20), player.getEyePosition(), 24, 0.4);
+            level.sendParticles(ParticleTypes.SNOWFLAKE, feet.x, feet.y + 1, feet.z, 60, 6, 1.5, 6, 0.05);
+            OverloadArts.flourish(level, player, 12.0F);
+            level.playSound(null, player.blockPosition(), SoundEvents.GLASS_BREAK, SoundSource.PLAYERS, 1.2F, 0.5F);
+        }
         level.playSound(null, player.blockPosition(), SoundEvents.BEACON_ACTIVATE, SoundSource.PLAYERS, 1.0F, 1.6F);
         level.playSound(null, player.blockPosition(), SoundEvents.PISTON_EXTEND, SoundSource.PLAYERS, 1.0F, 0.6F); // ポッドの蓋が開く
         playUse(player, stack);
@@ -97,8 +123,9 @@ public class AvalancheLauncherItem extends TacticalWeaponItem {
             return;
         }
         int left = tag.getInt("Volley"), side = tag.getInt("Side") == 0 ? 1 : tag.getInt("Side");
+        int total = tag.contains("Total") ? tag.getInt("Total") : MISSILES, rate = tag.contains("Rate") ? tag.getInt("Rate") : PER_TICK;
         List<LivingEntity> targets = targets(user); // 1 Tick に 1 回だけ探す（128 ブロックの範囲は広いので）
-        for (int i = 0; i < PER_TICK && left > 0; i++, left--) launch(server, user, MISSILES - left, side, targets);
+        for (int i = 0; i < rate && left > 0; i++, left--) launch(server, user, total - left, side, targets);
         tag.putInt("Volley", left);
         if (user.tickCount % 2 == 0 && user instanceof Player) clientKick(user);
     }
@@ -111,6 +138,8 @@ public class AvalancheLauncherItem extends TacticalWeaponItem {
     public static FrostMissileEntity launch(ServerLevel level, LivingEntity user, int n, int side, List<LivingEntity> targets) {
         LivingEntity target = targets.isEmpty() ? null : targets.get((n + (side > 0 ? 0 : 1)) % targets.size());
         FrostMissileEntity missile = new FrostMissileEntity(level, user, target);
+        boolean over = OverloadArts.active(user);
+        if (over) missile.overload();
         Vec3 look = user.getLookAngle();
         Vec3 right = look.cross(new Vec3(0, 1, 0));
         if (right.lengthSqr() < 1.0E-4) right = new Vec3(1, 0, 0);
@@ -127,7 +156,7 @@ public class AvalancheLauncherItem extends TacticalWeaponItem {
         Fx.spray(level, Fx.opt(ModParticles.GLOW.get(), 0xD8F4FF, 0.45F, 6), pod, 1, 0, 0);
         level.sendParticles(ParticleTypes.CLOUD, pod.x, pod.y, pod.z, 2, 0.08, 0.08, 0.08, 0.02);
         Fx.burst(level, Fx.opt(ModParticles.SPARK.get(), Fx.ICE, 0.18F, 6), pod, 2, 0.15);
-        if (n % 8 == 0) Fx.shockwave(level, pod, 0xB8F4FF, 1.2F, 6);
+        if (n % 8 == 0) Fx.shockwave(level, pod, over ? Overload.CRIMSON : 0xB8F4FF, over ? 2.0F : 1.2F, 6);
         if (n % 3 == 0) level.playSound(null, user.blockPosition(), SoundEvents.FIREWORK_ROCKET_LAUNCH, SoundSource.PLAYERS, 0.55F, 1.2F + level.random.nextFloat() * 0.5F);
         return missile;
     }

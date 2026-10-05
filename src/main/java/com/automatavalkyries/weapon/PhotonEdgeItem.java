@@ -27,12 +27,17 @@ import org.joml.Vector3f;
  * 電力が無いとただの柄（攻撃力 4.0【提案】）。
  * 3 連コンボ: 1.5 秒以内に続けて当てると数え、3 撃目は抜刀のような横薙ぎの光刃が目の前（左右 75 度・4 ブロック）の敵に半分のダメージ【提案】。
  * 敵のフォトンシールドゲージを 2.5 倍で削る特性は、シールドを持つ敵を実装したらつなぐ。
+ * <p>オーバーロード（{@link OverloadArts}。2026-10-05 ユーザー指定）: 光輪の大旋斬。3 撃目の横薙ぎが持ち主を中心にした一回転（360 度）の光の旋斬になり、
+ * 半径 16 の敵すべてに半分のダメージ。白と水色の光の輪が半径 6・11・16 の 3 重に走り、外周に 12 枚の大きな三日月の斬撃（紅と金を交えて）が並ぶ</p>
  */
 public class PhotonEdgeItem extends TacticalWeaponItem {
 
     public static final int CAPACITY = 40_000, PER_HIT = 2_000, COMBO_WINDOW = 30;
     public static final double DAMAGE = 36.0, DULL_DAMAGE = 12.0, SPEED = 2.2, SWEEP_RANGE = 4.0;
     public static final float WEIGHT = 4.0F;
+    /** オーバーロード: 旋斬の半径・外周の三日月の数 */
+    public static final double OVER_SWEEP_RANGE = 16.0;
+    public static final int OVER_CRESCENTS = 12;
 
     private static final DustParticleOptions SLASH_CORE = new DustParticleOptions(new Vector3f(1.0F, 1.0F, 1.0F), 1.5F);
     private static final DustParticleOptions SLASH_EDGE = new DustParticleOptions(new Vector3f(0.45F, 0.88F, 1.0F), 1.1F);
@@ -83,6 +88,10 @@ public class PhotonEdgeItem extends TacticalWeaponItem {
      */
     private static void sweep(ServerLevel level, ItemStack stack, LivingEntity target, LivingEntity attacker) {
         DamageSource source = attacker instanceof Player player ? attacker.damageSources().playerAttack(player) : attacker.damageSources().mobAttack(attacker);
+        if (OverloadArts.active(attacker)) {
+            overSweep(level, target, attacker, source);
+            return;
+        }
         Vec3 eye = attacker.getEyePosition();
         Vec3 look = new Vec3(attacker.getLookAngle().x, 0, attacker.getLookAngle().z).normalize();
         for (LivingEntity other : level.getEntitiesOfClass(LivingEntity.class, attacker.getBoundingBox().inflate(SWEEP_RANGE),
@@ -116,6 +125,53 @@ public class PhotonEdgeItem extends TacticalWeaponItem {
         level.sendParticles(ParticleTypes.END_ROD, attacker.getX() + look.x * 2.6, eye.y - 0.45, attacker.getZ() + look.z * 2.6, 14, 1.2, 0.1, 1.2, 0.05);
         level.playSound(null, attacker.blockPosition(), SoundEvents.PLAYER_ATTACK_SWEEP, SoundSource.PLAYERS, 1.0F, 0.7F);
         level.playSound(null, attacker.blockPosition(), SoundEvents.AMETHYST_BLOCK_CHIME, SoundSource.PLAYERS, 1.2F, 1.8F);
+    }
+
+    /** オーバーロードの 3 撃目: 一回転の光の旋斬。半径 16 の敵すべてに半分のダメージ */
+    private static void overSweep(ServerLevel level, LivingEntity target, LivingEntity attacker, DamageSource source) {
+        Vec3 eye = attacker.getEyePosition();
+        int shown = 0;
+        for (LivingEntity other : level.getEntitiesOfClass(LivingEntity.class, attacker.getBoundingBox().inflate(OVER_SWEEP_RANGE, 4, OVER_SWEEP_RANGE),
+                e -> e != attacker && e != target && e.isAlive() && !e.isAlliedTo(attacker) && !e.isSpectator())) {
+            Vec3 to = new Vec3(other.getX() - attacker.getX(), 0, other.getZ() - attacker.getZ());
+            if (to.length() > OVER_SWEEP_RANGE + other.getBbWidth()) continue;
+            other.invulnerableTime = 0;
+            other.hurt(source, (float) (DAMAGE / 2));
+            Vec3 at = new Vec3(other.getX(), other.getY(0.6), other.getZ());
+            if (shown++ < 12) {
+                OverloadArts.impact(level, at);
+                Fx.slash(level, at, Fx.ICE, 1.2F, 5, level.random.nextFloat() * 6.28F);
+            }
+        }
+        double y = eye.y - 0.45;
+        Vec3 c = new Vec3(attacker.getX(), y, attacker.getZ());
+        double spin = level.getGameTime() * 0.1;
+        // 3 重の光の輪（半径 6・11・16）
+        double[] radii = {OVER_SWEEP_RANGE * 0.375, OVER_SWEEP_RANGE * 0.69, OVER_SWEEP_RANGE};
+        for (int ring = 0; ring < radii.length; ring++) {
+            int steps = 36 + ring * 12;
+            for (int i = 0; i < steps; i++) {
+                double ang = spin + i * Math.PI * 2 / steps;
+                Vec3 p = c.add(Math.cos(ang) * radii[ring], Math.sin(ang * 2 + ring) * 0.15, Math.sin(ang) * radii[ring]);
+                Fx.one(level, Fx.opt(com.automatavalkyries.registry.ModParticles.GLOW.get(), ring == 1 ? Fx.WHITE : Fx.CYAN, 0.35F + ring * 0.05F, 10),
+                        p, new Vec3(-Math.sin(ang), 0, Math.cos(ang)).scale(0.15));
+            }
+        }
+        // 外周の三日月の斬撃（紅と金を交えて）
+        for (int k = 0; k < OVER_CRESCENTS; k++) {
+            double ang = spin + k * Math.PI * 2 / OVER_CRESCENTS;
+            Vec3 p = c.add(Math.cos(ang) * OVER_SWEEP_RANGE * 0.85, 0, Math.sin(ang) * OVER_SWEEP_RANGE * 0.85);
+            int color = k % 3 == 0 ? Overload.CRIMSON : k % 3 == 1 ? Fx.ICE : Overload.GOLD;
+            Fx.slash(level, p, color, 3.0F, 9, (float) (ang + Math.PI / 2));
+        }
+        Fx.shockwave(level, attacker.position().add(0, 0.05, 0), Fx.CYAN, (float) OVER_SWEEP_RANGE, 12);
+        Fx.shockwave(level, attacker.position().add(0, 0.1, 0), Fx.WHITE, (float) OVER_SWEEP_RANGE * 0.6F, 10);
+        Fx.beamRing(level, c, new Vec3(0, 1, 0), Fx.ICE, (float) OVER_SWEEP_RANGE, 10);
+        level.sendParticles(ParticleTypes.END_ROD, c.x, c.y, c.z, 40, OVER_SWEEP_RANGE * 0.5, 0.3, OVER_SWEEP_RANGE * 0.5, 0.05);
+        OverloadArts.flourish(level, attacker, (float) OVER_SWEEP_RANGE);
+        level.playSound(null, attacker.blockPosition(), SoundEvents.PLAYER_ATTACK_SWEEP, SoundSource.PLAYERS, 1.5F, 0.5F);
+        level.playSound(null, attacker.blockPosition(), SoundEvents.AMETHYST_BLOCK_CHIME, SoundSource.PLAYERS, 1.5F, 1.2F);
+        level.playSound(null, attacker.blockPosition(), SoundEvents.TRIDENT_RIPTIDE_3, SoundSource.PLAYERS, 0.8F, 1.6F);
     }
 
     @Override

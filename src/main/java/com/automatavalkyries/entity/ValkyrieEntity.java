@@ -1,5 +1,6 @@
 package com.automatavalkyries.entity;
 
+import com.automatavalkyries.entity.ai.ValkyrieCombat;
 import com.automatavalkyries.entity.ai.ValkyrieGoals;
 import com.automatavalkyries.protect.DirectRead;
 import com.automatavalkyries.protect.valkyrie.ValkyrieProtect;
@@ -79,6 +80,12 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
 
     public enum Mode { FOLLOW, WAIT, DEFEND, PATROL }
 
+    /** 頭上の感情アイコン（NONE は出さない）。絵は client 側（{@code ValkyrieOverhead}） */
+    public enum Emote { NONE, HEART, ALERT, ANGRY, SWEAT, NOTE, QUESTION, SLEEP }
+
+    /** 吹き出しを出す長さ（Tick）・感情アイコンを出す長さ（Tick） */
+    public static final int SPEECH_DURATION = 80, EMOTE_DURATION = 40;
+
     /** 内蔵の電力の上限（全体仕様書 §3.1） */
     public static final int MAX_ENERGY = 100_000;
     /** コアから 1 Tick に補充できる上限（全体仕様書 §3.1 Max I/O、暫定統一 B） */
@@ -98,6 +105,12 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
     private static final UUID OVERWEIGHT_ID = UUID.fromString("5b6f6d3e-2c1a-4f39-9b0a-7a1e0c4d2f10");
     private static final UUID SYNC_SPEED_ID = UUID.fromString("8e2a1c55-7d3b-4f0e-a6c9-1b2d3e4f5a60");
     private static final UUID SYNC_ATTACK_ID = UUID.fromString("c41d9e70-3a5b-4c8d-9e1f-2a3b4c5d6e70");
+    /** ステラ・ジェネシス・オメガの全ステータス 3 倍（全体仕様書 §3.4 のコアの表。2026-10-05 実装） */
+    public static final float OMEGA_MULTIPLIER = 3.0F;
+    private static final UUID OMEGA_HEALTH_ID = UUID.fromString("0d7a3c91-5e2b-4f68-a1c4-9b8e7d6f5a41");
+    private static final UUID OMEGA_ARMOR_ID = UUID.fromString("1e8b4da2-6f3c-4079-b2d5-ac9f8e7a6b52");
+    private static final UUID OMEGA_TOUGHNESS_ID = UUID.fromString("2f9c5eb3-7a4d-418a-c3e6-bdaf9f8b7c63");
+    private static final UUID OMEGA_SPEED_ID = UUID.fromString("3aad6fc4-8b5e-429b-d4f7-cebaa09c8d74");
 
     private static final EntityDataAccessor<Integer> EXPRESSION = SynchedEntityData.defineId(ValkyrieEntity.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Integer> MODE = SynchedEntityData.defineId(ValkyrieEntity.class, EntityDataSerializers.INT);
@@ -110,6 +123,14 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
     private static final EntityDataAccessor<Float> SHIELD = SynchedEntityData.defineId(ValkyrieEntity.class, EntityDataSerializers.FLOAT);
     private static final EntityDataAccessor<Integer> ENERGY = SynchedEntityData.defineId(ValkyrieEntity.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Boolean> ASLEEP = SynchedEntityData.defineId(ValkyrieEntity.class, EntityDataSerializers.BOOLEAN);
+    /** 頭上の吹き出し（翻訳キー。空なら無し）と残り Tick（段階 3。SPEC_VALKYRIE_GUI_AI §4「頭上に短い吹き出し＋同じ文をチャットにも」） */
+    private static final EntityDataAccessor<String> SPEECH = SynchedEntityData.defineId(ValkyrieEntity.class, EntityDataSerializers.STRING);
+    private static final EntityDataAccessor<Integer> SPEECH_TICKS = SynchedEntityData.defineId(ValkyrieEntity.class, EntityDataSerializers.INT);
+    /** 頭上の感情アイコン（{@link Emote}）と残り Tick（§2.5「感情アイコン（♥ や ！）を短く出す」） */
+    private static final EntityDataAccessor<Integer> EMOTE = SynchedEntityData.defineId(ValkyrieEntity.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Integer> EMOTE_TICKS = SynchedEntityData.defineId(ValkyrieEntity.class, EntityDataSerializers.INT);
+    /** 胸のコア（クライアントへ送る写し。HUD・頭上の発光線の色に使う） */
+    private static final EntityDataAccessor<ItemStack> CORE_ITEM = SynchedEntityData.defineId(ValkyrieEntity.class, EntityDataSerializers.ITEM_STACK);
 
     private final AnimatableInstanceCache geoCache = GeckoLibUtil.createInstanceCache(this);
     @Nullable private BlockPos home;
@@ -124,6 +145,8 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
     private float lastGoodHealth = 40.0F;
     /** 装備（換装画面のハードポイント） */
     private ValkyrieInventory inventory;
+    /** 戦闘の状態（registerGoals で作る。親のコンストラクタから呼ばれるので初期値は書かない） */
+    private ValkyrieCombat.Brain combat;
     /** 作戦指示（拠点の範囲・交戦規定） */
     public final ValkyrieOrders orders = new ValkyrieOrders();
     /** 同調率の履歴（新しい順、最大 {@link #SYNC_HISTORY}）: 増減・理由（翻訳キーの後ろ）・ゲーム時刻 */
@@ -179,16 +202,33 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         entityData.define(SHIELD, ValkyrieBody.V.maxShield);
         entityData.define(ENERGY, MAX_ENERGY);
         entityData.define(ASLEEP, false);
+        entityData.define(SPEECH, "");
+        entityData.define(SPEECH_TICKS, 0);
+        entityData.define(EMOTE, 0);
+        entityData.define(EMOTE_TICKS, 0);
+        entityData.define(CORE_ITEM, ItemStack.EMPTY);
     }
 
     @Override
     protected void registerGoals() {
+        combat = new ValkyrieCombat.Brain(this);
         goalSelector.addGoal(0, new FloatGoal(this));
-        goalSelector.addGoal(2, new ValkyrieGoals.FollowOwner(this));
-        goalSelector.addGoal(3, new ValkyrieGoals.KeepHome(this));
+        // 戦闘（段階 3）: かばう・後退・戦うが追従より先
+        goalSelector.addGoal(1, new ValkyrieCombat.Guard(this));
+        goalSelector.addGoal(1, new ValkyrieCombat.Retreat(this));
+        goalSelector.addGoal(2, new ValkyrieCombat.Fight(this));
+        goalSelector.addGoal(3, new ValkyrieGoals.FollowOwner(this));
+        goalSelector.addGoal(4, new ValkyrieGoals.KeepHome(this));
         goalSelector.addGoal(5, new ValkyrieGoals.Wander(this));
         goalSelector.addGoal(6, new LookAtPlayerGoal(this, Player.class, 8.0F));
         goalSelector.addGoal(7, new RandomLookAroundGoal(this));
+        targetSelector.addGoal(1, new ValkyrieCombat.Targeting(this));
+    }
+
+    /** 戦闘の状態（ダッシュ・横ステップ・滞空・セリフの間隔。{@link ValkyrieCombat}） */
+    public ValkyrieCombat.Brain combat() {
+        if (combat == null) combat = new ValkyrieCombat.Brain(this);
+        return combat;
     }
 
     // ------------------------------------------------------------------ 状態
@@ -264,16 +304,69 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
     }
 
     public ItemStack getCore() {
+        if (core != null && level().isClientSide) {
+            // クライアントは送られた写し（種類だけ）。メニューで中身ごと届いた同じコアがあればそちら（電力の表示用）。core が null の間は構築の途中
+            ItemStack synced = entityData.get(CORE_ITEM);
+            return !core.isEmpty() && ItemStack.isSameItem(core, synced) ? core : synced;
+        }
         return core == null ? ItemStack.EMPTY : core; // 構築の途中（親のコンストラクタから呼ばれたとき）はまだ null
     }
 
     public void setCore(ItemStack stack) {
         core = stack == null ? ItemStack.EMPTY : stack.copy();
+        syncCore();
+    }
+
+    /** コアの写しをクライアントへ（種類だけ見るので、電力の NBT は付けない） */
+    private void syncCore() {
+        ItemStack copy = core == null || core.isEmpty() ? ItemStack.EMPTY : new ItemStack(core.getItem());
+        if (!ItemStack.isSameItem(entityData.get(CORE_ITEM), copy)) entityData.set(CORE_ITEM, copy);
     }
 
     /** 胸のコアがステラ・ジェネシス・オメガか（即死・消去を完全に無効にする） */
     public boolean hasOmegaCore() {
         return getCore().is(ModWeapons.CORE_STELLA_GENESIS_OMEGA.get());
+    }
+
+    // ------------------------------------------------------------------ 段階 3: 吹き出し・感情アイコン
+
+    /**
+     * セリフ: 頭上の吹き出しだけに出す（key は翻訳キー。lang の {@code valkyrie.automata_valkyries.speech.<key>}）。
+     * チャット・HUD には出さない（2026-10-05〜06 ユーザー指定「テキストは頭上だけでいい」。SPEC_VALKYRIE_GUI_AI §4 の「チャットにも」を置き換え）
+     */
+    public void say(String key) {
+        if (level().isClientSide) return;
+        entityData.set(SPEECH, key);
+        entityData.set(SPEECH_TICKS, SPEECH_DURATION);
+    }
+
+    public static String speechKey(String key) {
+        return "valkyrie.automata_valkyries.speech." + key;
+    }
+
+    /** 今の吹き出し（翻訳キーの後ろ。無ければ空）と残り Tick */
+    public String getSpeech() {
+        return entityData.get(SPEECH_TICKS) > 0 ? entityData.get(SPEECH) : "";
+    }
+
+    public int getSpeechTicks() {
+        return entityData.get(SPEECH_TICKS);
+    }
+
+    /** 頭上に感情アイコンを短く出す */
+    public void emote(Emote emote) {
+        if (level().isClientSide) return;
+        entityData.set(EMOTE, emote.ordinal());
+        entityData.set(EMOTE_TICKS, emote == Emote.NONE ? 0 : EMOTE_DURATION);
+    }
+
+    public Emote getEmote() {
+        int i = entityData.get(EMOTE);
+        return entityData.get(EMOTE_TICKS) > 0 && i >= 0 && i < Emote.values().length ? Emote.values()[i] : Emote.NONE;
+    }
+
+    public int getEmoteTicks() {
+        return entityData.get(EMOTE_TICKS);
     }
 
     // ------------------------------------------------------------------ 段階 2: 装備・素体・同調率・シールド・電力
@@ -316,7 +409,7 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
     }
 
     public float getMaxShield() {
-        return getBody().maxShield;
+        return getBody().maxShield * omegaMultiplier();
     }
 
     public int getEnergy() {
@@ -356,9 +449,9 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         float melee = (float) getAttributeValue(Attributes.ATTACK_DAMAGE);
         if (main.getItem() instanceof com.automatavalkyries.weapon.TacticalWeaponItem weapon && weapon.shotDamage() != null) {
             float[] shot = weapon.shotDamage();
-            return Math.max(melee, shot[0] * shot[1] * syncMultiplier());
+            return Math.max(melee * omegaMultiplier(), shot[0] * shot[1] * syncMultiplier() * omegaMultiplier());
         }
-        return melee;
+        return melee * omegaMultiplier(); // 与えるダメージはオメガコアで 3 倍（ValkyrieCombat#onHurt）
     }
 
     public float baseAttack() {
@@ -379,6 +472,25 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
 
     public float baseSpeed() {
         return (float) getAttributeBaseValue(Attributes.MOVEMENT_SPEED);
+    }
+
+    /** オメガコア（ステラ・ジェネシス・オメガ）なら 3、無ければ 1 */
+    public float omegaMultiplier() {
+        return hasOmegaCore() ? OMEGA_MULTIPLIER : 1.0F;
+    }
+
+    /**
+     * オメガコアの全ステータス 3 倍を付け外しする（最大 HP・防御・防具強度・速度。シールドの最大と回復・与えるダメージは各所で掛ける）。
+     * 外して最大 HP が下がったら HP をそこまで下げる
+     */
+    private void applyOmega() {
+        double bonus = omegaMultiplier() - 1.0;
+        applyModifier(Attributes.MAX_HEALTH, OMEGA_HEALTH_ID, "valkyrie omega health", bonus);
+        applyModifier(Attributes.ARMOR, OMEGA_ARMOR_ID, "valkyrie omega armor", bonus);
+        applyModifier(Attributes.ARMOR_TOUGHNESS, OMEGA_TOUGHNESS_ID, "valkyrie omega toughness", bonus);
+        applyModifier(Attributes.MOVEMENT_SPEED, OMEGA_SPEED_ID, "valkyrie omega speed", bonus);
+        if (DirectRead.health(this) > getMaxHealth()) super.setHealth(getMaxHealth());
+        if (getShield() > getMaxShield()) entityData.set(SHIELD, getMaxShield());
     }
 
     /** 同調率の能力上昇の倍率（20% ごとに段階的、100% で 1.2 倍【仮】） */
@@ -420,20 +532,29 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
     /** 電力・シールド・休眠・同調率の能力上昇・稼働時間（毎 Tick、サーバー） */
     private void powerTick() {
         int energy = getEnergy();
-        // コアから補充（放電レートと Max I/O で頭打ち）
-        if (energy < MAX_ENERGY && getCore().getItem() instanceof com.automatavalkyries.weapon.LuminalCoreItem c) {
-            energy += c.extract(getCore(), Math.min(MAX_ENERGY - energy, MAX_IO));
-        }
+        // 使う分（維持・兵装・シールド）を先に引き、最後にコアから補充する（補充を先にすると、コアに電力があっても満タンに見えなかった。2026-10-05）
         if (!isShutdown()) energy -= UPKEEP;
+        setEnergy(energy);
+        // 手の兵装の毎 Tick の処理（プレイヤーの持ち物と同じく inventoryTick: 兵姫の電力から内蔵バッテリーへ補充・T4 の加護など。段階 3）
+        if (!isShutdown()) {
+            ItemStack main = getMainHandItem(), off = getOffhandItem();
+            if (!main.isEmpty()) main.inventoryTick(level(), this, 0, true);
+            if (!off.isEmpty()) off.inventoryTick(level(), this, 1, false);
+        }
+        energy = getEnergy();
         // シールドの回復（最後の被弾から SHIELD_DELAY 後、毎秒 SHIELD_REGEN）
         float shield = getShield();
         if (!isShutdown() && shield < getMaxShield() && tickCount - lastHurtTick >= SHIELD_DELAY) {
-            float add = Math.min(SHIELD_REGEN / 20.0F, getMaxShield() - shield);
+            float add = Math.min(SHIELD_REGEN * omegaMultiplier() / 20.0F, getMaxShield() - shield);
             int cost = (int) Math.ceil(add * SHIELD_COST);
             if (energy >= cost) {
                 energy -= cost;
                 entityData.set(SHIELD, shield + add);
             }
+        }
+        // コアから補充（放電レートと Max I/O で頭打ち）
+        if (energy < MAX_ENERGY && getCore().getItem() instanceof com.automatavalkyries.weapon.LuminalCoreItem c) {
+            energy += c.extract(getCore(), Math.min(MAX_ENERGY - Math.max(0, energy), MAX_IO));
         }
         setEnergy(energy);
         // 電力 0 で休眠、補充されたら起きる（暫定統一 C）
@@ -448,6 +569,7 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         double bonus = syncMultiplier() - 1.0;
         applyModifier(Attributes.MOVEMENT_SPEED, SYNC_SPEED_ID, "valkyrie sync speed", bonus);
         applyModifier(Attributes.ATTACK_DAMAGE, SYNC_ATTACK_ID, "valkyrie sync attack", bonus);
+        applyOmega();
     }
 
     /** GameTest 用: 保護を通らない消去（他 MOD が無理やり消した）を真似る。バックアップは残すので見張りが戻す */
@@ -694,12 +816,16 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
             lastGoodHealth = hp;
         }
         if (entityData.get(HAPPY) > 0) entityData.set(HAPPY, entityData.get(HAPPY) - 1);
+        if (entityData.get(SPEECH_TICKS) > 0) entityData.set(SPEECH_TICKS, entityData.get(SPEECH_TICKS) - 1);
+        if (entityData.get(EMOTE_TICKS) > 0) entityData.set(EMOTE_TICKS, entityData.get(EMOTE_TICKS) - 1);
         // 持ち主が降りたら一緒に降りる
         if (isPassenger() && getMode() == Mode.FOLLOW) {
             Player owner = getOwner();
             if (owner == null || owner.getVehicle() != getVehicle()) stopRiding();
         }
         powerTick();
+        if (!isShutdown() && !isAsleep()) combat().tick();
+        else if (isUsingItem()) stopUsingItem();
         if (tickCount % ValkyrieProtect.INTERVAL == 0) ValkyrieProtect.snapshot(this);
     }
 
@@ -786,6 +912,12 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         home = tag.contains("Home") ? NbtUtils.readBlockPos(tag.getCompound("Home")) : null;
         if (tag.contains("HomeRadius")) homeRadius = tag.getInt("HomeRadius");
         core = tag.contains("Core") ? ItemStack.of(tag.getCompound("Core")) : ItemStack.EMPTY;
+        syncCore();
+        // オメガコアの最大 HP を先に付けてから HP を戻す（付ける前の最大 HP で HP が削られないように）
+        if (hasOmegaCore()) {
+            applyOmega();
+            if (tag.contains("Health")) super.setHealth(Math.min(tag.getFloat("Health"), getMaxHealth()));
+        }
         try {
             if (tag.contains("Body")) entityData.set(BODY, ValkyrieBody.valueOf(tag.getString("Body")).ordinal());
         } catch (IllegalArgumentException ignored) {
@@ -836,7 +968,11 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
 
     /** 持ち主の近くへテレポートする（足場があって体が埋まらない所）。できたら true */
     public boolean teleportNear(LivingEntity target) {
-        BlockPos base = target.blockPosition();
+        return teleportNear(target.blockPosition());
+    }
+
+    /** その位置の近くへテレポートする（足場があって体が埋まらない所）。できたら true */
+    public boolean teleportNear(BlockPos base) {
         for (int i = 0; i < 16; i++) {
             int dx = random.nextInt(5) - 2, dz = random.nextInt(5) - 2;
             if (Math.abs(dx) < 1 && Math.abs(dz) < 1) continue;

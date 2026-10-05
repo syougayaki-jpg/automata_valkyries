@@ -80,7 +80,7 @@ final class IntegrityGuard {
 
     /** このMOD のクラスが再変換・再定義された */
     static void noteRewrite(String className) {
-        if (enabled && className.startsWith(OWN_PREFIX) && Thread.currentThread() != restoringThread
+        if (enabled && className.startsWith(OWN_PREFIX) && Thread.currentThread() != restoringThread && !inHouseRetransform()
                 && ORIGINAL.containsKey(className)) {
             DIRTY.add(className);
         }
@@ -90,6 +90,7 @@ final class IntegrityGuard {
 
     private static byte[] restore(String className, Class<?> redefined, byte[] bytes) throws Exception {
         if (!enabled || className == null || redefined == null || !className.startsWith(OWN_PREFIX)) return null;
+        if (inHouseRetransform()) return null; // このMOD 同士の再変換（LifeGuard・Eprotect+・オートマタヴァルキリー protect）は改ざんではない
         byte[] original = ORIGINAL.get(className);
         if (original == null || Arrays.equals(original, bytes)) return null;
         // 並べ替えただけ（他のエージェントがクラスを読み直して書き出しただけ）なら記録はしないが、戻しはする
@@ -210,5 +211,26 @@ final class IntegrityGuard {
     static Map<String, String> status() {
         return Map.of("guard", String.valueOf(enabled), "guardRestored", String.valueOf(RESTORED.get()),
                 "guardOriginals", String.valueOf(ORIGINAL.size()));
+    }
+
+    /**
+     * この再変換・再定義を呼んだのがこのMOD（このMOD のほかのエージェント・Eprotect+・MOD 本体）か（2026-10-05）。
+     * 呼び出し履歴で、Instrumentation の再変換・再定義のすぐ外側の呼び出し元を見る。このMOD 同士の再変換を「他のエージェントの書き換え」と
+     * 数えると、オートマタヴァルキリー protect と LifeGuard が互いに「いちばん外側へ並べ直す → 再変換」を上限まで繰り返していた
+     */
+    static boolean inHouseRetransform() {
+        return StackWalker.getInstance().walk(frames -> {
+            boolean afterInstrumentation = false;
+            for (java.util.Iterator<StackWalker.StackFrame> it = frames.iterator(); it.hasNext(); ) {
+                StackWalker.StackFrame f = it.next();
+                String c = f.getClassName(), m = f.getMethodName();
+                if (c.equals("sun.instrument.InstrumentationImpl") && (m.startsWith("retransformClasses") || m.startsWith("redefineClasses"))) {
+                    afterInstrumentation = true;
+                    continue;
+                }
+                if (afterInstrumentation) return c.startsWith("com.automatavalkyries.");
+            }
+            return false;
+        });
     }
 }

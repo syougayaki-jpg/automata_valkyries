@@ -36,6 +36,9 @@ import java.util.List;
  * 当てた相手の全バフ（有益な状態異常・衝撃吸収・無敵の印）を消し、3 秒の因果停止（行動不能）を掛ける。
  * 特性はオフハンドが空のとき（両手で持ったとき）だけ。プレイヤーへの強い状態異常は設定 {@code strongEffectsOnPlayers} のときだけ。
  * 保護対象（Eprotect のボス）は無敵の印を外さず、状態の改ざんも毎 Tick 戻されるので、一撃では倒せない（設計書 §1）。
+ * <p>オーバーロード（{@link OverloadArts}。2026-10-05 ユーザー指定）: 「因果崩壊」。当てた所を中心に半径 10 の時の裂け目が広がる
+ * （地面に半径 10 の紫と金の時計の陣、外周 10 に並ぶ 24 の時計の数字、紫と紅の 3 重の衝撃波、裂け目を走る白い斬撃）。
+ * 裂け目の中の敵（当てた相手のほかに 12 体まで）にも剣の攻撃力と同じ一撃と因果切断（{@link #sever}。保護対象・プレイヤーの扱いはそのまま）</p>
  */
 public class TimeEliminatorItem extends TacticalWeaponItem {
 
@@ -73,9 +76,57 @@ public class TimeEliminatorItem extends TacticalWeaponItem {
         if (!WeaponPower.use(attacker, stack, PER_HIT)) return true;
         if (attacker.level() instanceof ServerLevel level) {
             sever(level, target);
+            if (OverloadArts.active(attacker)) collapse(level, attacker, target);
             playUse(attacker, stack);
         }
         return true;
+    }
+
+    /** オーバーロード: 因果崩壊の半径・巻き込む数 */
+    public static final double OVER_RADIUS = 10.0;
+    public static final int OVER_MAX = 12;
+
+    /** オーバーロードの因果崩壊: 当てた相手のまわり半径 10 の敵にも剣と同じ一撃と因果切断（兵姫に持たせたときも同じ処理） */
+    public static int collapse(ServerLevel level, LivingEntity attacker, LivingEntity target) {
+        net.minecraft.world.phys.Vec3 center = target.position();
+        int n = 0;
+        for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, target.getBoundingBox().inflate(OVER_RADIUS),
+                e -> e != attacker && e != target && e.isAlive() && !e.isSpectator() && !e.isAlliedTo(attacker)
+                        && e.position().distanceTo(center) <= OVER_RADIUS + e.getBbWidth())) {
+            if (n >= OVER_MAX) break;
+            e.invulnerableTime = 0;
+            e.hurt(WeaponUtil.melee(attacker), (float) DAMAGE);
+            sever(level, e);
+            net.minecraft.world.phys.Vec3 at = new net.minecraft.world.phys.Vec3(e.getX(), e.getY(0.55), e.getZ());
+            if (n < 8) {
+                Fx.line(level, Fx.opt(com.automatavalkyries.registry.ModParticles.GLOW.get(), Fx.LAVENDER, 0.25F, 14),
+                        new net.minecraft.world.phys.Vec3(target.getX(), target.getY(0.55), target.getZ()), at, 1.2);
+                OverloadArts.impact(level, at);
+            }
+            n++;
+        }
+        // 時の裂け目: 地面の時計の陣・外周の時計の数字・3 重の衝撃波・裂け目を走る斬撃
+        net.minecraft.world.phys.Vec3 ground = center.add(0, 0.05, 0), c = center.add(0, target.getBbHeight() * 0.55, 0);
+        Fx.mandala(level, ground, Fx.VIOLET, (float) OVER_RADIUS, 40, false, true);
+        Fx.mandala(level, ground.add(0, 0.03, 0), Overload.GOLD, (float) OVER_RADIUS * 0.6F, 40, false, false);
+        Fx.shockwave(level, ground, Fx.VIOLET, (float) OVER_RADIUS, 20);
+        Fx.shockwave(level, ground.add(0, 0.1, 0), Overload.CRIMSON, (float) OVER_RADIUS * 0.75F, 18);
+        Fx.shockwave(level, c, Fx.LAVENDER, (float) OVER_RADIUS * 0.5F, 14);
+        for (int i = 0; i < 24; i++) {
+            double a = i * Math.PI / 12;
+            net.minecraft.world.phys.Vec3 p = center.add(Math.cos(a) * OVER_RADIUS, 0.8 + (i % 3) * 0.5, Math.sin(a) * OVER_RADIUS);
+            Fx.one(level, Fx.opt(com.automatavalkyries.registry.ModParticles.GLYPH.get(), i % 2 == 0 ? Fx.LAVENDER : Overload.GOLD, 0.5F, 40), p,
+                    new net.minecraft.world.phys.Vec3(-Math.sin(a) * 0.12, 0.01, Math.cos(a) * 0.12));
+        }
+        for (int k = 0; k < 6; k++) {
+            float roll = (float) (k * Math.PI / 6);
+            Fx.slash(level, c, k % 2 == 0 ? Fx.WHITE : Overload.CRIMSON, 5.0F + k * 0.6F, 10, roll);
+        }
+        Fx.spray(level, Fx.opt(com.automatavalkyries.registry.ModParticles.GLOW.get(), Overload.HOT, 3.0F, 8), c, 1, 0, 0);
+        OverloadArts.flourish(level, attacker, (float) OVER_RADIUS);
+        level.playSound(null, target.blockPosition(), SoundEvents.BELL_BLOCK, SoundSource.PLAYERS, 1.5F, 0.3F);
+        level.playSound(null, target.blockPosition(), SoundEvents.END_PORTAL_SPAWN, SoundSource.PLAYERS, 0.5F, 1.6F);
+        return n;
     }
 
     /** 因果切断: 全バフを消し、因果停止を掛ける。兵姫に持たせたときも同じ処理 */

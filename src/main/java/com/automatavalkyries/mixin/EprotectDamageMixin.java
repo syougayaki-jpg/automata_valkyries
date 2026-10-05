@@ -42,7 +42,7 @@ public abstract class EprotectDamageMixin {
             String sourceMod = com.automatavalkyries.protect.EprotectForgeEvents.getSourceMod(source);
             boolean isBlacklisted = com.automatavalkyries.protect.attack.ModBlacklist.contains(sourceMod);
             if (isBlacklisted) {
-                com.automatavalkyries.protect.plus.EprotectPlusLink.triggerBlacklistReinforcement(sourceMod);
+                com.automatavalkyries.protect.Eprotect.reinforceAgainst(sourceMod);
             }
 
             // 強化モード中・ブラックリストMOD相手でも、HEAD で遮断するのは即死系の攻撃だけ（通常攻撃は通して上限に掛ける）
@@ -66,7 +66,7 @@ public abstract class EprotectDamageMixin {
             String sourceMod = com.automatavalkyries.protect.EprotectForgeEvents.getSourceMod(source);
             boolean isBlacklisted = com.automatavalkyries.protect.attack.ModBlacklist.contains(sourceMod);
             if (isBlacklisted) {
-                com.automatavalkyries.protect.plus.EprotectPlusLink.triggerBlacklistReinforcement(sourceMod);
+                com.automatavalkyries.protect.Eprotect.reinforceAgainst(sourceMod);
             }
             if (isBlacklisted || com.automatavalkyries.protect.EprotectForgeEvents.isLethalAttack(source, amount)
                     || FlagDictionary.isHarmfulDamageSource(source) || com.automatavalkyries.protect.EprotectForgeEvents.isAttackerHoldingKillItem(source)) {

@@ -59,15 +59,23 @@ public final class RequiemBackdropClient {
 
     @SubscribeEvent
     public static void onRenderLiving(RenderLivingEvent.Post<?, ?> event) {
-        LivingEntity e = event.getEntity();
+        render(event.getEntity(), event.getPoseStack(), event.getMultiBufferSource(), event.getPartialTick());
+    }
+
+    /**
+     * 持ち主の背に飾りを描く。バニラの生き物は RenderLivingEvent から、GeckoLib の戦術兵姫は {@code ValkyrieRenderer#render} から呼ぶ
+     * （GeckoLib のレンダラーは LivingEntityRenderer ではないので RenderLivingEvent が来ず、兵姫に飾りが出ていなかった。2026-10-05）。
+     * pose はエンティティの位置（体の向きを掛ける前）
+     */
+    public static void render(LivingEntity e, PoseStack renderPose, MultiBufferSource renderBuffers, float renderPartialTick) {
         if (e.isInvisible() || e.isSleeping() || !holds(e)) return;
         if (backdrop == null) backdrop = new ItemStack(ModWeapons.REQUIEM_BACKDROP.get());
-        float pt = event.getPartialTick();
+        float pt = renderPartialTick;
         float time = e.tickCount + pt;
         float charge = e.isUsingItem() && e.getUseItem().getItem() instanceof LuminousRequiemItem requiem ? requiem.chargeProgress(e) : 0F;
         float bodyYaw = Mth.rotLerp(pt, e.yBodyRotO, e.yBodyRot);
-        PoseStack pose = event.getPoseStack();
-        MultiBufferSource buffers = event.getMultiBufferSource();
+        PoseStack pose = renderPose;
+        MultiBufferSource buffers = renderBuffers;
         pose.pushPose();
         // 体の向きに合わせる（この向きでは +Z が背中側）。肩の高さ、背中の少し後ろに立てる。ゆっくり上下に漂う
         pose.mulPose(Axis.YP.rotationDegrees(180F - bodyYaw));

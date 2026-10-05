@@ -27,12 +27,12 @@ public class ValkyrieModel extends DefaultedEntityGeoModel<ValkyrieEntity> {
     static {
         LASH_POSE.put("normal", new float[]{0F, 0F, 1});
         LASH_POSE.put("shy", new float[]{0F, 0F, 1});
-        LASH_POSE.put("surprise", new float[]{0.438F, 0F, 1});
-        LASH_POSE.put("sleepy", new float[]{-0.219F, 0F, 1});
+        LASH_POSE.put("surprise", new float[]{0.519F, 0F, 1});
+        LASH_POSE.put("sleepy", new float[]{-0.259F, 0F, 1});
         LASH_POSE.put("angry", new float[]{0F, 24.2F, 1});
-        LASH_POSE.put("sad", new float[]{0.044F, -21.8F, 1});
-        LASH_POSE.put("shutdown", new float[]{-0.438F, 0F, 1});
-        LASH_POSE.put("blink", new float[]{-0.438F, 0F, 1});
+        LASH_POSE.put("sad", new float[]{0.052F, -21.8F, 1});
+        LASH_POSE.put("shutdown", new float[]{-0.519F, 0F, 1});
+        LASH_POSE.put("blink", new float[]{-0.519F, 0F, 1});
         LASH_POSE.put("smile", new float[]{0F, 0F, 0});
     }
     private final Map<String, ResourceLocation> textures = new HashMap<>();
@@ -104,13 +104,16 @@ public class ValkyrieModel extends DefaultedEntityGeoModel<ValkyrieEntity> {
         float swing = Mth.lerp(pt, entity.hairSwingO, entity.hairSwing);
         float sway = Mth.lerp(pt, entity.sideSwayO, entity.sideSway);
         float breeze = Mth.sin(age * 0.06F) * 0.02F;
-        bone("hair_upper").setRotX(-(0.04F + swing * 0.45F + breeze));
+        // 頭の上下の向きを打ち消して、髪は付け根から真下へ垂れたままにする（2026-10-05 ユーザーの指摘「上を向いた時に髪が下に落ちる」:
+        // 首の付け根より下にある後ろ髪の先が、頭が後ろへ傾くと前（体の中）へ振れていた）。横髪は少しだけ頭に付いていく
+        float headPitch = head.getRotX();
+        bone("hair_upper").setRotX(-(0.04F + swing * 0.45F + breeze) - headPitch);
         bone("hair_mid").setRotX(-(0.03F + swing * 0.3F + breeze));
         bone("hair_tip").setRotX(-(0.03F + swing * 0.25F + breeze * 1.5F));
         bone("hair_upper").setRotZ(sway * 0.4F);
         bone("hair_tip").setRotZ(sway * 0.3F);
-        bone("side_lock_right").setRotX(-swing * 0.35F + breeze);
-        bone("side_lock_left").setRotX(-swing * 0.35F - breeze);
+        bone("side_lock_right").setRotX(-swing * 0.35F + breeze - headPitch * 0.7F);
+        bone("side_lock_left").setRotX(-swing * 0.35F - breeze - headPitch * 0.7F);
         bone("side_lock_right").setRotZ(sway * 0.5F);
         bone("side_lock_left").setRotZ(sway * 0.5F);
         bone("ribbon").setRotX(-swing * 0.3F);

@@ -55,7 +55,7 @@ final class ValkyrieProtectTransformer implements ClassFileTransformer {
     public byte[] transform(Module module, ClassLoader loader, String className, Class<?> classBeingRedefined,
                             ProtectionDomain protectionDomain, byte[] classfileBuffer) {
         if (className == null || !isTarget(className)) return null;
-        if (classBeingRedefined != null && !SELF.get()) agent.scheduleReorder(className);
+        if (classBeingRedefined != null && !SELF.get() && !inHouseRetransform()) agent.scheduleReorder(className);
         try {
             ClassReader reader = new ClassReader(classfileBuffer);
             ClassWriter writer = new ClassWriter(reader, ClassWriter.COMPUTE_MAXS);
@@ -109,5 +109,26 @@ final class ValkyrieProtectTransformer implements ClassFileTransformer {
             agent.log("failed to transform " + className + ": " + t);
             return null;
         }
+    }
+
+    /**
+     * この再変換・再定義を呼んだのがこのMOD（このMOD のほかのエージェント・Eprotect+・MOD 本体）か（2026-10-05）。
+     * 呼び出し履歴で、Instrumentation の再変換・再定義のすぐ外側の呼び出し元を見る。このMOD 同士の再変換を「他のエージェントの書き換え」と
+     * 数えると、オートマタヴァルキリー protect と LifeGuard が互いに「いちばん外側へ並べ直す → 再変換」を上限まで繰り返していた
+     */
+    static boolean inHouseRetransform() {
+        return StackWalker.getInstance().walk(frames -> {
+            boolean afterInstrumentation = false;
+            for (java.util.Iterator<StackWalker.StackFrame> it = frames.iterator(); it.hasNext(); ) {
+                StackWalker.StackFrame f = it.next();
+                String c = f.getClassName(), m = f.getMethodName();
+                if (c.equals("sun.instrument.InstrumentationImpl") && (m.startsWith("retransformClasses") || m.startsWith("redefineClasses"))) {
+                    afterInstrumentation = true;
+                    continue;
+                }
+                if (afterInstrumentation) return c.startsWith("com.automatavalkyries.");
+            }
+            return false;
+        });
     }
 }

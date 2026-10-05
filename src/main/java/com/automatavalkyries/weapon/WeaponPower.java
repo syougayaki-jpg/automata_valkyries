@@ -17,9 +17,19 @@ public final class WeaponPower {
 
     /** 内蔵バッテリーが満タンでなければ、持ち物のルミナルコアから足す */
     public static void topUp(Entity holder, ItemStack weapon, int capacity) {
-        if (!(holder instanceof Player player)) return;
         int missing = capacity - ItemEnergy.get(weapon);
         if (missing <= 0) return;
+        // 戦術兵姫は自分の電力から（段階 3、2026-10-05。兵姫の電力はコアから補充される）。
+        // 兵姫の電力の半分より上の分だけ使う（容量の大きい兵装が兵姫の電力を毎 Tick 空近くまで吸い、「電力低下」で後退し続けていた）
+        if (holder instanceof com.automatavalkyries.entity.ValkyrieEntity v) {
+            int taken = Math.min(missing, Math.max(0, v.getEnergy() - com.automatavalkyries.entity.ValkyrieEntity.MAX_ENERGY / 2));
+            if (taken > 0) {
+                v.setEnergy(v.getEnergy() - taken);
+                ItemEnergy.set(weapon, ItemEnergy.get(weapon) + taken);
+            }
+            return;
+        }
+        if (!(holder instanceof Player player)) return;
         for (int i = 0; i < player.getInventory().getContainerSize() && missing > 0; i++) {
             ItemStack stack = player.getInventory().getItem(i);
             if (stack.getItem() instanceof LuminalCoreItem core) {

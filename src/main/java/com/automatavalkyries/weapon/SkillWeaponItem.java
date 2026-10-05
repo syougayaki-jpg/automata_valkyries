@@ -73,6 +73,16 @@ public abstract class SkillWeaponItem extends TacticalWeaponItem {
         return InteractionResultHolder.consume(stack);
     }
 
+    /** 戦術兵姫が技を出す（{@link ValkyrieArts}、段階 3）。電力を確かめて使う。間隔は兵姫の AI が数える */
+    public boolean valkyrieSkill(ServerLevel level, LivingEntity user, ItemStack stack) {
+        if (!WeaponPower.has(user, stack, perUse)) return false;
+        if (!skill(level, user, stack)) return false;
+        WeaponPower.use(user, stack, perUse);
+        playUse(user, stack);
+        user.swing(InteractionHand.MAIN_HAND, true);
+        return true;
+    }
+
     @Override
     public int cooldownTicks() {
         return cooldown;

@@ -319,6 +319,16 @@ public class Eprotect {
     }
 
     /** die() の直接呼び出し（即死攻撃）を拒否したことを記録する（所有エンティティの die() と Mixin から呼ぶ） */
+    /**
+     * ブラックリストの MOD に攻撃されたときの強化保護を始める（既に強化保護中なら何もしない）。強化保護の開始は Eprotect+ のバイトコード点検
+     * （全クラスの再変換）を伴うので、攻撃のたびに呼ぶとサーバーが数十秒遅れた（2026-10-05、ブラックリストの MOD の即死を毎 Tick 何十回も断ったとき）。
+     * 強化保護の期間（10 秒）は変えず、切れたらまた始める
+     */
+    public static void reinforceAgainst(@Nullable String mod) {
+        if (mod == null || com.automatavalkyries.protect.plus.EprotectPlusLink.isReinforcedActive()) return;
+        com.automatavalkyries.protect.plus.EprotectPlusLink.triggerBlacklistReinforcement(mod);
+    }
+
     /** die() の直接呼び出しを断ったことを記録する。凶悪技術（ブラックリストの MOD・強化保護中）なら true（HP は最大へ戻す） */
     public boolean noteRefusedDeath() {
         AttackLog.refused(owner, AttackOp.DIE);
@@ -334,7 +344,7 @@ public class Eprotect {
         if (owner.level().isClientSide || !isProtectionActive()) return false;
         String mod = CallerAttribution.foreignClassMod(owner);
         boolean listed = mod != null && ModBlacklist.contains(mod);
-        if (listed) com.automatavalkyries.protect.plus.EprotectPlusLink.triggerBlacklistReinforcement(mod);
+        if (listed) reinforceAgainst(mod);
         if (!listed && !isReinforcedActive()) return false;
         lastValidHealth = owner.getMaxHealth();
         AttackLog.repaired(owner, "malicious_penalty:max_health");
@@ -420,9 +430,15 @@ public class Eprotect {
         if (source.getDirectEntity() != null) candidates.add(BuiltInRegistries.ENTITY_TYPE.getKey(source.getDirectEntity().getType()).getNamespace());
         if (source.getEntity() != null) candidates.add(BuiltInRegistries.ENTITY_TYPE.getKey(source.getEntity().getType()).getNamespace());
         source.typeHolder().unwrapKey().ifPresent(key -> candidates.add(key.location().getNamespace()));
+        // このMOD のダメージ（兵装の種類・持っている兵装）は罰則にしない。呼び出し経路には、全員の hurt / setHealth を包む他 MOD の Mixin
+        // （Witherzilla 等）が必ず挟まるので、経路で探すとそれがブラックリストに載っているだけで自分の兵装まで 1% にされていた（2026-10-05）
+        if (candidates.contains(AutomataValkyries.MODID)) return null;
         for (String mod : candidates) {
             if (ModBlacklist.contains(mod)) return mod;
         }
+        // 経路で探すのは、出どころの手がかりが何も無い（vanilla の種類だけ・攻撃者もいない）ときだけ
+        boolean anyClue = candidates.stream().anyMatch(m -> !"minecraft".equals(m));
+        if (anyClue) return null;
         String caller = CallerAttribution.foreignClassMod(owner);
         return ModBlacklist.contains(caller) ? caller : null;
     }
