@@ -1,0 +1,23 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    " R ",
+    "ICI",
+    " I "
+  ],
+  "key": {
+    "R": {
+      "item": "minecraft:redstone"
+    },
+    "I": {
+      "item": "automata_valkyries:ingot_astrite"
+    },
+    "C": {
+      "item": "automata_valkyries:crystal_luminal"
+    }
+  },
+  "result": {
+    "item": "automata_valkyries:tactical_remote"
+  }
+}

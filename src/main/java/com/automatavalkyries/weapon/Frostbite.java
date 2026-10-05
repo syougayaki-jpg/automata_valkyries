@@ -26,6 +26,7 @@ public final class Frostbite {
     private Frostbite() {}
 
     public static void apply(LivingEntity target) {
+        if (com.automatavalkyries.entity.ai.ValkyrieCombat.shieldedFromActing(target)) return; // 兵姫の味方には付けない
         if (target instanceof Player && !WeaponConfig.strongEffectsOnPlayers()) return;
         MobEffectInstance current = target.getEffect(ModWeapons.FROSTBITE.get());
         int level = current == null ? 0 : Math.min(MAX_LEVEL, current.getAmplifier() + 1);

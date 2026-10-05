@@ -385,9 +385,24 @@ public class Eprotect {
 
     /** hurt() の入口: NaN / 無限大 / 桁外れの値を {@link #HUGE_DAMAGE_CLAMP} に置き換える */
     public float sanitizeIncomingDamage(float amount) {
-        if (!isProtectionActive()) return amount;
+        lastRawIncoming = amount;
+        if (!isProtectionActive()) return lastSanitizedIncoming = amount;
         if (!Float.isFinite(amount) || amount >= HUGE_DAMAGE_THRESHOLD) {
-            return HUGE_DAMAGE_CLAMP;
+            return lastSanitizedIncoming = HUGE_DAMAGE_CLAMP;
+        }
+        return lastSanitizedIncoming = amount;
+    }
+
+    /** 直前の被弾の、置き換える前と後の値（DPS チェックで本来の火力を測るため。2026-10-06） */
+    private float lastRawIncoming = Float.NaN, lastSanitizedIncoming = Float.NaN;
+
+    /**
+     * 直前の被弾で桁外れの値を {@link #HUGE_DAMAGE_CLAMP} に置き換えていたら、amount（置き換えた値から防具などで減った後）を本来の大きさへ戻す。
+     * 置き換えていなければそのまま（検証用のダミーの DPS チェック用。保護の判定には使わない）
+     */
+    public float unclampedDamage(float amount) {
+        if (Float.isFinite(lastRawIncoming) && lastSanitizedIncoming > 0.0F && lastRawIncoming > lastSanitizedIncoming) {
+            return amount * (lastRawIncoming / lastSanitizedIncoming);
         }
         return amount;
     }

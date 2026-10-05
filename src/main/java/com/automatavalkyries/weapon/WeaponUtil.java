@@ -76,13 +76,14 @@ public final class WeaponUtil {
 
     // ---- 遅れて起きる処理（クロノリピーターの時の残響、ジェネシス・ヘイローの軌道砲撃など） ----
 
-    private record Task(ServerLevel level, long runAt, Runnable action) {}
+    /** actor: 予約した兵姫（遅れて走るときも「いま動いている兵姫」に戻す。味方へのデバフを断るため） */
+    private record Task(ServerLevel level, long runAt, Runnable action, @org.jetbrains.annotations.Nullable com.automatavalkyries.entity.ValkyrieEntity actor) {}
 
     private static final List<Task> TASKS = new ArrayList<>();
 
     /** delay Tick 後に action を動かす（サーバーの Tick の終わりに） */
     public static void later(ServerLevel level, int delay, Runnable action) {
-        TASKS.add(new Task(level, level.getServer().getTickCount() + delay, action));
+        TASKS.add(new Task(level, level.getServer().getTickCount() + delay, action, com.automatavalkyries.entity.ai.ValkyrieCombat.acting()));
     }
 
     @SubscribeEvent
@@ -98,10 +99,13 @@ public final class WeaponUtil {
             }
         }
         for (Task task : due) {
+            var prev = com.automatavalkyries.entity.ai.ValkyrieCombat.setActing(task.actor());
             try {
                 task.action().run();
             } catch (Exception e) {
                 AutomataValkyries.LOGGER.error("[weapon] A delayed weapon task failed", e);
+            } finally {
+                com.automatavalkyries.entity.ai.ValkyrieCombat.setActing(prev);
             }
         }
     }

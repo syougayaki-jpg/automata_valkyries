@@ -98,6 +98,9 @@ public class ModItems {
 
     // ---- プレイヤー用（2026-10-04 ユーザー指定で作り直し。中身は protect/PlayerWard） ----
     /** 救済通信機（2026-10-04 ユーザー指定）: オメガコア無しで消去された戦術兵姫をバックアップから呼び出す */
+    /** 指示リモコン（2026-10-06 ユーザー指定）: 自分の戦術兵姫にステップを指示する */
+    public static final RegistryObject<Item> TACTICAL_REMOTE = ITEMS.register("tactical_remote", () ->
+            new com.automatavalkyries.item.TacticalRemoteItem(new Item.Properties().stacksTo(1)));
     public static final RegistryObject<Item> RESCUE_COMMUNICATOR = ITEMS.register("rescue_communicator", () ->
             new com.automatavalkyries.item.RescueCommunicatorItem(new Item.Properties().stacksTo(1)));
     public static final RegistryObject<Item> WARD_CHARM = ITEMS.register("ward_charm", () ->

@@ -152,6 +152,62 @@ public final class ValkyrieCombat {
         }
     }
 
+    // ------------------------------------------------------------------ 味方へのデバフの無効（2026-10-06 ユーザー指定「戦術兵姫のデバフをマスターが食らわないように」）
+
+    /** いま動いている兵姫（AI・手の兵装の毎 Tick・その兵姫が予約した遅れの処理・その兵姫の飛び道具の着弾の間。サーバーのスレッドだけ） */
+    @Nullable private static ValkyrieEntity acting;
+
+    @Nullable
+    public static ValkyrieEntity acting() {
+        return acting;
+    }
+
+    /** いま動いている兵姫を決める（前の値を返す。戻すときにもう一度呼ぶ） */
+    @Nullable
+    public static ValkyrieEntity setActing(@Nullable ValkyrieEntity v) {
+        ValkyrieEntity prev = acting;
+        acting = v;
+        return prev;
+    }
+
+    /** いま動いている兵姫の味方（持ち主・同じ持ち主の兵姫・ペット。本人は除く）か: 兵装のデバフを受けない */
+    public static boolean shieldedFromActing(LivingEntity target) {
+        ValkyrieEntity v = acting;
+        return v != null && target != v && !target.level().isClientSide && isAlly(v, target);
+    }
+
+    /** 兵姫が動いている間に味方へ付こうとした悪い効果を断る */
+    @SubscribeEvent
+    public static void onEffectApplicable(net.minecraftforge.event.entity.living.MobEffectEvent.Applicable event) {
+        if (event.getEffectInstance().getEffect().getCategory() == net.minecraft.world.effect.MobEffectCategory.HARMFUL && shieldedFromActing(event.getEntity())) {
+            event.setResult(net.minecraftforge.eventbus.api.Event.Result.DENY);
+        }
+    }
+
+    /** 付け元が味方の兵姫と分かる悪い効果は、付いた直後（次の Tick）に外す（いま動いている兵姫の外で付いたもの） */
+    @SubscribeEvent
+    public static void onEffectAdded(net.minecraftforge.event.entity.living.MobEffectEvent.Added event) {
+        LivingEntity target = event.getEntity();
+        if (target.level().isClientSide || !(target.level() instanceof ServerLevel level)) return;
+        var effect = event.getEffectInstance().getEffect();
+        if (effect.getCategory() != net.minecraft.world.effect.MobEffectCategory.HARMFUL) return;
+        Entity source = root(event.getEffectSource());
+        if (source instanceof ValkyrieEntity v && source != target && isAlly(v, target)) {
+            com.automatavalkyries.weapon.WeaponUtil.later(level, 1, () -> target.removeEffect(effect));
+        }
+    }
+
+    /** 兵姫の飛び道具の着弾の間は、その兵姫が動いている扱い（その Tick の終わりまで） */
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
+    public static void onProjectileImpact(net.minecraftforge.event.entity.ProjectileImpactEvent event) {
+        if (!event.getProjectile().level().isClientSide && root(event.getProjectile()) instanceof ValkyrieEntity v) acting = v;
+    }
+
+    @SubscribeEvent
+    public static void onServerTickEnd(net.minecraftforge.event.TickEvent.ServerTickEvent event) {
+        if (event.phase == net.minecraftforge.event.TickEvent.Phase.END) acting = null;
+    }
+
     // ------------------------------------------------------------------ 兵姫ごとの戦闘の状態
 
     /** 兵姫ごとの戦闘の状態（ダッシュ・横ステップ・滞空・セリフの間隔）。毎 Tick {@link #tick} を兵姫から呼ぶ */
@@ -251,7 +307,9 @@ public final class ValkyrieCombat {
         boolean step(Vec3 dir, double power, double up, int fe, float pitch) {
             Vec3 h = new Vec3(dir.x, 0, dir.z);
             if (h.lengthSqr() < 1.0e-4 || !canStep(h) || !spend(fe)) return false;
-            stepCooldown[classify(h).ordinal()] = STEP_COOLDOWN;
+            StepDir d = classify(h);
+            stepCooldown[d.ordinal()] = STEP_COOLDOWN;
+            v.playStep(d.ordinal()); // ステップの動き（モデル）
             h = h.normalize().scale(power);
             v.setDeltaMovement(h.x, up, h.z);
             v.hasImpulse = true;
@@ -321,6 +379,62 @@ public final class ValkyrieCombat {
             v.say(key);
             v.emote(emote);
         }
+    }
+
+    // ------------------------------------------------------------------ 近接の攻撃の動き
+
+    /**
+     * その近接の兵装の攻撃の動き（2026-10-06 ユーザー指定「斬る・突く・叩く・薙ぎ払う」）。槍・杭・針・拳は突く、槌・斧は叩く、
+     * 大鎌・鎌・鞭・扇・花弁は薙ぎ払う、剣は斬る → 薙ぎ払う → 突くの連撃。技は叩く武器なら叩く、突く武器なら突く、ほかは薙ぎ払う
+     */
+    public static int attackMotion(ItemStack stack, int combo, boolean skill) {
+        // 素手（剣・兵装以外の物も）と拳の兵装は殴る: 右・左の交互
+        boolean bare = stack.isEmpty() || !(stack.getItem() instanceof com.automatavalkyries.weapon.TacticalWeaponItem
+                || stack.getItem() instanceof net.minecraft.world.item.TieredItem);
+        net.minecraft.resources.ResourceLocation id = net.minecraftforge.registries.ForgeRegistries.ITEMS.getKey(stack.getItem());
+        String n = id == null ? "" : id.getPath();
+        if (bare || n.contains("knuckle")) return combo % 2 == 0 ? ValkyrieEntity.ATTACK_PUNCH_RIGHT : ValkyrieEntity.ATTACK_PUNCH_LEFT;
+        if (n.contains("lance") || n.contains("javelin") || n.contains("pile") || n.contains("stinger") || n.contains("needle")
+                || n.contains("spear")) return ValkyrieEntity.ATTACK_THRUST;
+        if (n.contains("hammer") || n.contains("axe") || n.contains("maul") || n.contains("drill")) return ValkyrieEntity.ATTACK_SMASH;
+        if (skill || n.contains("scythe") || n.contains("sickle") || n.contains("whip") || n.contains("fan") || n.contains("lotus")
+                || n.contains("chakram") || n.contains("chainsaw")) return ValkyrieEntity.ATTACK_SWEEP;
+        if (n.contains("dagger")) return combo % 2 == 0 ? ValkyrieEntity.ATTACK_THRUST : ValkyrieEntity.ATTACK_SLASH;
+        return switch (combo % 3) {
+            case 0 -> ValkyrieEntity.ATTACK_SLASH;
+            case 1 -> ValkyrieEntity.ATTACK_SWEEP;
+            default -> ValkyrieEntity.ATTACK_THRUST;
+        };
+    }
+
+    /**
+     * 射撃の立ち回りでも、通常攻撃は剣で振る兵装（2026-10-06 ユーザー指定「ルミナス・レクイエムとラグナロクの通常攻撃に剣のモーション」）。
+     * 構えと攻撃の動きを剣のものにする
+     */
+    public static boolean bladeOf(ItemStack stack) {
+        return stack.is(com.automatavalkyries.registry.ModWeapons.LUMINOUS_REQUIEM.get()) || stack.is(com.automatavalkyries.registry.ModWeapons.RAGNAROK_EDGE.get());
+    }
+
+    // ------------------------------------------------------------------ 指示リモコンのステップ
+
+    /**
+     * 指示リモコンでステップさせる（2026-10-06 ユーザー指定）。向き dir（水平）へ、最中でなければ封じ・クールタイムを無視してステップする
+     * （クールタイムはその向きに付く）。できたら true
+     */
+    public static boolean orderStep(ValkyrieEntity v, Vec3 dir) {
+        Brain b = v.combat();
+        if (!active(v) || b.stepping()) return false;
+        Vec3 h = new Vec3(dir.x, 0, dir.z);
+        if (h.lengthSqr() < 1.0e-4) return false;
+        boolean locked = b.stepLocked;
+        int idx = b.classify(h).ordinal();
+        int cd = b.stepCooldown[idx];
+        b.stepLocked = false;
+        b.stepCooldown[idx] = 0;
+        boolean done = b.step(h, 1.0, v.onGround() ? 0.2 : v.getDeltaMovement().y, DASH_FE, 1.2F);
+        b.stepLocked = locked;
+        if (!done) b.stepCooldown[idx] = cd;
+        return done;
     }
 
     // ------------------------------------------------------------------ 共通
@@ -492,6 +606,8 @@ public final class ValkyrieCombat {
         private final ValkyrieEntity v;
         private int basicTimer, skillTimer, offhandTimer, repath, strafeTimer, charging, emptyTicks, failures;
         private boolean strafeLeft, strafing, saidEmpty;
+        /** 連撃の数（剣の斬る → 薙ぎ払う → 突く） */
+        private int combo;
         /** 動き出しているか（止まる・動くの境目に幅を持たせる） */
         private boolean moving;
 
@@ -521,6 +637,7 @@ public final class ValkyrieCombat {
         public void stop() {
             stopCharging(false);
             v.getNavigation().stop();
+            v.setCombatPose(0);
         }
 
         @Override
@@ -556,6 +673,8 @@ public final class ValkyrieCombat {
             double reach = art == null || (empty && v.orders.meleeOnEmpty && art.style() != Style.MELEE) ? 2.5 : Math.max(2.0, art.reach());
 
             v.combat().engage(t, style == Style.MELEE);
+            boolean blade = style == Style.MELEE || bladeOf(main);
+            v.setCombatPose(blade ? 1 : 2); // 構え（モデルの動き）。剣の T4 は射撃の立ち回りでも剣の構え
             // 近接は相手に目線を固定する。射撃は動いている間は進む向きを見る（相手を見たまま歩くと、後ろ向きに歩いていた。2026-10-06）。止まっていれば相手を見る
             if (style == Style.MELEE || !moving || dist <= Math.max(reach, 4.0)) v.getLookControl().setLookAt(t, 30.0F, 30.0F);
 
@@ -594,6 +713,7 @@ public final class ValkyrieCombat {
                     skillTimer = 20;
                 } else if (art.skill() != null) {
                     aim(v, t);
+                    if (art.style() == Style.MELEE) v.playAttack(attackMotion(main, combo, true));
                     if (art.skill().run(level, v, main, t)) {
                         skillTimer = art.skillCooldown();
                         failures = 0;
@@ -609,9 +729,11 @@ public final class ValkyrieCombat {
             if (art != null && art.basic() != null && !(empty && v.orders.meleeOnEmpty)) {
                 if (dist <= art.reach() && v.hasLineOfSight(t)) {
                     aim(v, t);
+                    if (blade) v.playAttack(attackMotion(main, combo++, false));
                     if (art.basic().run(level, v, main, t)) {
                         basicTimer = art.basicInterval();
                         failures = 0;
+                        if (!blade) v.swing(InteractionHand.MAIN_HAND, true); // 撃った反動の動き（モデル）
                     } else {
                         basicTimer = 10;
                         noteFailure(art);
@@ -623,6 +745,7 @@ public final class ValkyrieCombat {
                 double melee = Math.max(2.0, reach) + t.getBbWidth() * 0.5;
                 if (dist <= melee) {
                     aim(v, t);
+                    v.playAttack(attackMotion(main, combo++, false));
                     ValkyrieArts.strike(melee).run(level, v, main, t); // バニラの近接攻撃は hurtEnemy を呼ばないので、当てたときの処理もここで
                     basicTimer = art != null ? art.basicInterval() : 12;
                 }
@@ -884,6 +1007,7 @@ public final class ValkyrieCombat {
         public void stop() {
             if (v.isUsingItem() && v.getUsedItemHand() == InteractionHand.OFF_HAND) v.stopUsingItem();
             threat = null;
+            v.setCombatPose(0);
         }
 
         @Override
@@ -915,6 +1039,7 @@ public final class ValkyrieCombat {
                 v.getNavigation().stop();
             }
             aim(v, threat);
+            v.setCombatPose(1); // 盾を構える（モデルの動き）
             if (barrierTimer > 0) barrierTimer--;
             ItemStack off = v.getOffhandItem();
             Art art = ValkyrieArts.of(off);

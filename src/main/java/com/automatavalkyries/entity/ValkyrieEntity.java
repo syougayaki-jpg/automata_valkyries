@@ -129,6 +129,17 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
     /** 頭上の感情アイコン（{@link Emote}）と残り Tick（§2.5「感情アイコン（♥ や ！）を短く出す」） */
     private static final EntityDataAccessor<Integer> EMOTE = SynchedEntityData.defineId(ValkyrieEntity.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Integer> EMOTE_TICKS = SynchedEntityData.defineId(ValkyrieEntity.class, EntityDataSerializers.INT);
+    /** 戦いの構え（0 = なし、1 = 近接、2 = 射撃）と、ステップの合図（下位 3 ビットが向き＋1、上は回数。変わるたびにクライアントでステップの動きを始める） */
+    private static final EntityDataAccessor<Byte> COMBAT_POSE = SynchedEntityData.defineId(ValkyrieEntity.class, EntityDataSerializers.BYTE);
+    private static final EntityDataAccessor<Integer> STEP_ANIM = SynchedEntityData.defineId(ValkyrieEntity.class, EntityDataSerializers.INT);
+    /** 近接の攻撃の動きの合図（下位 3 ビットが種類 {@link #ATTACK_SLASH} など、上は回数） */
+    private static final EntityDataAccessor<Integer> ATTACK_ANIM = SynchedEntityData.defineId(ValkyrieEntity.class, EntityDataSerializers.INT);
+    /** 近接の攻撃の動きの種類: 斬る・突く・叩く・薙ぎ払う（2026-10-06 ユーザー指定） */
+    public static final int ATTACK_SLASH = 1, ATTACK_THRUST = 2, ATTACK_SMASH = 3, ATTACK_SWEEP = 4;
+    /** 素手・拳の殴り（右・左。2026-10-06 ユーザー指定「素のときは殴りモーション」） */
+    public static final int ATTACK_PUNCH_RIGHT = 5, ATTACK_PUNCH_LEFT = 6;
+    /** 攻撃の動きの長さ（Tick、種類の順。添字 0 は使わない） */
+    public static final int[] ATTACK_TICKS = {0, 8, 7, 12, 10, 6, 6};
     /** 胸のコア（クライアントへ送る写し。HUD・頭上の発光線の色に使う） */
     private static final EntityDataAccessor<ItemStack> CORE_ITEM = SynchedEntityData.defineId(ValkyrieEntity.class, EntityDataSerializers.ITEM_STACK);
 
@@ -171,6 +182,17 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
     public int blinkTicks, nextBlink = 60;
     /** 機能停止の座り込みの進み（0〜1、なめらかに） */
     public float downAnim, downAnimO;
+    /** 構えの重み（0〜1、なめらかに）: 近接・射撃 */
+    public float meleeReady, meleeReadyO, rangedReady, rangedReadyO;
+    /** ステップの動き: 向き（{@code ValkyrieCombat.StepDir} の順、-1 = なし）と始めた Tick */
+    public int stepDir = -1;
+    public int stepStart;
+    private int stepSeq, attackSeq;
+    /** 近接の攻撃の動き: 種類（0 = なし）と始めた Tick */
+    public int attackKind;
+    public int attackStart;
+    /** 手に持つ物の傾きの戻し（ラジアン。腕を上げた分だけ持つ物を下へ戻す。モデルが毎フレーム決め、手の物の描画が使う） */
+    public float itemTiltRight, itemTiltLeft;
     private float lastBodyRot;
 
     public ValkyrieEntity(EntityType<? extends PathfinderMob> type, Level level) {
@@ -207,6 +229,9 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         entityData.define(EMOTE, 0);
         entityData.define(EMOTE_TICKS, 0);
         entityData.define(CORE_ITEM, ItemStack.EMPTY);
+        entityData.define(COMBAT_POSE, (byte) 0);
+        entityData.define(STEP_ANIM, 0);
+        entityData.define(ATTACK_ANIM, 0);
     }
 
     @Override
@@ -326,6 +351,41 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
     /** 胸のコアがステラ・ジェネシス・オメガか（即死・消去を完全に無効にする） */
     public boolean hasOmegaCore() {
         return getCore().is(ModWeapons.CORE_STELLA_GENESIS_OMEGA.get());
+    }
+
+    // ------------------------------------------------------------------ 段階 3: 構え・ステップの動き（モデルの動きの合図）
+
+    /** 戦いの構え（0 = なし、1 = 近接、2 = 射撃）。戦闘 AI が戦っている間に付ける */
+    public void setCombatPose(int pose) {
+        if (entityData.get(COMBAT_POSE) != pose) entityData.set(COMBAT_POSE, (byte) pose);
+    }
+
+    public int getCombatPose() {
+        return entityData.get(COMBAT_POSE);
+    }
+
+    /** ステップの動きを始める（dir は {@code ValkyrieCombat.StepDir} の順: 前・後ろ・左・右） */
+    public void playStep(int dir) {
+        entityData.set(STEP_ANIM, ((++stepSeq & 0xFFFFF) << 3) | (dir + 1));
+    }
+
+    /** 近接の攻撃の動きを始める（kind は {@link #ATTACK_SLASH} など） */
+    public void playAttack(int kind) {
+        entityData.set(ATTACK_ANIM, ((++attackSeq & 0xFFFFF) << 3) | (kind & 7));
+    }
+
+    @Override
+    public void onSyncedDataUpdated(EntityDataAccessor<?> key) {
+        super.onSyncedDataUpdated(key);
+        if (ATTACK_ANIM.equals(key) && level().isClientSide) {
+            attackKind = entityData.get(ATTACK_ANIM) & 7;
+            attackStart = tickCount;
+        }
+        if (STEP_ANIM.equals(key) && level().isClientSide) {
+            int v = entityData.get(STEP_ANIM);
+            stepDir = (v & 7) - 1;
+            stepStart = tickCount;
+        }
     }
 
     // ------------------------------------------------------------------ 段階 3: 吹き出し・感情アイコン
@@ -725,6 +785,7 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
             return InteractionResult.sidedSuccess(client);
         }
         if (!owner.equals(player.getUUID())) return InteractionResult.PASS;
+        if (held.getItem() instanceof com.automatavalkyries.item.TacticalRemoteItem) return InteractionResult.PASS; // 指示リモコン（アイテムの側で指示する）
         // 修理（ナノマシン溶液・リペアインジェクター）
         if (held.is(ModWeapons.NANO_SOLUTION.get()) || held.is(ModWeapons.REPAIR_INJECTOR.get())) {
             if (DirectRead.health(this) >= getMaxHealth() && !isShutdown()) return InteractionResult.PASS;
@@ -803,11 +864,22 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
 
     @Override
     public void tick() {
-        super.tick();
         if (level().isClientSide) {
+            super.tick();
             clientTick();
             return;
         }
+        // AI（戦闘・兵装の技）・手の兵装の毎 Tick の処理・ステップの間は「いま動いている兵姫」（味方へのデバフを断る。ValkyrieCombat#shieldedFromActing）
+        ValkyrieEntity prev = ValkyrieCombat.setActing(this);
+        try {
+            serverTick();
+        } finally {
+            ValkyrieCombat.setActing(prev);
+        }
+    }
+
+    private void serverTick() {
+        super.tick();
         // HP が直接 0 以下に書き換えられていたら（setHealth を通らない書き換え）即死の扱い。オメガコアなら直前の HP へ戻す
         float hp = DirectRead.health(this);
         if (hp <= 0.0F || !Float.isFinite(hp)) {
@@ -845,6 +917,11 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         sideVel = (sideVel + (-turn * 0.8F - sideSway) * 0.25F) * 0.75F;
         sideSway = Mth.clamp(sideSway + sideVel, -0.5F, 0.5F);
 
+        meleeReadyO = meleeReady;
+        rangedReadyO = rangedReady;
+        int pose = entityData.get(COMBAT_POSE);
+        meleeReady = Mth.approach(meleeReady, pose == 1 ? 1.0F : 0.0F, 0.15F);
+        rangedReady = Mth.approach(rangedReady, pose == 2 ? 1.0F : 0.0F, 0.15F);
         downAnimO = downAnim;
         downAnim = Mth.approach(downAnim, isShutdown() ? 1.0F : 0.0F, isShutdown() ? 0.055F : 0.1F); // 崩れ落ちるのに約 0.9 秒
 

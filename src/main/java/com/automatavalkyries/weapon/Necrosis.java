@@ -37,7 +37,7 @@ public final class Necrosis {
     }
 
     public static void apply(LivingEntity target) {
-        if (!affects(target) || !target.isAlive()) return;
+        if (!affects(target) || !target.isAlive() || com.automatavalkyries.entity.ai.ValkyrieCombat.shieldedFromActing(target)) return; // 兵姫の味方には付けない
         AttributeInstance health = target.getAttribute(Attributes.MAX_HEALTH);
         if (health == null) return;
         int stacks = Math.min(MAX_STACKS, stacks(target) + 1);

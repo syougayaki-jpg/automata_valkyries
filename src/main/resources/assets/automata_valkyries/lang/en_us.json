@@ -1024,5 +1024,15 @@
   "subtitles.automata_valkyries.valkyrie.emote_happy": "Valkyrie chirps happily",
   "subtitles.automata_valkyries.valkyrie.emote_sad": "Valkyrie droops",
   "subtitles.automata_valkyries.valkyrie.emote_surprise": "Valkyrie is startled",
-  "subtitles.automata_valkyries.valkyrie.wake": "Valkyrie wakes up"
+  "subtitles.automata_valkyries.valkyrie.wake": "Valkyrie wakes up",
+  "item.automata_valkyries.tactical_remote": "Tactical Remote",
+  "item.automata_valkyries.tactical_remote.desc": "Right-click: order nearby valkyries you own to step (right-click a valkyrie for just her)",
+  "item.automata_valkyries.tactical_remote.desc2": "Sneak + right-click: change direction (relative to where you face)",
+  "item.automata_valkyries.tactical_remote.mode": "Step direction: %s",
+  "item.automata_valkyries.tactical_remote.dir.forward": "Forward",
+  "item.automata_valkyries.tactical_remote.dir.back": "Back",
+  "item.automata_valkyries.tactical_remote.dir.left": "Left",
+  "item.automata_valkyries.tactical_remote.dir.right": "Right",
+  "item.automata_valkyries.tactical_remote.done": "%s valkyrie(s) stepped",
+  "item.automata_valkyries.tactical_remote.none": "No valkyrie could step (mid-step, asleep or shut down)"
 }

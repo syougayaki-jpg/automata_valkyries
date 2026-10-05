@@ -1024,5 +1024,15 @@
   "subtitles.automata_valkyries.valkyrie.emote_happy": "兵姫が喜ぶ",
   "subtitles.automata_valkyries.valkyrie.emote_sad": "兵姫がしょんぼりする",
   "subtitles.automata_valkyries.valkyrie.emote_surprise": "兵姫が驚く",
-  "subtitles.automata_valkyries.valkyrie.wake": "兵姫が起動する"
+  "subtitles.automata_valkyries.valkyrie.wake": "兵姫が起動する",
+  "item.automata_valkyries.tactical_remote": "指示リモコン",
+  "item.automata_valkyries.tactical_remote.desc": "右クリック: 近くの自分の兵姫みなにステップを指示（兵姫を右クリックでその 1 体）",
+  "item.automata_valkyries.tactical_remote.desc2": "しゃがみ右クリック: 向きを切り替え（自分の向きから見て）",
+  "item.automata_valkyries.tactical_remote.mode": "ステップの向き: %s",
+  "item.automata_valkyries.tactical_remote.dir.forward": "前",
+  "item.automata_valkyries.tactical_remote.dir.back": "後ろ",
+  "item.automata_valkyries.tactical_remote.dir.left": "左",
+  "item.automata_valkyries.tactical_remote.dir.right": "右",
+  "item.automata_valkyries.tactical_remote.done": "%s 体がステップした",
+  "item.automata_valkyries.tactical_remote.none": "ステップできる兵姫がいない（ステップの最中・休眠・機能停止）"
 }

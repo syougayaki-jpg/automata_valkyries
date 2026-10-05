@@ -26,14 +26,42 @@ public class BlackLotusItem extends TacticalWeaponItem implements ValkyrieArts.U
     public static final int CAPACITY = 1_500_000, PER_STORM = 100_000, DURATION = 120, COOLDOWN = 200, PETALS = 8, TICK_RATE = 10;
     public static final float STORM_DAMAGE = 100.0F, BURST_DAMAGE = 200.0F, WEIGHT = 2.0F;
     public static final double ORBIT = 2.5, REACH = 3.5, BURST_RANGE = 12.0;
+    /** 扇で打つ近接の攻撃力（電力があるとき / 切れたとき）・攻撃速度・1 打の電力（2026-10-06 ユーザー指定「殴って攻撃するので武器攻撃力を」。値は【仮】） */
+    public static final double DAMAGE = 180.0, DULL_DAMAGE = 45.0, SPEED = 2.0;
+    public static final int PER_HIT = 10_000;
     public static final int PINK = 0xFF8AC8, BLACK = 0x3A1028, WHITE = 0xFFE8F4;
     /** オーバーロード: 3 重の輪の半径・輪ごとの刃の数・嵐の届く距離・飛び散りの方向の数と距離 */
     public static final double[] OVER_RINGS = {5.0, 10.0, 15.0};
     public static final int OVER_PETALS = 12, OVER_BURST_DIRS = 24;
     public static final double OVER_REACH = 15.0, OVER_BURST_RANGE = 30.0;
 
+    private final com.google.common.collect.Multimap<net.minecraft.world.entity.ai.attributes.Attribute, net.minecraft.world.entity.ai.attributes.AttributeModifier>
+            charged = modifiers(DAMAGE), dull = modifiers(DULL_DAMAGE);
+
     public BlackLotusItem(Properties properties) {
         super(properties, CAPACITY, WEIGHT, false);
+    }
+
+    private static com.google.common.collect.Multimap<net.minecraft.world.entity.ai.attributes.Attribute, net.minecraft.world.entity.ai.attributes.AttributeModifier> modifiers(double damage) {
+        return com.google.common.collect.ImmutableMultimap.of(
+                net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE, new net.minecraft.world.entity.ai.attributes.AttributeModifier(BASE_ATTACK_DAMAGE_UUID,
+                        "Weapon modifier", damage - 1.0, net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADDITION),
+                net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_SPEED, new net.minecraft.world.entity.ai.attributes.AttributeModifier(BASE_ATTACK_SPEED_UUID,
+                        "Weapon modifier", SPEED - 4.0, net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADDITION));
+    }
+
+    @Override
+    public com.google.common.collect.Multimap<net.minecraft.world.entity.ai.attributes.Attribute, net.minecraft.world.entity.ai.attributes.AttributeModifier> getAttributeModifiers(
+            net.minecraft.world.entity.EquipmentSlot slot, ItemStack stack) {
+        if (slot != net.minecraft.world.entity.EquipmentSlot.MAINHAND) return super.getAttributeModifiers(slot, stack);
+        return com.automatavalkyries.item.ItemEnergy.get(stack) >= PER_HIT ? charged : dull;
+    }
+
+    /** 扇で打つたびに電力を使う（切れていれば弱い打撃のまま） */
+    @Override
+    public boolean hurtEnemy(ItemStack stack, LivingEntity target, LivingEntity attacker) {
+        WeaponPower.use(attacker, stack, PER_HIT);
+        return true;
     }
 
     @Override

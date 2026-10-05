@@ -97,6 +97,11 @@ public class ValkyrieRenderer extends GeoEntityRenderer<ValkyrieEntity> {
                                           MultiBufferSource bufferSource, float partialTick, int packedLight, int packedOverlay) {
             boolean left = bone.getName().equals("left_arm");
             poseStack.pushPose();
+            // GeckoLib の BlockAndItemGeoLayer は、骨の回転を済ませた行列にもう一度骨の回転を掛けてから呼ぶ（renderForBone の translateAndRotateMatrixForBone）。
+            // 腕を下ろしていれば目立たないが、構えて腕を前へ上げると持つ物が 2 倍回って頭の上へ行っていた（2026-10-06）。余分な 1 回を戻す
+            if (bone.getRotX() != 0) poseStack.mulPose(com.mojang.math.Axis.XP.rotation(-bone.getRotX()));
+            if (bone.getRotY() != 0) poseStack.mulPose(com.mojang.math.Axis.YP.rotation(-bone.getRotY()));
+            if (bone.getRotZ() != 0) poseStack.mulPose(com.mojang.math.Axis.ZP.rotation(-bone.getRotZ()));
             // 腕の付け根の位置・向き（GeckoLib が済ませている）で、バニラのモデルの座標（X・Y 反転）へ切り替える
             poseStack.scale(-1.0F, -1.0F, 1.0F);
             poseStack.mulPose(com.mojang.math.Axis.XP.rotationDegrees(-90.0F));
@@ -105,6 +110,9 @@ public class ValkyrieRenderer extends GeoEntityRenderer<ValkyrieEntity> {
             poseStack.scale(BODY_SCALE, BODY_SCALE, BODY_SCALE);
             // 実機で合わせた握る位置の補正（2026-10-05、ユーザーと /avhand で確認: 内へ 1・後ろへ 0.8・下へ 2.9 px。持つ物の座標）
             poseStack.translate(GRIP_FIX_X / 16.0F, GRIP_FIX_Y / 16.0F, GRIP_FIX_Z / 16.0F);
+            // 構え・攻撃で腕を上げた分の持つ物の傾きを、握る所を中心に戻す（ValkyrieModel が決める。2026-10-06「構えている時の武器の位置がおかしい」）
+            float tilt = portraitPass ? 0.0F : (left ? animatable.itemTiltLeft : animatable.itemTiltRight);
+            if (tilt != 0.0F) poseStack.mulPose(com.mojang.math.Axis.XP.rotation(-tilt));
             super.renderStackForBone(poseStack, bone, stack, animatable, bufferSource, partialTick, packedLight, packedOverlay);
             poseStack.popPose();
         }

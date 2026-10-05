@@ -124,4 +124,31 @@ public class ValkyrieCombatGameTests {
             b.discard();
         }).thenSucceed();
     }
+
+    /** 兵姫の兵装のデバフは味方（同じ持ち主の兵姫・持ち主）に付かない。敵には付く */
+    @GameTest(template = TEMPLATE, batch = "valkyrie_combat")
+    public static void valkyrieDebuffsSpareAllies(GameTestHelper helper) {
+        UUID owner = UUID.randomUUID();
+        ValkyrieEntity a = helper.spawn(ModEntities.VALKYRIE.get(), 1, 2, 1);
+        ValkyrieEntity b = helper.spawn(ModEntities.VALKYRIE.get(), 3, 2, 1);
+        Zombie enemy = helper.spawn(EntityType.ZOMBIE, 5, 2, 1);
+        enemy.setNoAi(true);
+        a.setOwnerUUID(owner);
+        b.setOwnerUUID(owner);
+        var prev = com.automatavalkyries.entity.ai.ValkyrieCombat.setActing(a);
+        try {
+            b.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.WEAKNESS, 100));
+            com.automatavalkyries.weapon.Frostbite.apply(b);
+            enemy.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.WEAKNESS, 100));
+        } finally {
+            com.automatavalkyries.entity.ai.ValkyrieCombat.setActing(prev);
+        }
+        helper.assertFalse(b.hasEffect(net.minecraft.world.effect.MobEffects.WEAKNESS), "an ally got the valkyrie's debuff");
+        helper.assertFalse(b.hasEffect(ModWeapons.FROSTBITE.get()), "an ally got frostbite");
+        helper.assertTrue(enemy.hasEffect(net.minecraft.world.effect.MobEffects.WEAKNESS), "the enemy was spared");
+        a.releaseAndDiscard();
+        b.releaseAndDiscard();
+        enemy.discard();
+        helper.succeed();
+    }
 }
