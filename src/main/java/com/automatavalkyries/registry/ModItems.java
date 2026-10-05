@@ -117,6 +117,12 @@ public class ModItems {
     public static final RegistryObject<Item> PRIVILEGE_AEGIS = ITEMS.register("privilege_aegis", () ->
             new com.automatavalkyries.item.PrivilegeAegisItem(com.automatavalkyries.item.PrivilegeAegisItem.defaultProperties()));
 
+    // ---- 兵姫の好物（追加拡張仕様書 §12.1「好物プレゼント」+5%）。兵姫へ渡す処理は兵姫側。プレイヤーもおやつとして食べられる ----
+    public static final RegistryObject<Item> LUMINAL_CANDY = ITEMS.register("luminal_candy", () ->
+            new com.automatavalkyries.item.ValkyrieGiftItem(new Item.Properties().food(com.automatavalkyries.item.ValkyrieGiftItem.candyFood())));
+    public static final RegistryObject<Item> COOLING_ICE = ITEMS.register("cooling_ice", () ->
+            new com.automatavalkyries.item.ValkyrieGiftItem(new Item.Properties().food(com.automatavalkyries.item.ValkyrieGiftItem.iceFood())));
+
     private static RegistryObject<Item> effect(String name, Rarity rarity, java.util.List<net.minecraft.core.particles.ParticleOptions> particles,
                                                int interval, boolean foil) {
         return ITEMS.register(name, () -> new com.automatavalkyries.item.EffectMaterialItem(new Item.Properties().rarity(rarity),

@@ -7,6 +7,8 @@ import com.automatavalkyries.machine.MachineBlock;
 import com.automatavalkyries.machine.MachineBlockEntity;
 import com.automatavalkyries.machine.MachineKind;
 import com.automatavalkyries.machine.MachineMenu;
+import com.automatavalkyries.machine.ValkyrieChargerBlock;
+import com.automatavalkyries.machine.ValkyrieChargerBlockEntity;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.BlockItem;
@@ -61,6 +63,19 @@ public final class ModMachines {
     @SuppressWarnings("DataFlowIssue")
     public static final RegistryObject<BlockEntityType<CableBlockEntity>> CABLE_ENTITY = BLOCK_ENTITIES.register("power_cable", () ->
             BlockEntityType.Builder.of(CableBlockEntity::new, CABLE.get()).build(null));
+
+    // ---- 兵姫用充電台（SPEC_VALKYRIE_GUI_AI §4）: FE を蓄え、座った兵姫が充電する ----
+    public static final RegistryObject<Block> VALKYRIE_CHARGER = ModBlocks.BLOCKS.register("valkyrie_charger", () -> new ValkyrieChargerBlock(
+            BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_BLACK).requiresCorrectToolForDrops().strength(4.0F, 8.0F)
+                    .sound(SoundType.METAL).noOcclusion().lightLevel(state -> state.getValue(ValkyrieChargerBlock.LIT) ? 12 : 4)));
+
+    static {
+        ModItems.ITEMS.register("valkyrie_charger", () -> new BlockItem(VALKYRIE_CHARGER.get(), new Item.Properties()));
+    }
+
+    @SuppressWarnings("DataFlowIssue")
+    public static final RegistryObject<BlockEntityType<ValkyrieChargerBlockEntity>> VALKYRIE_CHARGER_ENTITY = BLOCK_ENTITIES.register("valkyrie_charger", () ->
+            BlockEntityType.Builder.of(ValkyrieChargerBlockEntity::new, VALKYRIE_CHARGER.get()).build(null));
 
     public static final RegistryObject<MenuType<MachineMenu>> MENU = MENUS.register("machine", () -> IForgeMenuType.create(MachineMenu::new));
 

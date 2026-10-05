@@ -28,6 +28,8 @@ public class ValkyrieMenu extends AbstractContainerMenu {
 
     /** 画面の大きさと枠の位置（{@code client/ValkyrieScreen} と合わせる） */
     public static final int WIDTH = 320, HEIGHT = 250, INV_X = 80, INV_Y = 170, AMMO_Y = 146;
+    /** 持ち物タブの予備の武器・拾った物の行 */
+    public static final int SPARE_Y = 50, PICKUP_Y = 110;
     public static final int[][] SLOT_POS = new int[ValkyrieInventory.SIZE][];
 
     static {
@@ -40,18 +42,20 @@ public class ValkyrieMenu extends AbstractContainerMenu {
         SLOT_POS[ValkyrieInventory.CORE] = new int[]{102, 70};
         for (int i = 0; i < ValkyrieInventory.CHIPS; i++) SLOT_POS[ValkyrieInventory.CHIP + i] = new int[]{37 + 18 * i, 124};
         for (int i = 0; i < ValkyrieInventory.MAX_AMMO; i++) SLOT_POS[ValkyrieInventory.AMMO + i] = new int[]{8 + 18 * i, AMMO_Y};
+        for (int i = 0; i < ValkyrieInventory.SPARES; i++) SLOT_POS[ValkyrieInventory.SPARE + i] = new int[]{INV_X + 18 * i, SPARE_Y};
+        for (int i = 0; i < ValkyrieInventory.PICKUPS; i++) SLOT_POS[ValkyrieInventory.PICKUP + i] = new int[]{INV_X + 18 * i, PICKUP_Y};
     }
 
     // ---- 数値の番号
     public static final int HP = 0, MAX_HP = 1, SHIELD = 2, MAX_SHIELD = 3, ENERGY = 4, MAX_ENERGY = 5, WEIGHT = 6, LIMIT = 7,
             ATTACK = 8, BASE_ATTACK = 9, DEFENSE = 10, BASE_DEFENSE = 11, SPEED = 12, BASE_SPEED = 13, SYNC = 14, FE = 15,
             MODE = 16, BODY = 17, EXPRESSION = 18, KILLS = 19, UPTIME_MIN = 20, FLAGS = 21, ORDERS = 22,
-            HOME = ORDERS + ValkyrieOrders.Field.values().length, DATA = HOME + 6;
+            HOME = ORDERS + ValkyrieOrders.Field.values().length, EXCLUDED = HOME + 6, DATA = EXCLUDED + ValkyrieOrders.MAX_EXCLUDED;
     public static final int FLAG_SHUTDOWN = 1, FLAG_ASLEEP = 2, FLAG_HOME = 4, FLAG_OVERWEIGHT = 8;
 
     public final ValkyrieEntity valkyrie;
     private final ContainerData data;
-    /** 今のタブ（画面だけが使う。0 = 換装、1 = 状態、2 = 作戦指示） */
+    /** 今のタブ（画面だけが使う。0 = 換装、1 = 状態、2 = 作戦指示、3 = 持ち物） */
     public int tab;
     /** 開いたときの同調率の履歴（増減 / 理由 / 何 Tick 前）と一緒に倒したボス */
     public final List<ValkyrieEntity.SyncEntry> history = new ArrayList<>();
@@ -113,6 +117,13 @@ public class ValkyrieMenu extends AbstractContainerMenu {
         return (data.get(FLAGS) & flag) != 0;
     }
 
+    /** お掃除の除外リストの k 番目（空きなら空のスタック。画面で絵を出す） */
+    public net.minecraft.world.item.ItemStack excluded(int k) {
+        int id = data.get(EXCLUDED + k) - 1;
+        if (id < 0) return net.minecraft.world.item.ItemStack.EMPTY;
+        return new net.minecraft.world.item.ItemStack(net.minecraft.core.registries.BuiltInRegistries.ITEM.byId(id));
+    }
+
     public int order(ValkyrieOrders.Field field) {
         return data.get(ORDERS + field.ordinal());
     }
@@ -143,7 +154,8 @@ public class ValkyrieMenu extends AbstractContainerMenu {
             if (!moveItemStackTo(stack, playerStart, end, true)) return ItemStack.EMPTY;
         } else {
             boolean moved = moveItemStackTo(stack, ValkyrieInventory.MAIN_HAND, ValkyrieInventory.CORE + 1, false)
-                    || moveItemStackTo(stack, ValkyrieInventory.AMMO, ValkyrieInventory.SIZE, false);
+                    || (tab == 3 ? moveItemStackTo(stack, ValkyrieInventory.SPARE, ValkyrieInventory.SIZE, false)
+                    : moveItemStackTo(stack, ValkyrieInventory.AMMO, ValkyrieInventory.SPARE, false));
             if (!moved) return ItemStack.EMPTY;
         }
         if (stack.isEmpty()) slot.setByPlayer(ItemStack.EMPTY);
@@ -169,11 +181,13 @@ public class ValkyrieMenu extends AbstractContainerMenu {
 
         @Override
         public int getMaxStackSize() {
+            if (index >= ValkyrieInventory.SPARE && index < ValkyrieInventory.PICKUP) return 1;
             return index >= ValkyrieInventory.AMMO ? 64 : 1;
         }
 
         @Override
         public boolean isActive() {
+            if (index >= ValkyrieInventory.SPARE) return tab == 3; // 持ち物タブ
             if (tab != 0) return false;
             return index < ValkyrieInventory.AMMO || index - ValkyrieInventory.AMMO < valkyrie.getBody().ammoSlots;
         }
@@ -187,7 +201,7 @@ public class ValkyrieMenu extends AbstractContainerMenu {
 
         @Override
         public boolean isActive() {
-            return tab == 0;
+            return tab == 0 || tab == 3;
         }
     }
 
@@ -203,7 +217,11 @@ public class ValkyrieMenu extends AbstractContainerMenu {
         @Override
         public int get(int index) {
             if (index >= ORDERS && index < HOME) return v.orders.get(ValkyrieOrders.Field.values()[index - ORDERS]);
-            if (index >= HOME && index < DATA) {
+            if (index >= EXCLUDED && index < DATA) { // お掃除の除外リスト（アイテムの番号 + 1、0 = 空き）
+                int k = index - EXCLUDED;
+                return k < v.orders.excluded.size() ? net.minecraft.core.registries.BuiltInRegistries.ITEM.getId(v.orders.excluded.get(k)) + 1 : 0;
+            }
+            if (index >= HOME && index < EXCLUDED) {
                 BlockPos home = v.getHome();
                 if (home == null) return 0;
                 int k = index - HOME, value = k < 2 ? home.getX() : k < 4 ? home.getY() : home.getZ();

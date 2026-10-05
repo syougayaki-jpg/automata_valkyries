@@ -23,7 +23,7 @@ import java.util.function.Supplier;
  */
 public record ValkyrieCommandPacket(int entityId, int action, int arg, int value, String text) {
 
-    public static final int MODE = 0, SET_HOME = 1, ORDER = 2, EXPRESSION = 3, RENAME = 4;
+    public static final int MODE = 0, SET_HOME = 1, ORDER = 2, EXPRESSION = 3, RENAME = 4, EXCLUDE_ADD = 5, EXCLUDE_REMOVE = 6;
     public static final int MAX_NAME = 32;
 
     public static ValkyrieCommandPacket of(int entityId, int action, int arg, int value) {
@@ -65,6 +65,11 @@ public record ValkyrieCommandPacket(int entityId, int action, int arg, int value
                 v.applyOrders();
             }
             case EXPRESSION -> v.setExpression(p.value);
+            case EXCLUDE_ADD -> { // お掃除の除外リストへ: カーソルに持っている物（無ければ手に持っている物）
+                net.minecraft.world.item.ItemStack stack = menu.getCarried().isEmpty() ? player.getMainHandItem() : menu.getCarried();
+                if (stack.isEmpty() || !v.orders.exclude(stack.getItem())) return;
+            }
+            case EXCLUDE_REMOVE -> v.orders.unexclude(p.value);
             case RENAME -> {
                 String name = p.text.strip();
                 v.setCustomName(name.isEmpty() ? null : Component.literal(name.length() > MAX_NAME ? name.substring(0, MAX_NAME) : name));

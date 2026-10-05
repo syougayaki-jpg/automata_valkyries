@@ -31,6 +31,7 @@ public final class ValkyrieRecords {
             Player owner = v.getOwner();
             if (owner == null || owner.distanceToSqr(victim) > OWNER_RANGE * OWNER_RANGE) continue;
             v.bosses.add(0, name);
+            com.automatavalkyries.entity.ai.ValkyrieDaily.onBossDown(v);
             while (v.bosses.size() > ValkyrieEntity.MAX_BOSSES) v.bosses.remove(v.bosses.size() - 1);
         }
     }

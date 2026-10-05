@@ -44,7 +44,7 @@ public class ModCreativeTabs {
     public static Group group(Item item) {
         String id = path(item);
         if (item instanceof RequiemBackdropItem) return Group.HIDDEN;
-        if (item instanceof BossDropItem || item instanceof SpawnEggItem || id.equals("overload_memory") || id.equals("custom_maximizer") || id.equals("overload_igniter") || id.equals("ward_charm") || id.equals("invincible_charm") || id.equals("rescue_communicator") || id.equals("tactical_remote") || id.equals("eviction_notice") || id.equals("privilege_aegis") || id.contains("kill_stick") || id.contains("terminus")) {
+        if (item instanceof BossDropItem || item instanceof SpawnEggItem || id.equals("overload_memory") || id.equals("custom_maximizer") || id.equals("overload_igniter") || id.equals("ward_charm") || id.equals("invincible_charm") || id.equals("rescue_communicator") || id.equals("tactical_remote") || id.equals("luminal_candy") || id.equals("cooling_ice") || id.equals("valkyrie_charger") || id.equals("eviction_notice") || id.equals("privilege_aegis") || id.contains("kill_stick") || id.contains("terminus")) {
             return Group.SPECIAL;
         }
         if (item instanceof TacticalWeaponItem || item instanceof LuminalCoreItem || id.startsWith("ammo_") || id.equals("nano_solution")

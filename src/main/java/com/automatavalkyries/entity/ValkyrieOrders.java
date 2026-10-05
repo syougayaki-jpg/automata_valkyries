@@ -72,13 +72,48 @@ public class ValkyrieOrders {
         }
     }
 
+    // ---- お掃除の除外リスト（段階 4、2026-10-06。SPEC_VALKYRIE_GUI_AI §2.4「お掃除の除外リスト」）
+
+    /** 除外リストの数の上限 */
+    public static final int MAX_EXCLUDED = 9;
+    /** お掃除で拾わないアイテム */
+    public final java.util.List<net.minecraft.world.item.Item> excluded = new java.util.ArrayList<>();
+
+    public boolean excludes(net.minecraft.world.item.ItemStack stack) {
+        return excluded.contains(stack.getItem());
+    }
+
+    /** 足す（既にあるか、いっぱいなら false） */
+    public boolean exclude(net.minecraft.world.item.Item item) {
+        if (item == net.minecraft.world.item.Items.AIR || excluded.contains(item) || excluded.size() >= MAX_EXCLUDED) return false;
+        excluded.add(item);
+        return true;
+    }
+
+    public void unexclude(int index) {
+        if (index >= 0 && index < excluded.size()) excluded.remove(index);
+    }
+
     public CompoundTag save() {
         CompoundTag tag = new CompoundTag();
         for (Field f : Field.values()) tag.putInt(f.name(), get(f));
+        net.minecraft.nbt.ListTag list = new net.minecraft.nbt.ListTag();
+        for (net.minecraft.world.item.Item item : excluded) {
+            net.minecraft.resources.ResourceLocation id = net.minecraftforge.registries.ForgeRegistries.ITEMS.getKey(item);
+            if (id != null) list.add(net.minecraft.nbt.StringTag.valueOf(id.toString()));
+        }
+        tag.put("Excluded", list);
         return tag;
     }
 
     public void load(CompoundTag tag) {
         for (Field f : Field.values()) if (tag.contains(f.name())) set(f, tag.getInt(f.name()));
+        excluded.clear();
+        net.minecraft.nbt.ListTag list = tag.getList("Excluded", net.minecraft.nbt.Tag.TAG_STRING);
+        for (int i = 0; i < list.size() && excluded.size() < MAX_EXCLUDED; i++) {
+            net.minecraft.resources.ResourceLocation id = net.minecraft.resources.ResourceLocation.tryParse(list.getString(i));
+            net.minecraft.world.item.Item item = id == null ? null : net.minecraftforge.registries.ForgeRegistries.ITEMS.getValue(id);
+            if (item != null && item != net.minecraft.world.item.Items.AIR && !excluded.contains(item)) excluded.add(item);
+        }
     }
 }

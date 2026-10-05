@@ -155,6 +155,15 @@ public class ValkyrieModel extends DefaultedEntityGeoModel<ValkyrieEntity> {
             }
             default -> { }
         }
+        if (entity.attackLeft && kind != 0 && kind != ValkyrieEntity.ATTACK_PUNCH_RIGHT && kind != ValkyrieEntity.ATTACK_PUNCH_LEFT) {
+            // 二刀流の左手の攻撃: 右手で計算した動きを左手へ写し、右手は構えのまま（ひねりは逆向き）
+            float base = fists ? 1.05F : 0.75F, baseZ = fists ? -0.12F : 0.25F;
+            mLeft = mArm;
+            mLeftZ = -mArmZ;
+            mArm = base;
+            mArmZ = baseZ;
+            slashTwist = -slashTwist;
+        }
         float recoil = Mth.sin(Math.min(1.0F, swingP * 1.6F) * Mth.PI) * (swingP > 0.0F ? 1.0F : 0.0F); // 撃った反動（速く跳ね上がって戻る）
         float shake = charge > 0.0F ? Mth.sin(age * 2.7F) * 0.03F * charge : 0.0F;
         // ステップ: 前は前のめりで腕を後ろへ流す、後ろは体を起こして腕を前へ、左右は体を傾けて腕を広げる（0.6 秒、山なりに）
@@ -202,8 +211,60 @@ public class ValkyrieModel extends DefaultedEntityGeoModel<ValkyrieEntity> {
         // 弓だけは引くとき（腕を前へ上げる）に上げた分を戻して、弓を立てたままにする（2026-10-06「弓を持つ位置がおかしい」）
         boolean bow = entity.getMainHandItem().is(com.automatavalkyries.registry.ModWeapons.STARFALL_BOW.get());
         entity.itemTiltRight = melee * (1.0F - aim) * mTilt + aim * (bow ? ValkyrieAimTuner.bowTilt : ValkyrieAimTuner.gunTilt);
-        entity.itemTiltLeft = melee * (1.0F - aim) * 0.3F;
+        entity.itemTiltLeft = melee * (1.0F - aim) * (entity.attackLeft && kind != 0 ? mTilt : 0.3F);
         leftArm.setRotZ(-armOut - 0.15F * down + mLeftZ * melee * (1.0F - aim) + (twoHanded ? 0.45F : 0.0F) * aim - 0.6F * Math.abs(stepSide));
+
+        // ---- 日常（段階 4）: 腰掛け（足をぶらぶら）・充電台での整備・仕草（喜ぶ・しょんぼり・手を振る・うなずく・覗き込む）
+        float sit = Mth.lerp(pt, entity.sitAnimO, entity.sitAnim) * up;
+        float maint = Mth.lerp(pt, entity.chargeAnimO, entity.chargeAnim) * up;
+        if (sit > 0.0F) {
+            float dangle = Mth.sin(age * 0.12F) * 0.22F * sit * (1.0F - maint); // 足ぶらぶら（左右で逆）
+            bone("root").setPosY(bone("root").getPosY() - SIT_DROP * sit);
+            bone("right_leg").setRotX(bone("right_leg").getRotX() + 1.45F * sit + dangle);
+            bone("left_leg").setRotX(bone("left_leg").getRotX() + 1.45F * sit - dangle);
+            body.setRotX(body.getRotX() + 0.06F * sit);
+            if (ready <= 0.0F) { // 手は膝の上
+                rightArm.setRotX(rightArm.getRotX() + 0.45F * sit);
+                leftArm.setRotX(leftArm.getRotX() + 0.45F * sit);
+            }
+        }
+        if (maint > 0.0F) { // 整備: 右手を胸のコアに当て、うつむいて確かめる（左手は膝）
+            rightArm.setRotX(rightArm.getRotX() + 0.75F * maint + Mth.sin(age * 0.3F) * 0.05F * maint);
+            rightArm.setRotZ(rightArm.getRotZ() - 0.55F * maint);
+            head.setRotX(head.getRotX() - 0.3F * maint);
+        }
+        int gk = entity.gestureKind;
+        float gq = gk > 0 ? (age - entity.gestureStart) / ValkyrieEntity.GESTURE_TICKS[gk] : 1.0F;
+        if (gq >= 0.0F && gq < 1.0F) {
+            float env = Mth.sin(gq * Mth.PI) * up;
+            switch (gk) {
+                case ValkyrieEntity.GESTURE_JOY -> { // 2 回跳ねて両手を上げる
+                    bone("root").setPosY(bone("root").getPosY() + 1.8F * Math.abs(Mth.sin(gq * Mth.PI * 2.0F)) * up);
+                    rightArm.setRotX(rightArm.getRotX() + 2.4F * env);
+                    leftArm.setRotX(leftArm.getRotX() + 2.4F * env);
+                    rightArm.setRotZ(rightArm.getRotZ() + 0.3F * env);
+                    leftArm.setRotZ(leftArm.getRotZ() - 0.3F * env);
+                }
+                case ValkyrieEntity.GESTURE_DEJECTED -> { // うなだれて肩を落とす
+                    head.setRotX(head.getRotX() - 0.5F * env);
+                    body.setRotX(body.getRotX() - 0.15F * env);
+                    rightArm.setRotZ(rightArm.getRotZ() - 0.06F * env);
+                    leftArm.setRotZ(leftArm.getRotZ() + 0.06F * env);
+                }
+                case ValkyrieEntity.GESTURE_WAVE -> { // 右手を上げて振る
+                    rightArm.setRotX(rightArm.getRotX() + 2.7F * env);
+                    rightArm.setRotZ(rightArm.getRotZ() + (0.35F + Mth.sin(age * 0.8F) * 0.35F) * env);
+                }
+                case ValkyrieEntity.GESTURE_NOD -> head.setRotX(head.getRotX() - 0.3F * Math.max(0.0F, Mth.sin(gq * Mth.PI * 4.0F)) * up); // 2 回うなずく
+                case ValkyrieEntity.GESTURE_PEEK -> { // 前へ身を乗り出して覗き込む
+                    body.setRotX(body.getRotX() - 0.35F * env);
+                    head.setRotX(head.getRotX() - 0.2F * env);
+                    rightArm.setRotX(rightArm.getRotX() + 0.3F * env);
+                    leftArm.setRotX(leftArm.getRotX() + 0.3F * env);
+                }
+                default -> { }
+            }
+        }
 
         // ---- 髪: エンティティのばね（前へ進むほど後ろへ流れる）を後ろ髪の 3 段へ配る。横髪・リボンも少し
         float swing = Mth.lerp(pt, entity.hairSwingO, entity.hairSwing);

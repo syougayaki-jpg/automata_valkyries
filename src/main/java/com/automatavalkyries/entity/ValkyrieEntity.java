@@ -132,8 +132,18 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
     /** 戦いの構え（0 = なし、1 = 近接、2 = 射撃）と、ステップの合図（下位 3 ビットが向き＋1、上は回数。変わるたびにクライアントでステップの動きを始める） */
     private static final EntityDataAccessor<Byte> COMBAT_POSE = SynchedEntityData.defineId(ValkyrieEntity.class, EntityDataSerializers.BYTE);
     private static final EntityDataAccessor<Integer> STEP_ANIM = SynchedEntityData.defineId(ValkyrieEntity.class, EntityDataSerializers.INT);
-    /** 近接の攻撃の動きの合図（下位 3 ビットが種類 {@link #ATTACK_SLASH} など、上は回数） */
+    /** 近接の攻撃の動きの合図（下位 3 ビットが種類 {@link #ATTACK_SLASH} など、4 ビット目が左手、上は回数） */
     private static final EntityDataAccessor<Integer> ATTACK_ANIM = SynchedEntityData.defineId(ValkyrieEntity.class, EntityDataSerializers.INT);
+    /** 日常（段階 4）: 腰掛けている・充電台で整備している・仕草の合図（下位 3 ビットが種類）・気分の表情（EXPRESSIONS の番号）と残り Tick */
+    private static final EntityDataAccessor<Boolean> SITTING = SynchedEntityData.defineId(ValkyrieEntity.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Boolean> CHARGING = SynchedEntityData.defineId(ValkyrieEntity.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Integer> GESTURE_ANIM = SynchedEntityData.defineId(ValkyrieEntity.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Integer> MOOD = SynchedEntityData.defineId(ValkyrieEntity.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Integer> MOOD_TICKS = SynchedEntityData.defineId(ValkyrieEntity.class, EntityDataSerializers.INT);
+    /** 仕草の種類: 喜ぶ（跳ねて両手を上げる）・しょんぼり・手を振る・うなずく・覗き込む */
+    public static final int GESTURE_JOY = 1, GESTURE_DEJECTED = 2, GESTURE_WAVE = 3, GESTURE_NOD = 4, GESTURE_PEEK = 5;
+    /** 仕草の長さ（Tick、種類の順。添字 0 は使わない） */
+    public static final int[] GESTURE_TICKS = {0, 24, 50, 30, 16, 40};
     /** 近接の攻撃の動きの種類: 斬る・突く・叩く・薙ぎ払う（2026-10-06 ユーザー指定） */
     public static final int ATTACK_SLASH = 1, ATTACK_THRUST = 2, ATTACK_SMASH = 3, ATTACK_SWEEP = 4;
     /** 素手・拳の殴り（右・左。2026-10-06 ユーザー指定「素のときは殴りモーション」） */
@@ -187,10 +197,18 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
     /** ステップの動き: 向き（{@code ValkyrieCombat.StepDir} の順、-1 = なし）と始めた Tick */
     public int stepDir = -1;
     public int stepStart;
-    private int stepSeq, attackSeq;
+    private int stepSeq, attackSeq, gestureSeq;
+    /** 仕草: 種類（0 = なし）と始めた Tick（クライアント） */
+    public int gestureKind, gestureStart;
+    /** 腰掛け・整備の重み（0〜1、なめらかに。クライアント） */
+    public float sitAnim, sitAnimO, chargeAnim, chargeAnimO;
+    /** 日常の状態（セリフの間隔・朝の挨拶・好物の回数など。{@link com.automatavalkyries.entity.ai.ValkyrieDaily.Life}） */
+    private com.automatavalkyries.entity.ai.ValkyrieDaily.Life life;
     /** 近接の攻撃の動き: 種類（0 = なし）と始めた Tick */
     public int attackKind;
     public int attackStart;
+    /** 左手（二刀流の左手の武器）の攻撃か */
+    public boolean attackLeft;
     /** 手に持つ物の傾きの戻し（ラジアン。腕を上げた分だけ持つ物を下へ戻す。モデルが毎フレーム決め、手の物の描画が使う） */
     public float itemTiltRight, itemTiltLeft;
     private float lastBodyRot;
@@ -232,6 +250,11 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         entityData.define(COMBAT_POSE, (byte) 0);
         entityData.define(STEP_ANIM, 0);
         entityData.define(ATTACK_ANIM, 0);
+        entityData.define(SITTING, false);
+        entityData.define(CHARGING, false);
+        entityData.define(GESTURE_ANIM, 0);
+        entityData.define(MOOD, 0);
+        entityData.define(MOOD_TICKS, 0);
     }
 
     @Override
@@ -241,6 +264,11 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         // 戦闘（段階 3）: かばう・後退・戦うが追従より先
         goalSelector.addGoal(1, new ValkyrieCombat.Guard(this));
         goalSelector.addGoal(1, new ValkyrieCombat.Retreat(this));
+        // 日常（段階 4）: 自分で充電・作業の見守り・お掃除・腰掛け
+        goalSelector.addGoal(1, new com.automatavalkyries.entity.ai.ValkyrieDaily.SelfCharge(this));
+        goalSelector.addGoal(2, new com.automatavalkyries.entity.ai.ValkyrieDaily.WatchWork(this));
+        goalSelector.addGoal(4, new com.automatavalkyries.entity.ai.ValkyrieDaily.Clean(this));
+        goalSelector.addGoal(5, new com.automatavalkyries.entity.ai.ValkyrieDaily.Sit(this));
         goalSelector.addGoal(2, new ValkyrieCombat.Fight(this));
         goalSelector.addGoal(3, new ValkyrieGoals.FollowOwner(this));
         goalSelector.addGoal(4, new ValkyrieGoals.KeepHome(this));
@@ -271,6 +299,7 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         if (isShutdown()) return "shutdown";
         if (isAsleep()) return "sleepy";
         if (entityData.get(HAPPY) > 0) return "smile";
+        if (entityData.get(MOOD_TICKS) > 0) return EXPRESSIONS[Mth.clamp(entityData.get(MOOD), 0, EXPRESSIONS.length - 1)];
         return EXPRESSIONS[getExpression()];
     }
 
@@ -282,6 +311,7 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
     public boolean setMode(Mode mode) {
         if (mode == Mode.FOLLOW && getMode() != Mode.FOLLOW && level() instanceof ServerLevel server && followers(server, getOwnerUUID()) >= MAX_FOLLOWERS) return false;
         if (mode == Mode.DEFEND || mode == Mode.PATROL) home = blockPosition();
+        if (mode == Mode.WAIT) life().waitSpot = onGround() ? blockPosition() : null; // 待機の日常（腰掛け・お掃除）の中心。空中なら着地してから決める
         entityData.set(MODE, mode.ordinal());
         applyOrders();
         getNavigation().stop();
@@ -369,16 +399,83 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         entityData.set(STEP_ANIM, ((++stepSeq & 0xFFFFF) << 3) | (dir + 1));
     }
 
+    // ------------------------------------------------------------------ 段階 4: 日常（腰掛け・整備・仕草・気分・セリフ）
+
+    /** 調べ用: 今動いている AI の目標の名前 */
+    public String goalSelectorRunning() {
+        return goalSelector.getRunningGoals().map(g -> g.getGoal().getClass().getSimpleName()).toList().toString();
+    }
+
+        public com.automatavalkyries.entity.ai.ValkyrieDaily.Life life() {
+        if (life == null) life = new com.automatavalkyries.entity.ai.ValkyrieDaily.Life(this);
+        return life;
+    }
+
+    public boolean isSitting() {
+        return entityData.get(SITTING);
+    }
+
+    public void setSitting(boolean sitting) {
+        if (entityData.get(SITTING) != sitting) entityData.set(SITTING, sitting);
+    }
+
+    /** 充電台で整備している（座って胸のコアに手を当てる） */
+    public boolean isCharging() {
+        return entityData.get(CHARGING);
+    }
+
+    public void setCharging(boolean charging) {
+        if (entityData.get(CHARGING) != charging) entityData.set(CHARGING, charging);
+    }
+
+    /** 仕草を始める（{@link #GESTURE_JOY} など） */
+    public void gesture(int kind) {
+        entityData.set(GESTURE_ANIM, ((++gestureSeq & 0xFFFFF) << 3) | (kind & 7));
+    }
+
+    /** 気分の表情を少しの間出す（index は {@link #EXPRESSIONS} の番号） */
+    public void mood(int index, int ticks) {
+        entityData.set(MOOD, index);
+        entityData.set(MOOD_TICKS, ticks);
+    }
+
+    /**
+     * 場面のセリフ（Type-V の性格、同調率 50% 以上なら親しい口調。3 つのうち 1 つ）。lang の
+     * {@code valkyrie.automata_valkyries.speech.<場面>.<low|high>.<1〜3>}。同じ場面は {@code Life} の間隔より短く繰り返さない。言えたら true
+     */
+    public boolean talk(String situation) {
+        if (level().isClientSide || isShutdown() || !life().mayTalk(situation)) return false;
+        String tier = getSyncRate() >= 50.0F ? "high" : "low";
+        say(situation + "." + tier + "." + (1 + random.nextInt(3)));
+        return true;
+    }
+
+    /** 場面のセリフを間隔を見ずに言う（指示リモコンから） */
+    public void talkNow(String situation) {
+        if (level().isClientSide || isShutdown()) return;
+        say(situation + "." + (getSyncRate() >= 50.0F ? "high" : "low") + "." + (1 + random.nextInt(3)));
+    }
+
     /** 近接の攻撃の動きを始める（kind は {@link #ATTACK_SLASH} など） */
     public void playAttack(int kind) {
-        entityData.set(ATTACK_ANIM, ((++attackSeq & 0xFFFFF) << 3) | (kind & 7));
+        playAttack(kind, false);
+    }
+
+    /** 近接の攻撃の動きを始める（left なら左手で。二刀流の左手の武器） */
+    public void playAttack(int kind, boolean left) {
+        entityData.set(ATTACK_ANIM, ((++attackSeq & 0xFFFFF) << 4) | (left ? 8 : 0) | (kind & 7));
     }
 
     @Override
     public void onSyncedDataUpdated(EntityDataAccessor<?> key) {
         super.onSyncedDataUpdated(key);
+        if (GESTURE_ANIM.equals(key) && level().isClientSide) {
+            gestureKind = entityData.get(GESTURE_ANIM) & 7;
+            gestureStart = tickCount;
+        }
         if (ATTACK_ANIM.equals(key) && level().isClientSide) {
             attackKind = entityData.get(ATTACK_ANIM) & 7;
+            attackLeft = (entityData.get(ATTACK_ANIM) & 8) != 0;
             attackStart = tickCount;
         }
         if (STEP_ANIM.equals(key) && level().isClientSide) {
@@ -462,6 +559,12 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         entityData.set(SYNC, after);
         syncHistory.addFirst(new SyncEntry(after - before, reason, level().getGameTime()));
         while (syncHistory.size() > SYNC_HISTORY) syncHistory.removeLast();
+        // 20% の節目を越えたら喜ぶ（段階 4）
+        if (!level().isClientSide && (int) (after / 20.0F) > (int) (before / 20.0F)) {
+            talk("sync_up");
+            gesture(GESTURE_JOY);
+            mood(1, 60);
+        }
     }
 
     public float getShield() {
@@ -622,8 +725,11 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
             entityData.set(ASLEEP, true);
             getNavigation().stop();
             setTarget(null);
+            setSitting(false);
+            talk("sleepy");
         } else if (isAsleep() && getEnergy() >= WAKE_ENERGY) {
             entityData.set(ASLEEP, false);
+            life().onWake();
         }
         if (!isShutdown() && !isAsleep()) uptime++;
         double bonus = syncMultiplier() - 1.0;
@@ -679,6 +785,13 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         if (isShutdown()) {
             entityData.set(SHUTDOWN, false);
             playSound(sound("wake"), 1.0F, 1.0F);
+            if (!level().isClientSide) { // 機能停止からの復帰（拡張仕様書 §12.1 +10%）
+                addSync(10.0F, "revived");
+                talk("revived");
+                gesture(GESTURE_NOD);
+            }
+        } else if (!level().isClientSide && getOwner() != null && random.nextFloat() < 0.5F) {
+            talk("repaired");
         }
         if (level() instanceof ServerLevel server) server.sendParticles(ParticleTypes.HAPPY_VILLAGER, getX(), getY(1.0), getZ(), 8, 0.3, 0.3, 0.3, 0);
     }
@@ -786,6 +899,16 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         }
         if (!owner.equals(player.getUUID())) return InteractionResult.PASS;
         if (held.getItem() instanceof com.automatavalkyries.item.TacticalRemoteItem) return InteractionResult.PASS; // 指示リモコン（アイテムの側で指示する）
+        // 好物を渡す（ルミナルキャンディ・冷却アイス。拡張仕様書 §12.1 +5%）
+        boolean candy = held.is(com.automatavalkyries.registry.ModItems.LUMINAL_CANDY.get()), ice = held.is(com.automatavalkyries.registry.ModItems.COOLING_ICE.get());
+        if ((candy || ice) && !isShutdown()) {
+            if (!client) {
+                if (!player.getAbilities().instabuild) held.shrink(1);
+                life().gift(candy);
+                playSound(net.minecraft.sounds.SoundEvents.GENERIC_EAT, 0.6F, 1.3F);
+            }
+            return InteractionResult.sidedSuccess(client);
+        }
         // 修理（ナノマシン溶液・リペアインジェクター）
         if (held.is(ModWeapons.NANO_SOLUTION.get()) || held.is(ModWeapons.REPAIR_INJECTOR.get())) {
             if (DirectRead.health(this) >= getMaxHealth() && !isShutdown()) return InteractionResult.PASS;
@@ -823,6 +946,7 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
                         addSync(1.0F, "pat");
                     }
                     entityData.set(HAPPY, 40);
+                    talk("pat");
                     playSound(sound("emote_happy"), 0.8F, 1.0F);
                     ((ServerLevel) level()).sendParticles(ParticleTypes.HEART, getX(), getY(1.1), getZ(), 1, 0.1, 0.1, 0.1, 0);
                 }
@@ -888,6 +1012,8 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
             lastGoodHealth = hp;
         }
         if (entityData.get(HAPPY) > 0) entityData.set(HAPPY, entityData.get(HAPPY) - 1);
+        if (entityData.get(MOOD_TICKS) > 0) entityData.set(MOOD_TICKS, entityData.get(MOOD_TICKS) - 1);
+        if (!isShutdown()) life().tick();
         if (entityData.get(SPEECH_TICKS) > 0) entityData.set(SPEECH_TICKS, entityData.get(SPEECH_TICKS) - 1);
         if (entityData.get(EMOTE_TICKS) > 0) entityData.set(EMOTE_TICKS, entityData.get(EMOTE_TICKS) - 1);
         // 持ち主が降りたら一緒に降りる
@@ -917,6 +1043,10 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         sideVel = (sideVel + (-turn * 0.8F - sideSway) * 0.25F) * 0.75F;
         sideSway = Mth.clamp(sideSway + sideVel, -0.5F, 0.5F);
 
+        sitAnimO = sitAnim;
+        chargeAnimO = chargeAnim;
+        sitAnim = Mth.approach(sitAnim, isSitting() || isCharging() ? 1.0F : 0.0F, 0.12F);
+        chargeAnim = Mth.approach(chargeAnim, isCharging() ? 1.0F : 0.0F, 0.1F);
         meleeReadyO = meleeReady;
         rangedReadyO = rangedReady;
         int pose = entityData.get(COMBAT_POSE);
@@ -972,6 +1102,7 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         for (String b : bosses) bossList.add(net.minecraft.nbt.StringTag.valueOf(b));
         tag.put("Bosses", bossList);
         tag.putLong("PatDay", patDay);
+        tag.put("Life", life().save());
         tag.putInt("PatsToday", patsToday);
     }
 
@@ -1020,6 +1151,13 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         for (int i = 0; i < bossList.size() && i < MAX_BOSSES; i++) bosses.add(bossList.getString(i));
         patDay = tag.contains("PatDay") ? tag.getLong("PatDay") : -1;
         patsToday = tag.getInt("PatsToday");
+        // 前の版で運んでいた物（Carried）は持ち物の拾った物の枠へ
+        net.minecraft.nbt.ListTag carry = tag.getList("Carried", net.minecraft.nbt.Tag.TAG_COMPOUND);
+        for (int i = 0; i < carry.size(); i++) {
+            ItemStack rest = getInventory().addPickup(ItemStack.of(carry.getCompound(i)));
+            if (!rest.isEmpty() && !level().isClientSide) spawnAtLocation(rest);
+        }
+        life().load(tag.getCompound("Life"));
         applyOrders();
     }
 

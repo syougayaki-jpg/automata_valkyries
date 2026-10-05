@@ -103,14 +103,12 @@ public class PolarDeflectorItem extends TacticalWeaponItem implements ValkyrieAr
         }
         // 結界の中の敵の飛び道具を、向きを問わずすべて跳ね返す
         int reflected = 0;
-        for (net.minecraft.world.entity.projectile.Projectile p : level.getEntitiesOfClass(net.minecraft.world.entity.projectile.Projectile.class,
-                user.getBoundingBox().inflate(OVER_RADIUS), p -> p.getOwner() != user && !(p.getOwner() != null && p.getOwner().isAlliedTo(user)))) {
-            Vec3 v = p.getDeltaMovement();
+        for (net.minecraft.world.entity.Entity p : level.getEntities(user, user.getBoundingBox().inflate(OVER_RADIUS),
+                p -> ProjectileLike.is(p) && ProjectileLike.owner(p) != user && !(ProjectileLike.owner(p) != null && ProjectileLike.owner(p).isAlliedTo(user)))) {
+            Vec3 v = ProjectileLike.velocity(p);
             Vec3 toUser = c.add(0, user.getBbHeight() * 0.5, 0).subtract(p.position());
             if (toUser.length() > OVER_RADIUS || v.lengthSqr() < 0.01 || v.dot(toUser) <= 0) continue;
-            p.setOwner(user);
-            p.setDeltaMovement(v.scale(-1.2));
-            p.hurtMarked = true;
+            ProjectileLike.reflect(p, v.scale(-1.2), user);
             Fx.burst(level, Fx.opt(com.automatavalkyries.registry.ModParticles.HEX.get(), ICE, 0.25F, 14), p.position(), 8, 0.25);
             Fx.burst(level, Fx.opt(com.automatavalkyries.registry.ModParticles.SPARK.get(), Overload.GOLD, 0.25F, 10), p.position(), 6, 0.3);
             reflected++;

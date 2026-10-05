@@ -1,0 +1,7 @@
+{
+  "parent": "automata_valkyries:block/valkyrie_charger",
+  "textures": {
+    "side": "automata_valkyries:block/valkyrie_charger_side_on",
+    "holo": "automata_valkyries:block/valkyrie_charger_holo_on"
+  }
+}

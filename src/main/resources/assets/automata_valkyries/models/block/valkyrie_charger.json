@@ -1,0 +1,606 @@
+{
+  "parent": "minecraft:block/block",
+  "textures": {
+    "particle": "automata_valkyries:block/valkyrie_charger_metal",
+    "metal": "automata_valkyries:block/valkyrie_charger_metal",
+    "side": "automata_valkyries:block/valkyrie_charger_side",
+    "holo": "automata_valkyries:block/valkyrie_charger_holo"
+  },
+  "elements": [
+    {
+      "from": [
+        0,
+        0,
+        0
+      ],
+      "to": [
+        16,
+        2,
+        16
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            14,
+            16,
+            16
+          ],
+          "texture": "#side"
+        },
+        "east": {
+          "uv": [
+            0,
+            14,
+            16,
+            16
+          ],
+          "texture": "#side"
+        },
+        "south": {
+          "uv": [
+            0,
+            14,
+            16,
+            16
+          ],
+          "texture": "#side"
+        },
+        "west": {
+          "uv": [
+            0,
+            14,
+            16,
+            16
+          ],
+          "texture": "#side"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#metal"
+        },
+        "down": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#metal",
+          "cullface": "down"
+        }
+      },
+      "name": "base"
+    },
+    {
+      "from": [
+        0.5,
+        2,
+        0.5
+      ],
+      "to": [
+        15.5,
+        2.25,
+        15.5
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0.5,
+            13.75,
+            15.5,
+            14
+          ],
+          "texture": "#holo",
+          "forge_data": {
+            "block_light": 15,
+            "sky_light": 15
+          }
+        },
+        "east": {
+          "uv": [
+            0.5,
+            13.75,
+            15.5,
+            14
+          ],
+          "texture": "#holo",
+          "forge_data": {
+            "block_light": 15,
+            "sky_light": 15
+          }
+        },
+        "south": {
+          "uv": [
+            0.5,
+            13.75,
+            15.5,
+            14
+          ],
+          "texture": "#holo",
+          "forge_data": {
+            "block_light": 15,
+            "sky_light": 15
+          }
+        },
+        "west": {
+          "uv": [
+            0.5,
+            13.75,
+            15.5,
+            14
+          ],
+          "texture": "#holo",
+          "forge_data": {
+            "block_light": 15,
+            "sky_light": 15
+          }
+        },
+        "up": {
+          "uv": [
+            0.5,
+            0.5,
+            15.5,
+            15.5
+          ],
+          "texture": "#holo",
+          "forge_data": {
+            "block_light": 15,
+            "sky_light": 15
+          }
+        }
+      },
+      "name": "base_ring",
+      "shade": false
+    },
+    {
+      "from": [
+        2,
+        2.25,
+        2
+      ],
+      "to": [
+        14,
+        5,
+        13
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            2,
+            11,
+            14,
+            13.75
+          ],
+          "texture": "#metal"
+        },
+        "east": {
+          "uv": [
+            2,
+            11,
+            13,
+            13.75
+          ],
+          "texture": "#metal"
+        },
+        "west": {
+          "uv": [
+            2,
+            11,
+            13,
+            13.75
+          ],
+          "texture": "#metal"
+        },
+        "up": {
+          "uv": [
+            2,
+            2,
+            14,
+            13
+          ],
+          "texture": "#metal"
+        }
+      },
+      "name": "seat_body"
+    },
+    {
+      "from": [
+        2.5,
+        5,
+        2.5
+      ],
+      "to": [
+        13.5,
+        6,
+        12.5
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            2.5,
+            10,
+            13.5,
+            11
+          ],
+          "texture": "#holo",
+          "forge_data": {
+            "block_light": 15,
+            "sky_light": 15
+          }
+        },
+        "east": {
+          "uv": [
+            2.5,
+            10,
+            12.5,
+            11
+          ],
+          "texture": "#holo",
+          "forge_data": {
+            "block_light": 15,
+            "sky_light": 15
+          }
+        },
+        "south": {
+          "uv": [
+            2.5,
+            10,
+            13.5,
+            11
+          ],
+          "texture": "#holo",
+          "forge_data": {
+            "block_light": 15,
+            "sky_light": 15
+          }
+        },
+        "west": {
+          "uv": [
+            2.5,
+            10,
+            12.5,
+            11
+          ],
+          "texture": "#holo",
+          "forge_data": {
+            "block_light": 15,
+            "sky_light": 15
+          }
+        },
+        "up": {
+          "uv": [
+            2.5,
+            2.5,
+            13.5,
+            12.5
+          ],
+          "texture": "#holo",
+          "forge_data": {
+            "block_light": 15,
+            "sky_light": 15
+          }
+        }
+      },
+      "name": "seat_holo",
+      "shade": false
+    },
+    {
+      "from": [
+        2,
+        2.25,
+        13
+      ],
+      "to": [
+        14,
+        16,
+        15
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            2,
+            0,
+            14,
+            13.75
+          ],
+          "texture": "#metal"
+        },
+        "east": {
+          "uv": [
+            13,
+            0,
+            15,
+            13.75
+          ],
+          "texture": "#metal"
+        },
+        "south": {
+          "uv": [
+            2,
+            0,
+            14,
+            13.75
+          ],
+          "texture": "#metal"
+        },
+        "west": {
+          "uv": [
+            13,
+            0,
+            15,
+            13.75
+          ],
+          "texture": "#metal"
+        },
+        "up": {
+          "uv": [
+            2,
+            13,
+            14,
+            15
+          ],
+          "texture": "#metal"
+        },
+        "down": {
+          "uv": [
+            2,
+            13,
+            14,
+            15
+          ],
+          "texture": "#metal"
+        }
+      },
+      "name": "back"
+    },
+    {
+      "from": [
+        5,
+        4,
+        12.75
+      ],
+      "to": [
+        11,
+        15,
+        13
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            5,
+            1,
+            11,
+            12
+          ],
+          "texture": "#holo",
+          "forge_data": {
+            "block_light": 15,
+            "sky_light": 15
+          }
+        },
+        "east": {
+          "uv": [
+            12.75,
+            1,
+            13,
+            12
+          ],
+          "texture": "#holo",
+          "forge_data": {
+            "block_light": 15,
+            "sky_light": 15
+          }
+        },
+        "west": {
+          "uv": [
+            12.75,
+            1,
+            13,
+            12
+          ],
+          "texture": "#holo",
+          "forge_data": {
+            "block_light": 15,
+            "sky_light": 15
+          }
+        },
+        "up": {
+          "uv": [
+            5,
+            12.75,
+            11,
+            13
+          ],
+          "texture": "#holo",
+          "forge_data": {
+            "block_light": 15,
+            "sky_light": 15
+          }
+        },
+        "down": {
+          "uv": [
+            5,
+            12.75,
+            11,
+            13
+          ],
+          "texture": "#holo",
+          "forge_data": {
+            "block_light": 15,
+            "sky_light": 15
+          }
+        }
+      },
+      "name": "back_strip",
+      "shade": false
+    },
+    {
+      "from": [
+        1.75,
+        4,
+        13.5
+      ],
+      "to": [
+        2,
+        15,
+        14.5
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            1.75,
+            1,
+            2,
+            12
+          ],
+          "texture": "#holo",
+          "forge_data": {
+            "block_light": 15,
+            "sky_light": 15
+          }
+        },
+        "south": {
+          "uv": [
+            1.75,
+            1,
+            2,
+            12
+          ],
+          "texture": "#holo",
+          "forge_data": {
+            "block_light": 15,
+            "sky_light": 15
+          }
+        },
+        "west": {
+          "uv": [
+            13.5,
+            1,
+            14.5,
+            12
+          ],
+          "texture": "#holo",
+          "forge_data": {
+            "block_light": 15,
+            "sky_light": 15
+          }
+        },
+        "up": {
+          "uv": [
+            1.75,
+            13.5,
+            2,
+            14.5
+          ],
+          "texture": "#holo",
+          "forge_data": {
+            "block_light": 15,
+            "sky_light": 15
+          }
+        },
+        "down": {
+          "uv": [
+            1.75,
+            13.5,
+            2,
+            14.5
+          ],
+          "texture": "#holo",
+          "forge_data": {
+            "block_light": 15,
+            "sky_light": 15
+          }
+        }
+      },
+      "name": "back_side_w",
+      "shade": false
+    },
+    {
+      "from": [
+        14,
+        4,
+        13.5
+      ],
+      "to": [
+        14.25,
+        15,
+        14.5
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            14,
+            1,
+            14.25,
+            12
+          ],
+          "texture": "#holo",
+          "forge_data": {
+            "block_light": 15,
+            "sky_light": 15
+          }
+        },
+        "south": {
+          "uv": [
+            14,
+            1,
+            14.25,
+            12
+          ],
+          "texture": "#holo",
+          "forge_data": {
+            "block_light": 15,
+            "sky_light": 15
+          }
+        },
+        "east": {
+          "uv": [
+            13.5,
+            1,
+            14.5,
+            12
+          ],
+          "texture": "#holo",
+          "forge_data": {
+            "block_light": 15,
+            "sky_light": 15
+          }
+        },
+        "up": {
+          "uv": [
+            14,
+            13.5,
+            14.25,
+            14.5
+          ],
+          "texture": "#holo",
+          "forge_data": {
+            "block_light": 15,
+            "sky_light": 15
+          }
+        },
+        "down": {
+          "uv": [
+            14,
+            13.5,
+            14.25,
+            14.5
+          ],
+          "texture": "#holo",
+          "forge_data": {
+            "block_light": 15,
+            "sky_light": 15
+          }
+        }
+      },
+      "name": "back_side_e",
+      "shade": false
+    }
+  ]
+}

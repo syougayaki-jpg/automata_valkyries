@@ -212,12 +212,16 @@ public class ValkyrieGameTests {
     }
 
     /** 電力 0 で休眠し、コアから補充されると起きる */
-    @GameTest(template = TEMPLATE, batch = "valkyrie", timeoutTicks = 60)
+    @GameTest(template = TEMPLATE, batch = "valkyrie", timeoutTicks = 200)
     public static void valkyrieSleepsWithoutPowerAndWakesWithCore(GameTestHelper helper) {
         ValkyrieEntity v = helper.spawn(ModEntities.VALKYRIE.get(), 1, 2, 1);
         v.setEnergy(1);
+        int[] waited = {0};
         helper.startSequence()
-                .thenWaitUntil(() -> helper.assertTrue(v.isAsleep(), "did not fall asleep at zero power"))
+                .thenWaitUntil(() -> {
+                    WeaponGameTests.kickStuckChunks(helper, waited, v); // 区画のエンティティが読み込まれないことがある
+                    helper.assertTrue(v.isAsleep(), "did not fall asleep at zero power");
+                })
                 .thenExecute(() -> v.getInventory().setItem(com.automatavalkyries.entity.ValkyrieInventory.CORE,
                         ((com.automatavalkyries.weapon.LuminalCoreItem) com.automatavalkyries.registry.ModWeapons.CORE_BASIC.get()).charged()))
                 .thenWaitUntil(() -> helper.assertTrue(!v.isAsleep() && v.getEnergy() > ValkyrieEntity.WAKE_ENERGY, "did not wake after the core recharged her"))

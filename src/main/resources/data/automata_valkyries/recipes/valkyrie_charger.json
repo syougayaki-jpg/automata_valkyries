@@ -1,0 +1,15 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "A  ",
+    "ALA",
+    "ARA"
+  ],
+  "key": {
+    "A": { "item": "automata_valkyries:ingot_astrite" },
+    "L": { "item": "automata_valkyries:crystal_luminal" },
+    "R": { "item": "minecraft:redstone" }
+  },
+  "result": { "item": "automata_valkyries:valkyrie_charger" }
+}

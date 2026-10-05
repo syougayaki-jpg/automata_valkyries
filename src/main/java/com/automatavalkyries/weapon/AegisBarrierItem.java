@@ -113,19 +113,15 @@ public class AegisBarrierItem extends TacticalWeaponItem implements ValkyrieArts
             if (t % 2 == 0) Fx.one(level, Fx.opt(com.automatavalkyries.registry.ModParticles.GLOW.get(), Fx.PALE_GOLD, 0.4F, 8), p, new Vec3(0, 0.03, 0));
         }
         // 外から飛び込む飛び道具を、外郭の面で跳ね返す
-        for (net.minecraft.world.entity.projectile.Projectile projectile : level.getEntitiesOfClass(net.minecraft.world.entity.projectile.Projectile.class,
-                user.getBoundingBox().inflate(OVER_RADIUS + 2))) {
-            Entity owner = projectile.getOwner();
+        for (Entity projectile : level.getEntities(user, user.getBoundingBox().inflate(OVER_RADIUS + 2), ProjectileLike::is)) {
+            Entity owner = ProjectileLike.owner(projectile);
             if (owner == user || (owner != null && (owner.isAlliedTo(user) || c.distanceTo(center(owner)) <= OVER_RADIUS))) continue;
             Vec3 offset = projectile.position().subtract(c);
             double d = offset.length();
-            Vec3 v = projectile.getDeltaMovement();
+            Vec3 v = ProjectileLike.velocity(projectile);
             if (d > OVER_RADIUS + 0.6 || d < 0.01 || v.dot(offset) >= 0) continue;
             Vec3 n = offset.scale(1 / d);
-            projectile.setDeltaMovement(v.subtract(n.scale(2 * v.dot(n))));
-            projectile.setOwner(user);
-            projectile.hasImpulse = true;
-            projectile.hurtMarked = true;
+            ProjectileLike.reflect(projectile, v.subtract(n.scale(2 * v.dot(n))), user);
             Fx.burst(level, Fx.opt(com.automatavalkyries.registry.ModParticles.HEX.get(), Fx.GOLD, 0.35F, 14), projectile.position(), 8, 0.15);
         }
         if (t % 20 == 0) {

@@ -68,6 +68,8 @@ public final class ValkyrieCombat {
     /** 横ステップの確率・間隔、ダッシュの間隔、滞空の長さ（Tick）【仮】 */
     public static final float DODGE_CHANCE = 0.6F;
     public static final int HOVER_TICKS = 16, HOVER_COOLDOWN = 200;
+    /** 電力で射撃の兵装から近接の予備へ持ち替える・戻す割合【仮】 */
+    public static final float SWAP_LOW = 0.3F, SWAP_BACK = 0.6F;
     /**
      * ステップ（ダッシュ・横ステップ）: 向き（前・後ろ・左・右、体の向きから見て）ごとのクールタイムと、1 回のステップの長さ（Tick）。
      * ステップの最中（この長さの間と、着地するまで）は次のステップをしない（2026-10-06 ユーザー指定「ステップが多すぎ、前後左右それぞれ 5 秒ほど」）
@@ -92,8 +94,10 @@ public final class ValkyrieCombat {
             if (e instanceof ValkyrieEntity v) return v.getOwnerUUID();
             if (e instanceof Player p) return p.getUUID();
             if (e instanceof OwnableEntity o) return o.getOwnerUUID();
-            if (e instanceof Projectile p) {
-                e = p.getOwner();
+            if (!(e instanceof LivingEntity)) { // 飛び道具（他 MOD の弾も。ProjectileLike）は撃った者の陣営
+                Entity owner = com.automatavalkyries.weapon.ProjectileLike.owner(e);
+                if (owner == null || owner == e) return null;
+                e = owner;
                 continue;
             }
             return null;
@@ -112,7 +116,11 @@ public final class ValkyrieCombat {
     /** 撃った者・殴った者の大もと（飛び道具なら撃った者） */
     @Nullable
     private static Entity root(@Nullable Entity e) {
-        for (int depth = 0; e instanceof Projectile p && depth < 4; depth++) e = p.getOwner();
+        for (int depth = 0; e != null && !(e instanceof LivingEntity) && depth < 4; depth++) {
+            Entity owner = com.automatavalkyries.weapon.ProjectileLike.owner(e);
+            if (owner == null || owner == e) return e;
+            e = owner;
+        }
         return e;
     }
 
@@ -266,6 +274,106 @@ public final class ValkyrieCombat {
                 }
             }
             if (dodgeScan == 0 && !stepping() && v.tickCount % 2 == 0) dodge();
+            if (v.tickCount % 20 == 0) swapForPower();
+            if (v.tickCount % 4 == 0) rangedShield();
+        }
+
+        /** 遠距離を防ぐ盾の間隔・構えている残り（バニラの盾） */
+        int shieldCooldown, shieldRaised;
+
+        /**
+         * 遠距離を防ぐ盾は、遠距離攻撃されるときだけ張る（2026-10-06 ユーザー指定）: 自分か持ち主へ向かって飛んでくる矢・弾があるか、
+         * 自分・持ち主・味方を狙って弓などを構えている相手がいるとき。左手の偏光シールド・イージスを張り、バニラの盾は構える。来なくなったら下ろす
+         */
+        private void rangedShield() {
+            if (!(v.level() instanceof ServerLevel level)) return;
+            if (shieldCooldown > 0) shieldCooldown -= 4;
+            ItemStack off = v.getOffhandItem();
+            if (!rangedShieldItem(off)) return;
+            boolean threat = rangedThreat(v);
+            if (off.getItem() instanceof ShieldItem) {
+                if (threat) {
+                    if (!v.isUsingItem()) v.startUsingItem(InteractionHand.OFF_HAND);
+                    shieldRaised = 30;
+                } else if (shieldRaised > 0 && (shieldRaised -= 4) <= 0 && v.isUsingItem() && v.getUsedItemHand() == InteractionHand.OFF_HAND) {
+                    v.stopUsingItem();
+                }
+                return;
+            }
+            Art art = ValkyrieArts.of(off);
+            if (threat && shieldCooldown <= 0 && art != null && art.skill() != null && (!v.isUsingItem() || v.getUseItem() == off)) {
+                art.skill().run(level, v, off, v.getTarget());
+                shieldCooldown = 20;
+            }
+        }
+
+        /** 電力で持ち替えた予備の武器の枠（-1 = 持ち替えていない） */
+        int swappedSlot = -1;
+
+        public int swappedSlotForTest() {
+            return swappedSlot;
+        }
+
+        /**
+         * 電力が {@link #SWAP_LOW} を割ったら、射撃の兵装を持ち物の予備の近接の兵装と持ち替え、{@link #SWAP_BACK} まで戻ったら元へ戻す
+         * （2026-10-06 ユーザー指定「電力低下で遠距離から近距離の武器に持ち替える」。射撃は 1 発ごとの電力が大きいため）
+         */
+        private void swapForPower() {
+            if (v.isUsingItem()) return;
+            float power = v.getEnergy() / (float) ValkyrieEntity.MAX_ENERGY;
+            ItemStack main = v.getMainHandItem();
+            if (swappedSlot < 0 && power < SWAP_LOW && ranged(main)) {
+                swapToMelee(true);
+            } else if (swappedSlot >= 0 && power >= SWAP_BACK && !forAmmo) {
+                swapBack();
+            } else if (swappedSlot >= 0 && forAmmo && v.level().getGameTime() >= ammoSwapUntil && power >= SWAP_BACK) {
+                swapBack(); // 弾切れで持ち替えてから 30 秒たった: 射撃へ戻ってみる（まだ撃てなければまた持ち替える）
+            }
+        }
+
+        /** 弾切れで持ち替えたか（電力ではなく）・射撃へ戻ってみる時刻 */
+        boolean forAmmo;
+        long ammoSwapUntil;
+
+        /** 射撃の兵装を持ち物の予備の近接の兵装と持ち替える（power = 電力で、でなければ弾切れで）。持ち替えたら true */
+        public boolean swapToMelee(boolean power) {
+            if (swappedSlot >= 0 || v.isUsingItem() || !ranged(v.getMainHandItem())) return false;
+            var inv = v.getInventory();
+            ItemStack main = v.getMainHandItem();
+            for (int i = ValkyrieInventory.SPARE; i < ValkyrieInventory.SPARE + ValkyrieInventory.SPARES; i++) {
+                ItemStack spare = inv.getItem(i);
+                if (spare.isEmpty() || ranged(spare) || !(spare.getItem() instanceof com.automatavalkyries.weapon.TacticalWeaponItem w)) continue;
+                if (w.twoHanded() && !v.getOffhandItem().isEmpty()) continue;
+                inv.setItem(i, main.copy());
+                inv.setItem(ValkyrieInventory.MAIN_HAND, spare.copy());
+                swappedSlot = i;
+                forAmmo = !power;
+                ammoSwapUntil = v.level().getGameTime() + 600;
+                if (power) v.talk("low_power");
+                v.playSound(net.minecraft.sounds.SoundEvents.ARMOR_EQUIP_IRON, 0.7F, 1.2F);
+                return true;
+            }
+            return false;
+        }
+
+        /** 持ち替えた予備の射撃の兵装へ戻す */
+        private void swapBack() {
+            var inv = v.getInventory();
+            ItemStack main = v.getMainHandItem();
+            ItemStack back = inv.getItem(swappedSlot);
+            if (!back.isEmpty() && ranged(back) && back.getItem() instanceof com.automatavalkyries.weapon.TacticalWeaponItem w
+                    && (!w.twoHanded() || v.getOffhandItem().isEmpty())) {
+                inv.setItem(swappedSlot, main.copy());
+                inv.setItem(ValkyrieInventory.MAIN_HAND, back.copy());
+                v.playSound(net.minecraft.sounds.SoundEvents.ARMOR_EQUIP_IRON, 0.7F, 1.0F);
+            }
+            swappedSlot = -1;
+            forAmmo = false;
+        }
+
+        private static boolean ranged(ItemStack stack) {
+            Art art = ValkyrieArts.of(stack);
+            return art != null && art.style() != Style.MELEE && !bladeOf(stack);
         }
 
         /** 兵姫の電力を使う（休眠の手前は残す）。使えたら true */
@@ -340,10 +448,11 @@ public final class ValkyrieCombat {
         /** 飛んできた矢・弾を横ステップで避ける（当たりそうな物だけ、確率付き） */
         private void dodge() {
             Vec3 center = v.position().add(0, v.getBbHeight() * 0.5, 0);
-            List<Projectile> list = v.level().getEntitiesOfClass(Projectile.class, v.getBoundingBox().inflate(8.0),
-                    p -> p.isAlive() && !isAlly(v, p) && p.getId() != lastDodged && !(p instanceof AbstractArrow a && a.isNoPhysics()));
-            for (Projectile p : list) {
-                Vec3 vel = p.getDeltaMovement();
+            // 飛び道具らしい物みな（他 MOD の弾も。ProjectileLike）
+            List<Entity> list = v.level().getEntities(v, v.getBoundingBox().inflate(8.0),
+                    p -> com.automatavalkyries.weapon.ProjectileLike.is(p) && !isAlly(v, p) && p.getId() != lastDodged && !(p instanceof AbstractArrow a && a.isNoPhysics()));
+            for (Entity p : list) {
+                Vec3 vel = com.automatavalkyries.weapon.ProjectileLike.velocity(p);
                 double speed2 = vel.lengthSqr();
                 if (speed2 < 0.04) continue; // 止まっている（刺さった矢など）
                 Vec3 rel = center.subtract(p.position());
@@ -435,6 +544,34 @@ public final class ValkyrieCombat {
         b.stepLocked = locked;
         if (!done) b.stepCooldown[idx] = cd;
         return done;
+    }
+
+    // ------------------------------------------------------------------ 遠距離攻撃を防ぐ盾
+
+    /** 遠距離を防ぐ盾（偏光シールド・イージス・バニラの盾）か */
+    public static boolean rangedShieldItem(ItemStack stack) {
+        return stack.getItem() instanceof ShieldItem || stack.is(ModWeapons.POLAR_DEFLECTOR.get()) || stack.is(ModWeapons.AEGIS_BARRIER.get());
+    }
+
+    /** 自分か持ち主が遠距離攻撃されそうか: 向かって飛んでくる矢・弾（他 MOD の弾も）、こちらを狙って弓などを構えている相手 */
+    public static boolean rangedThreat(ValkyrieEntity v) {
+        Player owner = v.getOwner();
+        List<LivingEntity> guarded = owner != null && owner.distanceToSqr(v) < 16 * 16 ? List.of(v, owner) : List.of(v);
+        for (Entity p : v.level().getEntities(v, v.getBoundingBox().inflate(16.0),
+                p -> com.automatavalkyries.weapon.ProjectileLike.is(p) && !isAlly(v, p) && !(p instanceof AbstractArrow a && a.isNoPhysics()))) {
+            Vec3 vel = com.automatavalkyries.weapon.ProjectileLike.velocity(p);
+            for (LivingEntity g : guarded) {
+                Vec3 rel = g.position().add(0, g.getBbHeight() * 0.5, 0).subtract(p.position());
+                double t = rel.dot(vel) / vel.lengthSqr();
+                if (t > 0 && t < 20 && rel.subtract(vel.scale(t)).lengthSqr() < 2.0 * 2.0) return true;
+            }
+        }
+        for (Mob m : v.level().getEntitiesOfClass(Mob.class, v.getBoundingBox().inflate(24.0),
+                m -> m.isAlive() && !isAlly(v, m) && (m instanceof net.minecraft.world.entity.monster.RangedAttackMob || m instanceof net.minecraft.world.entity.monster.CrossbowAttackMob))) {
+            LivingEntity mt = m.getTarget();
+            if (mt != null && (mt == v || isAlly(v, mt)) && (m.isUsingItem() || m.isAggressive()) && m.hasLineOfSight(mt)) return true;
+        }
+        return false;
     }
 
     // ------------------------------------------------------------------ 共通
@@ -605,6 +742,8 @@ public final class ValkyrieCombat {
     public static class Fight extends Goal {
         private final ValkyrieEntity v;
         private int basicTimer, skillTimer, offhandTimer, repath, strafeTimer, charging, emptyTicks, failures;
+        /** 左手の武器の技の間隔 */
+        private int offSkillTimer, offCombo;
         private boolean strafeLeft, strafing, saidEmpty;
         /** 連撃の数（剣の斬る → 薙ぎ払う → 突く） */
         private int combo;
@@ -663,6 +802,8 @@ public final class ValkyrieCombat {
             if (basicTimer > 0) basicTimer--;
             if (skillTimer > 0) skillTimer--;
             if (offhandTimer > 0) offhandTimer--;
+            if (offSkillTimer > 0) offSkillTimer--;
+            offhandWeapon(level, t, dist);
             if (emptyTicks > 0 && --emptyTicks == 0) {
                 saidEmpty = false;
                 failures = 0;
@@ -696,7 +837,7 @@ public final class ValkyrieCombat {
 
             // 左手のモジュール（回復・障壁など）
             Art off = ValkyrieArts.of(v.getOffhandItem());
-            if (off != null && off.offhand() && off.skill() != null && offhandTimer == 0 && off.wants(v, t)) {
+            if (off != null && off.offhand() && off.skill() != null && offhandTimer == 0 && !rangedShieldItem(v.getOffhandItem()) && off.wants(v, t)) {
                 if (off.skill().run(level, v, v.getOffhandItem(), t)) offhandTimer = off.skillCooldown();
                 else offhandTimer = 20;
             }
@@ -752,11 +893,31 @@ public final class ValkyrieCombat {
             }
         }
 
+        /**
+         * 片手の兵装を 2 つ持っているとき: 右手の武器を主に使い、左手の武器はチャージ攻撃（技）だけ使う（盾は今まで通り {@link Guard}・左手のモジュール）。
+         * 2026-10-06 ユーザー指定「うまく行かないので、片手武器を二つ持っている戦術兵姫は一つの武器をメインに、サブ武器にあるチャージ攻撃と盾だけを使用する」。
+         * 左手の物を右手に持ち替えた状態で技を出し、左手で振る動きを出す（{@link com.automatavalkyries.weapon.DualWield#asMainHand}）
+         */
+        private void offhandWeapon(ServerLevel level, LivingEntity t, double dist) {
+            ItemStack off = v.getOffhandItem();
+            if (!com.automatavalkyries.weapon.DualWield.isDual(v) || charging > 0 || v.isUsingItem() || offSkillTimer > 0) return;
+            Art art = ValkyrieArts.of(off);
+            if (art == null || art.offhand() || art.skill() == null || art.chargedSkill()) return; // 盾・モジュールは今まで通り、技の無い武器は使わない
+            if (dist > art.skillRange() || !art.wants(v, t) || !v.hasLineOfSight(t)) return;
+            boolean[] done = {false};
+            aim(v, t);
+            if (art.style() == Style.MELEE) v.playAttack(attackMotion(off, offCombo++, true), true);
+            com.automatavalkyries.weapon.DualWield.asMainHand(v, () -> done[0] = art.skill().run(level, v, off, t));
+            offSkillTimer = done[0] ? art.skillCooldown() : 20;
+            if (done[0]) v.swing(InteractionHand.OFF_HAND, true);
+        }
+
         /** 撃てない（弾・電力切れ）が続いたら、しばらく弾切れとして扱う（指示があれば近接へ） */
         private void noteFailure(Art art) {
             if (art.style() == Style.MELEE) return;
             if (++failures >= 3 && emptyTicks == 0) {
                 emptyTicks = 200;
+                v.combat().swapToMelee(false); // 予備の近接の兵装があれば持ち替える（2026-10-06 ユーザー指定）
                 if (!saidEmpty && v.orders.meleeOnEmpty) {
                     saidEmpty = true;
                     v.combat().line("out_of_ammo", Emote.SWEAT);
@@ -1006,6 +1167,8 @@ public final class ValkyrieCombat {
         @Override
         public void stop() {
             if (v.isUsingItem() && v.getUsedItemHand() == InteractionHand.OFF_HAND) v.stopUsingItem();
+            Player owner = v.getOwner();
+            if (owner != null && owner.isAlive() && threat != null && active(v)) ValkyrieDaily.onOwnerSaved(v); // かばいきった
             threat = null;
             v.setCombatPose(0);
         }

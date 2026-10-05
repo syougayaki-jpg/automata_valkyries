@@ -13,6 +13,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.gametest.GameTestHolder;
 import net.minecraftforge.gametest.PrefixGameTestTemplate;
 
@@ -149,6 +150,160 @@ public class ValkyrieCombatGameTests {
         a.releaseAndDiscard();
         b.releaseAndDiscard();
         enemy.discard();
+        helper.succeed();
+    }
+
+    /** 日常（段階 4）: 好物で同調率 +5%、落ちている物をチェストへ片付ける、充電台で充電する */
+    @GameTest(template = TEMPLATE, batch = "valkyrie_daily")
+    public static void valkyrieGiftRaisesSync(GameTestHelper helper) {
+        Player owner = helper.makeMockPlayer();
+        ValkyrieEntity v = helper.spawn(ModEntities.VALKYRIE.get(), 1, 2, 1);
+        v.setOwnerUUID(owner.getUUID());
+        float before = v.getSyncRate();
+        v.life().gift(true);
+        helper.assertTrue(Math.abs(v.getSyncRate() - before - 5.0F) < 0.01F, "gift did not raise sync by 5: " + (v.getSyncRate() - before));
+        v.releaseAndDiscard();
+        helper.succeed();
+    }
+
+    @GameTest(template = TEMPLATE, batch = "valkyrie_daily_clean", timeoutTicks = 400)
+    public static void valkyrieCleansUpIntoChest(GameTestHelper helper) {
+        clearAround(helper); // 前の回の残りのチェスト・充電台（テストの世界は回をまたいで残る）
+        net.minecraft.core.BlockPos chestPos = new net.minecraft.core.BlockPos(2, 0, 1); // 兵姫の足元の高さ（空の型の床の上）。すぐ隣に置く（前のテストの残りのチェストへ行かないよう）
+        helper.setBlock(chestPos, net.minecraft.world.level.block.Blocks.CHEST);
+        ValkyrieEntity v = helper.spawn(ModEntities.VALKYRIE.get(), 1, 2, 1);
+        v.setMode(ValkyrieEntity.Mode.WAIT);
+        net.minecraft.world.entity.item.ItemEntity apple = new net.minecraft.world.entity.item.ItemEntity(helper.getLevel(),
+                helper.absoluteVec(new net.minecraft.world.phys.Vec3(1.5, 1, 3.5)).x, helper.absoluteVec(new net.minecraft.world.phys.Vec3(1.5, 1, 3.5)).y,
+                helper.absoluteVec(new net.minecraft.world.phys.Vec3(1.5, 1, 3.5)).z, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.APPLE, 3));
+        helper.getLevel().addFreshEntity(apple);
+        WeaponGameTests.forceChunks(helper, v, apple);
+        helper.succeedWhen(() -> {
+            var be = helper.getBlockEntity(chestPos);
+            helper.assertTrue(be instanceof net.minecraft.world.level.block.entity.ChestBlockEntity chest
+                    && chest.countItem(net.minecraft.world.item.Items.APPLE) == 3, "apples were not put into the chest (chests=" + chestsAround(helper, chestPos) + " has pickup=" + v.getInventory().hasPickup() + " pos=" + helper.relativeVec(v.position()) + " path=" + v.getNavigation().getPath()
+                    + " goals=" + v.goalSelectorRunning() + ")");
+            v.releaseAndDiscard();
+        });
+    }
+
+    @GameTest(template = TEMPLATE, batch = "valkyrie_daily_charge", timeoutTicks = 800)
+    public static void valkyrieChargesAtStation(GameTestHelper helper) {
+        clearAround(helper);
+        net.minecraft.core.BlockPos pos = new net.minecraft.core.BlockPos(2, 0, 1); // すぐ隣
+        helper.setBlock(pos, com.automatavalkyries.registry.ModMachines.VALKYRIE_CHARGER.get());
+        var charger = (com.automatavalkyries.machine.ValkyrieChargerBlockEntity) helper.getBlockEntity(pos);
+        for (int i = 0; i < 100; i++) charger.energy().receiveEnergy(10_000, false); // 1 回に 10,000 FE まで
+        ValkyrieEntity v = helper.spawn(ModEntities.VALKYRIE.get(), 1, 2, 1);
+        v.setMode(ValkyrieEntity.Mode.WAIT);
+        v.setEnergy(ValkyrieEntity.MAX_ENERGY / 10);
+        WeaponGameTests.forceChunks(helper, v);
+        helper.succeedWhen(() -> {
+            helper.assertTrue(v.getEnergy() > ValkyrieEntity.MAX_ENERGY / 2, "did not charge at the station: " + v.getEnergy() + " pos=" + helper.relativeVec(v.position()) + " path=" + v.getNavigation().getPath()
+                    + " goals=" + v.goalSelectorRunning() + " stored=" + charger.stored() + " claimant=" + charger.claimant());
+            v.releaseAndDiscard();
+        });
+    }
+
+    /** 電力が 30% を割ると射撃の兵装を持ち物の予備の近接の兵装と持ち替え、60% で戻す */
+    @GameTest(template = TEMPLATE, batch = "valkyrie_daily", timeoutTicks = 400)
+    public static void valkyrieSwapsToMeleeOnLowPower(GameTestHelper helper) {
+        ValkyrieEntity v = helper.spawn(ModEntities.VALKYRIE.get(), 1, 2, 1);
+        v.setItemSlot(EquipmentSlot.MAINHAND, ((TacticalWeaponItem) ModWeapons.LINEAR_RAIL_RIFLE.get()).charged());
+        v.getInventory().setItem(com.automatavalkyries.entity.ValkyrieInventory.SPARE, ((TacticalWeaponItem) ModWeapons.PHOTON_EDGE.get()).charged());
+        v.setEnergy(ValkyrieEntity.MAX_ENERGY / 5);
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(v.getMainHandItem().is(ModWeapons.PHOTON_EDGE.get()), "did not swap to the melee spare at low power"))
+                .thenExecute(() -> {
+                    helper.assertTrue(v.getInventory().getItem(com.automatavalkyries.entity.ValkyrieInventory.SPARE).is(ModWeapons.LINEAR_RAIL_RIFLE.get()), "the rifle was not stored in the spare slot");
+                    v.setEnergy(ValkyrieEntity.MAX_ENERGY * 7 / 10);
+                })
+                .thenWaitUntil(() -> helper.assertTrue(v.getMainHandItem().is(ModWeapons.LINEAR_RAIL_RIFLE.get()), "did not swap back when power recovered: energy=" + v.getEnergy() + " main=" + v.getMainHandItem() + " spare=" + v.getInventory().getItem(com.automatavalkyries.entity.ValkyrieInventory.SPARE) + " slot=" + v.combat().swappedSlotForTest()))
+                .thenExecute(v::releaseAndDiscard)
+                .thenSucceed();
+    }
+
+    /** 二刀流: 左手の物を使う間だけ両手と攻撃力が入れ替わり、終われば元へ戻る */
+    @GameTest(template = TEMPLATE, batch = "valkyrie_daily")
+    public static void dualWieldSwapsHandsAndAttack(GameTestHelper helper) {
+        ValkyrieEntity v = helper.spawn(ModEntities.VALKYRIE.get(), 1, 2, 1);
+        ItemStack main = ((TacticalWeaponItem) ModWeapons.PHOTON_EDGE.get()).charged();
+        ItemStack off = new ItemStack(net.minecraft.world.item.Items.IRON_SWORD);
+        v.setItemSlot(EquipmentSlot.MAINHAND, main);
+        v.setItemSlot(EquipmentSlot.OFFHAND, off);
+        WeaponGameTests.forceChunks(helper, v);
+        int[] waited = {0};
+        helper.startSequence().thenWaitUntil(() -> {
+            WeaponGameTests.kickStuckChunks(helper, waited, v);
+            helper.assertTrue(helper.getLevel().getEntity(v.getUUID()) == v, "not in the world yet");
+        }).thenIdle(3).thenExecute(() -> {
+            helper.assertTrue(com.automatavalkyries.weapon.DualWield.isDual(v), "photon edge + iron sword is not dual");
+            double before = v.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE);
+            double[] during = {0};
+            com.automatavalkyries.weapon.DualWield.asMainHand(v, () -> {
+                helper.assertTrue(v.getMainHandItem() == off, "the off-hand item was not moved to the main hand");
+                during[0] = v.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE);
+            });
+            double sword = 1.0 + ((net.minecraft.world.item.SwordItem) net.minecraft.world.item.Items.IRON_SWORD).getDamage();
+            helper.assertTrue(Math.abs(during[0] - sword) < 0.001, "attack damage was not the off-hand item's: " + during[0] + " (expected " + sword + ", before " + before + ")");
+            helper.assertTrue(v.getMainHandItem() == main && v.getOffhandItem() == off, "hands were not restored");
+            helper.assertTrue(Math.abs(v.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE) - before) < 0.001, "attack damage was not restored");
+            v.releaseAndDiscard();
+        }).thenSucceed();
+    }
+
+    /** 調べ: まわりのチェストと林檎の数 */
+    private static String chestsAround(GameTestHelper helper, net.minecraft.core.BlockPos rel) {
+        StringBuilder sb = new StringBuilder();
+        net.minecraft.core.BlockPos c = helper.absolutePos(rel);
+        for (net.minecraft.core.BlockPos p : net.minecraft.core.BlockPos.betweenClosed(c.offset(-16, -4, -16), c.offset(16, 4, 16))) {
+            if (helper.getLevel().getBlockEntity(p) instanceof net.minecraft.world.level.block.entity.ChestBlockEntity chest) {
+                sb.append(helper.relativePos(p.immutable())).append(":").append(chest.countItem(net.minecraft.world.item.Items.APPLE)).append(" ");
+            }
+        }
+        return sb.toString();
+    }
+
+    /**
+     * テストの場所のまわり 16 ブロックのチェスト・樽・兵姫用充電台を中身ごと消し、落ちている物も片付ける（テストの世界は回をまたいで残り、
+     * 前の回の物へ兵姫が運んで・座りに行っていた）。このテストだけのバッチで使う（同じ時に動く他のテストの物を消さないよう）
+     */
+    private static void clearAround(GameTestHelper helper) {
+        net.minecraft.core.BlockPos c = helper.absolutePos(net.minecraft.core.BlockPos.ZERO);
+        for (net.minecraft.core.BlockPos p : net.minecraft.core.BlockPos.betweenClosed(c.offset(-16, -4, -16), c.offset(20, 6, 20))) {
+            var be = helper.getLevel().getBlockEntity(p);
+            if (be instanceof net.minecraft.world.Container container) container.clearContent();
+            if (be instanceof net.minecraft.world.level.block.entity.ChestBlockEntity || be instanceof net.minecraft.world.level.block.entity.BarrelBlockEntity
+                    || be instanceof com.automatavalkyries.machine.ValkyrieChargerBlockEntity) {
+                helper.getLevel().setBlock(p, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
+            }
+        }
+        helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, new net.minecraft.world.phys.AABB(c).inflate(24))
+                .forEach(net.minecraft.world.entity.Entity::discard);
+    }
+
+    /** 飛び道具らしい物の見分け: バニラの雪玉・Projectile を継がない速い小さな物は飛び道具、落ちている物・止まった物は違う。兵姫へ向かって来れば遠距離の脅威 */
+    @GameTest(template = TEMPLATE, batch = "valkyrie_daily")
+    public static void projectileLikeDetectsModdedShots(GameTestHelper helper) {
+        var level = helper.getLevel();
+        ValkyrieEntity v = helper.spawn(ModEntities.VALKYRIE.get(), 1, 2, 1);
+        var snowball = new net.minecraft.world.entity.projectile.Snowball(net.minecraft.world.entity.EntityType.SNOWBALL, level);
+        snowball.setDeltaMovement(0.8, 0, 0);
+        // Projectile を継がない「他 MOD の弾」の代わり: 速く動く落下ブロック
+        var shot = net.minecraft.world.entity.item.FallingBlockEntity.fall(level, helper.absolutePos(new net.minecraft.core.BlockPos(4, 3, 1)),
+                net.minecraft.world.level.block.Blocks.SAND.defaultBlockState());
+        shot.setNoGravity(true);
+        shot.setDeltaMovement(-0.8, 0, 0);
+        var item = new net.minecraft.world.entity.item.ItemEntity(level, 0, 0, 0, new ItemStack(net.minecraft.world.item.Items.APPLE));
+        item.setDeltaMovement(0.8, 0, 0);
+        helper.assertTrue(com.automatavalkyries.weapon.ProjectileLike.is(snowball), "a moving snowball is not a projectile");
+        helper.assertTrue(com.automatavalkyries.weapon.ProjectileLike.is(shot), "a fast non-Projectile shot is not projectile-like");
+        helper.assertFalse(com.automatavalkyries.weapon.ProjectileLike.is(item), "a dropped item counted as a projectile");
+        shot.setDeltaMovement(0, 0, 0);
+        shot.xo = shot.getX(); shot.yo = shot.getY(); shot.zo = shot.getZ();
+        helper.assertFalse(com.automatavalkyries.weapon.ProjectileLike.is(shot), "a still entity counted as a projectile");
+        shot.discard();
+        v.releaseAndDiscard();
         helper.succeed();
     }
 }

@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:block",
+  "pools": [
+    {
+      "bonus_rolls": 0.0,
+      "conditions": [ { "condition": "minecraft:survives_explosion" } ],
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "automata_valkyries:valkyrie_charger",
+          "functions": [
+            {
+              "function": "minecraft:copy_nbt",
+              "source": "block_entity",
+              "ops": [ { "source": "energy", "target": "BlockEntityTag.energy", "op": "replace" } ]
+            }
+          ]
+        }
+      ],
+      "rolls": 1.0
+    }
+  ],
+  "random_sequence": "automata_valkyries:blocks/valkyrie_charger"
+}

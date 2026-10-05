@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    { "item": "minecraft:ice" },
+    { "item": "minecraft:snowball" },
+    { "item": "minecraft:sugar" },
+    { "tag": "forge:dyes/cyan" },
+    { "item": "minecraft:stick" }
+  ],
+  "result": { "item": "automata_valkyries:cooling_ice", "count": 2 }
+}

@@ -24,7 +24,9 @@ public class ValkyrieInventory implements Container {
     public static final int HEAD = 0, CHEST = 1, LEGS = 2, BACKPACK = 3, MAIN_HAND = 4, OFF_HAND = 5, CORE = 6;
     public static final int CHIP = 7, CHIPS = 3;
     public static final int AMMO = CHIP + CHIPS, MAX_AMMO = 8;
-    public static final int SIZE = AMMO + MAX_AMMO;
+    /** 持ち物タブ（段階 4、2026-10-06 ユーザー指定「拾った物が分かるようにインベントリ」）: 予備の武器（電力が減ると持ち替える）と、お掃除で拾った物 */
+    public static final int SPARE = AMMO + MAX_AMMO, SPARES = 9, PICKUP = SPARE + SPARES, PICKUPS = 9;
+    public static final int SIZE = PICKUP + PICKUPS;
 
     private final ValkyrieEntity owner;
     /** 手とコア以外（頭・胴・脚・背部・チップ・弾薬庫）。手とコアの位置は使わない */
@@ -54,8 +56,55 @@ public class ValkyrieInventory implements Container {
                     || (stack.getItem() instanceof TacticalWeaponItem w && !w.twoHanded());
         }
         if (slot == CORE) return stack.getItem() instanceof LuminalCoreItem;
+        if (slot >= PICKUP) return true; // 拾った物（何でも。プレイヤーが入れた物も片付けに運ぶ）
+        if (slot >= SPARE) return isSpareWeapon(stack);
         if (slot >= AMMO) return slot - AMMO < owner.getBody().ammoSlots && isAmmo(stack);
         return false;
+    }
+
+    /** 予備の武器の枠に入る物（兵装・剣や斧などの道具・弓・盾） */
+    public static boolean isSpareWeapon(ItemStack stack) {
+        return stack.getItem() instanceof TacticalWeaponItem || stack.getItem() instanceof net.minecraft.world.item.TieredItem
+                || stack.getItem() instanceof net.minecraft.world.item.ProjectileWeaponItem || stack.getItem() instanceof ShieldItem;
+    }
+
+    // ---- 拾った物（お掃除）
+
+    /** 拾った物の枠へ入れる（同じ物に重ねてから空きへ）。入りきらなかった分を返す */
+    public ItemStack addPickup(ItemStack stack) {
+        ItemStack rest = stack.copy();
+        for (int i = PICKUP; i < PICKUP + PICKUPS && !rest.isEmpty(); i++) {
+            ItemStack c = items.get(i);
+            if (!c.isEmpty() && ItemStack.isSameItemSameTags(c, rest) && c.getCount() < c.getMaxStackSize()) {
+                int move = Math.min(rest.getCount(), c.getMaxStackSize() - c.getCount());
+                c.grow(move);
+                rest.shrink(move);
+            }
+        }
+        for (int i = PICKUP; i < PICKUP + PICKUPS && !rest.isEmpty(); i++) {
+            if (items.get(i).isEmpty()) {
+                items.set(i, rest);
+                rest = ItemStack.EMPTY;
+            }
+        }
+        return rest;
+    }
+
+    public boolean pickupFull() {
+        for (int i = PICKUP; i < PICKUP + PICKUPS; i++) if (items.get(i).isEmpty()) return false;
+        return true;
+    }
+
+    public boolean hasPickup() {
+        for (int i = PICKUP; i < PICKUP + PICKUPS; i++) if (!items.get(i).isEmpty()) return true;
+        return false;
+    }
+
+    /** 拾った物をチェスト（handler）へ入れる（入りきらない物は残す） */
+    public void deliverPickups(net.minecraftforge.items.IItemHandler handler) {
+        for (int i = PICKUP; i < PICKUP + PICKUPS; i++) {
+            if (!items.get(i).isEmpty()) items.set(i, net.minecraftforge.items.ItemHandlerHelper.insertItemStacked(handler, items.get(i), false));
+        }
     }
 
     /** 弾薬・修理剤（このMODの ammo_* とナノマシン溶液） */
@@ -157,7 +206,7 @@ public class ValkyrieInventory implements Container {
     /** 弾薬庫の枠を超えた物（素体タイプが変わった等）を外へ出すための一覧 */
     public NonNullList<ItemStack> overflowAmmo() {
         NonNullList<ItemStack> out = NonNullList.create();
-        for (int i = AMMO + owner.getBody().ammoSlots; i < SIZE; i++) {
+        for (int i = AMMO + owner.getBody().ammoSlots; i < AMMO + MAX_AMMO; i++) {
             if (!items.get(i).isEmpty()) {
                 out.add(items.get(i));
                 items.set(i, ItemStack.EMPTY);

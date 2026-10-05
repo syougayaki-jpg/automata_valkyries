@@ -39,7 +39,7 @@ public class ValkyrieScreen extends AbstractContainerScreen<ValkyrieMenu> {
     private static final int BG = 0xE0101624, PANEL = 0x60202B44, SLOT = 0xC00B0F17, TEXT = 0xFFE0ECF8, DIM = 0xFF7A8698,
             GOOD = 0xFF6CFF9A, BAD = 0xFFFF6A6A, HP_COLOR = 0xFFFF5A6E, SHIELD_COLOR = 0xFF59C8FF, POWER_COLOR = 0xFFFFD45A;
     private static final int MODEL_X = 28, MODEL_Y = 24, MODEL_W = 70, MODEL_H = 96, STATS_X = 130;
-    private static final String[] TABS = {"equipment", "status", "orders"};
+    private static final String[] TABS = {"equipment", "status", "orders", "items"};
 
     private float modelYaw = 200.0F;
     private boolean dragging;
@@ -74,7 +74,7 @@ public class ValkyrieScreen extends AbstractContainerScreen<ValkyrieMenu> {
         for (int i = 0; i < TABS.length; i++) {
             int t = i;
             addRenderableWidget(Button.builder(Component.translatable("gui.automata_valkyries.valkyrie.tab." + TABS[i]), b -> switchTab(t))
-                    .bounds(leftPos + 120 + i * 66, topPos + 4, 64, 14).build()).active = menu.tab != i;
+                    .bounds(leftPos + 116 + i * 51, topPos + 4, 50, 14).build()).active = menu.tab != i;
         }
         if (menu.tab == 1) buildStatus();
         if (menu.tab == 2) buildOrders();
@@ -123,6 +123,9 @@ public class ValkyrieScreen extends AbstractContainerScreen<ValkyrieMenu> {
         stepper(ValkyrieOrders.Field.RETREAT_HEALTH, 5, row + 64);
         stepper(ValkyrieOrders.Field.RETREAT_POWER, 5, row + 80);
         cycler(ValkyrieOrders.Field.POLICY, ValkyrieOrders.Policy.values().length, row + 100);
+        // お掃除の除外リスト: 「＋」でカーソル（無ければ手）に持っている物を足す、枠をクリックで外す（段階 4）
+        addRenderableWidget(Button.builder(Component.literal("+"), b -> send(ValkyrieCommandPacket.EXCLUDE_ADD, 0, 0))
+                .bounds(EXCLUDE_X0() + 18 * ValkyrieOrders.MAX_EXCLUDED + 4, row + 143, 14, 14).build());
         cycler(ValkyrieOrders.Field.PRIORITY, ValkyrieOrders.Priority.values().length, row + 116);
         cycler(ValkyrieOrders.Field.MELEE_ON_EMPTY, 2, row + 132);
     }
@@ -187,6 +190,7 @@ public class ValkyrieScreen extends AbstractContainerScreen<ValkyrieMenu> {
         switch (menu.tab) {
             case 0 -> renderEquipment(g, x, y, glow, mouseX, mouseY);
             case 1 -> renderStatus(g, x, y, glow);
+            case 3 -> renderItems(g, x, y, glow);
             default -> renderOrders(g, x, y, glow);
         }
     }
@@ -347,6 +351,14 @@ public class ValkyrieScreen extends AbstractContainerScreen<ValkyrieMenu> {
         }
     }
 
+    /** 持ち物タブ: 予備の武器（電力が減ると射撃の兵装から持ち替える）と、お掃除で拾った物 */
+    private void renderItems(GuiGraphics g, int x, int y, int glow) {
+        g.drawString(font, Component.translatable("gui.automata_valkyries.valkyrie.items.spare"), x + ValkyrieMenu.INV_X, y + ValkyrieMenu.SPARE_Y - 12, TEXT, false);
+        g.drawString(font, Component.translatable("gui.automata_valkyries.valkyrie.items.spare_note"), x + ValkyrieMenu.INV_X, y + ValkyrieMenu.SPARE_Y + 20, DIM, false);
+        g.drawString(font, Component.translatable("gui.automata_valkyries.valkyrie.items.pickup"), x + ValkyrieMenu.INV_X, y + ValkyrieMenu.PICKUP_Y - 12, TEXT, false);
+        g.drawString(font, Component.translatable("gui.automata_valkyries.valkyrie.items.pickup_note"), x + ValkyrieMenu.INV_X, y + ValkyrieMenu.PICKUP_Y + 20, DIM, false);
+    }
+
     private void renderOrders(GuiGraphics g, int x, int y, int glow) {
         int lx = x + 10, ly = y + 26;
         ValkyrieEntity.Mode mode = ValkyrieEntity.Mode.values()[Mth.clamp(menu.get(ValkyrieMenu.MODE), 0, 3)];
@@ -365,7 +377,14 @@ public class ValkyrieScreen extends AbstractContainerScreen<ValkyrieMenu> {
         choice(g, lx, row + 100, ValkyrieOrders.Field.POLICY, "policy", ValkyrieOrders.Policy.values()[menu.order(ValkyrieOrders.Field.POLICY)].name());
         choice(g, lx, row + 116, ValkyrieOrders.Field.PRIORITY, "priority", ValkyrieOrders.Priority.values()[menu.order(ValkyrieOrders.Field.PRIORITY)].name());
         choice(g, lx, row + 132, ValkyrieOrders.Field.MELEE_ON_EMPTY, "toggle", menu.order(ValkyrieOrders.Field.MELEE_ON_EMPTY) != 0 ? "ON" : "OFF");
-        g.drawString(font, Component.translatable("gui.automata_valkyries.valkyrie.orders.cleanup"), lx, row + 152, DIM, false);
+        g.drawString(font, Component.translatable("gui.automata_valkyries.valkyrie.orders.cleanup"), lx, row + 152, TEXT, false);
+        for (int k = 0; k < ValkyrieOrders.MAX_EXCLUDED; k++) {
+            int sx = EXCLUDE_X0() + 18 * k, sy = row + 147;
+            g.fill(sx, sy, sx + 16, sy + 16, SLOT);
+            g.renderOutline(sx - 1, sy - 1, 18, 18, (glow & 0x00FFFFFF) | 0x60000000);
+            net.minecraft.world.item.ItemStack stack = menu.excluded(k);
+            if (!stack.isEmpty()) g.renderItem(stack, sx, sy);
+        }
         g.drawWordWrap(font, Component.translatable("gui.automata_valkyries.valkyrie.orders.note"), x + 240, row, imageWidth - 250, DIM);
     }
 
@@ -386,8 +405,23 @@ public class ValkyrieScreen extends AbstractContainerScreen<ValkyrieMenu> {
 
     // ------------------------------------------------------------------ 入力
 
+    /** 除外リストの枠の左端（画面の座標） */
+    private int EXCLUDE_X0() {
+        return leftPos + 10 + 96;
+    }
+
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (menu.tab == 2) { // 除外リストの枠をクリックで外す
+            int row = topPos + 26 + 47, sy = row + 147;
+            for (int k = 0; k < ValkyrieOrders.MAX_EXCLUDED; k++) {
+                int sx = EXCLUDE_X0() + 18 * k;
+                if (mouseX >= sx && mouseX < sx + 16 && mouseY >= sy && mouseY < sy + 16 && !menu.excluded(k).isEmpty()) {
+                    send(ValkyrieCommandPacket.EXCLUDE_REMOVE, 0, k);
+                    return true;
+                }
+            }
+        }
         if (menu.tab == 0 && inModel(mouseX, mouseY)) {
             dragging = true;
             return true;

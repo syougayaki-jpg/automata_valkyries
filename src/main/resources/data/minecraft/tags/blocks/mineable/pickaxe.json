@@ -61,6 +61,7 @@
     "automata_valkyries:block_stellachronodyme",
     "automata_valkyries:generator",
     "automata_valkyries:battery",
+    "automata_valkyries:valkyrie_charger",
     "automata_valkyries:electric_furnace",
     "automata_valkyries:crusher",
     "automata_valkyries:alloy_smelter",

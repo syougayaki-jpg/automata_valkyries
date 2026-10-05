@@ -78,5 +78,11 @@ public final class ModNetwork {
                 .decoder(ValkyrieCommandPacket::decode)
                 .consumerMainThread(ValkyrieCommandPacket::handle)
                 .add();
+        // 二刀流のクリック（2026-10-06）
+        CHANNEL.messageBuilder(DualWieldPacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(DualWieldPacket::encode)
+                .decoder(DualWieldPacket::decode)
+                .consumerMainThread(DualWieldPacket::handle)
+                .add();
     }
 }

@@ -26,14 +26,20 @@ import java.util.List;
  * <ul>
  *   <li>右クリック: 半径 {@link #RANGE} の自分の兵姫みなに、選んでいる向き（自分の向きから見て前・後ろ・左・右）へステップさせる。
  *       兵姫を右クリックするとその 1 体だけ</li>
- *   <li>しゃがみ右クリック: 向きを 前 → 後ろ → 左 → 右 と切り替える</li>
+ *   <li>しゃがみ右クリック: 指示を 前 → 後ろ → 左 → 右（ステップ）→ 手を振る → 喜ぶ → うなずく → 覗き込む → しょんぼり（仕草）→ 話す（セリフ）と切り替える
+ *       （仕草・セリフは 2026-10-06 ユーザー指定）</li>
  * </ul>
  * 指示のステップは、近接の封じ・その向きのクールタイムを無視する（ステップの最中は無理）。クールタイムはその向きに付く。減らない
  */
 public class TacticalRemoteItem extends Item {
 
     public static final double RANGE = 32.0;
-    private static final String[] DIRS = {"forward", "back", "left", "right"};
+    private static final String[] DIRS = {"forward", "back", "left", "right", "wave", "joy", "nod", "peek", "dejected", "talk"};
+    /** 仕草の指示の種類（DIRS の 4 番から） */
+    private static final int[] GESTURES = {ValkyrieEntity.GESTURE_WAVE, ValkyrieEntity.GESTURE_JOY, ValkyrieEntity.GESTURE_NOD,
+            ValkyrieEntity.GESTURE_PEEK, ValkyrieEntity.GESTURE_DEJECTED};
+    /** 話す指示で言う場面（そのときに合いそうな物から） */
+    private static final String[] TALKS = {"idle", "greet", "pat", "sit", "night"};
 
     public TacticalRemoteItem(Properties properties) {
         super(properties);
@@ -84,12 +90,22 @@ public class TacticalRemoteItem extends Item {
     }
 
     private static boolean order(Player player, ItemStack stack, ValkyrieEntity v) {
-        return ValkyrieCombat.orderStep(v, direction(player, stack));
+        int mode = dir(stack);
+        if (mode < 4) return ValkyrieCombat.orderStep(v, direction(player, stack));
+        if (v.isShutdown() || v.isAsleep()) return false;
+        if (mode < 4 + GESTURES.length) {
+            int g = GESTURES[mode - 4];
+            v.gesture(g);
+            v.mood(g == ValkyrieEntity.GESTURE_DEJECTED ? 4 : g == ValkyrieEntity.GESTURE_PEEK ? 5 : 1, 40);
+        } else {
+            v.talkNow(TALKS[v.getRandom().nextInt(TALKS.length)]);
+        }
+        return true;
     }
 
     private static void report(Player player, int n) {
         player.displayClientMessage(n > 0
-                ? Component.translatable("item.automata_valkyries.tactical_remote.done", n).withStyle(ChatFormatting.AQUA)
+                ? Component.translatable("item.automata_valkyries.tactical_remote.done", n).withStyle(ChatFormatting.AQUA) // 「n 体がステップした」等
                 : Component.translatable("item.automata_valkyries.tactical_remote.none").withStyle(ChatFormatting.GRAY), true);
         player.level().playSound(null, player.blockPosition(), SoundEvents.UI_BUTTON_CLICK.value(), SoundSource.PLAYERS, 0.6F, n > 0 ? 1.8F : 0.8F);
     }
