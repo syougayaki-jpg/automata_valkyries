@@ -34,7 +34,7 @@ public class ValkyrieOrders {
     public Priority priority = Priority.NEAREST;
     /** 持ち主から何 m まで追うか */
     public int chase = 16;
-    /** 射撃時に保つ距離 */
+    /** 射撃時に保つ距離の下限（実際は射程の 7 割と比べて長い方。ValkyrieCombat#rangedKeep） */
     public int keep = 6;
     /** HP がこの % を割ったら後退 */
     public int retreatHealth = 30;

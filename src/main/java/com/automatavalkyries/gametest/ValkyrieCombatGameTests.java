@@ -379,7 +379,9 @@ public class ValkyrieCombatGameTests {
             helper.assertTrue(dashes[0] == 3, "the T1 thruster should allow 3 air dashes before landing, got " + dashes[0]);
             helper.assertTrue(v.combat().airJump(), "the air jump did not fire");
         }).thenIdle(com.automatavalkyries.entity.ai.ValkyrieCombat.AIR_GAP + 1).thenExecute(() -> {
-            helper.assertFalse(v.combat().airJump(), "the T1 thruster allowed a second air jump");
+            helper.assertTrue(v.combat().airJump(), "the T1 thruster did not allow a second air jump");
+        }).thenIdle(com.automatavalkyries.entity.ai.ValkyrieCombat.AIR_GAP + 1).thenExecute(() -> {
+            helper.assertFalse(v.combat().airJump(), "the T1 thruster allowed a third air jump");
             v.releaseAndDiscard();
         }).thenSucceed();
     }

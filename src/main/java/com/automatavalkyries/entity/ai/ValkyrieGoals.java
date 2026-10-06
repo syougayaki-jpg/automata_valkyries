@@ -11,6 +11,7 @@ import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.ai.goal.RandomStrollGoal;
 import net.minecraft.world.entity.ai.util.DefaultRandomPos;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -30,6 +31,8 @@ public final class ValkyrieGoals {
     /** これ以上離れたら持ち主のそばへテレポート */
     public static final double TELEPORT_DIST = 24.0;
     private static final double START_DIST = 5.0, STOP_DIST = 2.5;
+    /** 空中で付いて行くとき: 寄る所の持ち主からの距離・その場で待つ距離 */
+    private static final double AIR_FOLLOW_RADIUS = 3.0, AIR_FOLLOW_LOOSE = 5.0;
     /** 道をたどる速さの上限（ブロック/Tick 相当の移動速度。オメガコアの速度 3 倍で道の点を通り過ぎ、ジグザグに動いていた。2026-10-06） */
     public static final double MAX_PATH_SPEED = 0.5;
 
@@ -83,11 +86,11 @@ public final class ValkyrieGoals {
             boolean high = o.getAbilities().flying || o.isFallFlying() || ground == null || o.getY() - ground.getY() > 3.0;
             if (m != null && m.airFollow() && high && !o.isInWater()) {
                 flying = true;
-                Vec3 look = o.getLookAngle();
-                Vec3 back = new Vec3(-look.x, 0, -look.z);
-                back = back.lengthSqr() < 1.0e-4 ? Vec3.ZERO : back.normalize();
-                Vec3 side = new Vec3(-back.z, 0, back.x);
-                return o.position().add(back.scale(2.0)).add(side.scale(1.2)).add(0, 0.3, 0);
+                // 持ち主のまわり（今いる側の、持ち主から AIR_FOLLOW_RADIUS の所）。真後ろに付け直し続けていた（2026-10-06 ユーザー指定「真後ろ固定ではなく周辺で」）
+                Vec3 rel = v.position().subtract(o.position());
+                rel = new Vec3(rel.x, Mth.clamp(rel.y, -1.5, 1.5), rel.z);
+                if (rel.lengthSqr() < 1.0e-4) rel = new Vec3(1, 0, 0);
+                return o.position().add(0, 0.3, 0).add(rel.normalize().scale(AIR_FOLLOW_RADIUS));
             }
             return ground != null ? Vec3.atBottomCenterOf(ground) : null;
         }
@@ -149,7 +152,9 @@ public final class ValkyrieGoals {
                     v.teleportTo(g.x, g.y, g.z);
                     return;
                 }
-                if (v.combat().fly(g, dist > 12 ? 1.6 : dist > 4 ? 0.9 : 0.4)) return;
+                // 持ち主のまわり AIR_FOLLOW_LOOSE 以内ならその場で浮いて待つ（持ち主が向きを変えても回り込まない）
+                Vec3 hold = v.distanceTo(owner) <= AIR_FOLLOW_LOOSE ? v.position() : g;
+                if (v.combat().fly(hold, dist > 12 ? 1.6 : dist > 4 ? 0.9 : 0.4)) return;
                 g = ground != null ? Vec3.atBottomCenterOf(ground) : null;
                 if (g == null) return;
                 dist = Math.sqrt(v.position().distanceToSqr(g));

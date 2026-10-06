@@ -45,6 +45,7 @@ public class ClientModEvents {
     public static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerEntityRenderer(ModEntities.ELENOR.get(), ElenorRenderer::new);
         event.registerEntityRenderer(ModEntities.VALKYRIE.get(), ValkyrieRenderer::new);
+        event.registerEntityRenderer(ModEntities.SKY_BOSS_SKELETON.get(), net.minecraft.client.renderer.entity.SkeletonRenderer::new);
         // 最果てのエレノアはエレノアと同じ見た目（ElenorRenderer は ElenorEntity 用なので型だけ合わせる）
         event.registerEntityRenderer(ModEntities.FARTHEST_ELENOR.get(), context -> {
             @SuppressWarnings({"unchecked", "rawtypes"})

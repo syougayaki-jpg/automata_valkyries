@@ -51,8 +51,18 @@ public class ModEntities {
                             .clientTrackingRange(8)
                             .build("protect_dummy_zombie"));
 
+    /** テスト用: 30 ブロック上に浮く HP 1 万のボススケルトン（スラスター・回避の確認用。2026-10-06） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.SkyBossSkeleton>> SKY_BOSS_SKELETON =
+            ENTITY_TYPES.register("sky_boss_skeleton", () ->
+                    EntityType.Builder.of(com.automatavalkyries.entity.SkyBossSkeleton::new, MobCategory.MONSTER)
+                            .sized(0.6F, 1.99F)
+                            .clientTrackingRange(10)
+                            .fireImmune()
+                            .build("sky_boss_skeleton"));
+
     @SubscribeEvent
     public static void registerAttributes(EntityAttributeCreationEvent event) {
+        event.put(SKY_BOSS_SKELETON.get(), com.automatavalkyries.entity.SkyBossSkeleton.createAttributes().build());
         event.put(VALKYRIE.get(), com.automatavalkyries.entity.ValkyrieEntity.createAttributes().build());
         event.put(ELENOR.get(), ElenorEntity.createAttributes().build());
         event.put(FARTHEST_ELENOR.get(), ElenorEntity.createAttributes().build());

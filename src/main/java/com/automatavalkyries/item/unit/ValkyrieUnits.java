@@ -108,14 +108,18 @@ public final class ValkyrieUnits {
      * 2026-10-06 ユーザー指定「ハイマニューバスラスターを各ティアに追加して、ダッシュ・浮遊・空中ジャンプでヴァルキリー要素を出す」。
      * 空中ダッシュは着地まで回数制限付きで続けて出せ、向きごとの 5 秒のクールタイムは掛けない（同日「A」）。数は【仮】
      */
-    public record Maneuver(int airDashes, int airJumps, int hoverTicks, boolean airFollow, boolean airCombat) {}
+    public record Maneuver(int airDashes, int airJumps, int hoverTicks, boolean airFollow, boolean airCombat, boolean evasive) {
+        /** 回数・長さの制限なし（T4） */
+        public static final int UNLIMITED = Integer.MAX_VALUE;
+    }
 
     /** 背部ユニットの種類: 重さ（t）・1 回の消費 FE・ティア（スラスターは機動も） */
     public enum BackpackKind {
-        THRUSTER("thruster", 1, 6.0F, 5_000, new Maneuver(3, 1, 0, false, false)),
-        THRUSTER_MK2("thruster_mk2", 2, 7.0F, 6_000, new Maneuver(3, 2, 60, false, false)),
-        THRUSTER_MK3("thruster_mk3", 3, 8.0F, 8_000, new Maneuver(4, 2, 120, true, false)),
-        THRUSTER_MK4("thruster_mk4", 4, 6.0F, 10_000, new Maneuver(5, 3, 200, true, true)),
+        // 2026-10-06 ユーザー指定で T1〜T3 を 1 つ上の性能へ上げ、T4 は空中ダッシュ・空中ジャンプ・滞空が無制限で、止まらずに敵を攪乱しながら飛ぶ
+        THRUSTER("thruster", 1, 6.0F, 5_000, new Maneuver(3, 2, 60, false, false, false)),
+        THRUSTER_MK2("thruster_mk2", 2, 7.0F, 6_000, new Maneuver(4, 2, 120, true, false, false)),
+        THRUSTER_MK3("thruster_mk3", 3, 8.0F, 8_000, new Maneuver(5, 3, 200, true, true, false)),
+        THRUSTER_MK4("thruster_mk4", 4, 6.0F, 10_000, new Maneuver(Maneuver.UNLIMITED, Maneuver.UNLIMITED, Maneuver.UNLIMITED, true, true, true)),
         FOLDING_CANNON("folding_cannon", 3, 20.0F, 50_000, null),
         ECM_POD("ecm_pod", 2, 8.0F, 80_000, null),
         // タキオンドライブは T3（2026-10-06 ユーザー指定。T4 から下げ、ボスの攻撃 60% 回避を「HP が尽きる 1 撃を無かったことにする」へ）

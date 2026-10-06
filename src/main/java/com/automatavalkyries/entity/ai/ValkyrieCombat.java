@@ -70,6 +70,8 @@ public final class ValkyrieCombat {
     public static final int HOVER_TICKS = 16, HOVER_COOLDOWN = 200;
     /** スラスターの空中ダッシュ・空中ジャンプを続けて出す間（Tick）【仮】 */
     public static final int AIR_GAP = 12;
+    /** スラスターの滞空で上の相手へ上昇する速さ（ブロック/Tick）【仮】 */
+    public static final double ASCEND_SPEED = 0.4;
     /** 電力で射撃の兵装から近接の予備へ持ち替える・戻す割合【仮】 */
     public static final float SWAP_LOW = 0.3F, SWAP_BACK = 0.6F;
     /**
@@ -287,14 +289,17 @@ public final class ValkyrieCombat {
                 if (!v.onGround() && airHoverUsed < 100000) airHoverUsed++;
                 if (spend(HOVER_FE_PER_TICK)) {
                     Vec3 d = v.getDeltaMovement();
-                    v.setDeltaMovement(d.x * 0.85, Math.max(d.y * 0.5, 0.0), d.z * 0.85);
+                    double vy = !Double.isNaN(ascendY) && v.getY() < ascendY - 0.5 ? ASCEND_SPEED : Math.max(d.y * 0.5, 0.0); // 上の相手へ上昇
+                    v.setDeltaMovement(d.x * 0.85, vy, d.z * 0.85);
                     v.fallDistance = 0.0F;
                     if (v.tickCount % 2 == 0) thrust(v.position(), 2);
                 } else {
                     hoverTicks = 0;
                 }
             }
-            if (dodgeScan == 0 && !stepping() && !anchored && v.tickCount % 2 == 0) dodge();
+            ascendY = Double.NaN; // 上昇は立ち回りが毎 Tick 決める
+            boolean airDodge = maneuver() != null && !v.onGround() && stepTicks == 0; // スラスターなら空中でも避ける（空中ダッシュで）
+            if (dodgeScan == 0 && (!stepping() || airDodge) && !anchored && v.tickCount % 2 == 0) dodge();
             if (v.tickCount % 20 == 0) swapForPower();
             if (v.tickCount % 4 == 0) rangedShield();
             ValkyrieUnitEffects.tick(v, this); // 外装・背部ユニット・ロジックチップ
@@ -475,11 +480,16 @@ public final class ValkyrieCombat {
          * （2026-10-06 ユーザー指定「A」）。続けて出すときは少し間を空ける
          */
         public boolean airDash(Vec3 dir, double power) {
+            return airDash(dir, power, false);
+        }
+
+        /** approach = 相手へ詰める空中ダッシュ（近接の「一度殴るまでステップしない」の封じは掛けない。空の相手へは殴るまで詰められなかった） */
+        boolean airDash(Vec3 dir, double power, boolean approach) {
             var m = maneuver();
             Vec3 h = new Vec3(dir.x, 0, dir.z);
-            if (m == null || v.onGround() || stepLocked || anchored || airGap > 0 || airDashes >= m.airDashes() || h.lengthSqr() < 1.0e-4 || !spend(thrusterFe())) return false;
+            if (m == null || v.onGround() || (stepLocked && !approach) || anchored || airGap > 0 || airDashes >= m.airDashes() || h.lengthSqr() < 1.0e-4 || !spend(thrusterFe())) return false;
             airDashes++;
-            airGap = AIR_GAP;
+            airGap = m.evasive() ? AIR_GAP / 2 : AIR_GAP;
             StepDir d = classify(h);
             v.playStep(d.ordinal());
             h = h.normalize().scale(power);
@@ -498,7 +508,7 @@ public final class ValkyrieCombat {
             var m = maneuver();
             if (m == null || v.onGround() || airGap > 0 || airJumps >= m.airJumps() || !spend(thrusterFe())) return false;
             airJumps++;
-            airGap = AIR_GAP;
+            airGap = m.evasive() ? AIR_GAP / 2 : AIR_GAP;
             Vec3 d = v.getDeltaMovement();
             v.setDeltaMovement(d.x * 1.1, 0.62, d.z * 1.1);
             v.hasImpulse = true;
@@ -536,6 +546,15 @@ public final class ValkyrieCombat {
 
         /** 着地してから使った滞空の長さ（スラスターの滞空の長さまで） */
         int airHoverUsed;
+        /** 滞空中に上昇して向かう高さ（無ければ NaN。毎 Tick 立ち回りが決める） */
+        double ascendY = Double.NaN;
+
+        /** スラスターの滞空で y まで上昇する（Mk-II 以上。滞空の長さの分だけ）。上昇を始めた・続けたら true */
+        boolean ascend(double y) {
+            if (!airHover(10)) return false;
+            ascendY = y;
+            return true;
+        }
 
         /**
          * 空中で飛んで付いて行く・寄る（Mk-III 以上）。to へまっすぐ向かい、高さを保つ。電力は滞空と同じ毎 Tick。できたら true。
@@ -543,6 +562,11 @@ public final class ValkyrieCombat {
          */
         boolean fly(Vec3 to, double speed) {
             if (v.getEnergy() < HOVER_FE_PER_TICK * 2 + ValkyrieEntity.WAKE_ENERGY) return false;
+            if (stepTicks > 0 && !v.onGround()) { // 空中ダッシュ・回避の最中は向きを上書きしない（落ちないよう浮力だけ）
+                v.setDeltaMovement(v.getDeltaMovement().add(0, 0.08, 0));
+                v.fallDistance = 0.0F;
+                return true;
+            }
             Vec3 d = to.subtract(v.position());
             double len = d.length();
             Vec3 vel = len < 1.0e-3 ? Vec3.ZERO : d.scale(Math.min(speed, len * 0.25) / len);
@@ -554,6 +578,26 @@ public final class ValkyrieCombat {
             if (v.tickCount % 2 == 0) thrust(v.position(), 2);
             if (v.tickCount % 6 == 0) wingBurst(0x9FE8FF);
             return true;
+        }
+
+        /** 攪乱飛行で回る向き（1 / -1） */
+        int orbitDir = 1;
+
+        /**
+         * T4 の攪乱飛行: 相手のまわりを半径 radius で止まらずに回り、高さを揺らし、時々向きを変えて空中ダッシュで切り返す
+         * （2026-10-06 ユーザー指定「止まらずに敵を攪乱しながら」）。飛べたら true
+         */
+        boolean evasiveFlight(LivingEntity t, double radius, double height) {
+            if (v.getRandom().nextFloat() < 0.01F) orbitDir = -orbitDir;
+            double a = Math.atan2(v.getZ() - t.getZ(), v.getX() - t.getX()) + orbitDir * 0.35; // 今いる角度の少し先へ
+            double y = t.getY() + height + Mth.sin(v.tickCount * 0.07F) * 1.5F;
+            Vec3 to = new Vec3(t.getX() + Math.cos(a) * radius, y, t.getZ() + Math.sin(a) * radius);
+            if (v.getRandom().nextFloat() < 0.03F) { // 切り返し
+                orbitDir = -orbitDir;
+                Vec3 rel = t.position().subtract(v.position());
+                airDash(new Vec3(-rel.z, 0, rel.x).scale(orbitDir), 0.9, true);
+            }
+            return fly(to, 0.7);
         }
 
         /** 背中から光の羽のように広がる噴射（空中ダッシュ・空中ジャンプ・飛行） */
@@ -577,7 +621,7 @@ public final class ValkyrieCombat {
             v.setDeltaMovement(v.getDeltaMovement().x, 0.55, v.getDeltaMovement().z);
             v.hasImpulse = true;
             var m = maneuver();
-            hoverTicks = m != null ? Math.max(HOVER_TICKS, m.hoverTicks()) : HOVER_TICKS;
+            hoverTicks = m != null ? Math.max(HOVER_TICKS, Math.min(m.hoverTicks(), 200)) : HOVER_TICKS; // 無制限（T4）でも 1 回は 10 秒まで
             hoverCooldown = m != null && m.hoverTicks() > 0 ? HOVER_COOLDOWN / 2 : HOVER_COOLDOWN;
             thrust(v.position(), 10);
             v.playSound(ValkyrieEntity.sound("boost"), 0.6F, 1.3F);
@@ -607,6 +651,11 @@ public final class ValkyrieCombat {
                 if (side.lengthSqr() < 1.0e-4) side = new Vec3(1, 0, 0);
                 side = side.normalize();
                 if (v.getRandom().nextBoolean()) side = side.scale(-1);
+                if (!v.onGround() && maneuver() != null) {
+                    if (!airDash(side, 0.9, true)) airDash(side.scale(-1), 0.9, true);
+                    dodgeScan = 10;
+                    return;
+                }
                 double up = v.onGround() ? 0.22 : v.getDeltaMovement().y;
                 if (!step(side, 0.9, up, DODGE_FE, 1.4F)) step(side.scale(-1), 0.9, up, DODGE_FE, 1.4F);
                 dodgeScan = 10;
@@ -765,6 +814,15 @@ public final class ValkyrieCombat {
     /** ヴァンガードが持ち主から離れてよい距離・持ち主の前に立つ距離、リアガードが持ち主の後ろに立つ距離【仮】 */
     static final double VANGUARD_LEASH = 10.0, VANGUARD_FRONT = 2.5, REARGUARD_BACK = 3.0;
 
+    /**
+     * 射撃で保つ距離: 射程を見て、届く範囲の 7 割（避けられる間を取る。最低 8 m、射程の 2 m 手前まで）。
+     * 換装画面の「保つ距離」がそれより長ければそちら（射程の 85% まで）。2026-10-06 ユーザー指定「射程を理解して適切な距離を保つ」（地上も）
+     */
+    static double rangedKeep(ValkyrieEntity v, double reach) {
+        double auto = Mth.clamp(reach * 0.7, Math.min(8.0, reach - 2.0), Math.max(2.0, reach - 2.0));
+        return Math.min(Math.max(v.orders.keep, auto), Math.max(2.0, reach * 0.85));
+    }
+
     /** 持った兵装の通常攻撃・チャージ攻撃（技）の最大射程（素手・技の無い近接は 2.5） */
     static double maxRange(ValkyrieEntity v) {
         Art art = ValkyrieArts.of(v.getMainHandItem());
@@ -775,8 +833,18 @@ public final class ValkyrieCombat {
     /** 相手がまだ追ってよい範囲にいるか */
     static boolean withinLeash(ValkyrieEntity v, LivingEntity target) {
         double r = leash(v) + 4.0;
-        return target.position().distanceToSqr(anchor(v)) <= r * r;
+        // 追う距離は水平で見て、高さは ATTACKER_REACH まで（上空の敵に「積極的」でも交戦しなかった。2026-10-06）
+        Vec3 c = anchor(v);
+        double dx = target.getX() - c.x, dz = target.getZ() - c.z;
+        if (dx * dx + dz * dz <= r * r && Math.abs(target.getY() - c.y) <= Math.max(r, ATTACKER_REACH)) return true;
+        // 自分・持ち主を攻撃してくる相手は、追う距離の外（上空など）でも ATTACKER_REACH まで相手にする（2026-10-06、上空のボスに撃たれ続けていた）
+        Player owner = v.getOwner();
+        boolean attacker = v.getLastHurtByMob() == target || (target instanceof Mob m && (m.getTarget() == v || (owner != null && m.getTarget() == owner)));
+        return attacker && v.distanceToSqr(target) <= ATTACKER_REACH * ATTACKER_REACH;
     }
+
+    /** 追う距離の外でも相手にする、攻撃してくる相手までの距離 */
+    static final double ATTACKER_REACH = 48.0;
 
     // ------------------------------------------------------------------ 狙う相手
 
@@ -854,8 +922,9 @@ public final class ValkyrieCombat {
             if (o.policy == ValkyrieOrders.Policy.PASSIVE) return null;
             Vec3 center = anchor(v);
             double r = leash(v);
-            List<LivingEntity> list = v.level().getEntitiesOfClass(LivingEntity.class, new AABB(center, center).inflate(r, Math.max(8.0, r * 0.5), r),
-                    e -> e != v && valid(e) && e.position().distanceToSqr(center) <= r * r);
+            double scan = Math.max(r, ATTACKER_REACH);
+            List<LivingEntity> list = v.level().getEntitiesOfClass(LivingEntity.class, new AABB(center, center).inflate(scan),
+                    e -> e != v && valid(e) && withinLeash(v, e)); // 追う距離の内か、攻撃してくる相手
             boolean aggressive = o.policy == ValkyrieOrders.Policy.AGGRESSIVE;
             // ロジック: タレットは覚えた対象（無ければ敵対モブみな）を探す。ヴァンガード・リアガードは持ち主を狙う敵を優先する
             List<net.minecraft.world.entity.EntityType<?>> turret = ValkyrieUnitEffects.turretTargets(v);
@@ -913,6 +982,9 @@ public final class ValkyrieCombat {
         private int combo;
         /** 動き出しているか（止まる・動くの境目に幅を持たせる） */
         private boolean moving;
+        /** 射撃の立ち位置への道が見つからなかった（届けばその場で撃つ） */
+        private boolean noPath;
+        private int noPathTicks;
 
         public Fight(ValkyrieEntity v) {
             this.v = v;
@@ -1132,7 +1204,11 @@ public final class ValkyrieCombat {
             switch (style) {
                 case MELEE -> {
                     // Mk-IV: 飛んでいる相手には空中で寄って戦う（間合いの 6 割の所、相手と同じ高さ）
-                    if (m != null && m.airCombat() && flyingTarget(t) && dist < 32.0) {
+                    if (m != null && m.evasive() && flyingTarget(t) && dist < ATTACKER_REACH && brain.evasiveFlight(t, Math.max(1.5, reach * 0.8), 0.3)) {
+                        moving = dist > reach;
+                        return;
+                    }
+                    if (m != null && m.airCombat() && flyingTarget(t) && dist < ATTACKER_REACH) {
                         Vec3 away = new Vec3(v.getX() - t.getX(), 0, v.getZ() - t.getZ());
                         away = away.lengthSqr() < 1.0e-4 ? Vec3.ZERO : away.normalize().scale(reach * 0.6);
                         if (brain.fly(new Vec3(t.getX() + away.x, t.getY(), t.getZ() + away.z), dist > 8 ? 0.9 : 0.5)) {
@@ -1150,9 +1226,15 @@ public final class ValkyrieCombat {
                             brain.dash(t.position().subtract(v.position()), 1.1);
                         }
                         // スラスター: 上にいる相手へは跳んで空中ジャンプ、空中からは空中ダッシュで詰める
-                        if (m != null && dist < 16.0 && v.hasLineOfSight(t)) {
-                            if (t.getY() - v.getY() > 1.5) brain.climb();
-                            if (!v.onGround() && dist > 2.5) brain.airDash(t.position().subtract(v.position()), 1.0);
+                        // （高さを入れた距離で見ていたので、真上の相手には跳ばなかった。2026-10-06）
+                        double flat = Math.sqrt(v.distanceToSqr(t.getX(), v.getY(), t.getZ()));
+                        if (m != null && flat < 16.0 && v.hasLineOfSight(t)) {
+                            double above = t.getY() - v.getY();
+                            if (above > 1.5) {
+                                if (v.onGround()) brain.climb();
+                                else if (!brain.ascend(t.getY())) brain.climb(); // 滞空できれば上昇、尽きたら空中ジャンプ
+                            }
+                            if (!v.onGround() && flat > 2.5) brain.airDash(t.position().subtract(v.position()), 1.0, true);
                         }
                         if (--repath <= 0) {
                             repath = 8;
@@ -1163,21 +1245,57 @@ public final class ValkyrieCombat {
                     }
                 }
                 case RANGED -> {
-                    double keep = Math.min(v.orders.keep, reach * 0.8);
+                    double keep = rangedKeep(v, reach);
+                    // スラスター: 上にいる相手へは飛んで撃つ（2026-10-06 ユーザー指定「射撃も同じように飛んで撃てるように」）。
+                    // Mk-IV は空中の立ち位置へ飛んで留まり、Mk-II・III は滞空で上昇、T1 は跳び上がり・空中ジャンプ
+                    // T4: 射程を見て、届く範囲の 7 割（避けられる間を取る。最低 8 m、射程の 2 m 手前まで）を、止まらずに回りながら撃つ
+                    if (m != null && m.evasive() && dist < Math.max(ATTACKER_REACH, reach + 8.0)
+                            && brain.evasiveFlight(t, rangedKeep(v, reach), flyingTarget(t) ? 1.0 : 4.0)) {
+                        moving = false;
+                        return;
+                    }
+                    if (m != null && (t.getY() - v.getY() > 3.0 || (!v.onGround() && flyingTarget(t)))) { // 上がりきった後も空中に留まる
+                        Vec3 air = rangedSpot(t, keep);
+                        air = new Vec3(air.x, t.getY() - 1.0, air.z);
+                        if (m.airCombat() && flyingTarget(t) && dist < ATTACKER_REACH
+                                && brain.fly(air, v.position().distanceToSqr(air) > 36.0 ? 0.9 : 0.4)) {
+                            moving = false;
+                            return;
+                        }
+                        if (dist > reach * 0.9 || !v.hasLineOfSight(t)) {
+                            if (v.onGround()) brain.climb();
+                            else if (!brain.ascend(t.getY() - 1.0)) brain.climb();
+                        } else if (!v.onGround()) {
+                            brain.airHover(20); // 届いて見えていれば浮いたまま撃つ
+                        }
+                    }
                     Vec3 spot = rangedSpot(t, keep);
                     // 近すぎたら下がる: 立ち止まって撃っているときに相手が詰めてきたときだけ（向かう途中に後ろへステップしていた。2026-10-06）
                     if (!moving && dist < keep * 0.5 && dist < 4.0) brain.dash(v.position().subtract(t.position()), 0.9);
                     // 立ち位置へ動くのは、届かない・近すぎる・見えない・立ち位置から 6 ブロック以上ずれたときだけ。動き出したら立ち位置の 2 ブロック以内まで行く
                     // （3 ブロックずれるたびに歩き直して、ちょろちょろ動いていた。2026-10-06）
                     boolean off = dist > reach * 0.9 || dist < keep * 0.5 || !v.hasLineOfSight(t) || v.position().distanceToSqr(spot) > 36.0;
+                    // 持ち主のまわり（追う距離）から出る立ち位置は、出ない所まで寄せる。寄せた・道が無いせいで適正距離が取れなくても、
+                    // 届いて見えていればその場で撃つ（2026-10-06 ユーザー指定「プレイヤーのまわりから出られず適正距離を取れない場合、その場で撃つ」）
+                    Vec3 center = anchor(v);
+                    double allow = Math.max(4.0, leash(v) - 2.0);
+                    boolean clamped = v.getMode() != Mode.WAIT && spot.distanceToSqr(center) > allow * allow;
+                    if (clamped) {
+                        Vec3 out = new Vec3(spot.x - center.x, 0, spot.z - center.z);
+                        spot = out.lengthSqr() < 1.0e-4 ? center : center.add(out.normalize().scale(allow)).add(0, spot.y - center.y, 0);
+                    }
+                    boolean canShoot = dist <= reach && v.hasLineOfSight(t);
+                    if ((clamped || noPath) && canShoot) off = false;
                     if (off) moving = true;
-                    else if (v.position().distanceToSqr(spot) < 4.0) moving = false;
+                    else if (v.position().distanceToSqr(spot) < 4.0 || ((clamped || noPath) && canShoot)) moving = false;
                     if (moving) {
                         if (--repath <= 0) {
                             repath = 10;
-                            v.getNavigation().moveTo(spot.x, spot.y, spot.z, ValkyrieGoals.pathSpeed(v, 1.2));
+                            noPath = !v.getNavigation().moveTo(spot.x, spot.y, spot.z, ValkyrieGoals.pathSpeed(v, 1.2));
+                            if (noPath) noPathTicks = 100;
                         }
                     } else {
+                        if (noPath && --noPathTicks <= 0) noPath = false; // 5 秒たったら道を探し直す
                         v.getNavigation().stop();
                         strafe(t);
                         boolean canHover = m != null && m.hoverTicks() > 0;
@@ -1254,7 +1372,9 @@ public final class ValkyrieCombat {
             if (dir.horizontalDistanceSqr() < 0.5) dir = v.position().subtract(t.position());
             dir = new Vec3(dir.x, 0, dir.z);
             if (dir.lengthSqr() < 1.0e-4) dir = new Vec3(1, 0, 0);
-            return t.position().add(dir.normalize().scale(keep + (front != null ? 2.0 : 0.0)));
+            Vec3 spot = t.position().add(dir.normalize().scale(keep + (front != null ? 2.0 : 0.0)));
+            // 相手が上空なら立ち位置は自分の高さ（地上）で探す（空中の位置へ道を探して失敗し続けないよう）
+            return Math.abs(t.getY() - v.getY()) > 3.0 ? new Vec3(spot.x, v.getY(), spot.z) : spot;
         }
 
         /** 撃ちながら時々横へ動く: 0.5〜1 秒動いて、2〜4 秒は立ち止まって撃つ（ずっと横へ動き続けて落ち着きがなかった。2026-10-06） */
