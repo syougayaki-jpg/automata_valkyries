@@ -449,7 +449,8 @@ public final class ValkyrieDaily {
             BlockPos c = center(v);
             ItemEntity best = null;
             double bestD = Double.MAX_VALUE;
-            for (ItemEntity e : v.level().getEntitiesOfClass(ItemEntity.class, new net.minecraft.world.phys.AABB(c).inflate(RANGE, 4, RANGE),
+            double range = RANGE * ValkyrieUnitEffects.pickupScale(v); // サブアームで広く
+            for (ItemEntity e : v.level().getEntitiesOfClass(ItemEntity.class, new net.minecraft.world.phys.AABB(c).inflate(range, 4, range),
                     e -> e.isAlive() && !e.hasPickUpDelay() && !v.orders.excludes(e.getItem()))) {
                 double d = e.distanceToSqr(v);
                 if (d < bestD) {

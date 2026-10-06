@@ -232,6 +232,9 @@ public final class ValkyrieCombat {
         boolean stepAirborne;
         /** ストライカー: ダッシュ直後の 1 撃が強くなる期限・ネメシス: オーバードライブの期限とまた使える時刻（ゲーム時刻） */
         public long dashBoostUntil, overdriveUntil, overdriveReadyAt;
+        /** 追加の背部ユニットの次に使える時刻（ゲーム時刻。ValkyrieSupportUnits）・アストラルハローが働いているか */
+        public long batteryReadyAt, missileReadyAt, grappleReadyAt, reflectReadyAt, reviveReadyAt, ownerSaveReadyAt;
+        public boolean haloOn;
         /** タキオンドライブのタキオン化をまた使える時刻（ゲーム時刻） */
         public long tachyonReadyAt;
         /** タレットで射程に入って足を止めている（ステップ・回避・空中ダッシュをしない） */
@@ -954,7 +957,7 @@ public final class ValkyrieCombat {
                     case BOSS_FIRST -> (e.getType().is(Tags.EntityTypes.BOSSES) ? 0.0 : 1.0e6) + v.distanceToSqr(e);
                 };
                 // 連携: 持ち主・ほかの味方の兵姫が狙っている相手を優先する
-                if (e == ownerFocus || focusedByAllies(e)) score *= 0.35;
+                if (e == ownerFocus || focusedByAllies(e)) score *= v.level().getGameTime() < v.commandLinkUntil ? 0.1 : 0.35; // コマンドリンクで集中
                 boolean onOwner = owner != null && e instanceof Mob mob && mob.getTarget() == owner;
                 if (role == com.automatavalkyries.item.unit.ValkyrieUnits.ChipKind.VANGUARD && onOwner) score *= 0.2;
                 else if (role == com.automatavalkyries.item.unit.ValkyrieUnits.ChipKind.REARGUARD && onOwner) score *= 0.4;

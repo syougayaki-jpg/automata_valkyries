@@ -7,7 +7,8 @@
 出力（assets/automata_valkyries/ の下）:
   geo/entity/unit/frame_<型>_<部位>.geo.json    … valkyrie（＋ valkyrie_mk2〜mk4）/ fortress / mirage /
                                                  scout / maintenance / seraph / striker / aegis / tempest / helios / nemesis / luminous の head・chest・legs
-  geo/entity/unit/backpack_<種類>.geo.json      … thruster（＋ _mk2 / _mk3 / _mk4）/ folding_cannon / ecm_pod / tachyon_drive / memento_familiar / gallia_fortress
+  geo/entity/unit/backpack_<種類>.geo.json      …  thruster（＋ _mk2 / _mk3 / _mk4）/ folding_cannon / ecm_pod / tachyon_drive / memento_familiar / gallia_fortress /
+                                                 sub_arm / recon_drone / spare_battery / repair_drone / micro_missile / grapple_anchor / prism_reflector / astral_halo / resurrection_core / accelerator / command_link
   textures/entity/unit/valkyrie_units.png（＋ _glowmask.png）  … 全ユニット共通の素材の見本帳（8x8 の板の絵を面ごとに貼る）
   textures/entity/unit/memento_butterfly.png    … メメント・ファミリアの蝶（描画側で羽ばたかせる）
 
@@ -58,7 +59,7 @@ PLATE = {
     'b_grey': (0x929aa8, 0xbac2ce, 0x606876),
     'b_dark': (0x3a3e4a, 0x565c6a, 0x22242c),
 }
-GLOWC = {'green': (0x6cff7a, 0xe0ffe4), 'pink': (0xff9ad8, 0xffe4f4), 'red': (0xff3048, 0xffc0c8),
+GLOWC = {'yellow': (0xffe040, 0xfff6b0), 'green': (0x6cff7a, 0xe0ffe4), 'pink': (0xff9ad8, 0xffe4f4), 'red': (0xff3048, 0xffc0c8),
          'teal': (0x40ffd8, 0xd8fff6), 'orange': (0xffa040, 0xfff0c8), 'blue': (0x5aa0ff, 0xdce8ff),
          'cyan': (0x64ecff, 0xdcffff), 'violet': (0xb86eff, 0xf0d2ff), 'gold': (0xffd66e, 0xfff4cc),
          'white': (0xb4faff, 0xffffff)}
@@ -285,6 +286,9 @@ def crystal(name):
 
 
 crystal('crystal')
+# 背部ユニット 11 種（2026-10-06。後ろへ足す）
+glow_tile('glow_yellow', 'yellow')
+nozzle('nozzle_red', 'red')
 galaxy('galaxy')
 
 # ------------------------------------------------------------------ 形
@@ -1045,6 +1049,202 @@ def backpack_gallia_fortress():
         m.box(fx, (-1.15, 12.6, z1 + 0.1), (1.15, 12.75, z1 + 0.16), 'glow_white')
 
 
+# ---------------- 背部ユニット 11 種（2026-10-06）。背中の真ん中に置く物は後ろ髪（z 3.6 まで、頭の向きで回る）より後ろ z 5.3 以上に置き、
+# 左右の柱（|x| 4.02 以上）で支える。浮く・回る物は兵姫の縦の軸の spin_y_。兵姫の面と同じ平面はずらす（avoid）
+def _bp(name):
+    m = model(name)
+    m.avoid = True
+    return m
+
+
+def backpack_sub_arm():
+    """サブアーム（T1）: 右の肩甲骨から出る関節の腕が、肩の高さで小さな丸い盾を前・外へ構える"""
+    m = _bp('backpack_sub_arm')
+    strut(m)
+    m.box('body', (-4.7, 16.8, 1.25), (-4.0, 19.8, 2.7), 'b_dark', out='b_dark_line')                  # 付け根
+    a1 = m.bone('arm_upper', 'body', (-4.4, 19.2, 1.95), (0, 0, 10))                                     # 外へ
+    m.box(a1, (-4.4, 18.9, 1.65), (-7.0, 19.5, 2.25), 'b_grey')
+    m.box(a1, (-7.0, 18.75, 1.5), (-7.65, 19.65, 2.4), 'b_dark', out='glow_cyan', top='glow_cyan')    # 関節の光
+    a2 = m.bone('arm_fore', a1, (-7.3, 19.2, 1.95), None)                                               # 前へ
+    m.box(a2, (-7.55, 18.95, 1.5), (-7.05, 19.45, -2.4), 'b_grey')
+    m.box(a2, (-7.65, 18.85, -2.4), (-6.95, 19.55, -2.9), 'b_dark')
+    sh = m.bone('buckler', a2, (-7.3, 19.2, -2.95), (0, -20, 0))                                        # 小さな丸い盾（外へ向ける）
+    m.box(sh, (-8.8, 17.9, -3.2), (-5.8, 20.5, -2.95), 'f_steel', front='b_dark_line')
+    m.box(sh, (-8.4, 17.5, -3.15), (-6.2, 20.9, -3.0), 'f_steel')
+    m.box(sh, (-9.2, 18.3, -3.15), (-5.4, 20.1, -3.0), 'f_steel')
+    m.box(sh, (-7.6, 18.8, -3.35), (-7.0, 19.6, -3.2), 'glow_cyan')
+
+
+def _orbit_drone(m, ring, k, ang, cy, r, body, eye):
+    """spin_y_ の輪に付く小さなドローン（四隅の回転翼）。ang は輪の上の角度"""
+    d = m.bone(f'drone_{k}', ring, (0, cy, 0), (0, ang, 0))
+    m.box(d, (-1.1, cy - 0.3, r - 1.1), (1.1, cy + 0.3, r + 1.1), body)                    # 円盤
+    m.box(d, (-0.65, cy - 0.65, r - 0.65), (0.65, cy - 0.3, r + 0.65), 'b_dark', bottom=eye)  # 目
+    for i, (x, z) in enumerate(((-1.4, -1.4), (1.4, -1.4), (-1.4, 1.4), (1.4, 1.4))):
+        m.box(d, (x - 0.15, cy + 0.0 + i * 0.01, r + z - 0.15), (x + 0.15, cy + 0.35, r + z + 0.15), 'b_dark')   # 支柱
+        m.box(d, (x - 0.55, cy + 0.35, r + z - 0.55), (x + 0.55, cy + 0.45, r + z + 0.55), 'b_grey', top='glow_cyan')  # 回転翼
+    return d
+
+
+def backpack_recon_drone():
+    """偵察ドローン（T1）: 背中の小さな格納台＋頭の高さを半径 14px で回るドローン 1 基（緑の目）"""
+    m = _bp('backpack_recon_drone')
+    strut(m)
+    m.mbox('body', (-5.3, 15.5, 1.25), (-4.02, 18.6, 2.9), 'b_grey', out='b_dark_line', top='b_dark')
+    m.mbox('body', (-5.36, 16.4, 1.7), (-5.3, 17.4, 2.4), 'glow_green')
+    ring = m.bone('spin_y_orbit', 'body', (0, 25.5, 0))
+    _orbit_drone(m, ring, 0, 0, 25.5, 14.0, 'b_dark', 'glow_green')
+
+
+def backpack_spare_battery():
+    """増設バッテリー（T1）: 背中の左右に円筒の電池 2 本（黄とシアンの残量の光）"""
+    m = _bp('backpack_spare_battery')
+    strut(m)
+    m.mbox('body', (-5.55, 14.5, 1.45), (-4.25, 19.5, 2.75), 'b_grey', back='b_dark_line')            # 円筒（2 つの箱を重ねて八角に）
+    m.mbox('body', (-5.75, 14.6, 1.65), (-4.05, 19.4, 2.55), 'b_grey')
+    m.mbox('body', (-5.3, 19.5, 1.75), (-4.5, 20.0, 2.45), 'b_dark', top='glow_cyan')                 # 端子
+    m.mbox('body', (-5.3, 14.0, 1.75), (-4.5, 14.5, 2.45), 'b_dark')
+    m.mbox('body', (-5.81, 15.2, 1.95), (-5.75, 18.8, 2.25), 'glow_yellow')                            # 残量の光
+    m.mbox('body', (-5.1, 15.2, 2.75), (-4.7, 18.8, 2.81), 'glow_cyan')
+
+
+def backpack_repair_drone():
+    """リペアドローン（T2）: 背中の格納台＋向かい合って半径 12px で回る白いドローン 2 基（緑の十字）"""
+    m = _bp('backpack_repair_drone')
+    strut(m)
+    m.mbox('body', (-5.3, 15.5, 1.25), (-4.02, 18.6, 2.9), 'b_white', out='b_white_vline', top='b_grey')
+    ring = m.bone('spin_y_orbit', 'body', (0, 24.0, 0))
+    for k, ang in enumerate((0, 180)):
+        d = _orbit_drone(m, ring, k, ang, 24.0, 12.0, 'b_white', 'glow_green')
+        m.box(d, (-0.7, 24.3, 11.85), (0.7, 24.4, 12.15), 'glow_green')                                 # 上の緑の十字
+        m.box(d, (-0.15, 24.3, 11.3), (0.15, 24.42, 12.7), 'glow_green')
+        m.box(d, (-0.6, 23.85, 13.1), (0.6, 24.15, 13.18), 'glow_green')                               # 外の面の十字
+        m.box(d, (-0.15, 23.72, 13.1), (0.15, 24.28, 13.16), 'glow_green')
+
+
+def backpack_micro_missile():
+    """マイクロミサイルポッド（T2）: 肩の上に箱の発射機 2 つ（2×2 の筒、赤い弾頭、少し上向き）"""
+    m = _bp('backpack_micro_missile')
+    strut(m)
+    m.mbox('body', (-5.5, 17.6, 1.6), (-4.9, 22.4, 2.4), 'b_grey')                                    # 支柱
+    pr, pl = m.mbone('pod_{s}', 'body', (-6.2, 22.2, 2.0), (-15, 0, 0))                               # 前を上へ
+    for b, s_ in ((pr, -1), (pl, 1)):
+        def B(x0, y0, z0, x1, y1, z1, mat, **f):
+            m.box(b, (s_ * x0, y0, z0), (s_ * x1, y1, z1), mat, **f)
+        B(5.0, 22.2, 0.3, 7.4, 24.6, 3.3, 'b_dark', out='b_dark_line', top='b_dark_line', back='b_vent')
+        for i, (x0, y0) in enumerate(((5.25, 22.45), (6.3, 22.45), (5.25, 23.5), (6.3, 23.5))):
+            B(x0, y0, 0.12 + i * 0.01, x0 + 0.85, y0 + 0.85, 0.3, 'b_grey', front='nozzle_red')         # 筒の口（赤い弾頭）
+
+
+def backpack_grapple_anchor():
+    """グラップルアンカー（T2）: 右の腰の後ろに巻き上げの胴、左の腰の後ろに爪のアンカーをしまう（暗い鋼と橙）"""
+    m = _bp('backpack_grapple_anchor')
+    m.mbox('body', (-4.1, 11.8, 1.17), (-2.6, 12.6, 1.38), 'b_dark')                                  # 腰の支え
+    m.box('body', (-5.6, 11.2, 1.5), (-4.0, 13.4, 3.1), 'f_dark', out='f_orange', back='f_vent')      # 巻き上げの胴
+    m.box('body', (-5.5, 11.0, 1.7), (-4.1, 13.6, 2.9), 'f_dark')
+    m.box('body', (-5.75, 11.5, 1.8), (-5.6, 13.1, 2.8), 'f_orange')
+    m.box('body', (-4.0, 11.9, 2.1), (-3.95, 12.7, 2.5), 'glow_orange')
+    m.box('body', (4.0, 10.6, 1.45), (4.8, 13.2, 2.35), 'f_dark', out='f_hazard')                      # アンカーの軸
+    for x0, z0 in ((4.05, 1.4), (4.55, 2.05)):                                                         # 爪
+        m.box('body', (x0, 9.5, z0), (x0 + 0.22, 10.5, z0 + 0.3), 'f_orange')
+    m.box('body', (4.1, 10.35, 1.5), (4.7, 10.6, 2.3), 'f_steel')
+
+
+def backpack_prism_reflector():
+    """プリズムリフレクター（T3）: 肩の後ろに扇に広がる結晶の板（透けて光る）。縁はシアンと桃"""
+    m = _bp('backpack_prism_reflector')
+    strut(m)
+    m.mbox('body', (-5.2, 18.6, 1.25), (-4.02, 20.4, 2.8), 'b_white', out='b_white_vline')
+    for k, ang in enumerate((12, 38, 64)):
+        z = 2.0 + k * 0.38
+        pr, pl = m.mbone(f'prism_{k}_{{s}}', 'body', (-4.6, 19.6, z + 0.12), (0, 12, ang))
+        for b, s_ in ((pr, -1), (pl, 1)):
+            m.box(b, (s_ * 4.6, 19.0, z), (s_ * 8.6, 20.2, z + 0.25), 'crystal')
+            m.box(b, (s_ * 8.6, 19.3, z + 0.03), (s_ * 9.7, 19.9, z + 0.22), 'crystal')
+        er, el = m.mbone(f'fx_prism_{k}_{{s}}', pr, (-4.6, 19.6, z + 0.12), None)
+        for b, s_ in ((er, -1), (el, 1)):
+            m.box(b, (s_ * 4.8, 20.22, z + 0.05), (s_ * 8.6, 20.36, z + 0.2), 'glow_pink' if k % 2 == 0 else 'glow_cyan')
+            m.box(b, (s_ * 4.8, 18.84, z + 0.05), (s_ * 8.6, 18.98, z + 0.2), 'glow_cyan' if k % 2 == 0 else 'glow_pink')
+
+
+def backpack_astral_halo():
+    """アストラルハロー（T4）: 頭と背中の後ろに浮かぶ大きな金の輪（ゆっくり回り、残像が重なる）＋背中の小さな放射器"""
+    m = _bp('backpack_astral_halo')
+    strut(m)
+    m.mbox('body', (-5.0, 15.5, 1.25), (-4.02, 19.5, 5.9), 'b_white', out='b_white_gold', top='g_gold')   # 左右の柱
+    m.mbox('body', (-4.5, 18.6, 5.5), (-0.2, 19.2, 5.84), 'b_white', top='g_gold')                          # 横木
+    m.box('body', (-0.25, 19.2, 5.62), (0.25, 21.2, 5.88), 'g_gold')                                      # 放射器の柱
+    m.box('body', (-0.8, 21.2, 5.4), (0.8, 22.8, 6.2), 'b_white', front='glow_white', back='glow_white', top='g_gold')  # 放射器
+    cy, cz = 22.0, 6.6
+    ring = m.bone('spin_z_ghost_halo', 'body', (0, cy, cz))
+    for k in range(16):
+        seg = m.bone(f'halo_{k}', ring, (0, cy, cz), (0, 0, k * 22.5))
+        dz = 0.05 if k % 2 else 0.0
+        m.box(seg, (-1.5, cy + 7.0, cz - 0.22 - dz), (1.5, cy + 7.6, cz + 0.22 + dz), 'g_gold', bottom='glow_gold')
+        if k % 2 == 0:
+            m.box(seg, (-0.2, cy + 7.6, cz - 0.12), (0.2, cy + 8.5, cz + 0.12), 'glow_white')            # 外への光の棘
+
+
+def backpack_resurrection_core():
+    """リザレクションコア（T4）: 背中の後ろの白と金の揺りかごに、桃と白に脈打つ結晶のハート"""
+    m = _bp('backpack_resurrection_core')
+    strut(m)
+    m.mbox('body', (-5.0, 15.8, 1.25), (-4.02, 19.0, 6.0), 'b_white', out='b_white_gold', top='g_gold')   # 左右の柱
+    m.mbox('body', (-4.5, 17.3, 5.85), (-2.2, 17.7, 6.15), 'b_white')                                     # 揺りかごへの横木
+    cz = 6.0
+    m.mbox('body', (-2.25, 15.4, cz - 0.27), (-1.85, 19.8, cz + 0.27), 'g_gold')                          # 揺りかご
+    m.box('body', (-2.25, 19.8, cz - 0.22), (2.25, 20.2, cz + 0.22), 'b_white', top='g_gold')
+    m.box('body', (-2.25, 15.0, cz - 0.22), (2.25, 15.4, cz + 0.22), 'g_gold')
+    m.box('body', (-0.3, 20.2, cz - 0.15), (0.3, 20.9, cz + 0.15), 'glow_gold')
+    m.box('body', (-1.2, 16.5, cz - 0.4), (1.2, 18.7, cz + 0.4), 'crystal')                               # ハート
+    m.mbox('body', (-1.45, 18.0, cz - 0.35), (-0.1, 19.2, cz + 0.35), 'crystal')
+    m.box('body', (-0.6, 15.8, cz - 0.3), (0.6, 16.5, cz + 0.3), 'crystal')
+    fx = m.bone('fx_pulse', 'body', (0, 17.5, cz))                                                       # 脈打つ光（発光だけ）
+    m.box(fx, (-1.65, 16.6, cz - 0.08), (-1.55, 18.9, cz + 0.08), 'glow_pink')
+    m.box(fx, (1.55, 16.6, cz - 0.08), (1.65, 18.9, cz + 0.08), 'glow_pink')
+    m.box(fx, (-1.0, 19.3, cz - 0.08), (1.0, 19.4, cz + 0.08), 'glow_white')
+    m.box(fx, (-0.5, 15.55, cz - 0.08), (0.5, 15.65, cz + 0.08), 'glow_white')
+
+
+def backpack_accelerator():
+    """アクセラレーター（T4）: 背中の左右に縦の輪のコイル 2 つ（電気の青い光）と山形のひれ"""
+    m = _bp('backpack_accelerator')
+    strut(m)
+    cy, cz, xc = 17.5, 4.8, 5.5
+    m.mbox('body', (-5.25, 17.1, 1.25), (-4.02, 17.9, 4.4), 'b_dark')                                     # 輪の軸の支え
+    m.mbox('body', (-6.1, 17.1, 4.4), (-4.02, 17.9, 5.2), 'b_dark', out='glow_blue')                      # 軸
+    for k in range(10):
+        dx = 0.05 if k % 2 else 0.0
+        sr, sl = m.mbone(f'coil_{k}_{{s}}', 'body', (-xc, cy, cz), (k * 36, 0, 0))
+        m.box(sr, (-xc - 0.45 - dx, cy + 2.6, cz - 1.0), (-xc + 0.45 + dx, cy + 3.2, cz + 1.0), 'b_dark', bottom='glow_blue', top='a_blue')
+        m.box(sl, (xc - 0.45 - dx, cy + 2.6, cz - 1.0), (xc + 0.45 + dx, cy + 3.2, cz + 1.0), 'b_dark', bottom='glow_blue', top='a_blue')
+    for key, a in (('a', 35), ('b', -35)):                                                               # 山形のひれ（外へ V）
+        fr, fl = m.mbone(f'chev_{key}_{{s}}', 'body', (-6.0, cy, cz), (0, 0, a))
+        m.box(fr, (-6.0, cy - 0.2, cz - 0.2), (-7.9, cy + 0.2, cz + 0.2), 'b_white', top='glow_blue')
+        m.box(fl, (6.0, cy - 0.2, cz - 0.2), (7.9, cy + 0.2, cz + 0.2), 'b_white', top='glow_blue')
+
+
+def backpack_command_link():
+    """コマンドリンク（T4）: 右の高いアンテナの柱、左のレーダーの皿（回る）、光る立体の表示板。紺と金"""
+    m = _bp('backpack_command_link')
+    strut(m)
+    m.box('body', (-5.6, 14.5, 1.25), (-4.02, 17.6, 2.8), 'v_dark', out='g_gold')                         # 右の台
+    m.box('body', (-5.2, 17.6, 1.65), (-4.6, 30.0, 2.25), 'v_dark')                                       # アンテナの柱
+    for y in (20.0, 23.5, 27.0):
+        m.box('body', (-5.35, y, 1.5), (-4.45, y + 0.4, 2.4), 'g_gold')
+    m.box('body', (-5.3, 30.0, 1.55), (-4.5, 30.6, 2.35), 'glow_gold')
+    m.box('body', (4.02, 14.5, 1.25), (5.9, 17.6, 2.8), 'v_dark', out='g_gold')                           # 左の台
+    m.box('body', (5.3, 17.6, 1.8), (5.9, 26.5, 2.4), 'v_dark')                                           # 皿の柱
+    d = m.bone('spin_y_dish', 'body', (5.6, 26.5, 2.1))
+    t = m.bone('dish_tilt', d, (5.6, 26.5, 2.1), (-30, 0, 0))
+    m.box(t, (4.6, 26.5, 1.1), (6.6, 26.9, 3.1), 'g_gold', top='lens', bottom='v_dark')
+    m.box(t, (5.45, 26.9, 1.95), (5.75, 27.6, 2.25), 'v_dark')
+    m.box(t, (5.42, 27.6, 1.92), (5.78, 27.9, 2.28), 'glow_gold')
+    hp = m.bone('fx_holo', 'body', (-6.5, 22.0, 1.9))                                                    # 立体の表示板（発光だけ）
+    m.box(hp, (-7.9, 21.0, 1.88), (-5.45, 23.2, 1.94), 'glow_cyan')
+    m.box(hp, (-7.9, 23.3, 1.88), (-5.45, 23.4, 1.94), 'glow_gold')
+
+
 def backpack_folding_cannon():
     m = model('backpack_folding_cannon')
     strut(m)
@@ -1130,6 +1330,17 @@ backpack_thruster_mk2()
 backpack_thruster_mk3()
 backpack_thruster_mk4()
 backpack_gallia_fortress()
+backpack_sub_arm()
+backpack_recon_drone()
+backpack_spare_battery()
+backpack_repair_drone()
+backpack_micro_missile()
+backpack_grapple_anchor()
+backpack_prism_reflector()
+backpack_astral_halo()
+backpack_resurrection_core()
+backpack_accelerator()
+backpack_command_link()
 
 
 # ------------------------------------------------------------------ 書き出し
@@ -1287,6 +1498,17 @@ def main():
             'helios': ['frame_helios_head', 'frame_helios_chest', 'frame_helios_legs'],
             'nemesis': ['frame_nemesis_head', 'frame_nemesis_chest', 'frame_nemesis_legs'],
             'luminous': ['frame_luminous_head', 'frame_luminous_chest', 'frame_luminous_legs'],
+            'bp_sub_arm': ['backpack_sub_arm'],
+            'bp_recon_drone': ['backpack_recon_drone'],
+            'bp_spare_battery': ['backpack_spare_battery'],
+            'bp_repair_drone': ['backpack_repair_drone'],
+            'bp_micro_missile': ['backpack_micro_missile'],
+            'bp_grapple_anchor': ['backpack_grapple_anchor'],
+            'bp_prism_reflector': ['backpack_prism_reflector'],
+            'bp_astral_halo': ['backpack_astral_halo'],
+            'bp_resurrection_core': ['backpack_resurrection_core'],
+            'bp_accelerator': ['backpack_accelerator'],
+            'bp_command_link': ['backpack_command_link'],
             'memento': ['backpack_memento_familiar'],
             'valkyrie_mk2': ['frame_valkyrie_mk2_head', 'frame_valkyrie_mk2_chest', 'frame_valkyrie_mk2_legs'],
             'valkyrie_mk3': ['frame_valkyrie_mk3_head', 'frame_valkyrie_mk3_chest', 'frame_valkyrie_mk3_legs'],

@@ -1,0 +1,33 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 1,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_advanced"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:lens_luminal"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:capsule_spatial"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:coil_chrono"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:backpack_recon_drone"
+  },
+  "energy": 120000,
+  "time": 400
+}

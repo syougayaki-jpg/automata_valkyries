@@ -1,0 +1,33 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 1,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:composite_plate"
+      },
+      "count": 3
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:alloy_luminal_sterling"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:coil_chrono"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_advanced"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:backpack_sub_arm"
+  },
+  "energy": 120000,
+  "time": 400
+}

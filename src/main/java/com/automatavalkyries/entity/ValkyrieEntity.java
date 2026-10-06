@@ -614,6 +614,9 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         if (getShield() > getMaxShield()) entityData.set(SHIELD, getMaxShield());
     }
 
+    /** コマンドリンクにつながっている期限（ゲーム時刻。サーバー） */
+    public long commandLinkUntil;
+
     /** 電力の最大（ルミナスフレーム一式で 1.5 倍。クライアントでも見た目の外装から） */
     public int maxEnergy() {
         return com.automatavalkyries.entity.ai.ValkyrieUnitEffects.maxEnergy(this);
@@ -714,7 +717,9 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
 
     /** 同調率の能力上昇の倍率（20% ごとに段階的、100% で 1.2 倍【仮】） */
     public float syncMultiplier() {
-        return 1.0F + (float) SYNC_BONUS * (int) (getSyncRate() / 20.0F) / 5.0F;
+        int steps = (int) (getSyncRate() / 20.0F);
+        if (level().getGameTime() < commandLinkUntil) steps = Math.min(steps + 1, 5); // コマンドリンクで 1 段上げ
+        return 1.0F + (float) SYNC_BONUS * steps / 5.0F;
     }
 
     /** 装備一式の毎 Tick の消費 FE（今は体の維持だけ。兵装は撃つたび・背部ユニットは使うたびなので入れない） */

@@ -136,7 +136,19 @@ public final class ValkyrieUnits {
         TACHYON_DRIVE("tachyon_drive", 3, 4.0F, 20_000, null),
         MEMENTO_FAMILIAR("memento_familiar", 3, 7.0F, 30_000, null),
         // ガリア・フォートレスは全身の外装から、まわりを盾が回る背部ユニット（T3）へ（2026-10-06 ユーザー指定。重さは【仮】）
-        GALLIA_FORTRESS("gallia_fortress", 3, 20.0F, 0, null);
+        GALLIA_FORTRESS("gallia_fortress", 3, 20.0F, 0, null),
+        // 追加の背部ユニット（2026-10-06 ユーザー指定。T4 は強い補助。entity/ai/ValkyrieSupportUnits。数は【仮】）
+        SUB_ARM("sub_arm", 1, 5.0F, 0, null),
+        RECON_DRONE("recon_drone", 1, 3.0F, 500, null),
+        SPARE_BATTERY("spare_battery", 1, 6.0F, 0, null),
+        REPAIR_DRONE("repair_drone", 2, 6.0F, 2_000, null),
+        MICRO_MISSILE("micro_missile", 2, 10.0F, 20_000, null),
+        GRAPPLE_ANCHOR("grapple_anchor", 2, 7.0F, 3_000, null),
+        PRISM_REFLECTOR("prism_reflector", 3, 9.0F, 10_000, null),
+        ASTRAL_HALO("astral_halo", 4, 10.0F, 3_000, null),
+        RESURRECTION_CORE("resurrection_core", 4, 8.0F, 50_000, null),
+        ACCELERATOR("accelerator", 4, 7.0F, 4_000, null),
+        COMMAND_LINK("command_link", 4, 6.0F, 0, null);
 
         public final String id;
         public final int tier;

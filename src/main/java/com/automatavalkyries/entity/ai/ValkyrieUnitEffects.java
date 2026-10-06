@@ -169,6 +169,7 @@ public final class ValkyrieUnitEffects {
         LivingEntity target = v.getTarget();
         if (v.tickCount % 10 == 0) applyAttributes(v);
         frameTick(level, v); // 特殊なフレームの一式の効果
+        ValkyrieSupportUnits.tick(level, v, b); // 追加の背部ユニット
         if (back == BackpackKind.TACHYON_DRIVE && v.tickCount % 20 == 0 && tachyonOn(v)) b.spend(BackpackKind.TACHYON_DRIVE.fe);
         if (back == BackpackKind.TACHYON_DRIVE && tachyonOn(v) && v.getDeltaMovement().horizontalDistanceSqr() > 0.01 && v.tickCount % 2 == 0) {
             Fx.spray(level, Fx.opt(ModParticles.GLOW.get(), 0x7FE8FF, 0.6F, 8), v.position().add(0, 0.9, 0), 2, 0.2, 0.4, 0.2, 0.0); // 残像
@@ -430,9 +431,14 @@ public final class ValkyrieUnitEffects {
         return true;
     }
 
-    /** 電力の最大（ルミナス一式で 1.5 倍） */
+    /** 拾い物の範囲の倍率（サブアームで 1.5） */
+    public static float pickupScale(ValkyrieEntity v) {
+        return backpack(v) == BackpackKind.SUB_ARM ? 1.5F : 1.0F;
+    }
+
+    /** 電力の最大（ルミナス一式で 1.5 倍、増設バッテリーで +30,000） */
     public static int maxEnergy(ValkyrieEntity v) {
-        return wearsSet(v, FrameType.LUMINOUS) ? ValkyrieEntity.MAX_ENERGY * 3 / 2 : ValkyrieEntity.MAX_ENERGY;
+        return (wearsSet(v, FrameType.LUMINOUS) ? ValkyrieEntity.MAX_ENERGY * 3 / 2 : ValkyrieEntity.MAX_ENERGY) + ValkyrieSupportUnits.extraEnergy(v);
     }
 
     /** 兵装・スラスター・ユニットの電力消費の倍率（ルミナス一式で 0.7） */
@@ -460,6 +466,7 @@ public final class ValkyrieUnitEffects {
         float s = 1.0F;
         if (inv(v).frameSet() == FrameType.HELIOS && ranged(v)) s *= 0.8F;
         if (overdrive(v)) s /= 1.5F;
+        if (ValkyrieSupportUnits.accelerated(v)) s *= 0.7F; // アクセラレーター
         return s;
     }
 

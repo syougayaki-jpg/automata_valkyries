@@ -354,6 +354,29 @@ public class ValkyrieCombatGameTests {
         helper.succeed();
     }
 
+    /** 補助の背部ユニット: 増設バッテリーで電力の最大 +30,000、リザレクションコアが機能停止した味方の兵姫を再起動する */
+    @GameTest(template = TEMPLATE, batch = "valkyrie_units", timeoutTicks = 200)
+    public static void valkyrieSupportUnits(GameTestHelper helper) {
+        UUID owner = UUID.randomUUID();
+        ValkyrieEntity core = helper.spawn(ModEntities.VALKYRIE.get(), 1, 2, 1);
+        ValkyrieEntity down = helper.spawn(ModEntities.VALKYRIE.get(), 4, 2, 1);
+        core.setOwnerUUID(owner);
+        down.setOwnerUUID(owner);
+        var B = com.automatavalkyries.registry.ModValkyrieUnits.BACKPACKS;
+        int back = com.automatavalkyries.entity.ValkyrieInventory.BACKPACK;
+        down.getInventory().setItem(back, new ItemStack(B.get(com.automatavalkyries.item.unit.ValkyrieUnits.BackpackKind.SPARE_BATTERY).get()));
+        helper.assertTrue(down.maxEnergy() == ValkyrieEntity.MAX_ENERGY + 30_000, "the spare battery did not raise max power: " + down.maxEnergy());
+        core.getInventory().setItem(back, new ItemStack(B.get(com.automatavalkyries.item.unit.ValkyrieUnits.BackpackKind.RESURRECTION_CORE).get()));
+        core.setEnergy(ValkyrieEntity.MAX_ENERGY);
+        down.shutdown();
+        helper.succeedWhen(() -> {
+            helper.assertFalse(down.isShutdown(), "the resurrection core did not reboot the ally");
+            helper.assertTrue(DirectRead.health(down) >= down.getMaxHealth() * 0.45F, "the ally was not rebooted at half HP");
+            core.releaseAndDiscard();
+            down.releaseAndDiscard();
+        });
+    }
+
     /** メディック: 味方の兵姫の HP が半分を割ったら駆け寄ってナノマシン溶液で修理する */
     @GameTest(template = TEMPLATE, batch = "valkyrie_units", timeoutTicks = 300)
     public static void valkyrieMedicRepairsAlly(GameTestHelper helper) {

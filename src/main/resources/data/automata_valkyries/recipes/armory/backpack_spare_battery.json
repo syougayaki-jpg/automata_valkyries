@@ -1,0 +1,28 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 1,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:crystal_luminal"
+      },
+      "count": 3
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:coil_chrono"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_advanced"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:backpack_spare_battery"
+  },
+  "energy": 120000,
+  "time": 400
+}

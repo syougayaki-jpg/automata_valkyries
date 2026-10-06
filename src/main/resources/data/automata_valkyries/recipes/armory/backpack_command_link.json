@@ -1,0 +1,40 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 4,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_causal"
+      },
+      "count": 3
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:processor_synapse"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:shell_causal"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:emitter_spatial"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:star_chronos"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:backpack_command_link"
+  },
+  "energy": 20000000,
+  "time": 1200
+}

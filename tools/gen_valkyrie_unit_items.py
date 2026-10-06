@@ -4,7 +4,7 @@
     python tools/gen_valkyrie_unit_items.py [プレビューの出力先.png]
 
 出力（assets/automata_valkyries/ の下）:
-  textures/item/<id>.png      … 63 種
+  textures/item/<id>.png      … 74 種
   models/item/<id>.json       … item/generated
 
 絵は文字の格子で描く。8 文字の行は左半分で、右半分は左右反転して影の色に寄せる（左上から光が当たる）。
@@ -496,6 +496,214 @@ def tachyon():
     return img
 
 
+# ---- 背部ユニット 11 種（2026-10-06）
+SUB_ARM = [
+    '................',
+    '........oooooo..',
+    '.......ohhhhhbo.',
+    '......ohhbbbbbso',
+    '......ohbbggbbso',
+    '......ohbbggbbso',
+    '......ohbbbbbbso',
+    '.......obbbbbso.',
+    '.....oaoooooo...',
+    '....ohho........',
+    '...ohho.........',
+    '..oagho.........',
+    '..ohho..........',
+    '.ohho...........',
+    'ohhho...........',
+    'ooooo...........',
+]
+DRONE_RECON = [
+    '................',
+    '.ooo........ooo.',
+    'obbbo......obbbo',
+    '.ooo.o....o.ooo.',
+    '......oooo......',
+    '....oohhhhoo....',
+    '....ohhhhhbo....',
+    '....ohbnnbso....',
+    '....osbNNbso....',
+    '....oossssoo....',
+    '......o..o......',
+    '.ooo.o....o.ooo.',
+    'obbbo......obbbo',
+    '.ooo........ooo.',
+]
+DRONE_REPAIR = [
+    '................',
+    '.ooo........ooo.',
+    'obbbo......obbbo',
+    '.ooo.o....o.ooo.',
+    '......oooo......',
+    '....owwwwwwo....',
+    '...owwwnnwwwo...',
+    '...owwnnnnwwo...',
+    '...owwwnnwwso...',
+    '....osssssso....',
+    '......o..o......',
+    '.ooo.o....o.ooo.',
+    'obbbo......obbbo',
+    '.ooo........ooo.',
+]
+BATTERY = [
+    '...ooo.....ooo..',
+    '..ohhbo...ohhbo.',
+    '.ohhhbso.ohhhbso',
+    '.ohyhbso.ohyhbso',
+    '.ohyhbso.ohyhbso',
+    '.ohyhbso.ohyhbso',
+    '.ohYhbso.ohYhbso',
+    '.ohghbso.ohghbso',
+    '.ohghbso.ohghbso',
+    '.ohhhbso.ohhhbso',
+    '.ooooooo.ooooooo',
+    '.obbbbso.obbbbso',
+    '.ossssso.ossssso',
+    '..ooooo...ooooo.',
+]
+MISSILE = [
+    '................',
+    '.oooooooooooooo.',
+    '.ohhhhhhhhhhhbo.',
+    '.ohoooobboooobo.',
+    '.ohorRobborRobo.',
+    '.ohorrobborrobo.',
+    '.ohoooobboooobo.',
+    '.ohbbbbbbbbbbbo.',
+    '.ohoooobboooobo.',
+    '.ohorRobborRobo.',
+    '.ohorrobborrobo.',
+    '.ohoooobboooobo.',
+    '.osssssssssssso.',
+    '.oooooooooooooo.',
+    '...oo......oo...',
+]
+GRAPPLE = [
+    '................',
+    '..........oo....',
+    '.........ohbo...',
+    '.........ohbo...',
+    '.ooooooo.ohbo...',
+    'ohhhhhhbooaao...',
+    'oaaaaaaaoohbo...',
+    'ohhhhhhboohbo...',
+    'oaaaaaaaoohbo...',
+    'ohhhhhhbo.ohbo..',
+    '.ooooooo.oohboo.',
+    '........oaohboao',
+    '........oa.oo.ao',
+    '.........o....o.',
+]
+COMMAND = [
+    '..oYo...........',
+    '...o......ooo...',
+    '..oao....ohhho..',
+    '...o....ohhhhbo.',
+    '...o....ohhgbbo.',
+    '..oao...osbbbso.',
+    '...o.....ossso..',
+    '...o......obo...',
+    '..oao.....obo...',
+    '...o......obo...',
+    '..ooo..nnnnnn...',
+    '.ohhbo.nNNNNn...',
+    '.ohhbo.nnnnnn...',
+    'ossssso.........',
+    'ooooooo.........',
+]
+PAL_GRAPPLE = {'o': 0x14161C, 'h': 0x6E7684, 'b': 0x4A505C, 's': 0x2C3038, 'a': 0xFF9A2E}
+PAL_BP11 = dict(PAL_UNIT, **{'n': 0x6CFF7A, 'N': 0xD0FFD6, 'w': 0xF2F5FA, 'y': 0xFFE040, 'Y': 0xFFF6B0,
+                             'r': 0xFF3B4E, 'R': 0xFFB0B8})
+PAL_COMMAND = {'o': 0x0A0E1E, 'h': 0x3A4A7A, 'b': 0x26325A, 's': 0x161E3A, 'a': 0xE8C060, 'Y': 0xFFE890,
+               'g': 0xFFD25A, 'n': 0x3BE8FF, 'N': 0xC8FFFF}
+
+
+def _put(img, x, y, c):
+    if 0 <= x < 16 and 0 <= y < 16:
+        img.putpixel((x, y), c + (255,) if len(c) == 3 else c)
+
+
+def prism_icon():
+    """結晶の板 3 枚（中央が高い）。縁はシアンと桃"""
+    img = Image.new('RGBA', (16, 16), (0, 0, 0, 0))
+    for cx, cy, rx, ry, edge in ((3.5, 9.0, 2.6, 5.0, (0xFF, 0x7A, 0xD8)), (12.5, 9.0, 2.6, 5.0, (0xFF, 0x7A, 0xD8)),
+                                 (8.0, 7.5, 3.2, 7.0, (0x3B, 0xE8, 0xFF))):
+        for y in range(16):
+            for x in range(16):
+                d = abs(x + 0.5 - cx) / rx + abs(y + 0.5 - cy) / ry
+                if d <= 1.0:
+                    if d > 0.78:
+                        c = edge
+                    else:
+                        k = 0.55 + 0.45 * (1 - (x + 0.5 - cx + rx) / (2 * rx))
+                        c = (int(0x9E * k + 60), int(0xF0 * k + 15), 255)
+                        if abs((x - cx) - (y - cy) * 0.4) < 0.6:
+                            c = (0xF0, 0xFF, 0xFF)
+                    _put(img, x, y, c)
+    return img
+
+
+def halo_icon():
+    """金の輪（内側は白く光る）と中央の小さな放射器"""
+    img = Image.new('RGBA', (16, 16), (0, 0, 0, 0))
+    cx = cy = 7.5
+    for y in range(16):
+        for x in range(16):
+            d = math.hypot(x - cx, y - cy)
+            if 6.2 < d <= 7.4:
+                _put(img, x, y, (0x96, 0x6E, 0x1E) if d > 7.0 else (0xFF, 0xD2, 0x5A))
+            elif 5.6 < d <= 6.2:
+                _put(img, x, y, (0xFF, 0xF4, 0xCC))
+    for (x, y) in ((7, 0), (8, 0), (0, 7), (0, 8), (15, 7), (15, 8), (7, 15), (8, 15)):
+        _put(img, x, y, (0xFF, 0xFF, 0xFF))
+    for y in range(6, 10):
+        for x in range(6, 10):
+            _put(img, x, y, (0xE8, 0xEE, 0xF6) if (x in (6, 9) or y in (6, 9)) else (0xFF, 0xFF, 0xFF))
+    _put(img, 7, 7, (0xFF, 0xE0, 0x80)); _put(img, 8, 8, (0xFF, 0xE0, 0x80))
+    return img
+
+
+def heart_icon():
+    """白と金の揺りかごの中の桃色の結晶のハート"""
+    img = Image.new('RGBA', (16, 16), (0, 0, 0, 0))
+    for y in range(16):
+        for x in range(16):
+            if x in (1, 14) and 2 <= y <= 13 or y in (14,) and 1 <= x <= 14:
+                _put(img, x, y, (0xD6, 0xAC, 0x40) if (x + y) % 3 else (0xFA, 0xDC, 0x78))
+            elif y == 1 and 1 <= x <= 14:
+                _put(img, x, y, (0xFA, 0xFC, 0xFF))
+            u = (x + 0.5 - 8.0) / 5.0
+            v = (7.0 - (y + 0.5)) / 5.0
+            f = (u * u + v * v - 1) ** 3 - u * u * v ** 3
+            if f <= 0 and 2 <= x <= 13:
+                inner = (u * u + v * v - 0.55) ** 3 - u * u * v ** 3 * 0.6 <= 0
+                c = (0xFF, 0x9A, 0xD8) if not inner else (0xFF, 0xD0, 0xEC)
+                if f > -0.02:
+                    c = (0xB0, 0x40, 0x88)
+                _put(img, x, y, c)
+    _put(img, 6, 5, (0xFF, 0xFF, 0xFF)); _put(img, 5, 6, (0xFF, 0xFF, 0xFF))
+    return img
+
+
+def accel_icon():
+    """縦の輪のコイル 2 つ（電気の青）と真ん中の山形"""
+    img = Image.new('RGBA', (16, 16), (0, 0, 0, 0))
+    for cx in (3.5, 12.0):
+        for y in range(16):
+            for x in range(16):
+                d = math.hypot((x - cx) / 3.2, (y - 7.5) / 7.2)
+                if 0.72 < d <= 1.0:
+                    _put(img, x, y, (0x14, 0x1A, 0x2C) if d > 0.9 else (0x5A, 0xA0, 0xFF))
+                elif 0.6 < d <= 0.72:
+                    _put(img, x, y, (0xDC, 0xE8, 0xFF))
+    for i in range(3):
+        _put(img, 6 + i, 5 + i, (0xF0, 0xF6, 0xFF)); _put(img, 6 + i, 10 - i, (0xF0, 0xF6, 0xFF))
+        _put(img, 7 + i, 5 + i, (0x5A, 0xA0, 0xFF)); _put(img, 7 + i, 10 - i, (0x5A, 0xA0, 0xFF))
+    return img
+
+
 # ------------------------------------------------------------------ ロジックチップ
 
 CHIP_GLYPHS = {
@@ -654,6 +862,17 @@ def build():
     items['backpack_tachyon_drive'] = tachyon()
     items['backpack_gallia_fortress'] = paint(GALLIA, PAL_GALLIA)
     items['backpack_memento_familiar'] = paint(MEMENTO, PAL_MEMENTO)
+    items['backpack_sub_arm'] = paint(SUB_ARM, PAL_BP11)
+    items['backpack_recon_drone'] = paint(DRONE_RECON, PAL_BP11)
+    items['backpack_spare_battery'] = paint(BATTERY, PAL_BP11)
+    items['backpack_repair_drone'] = paint(DRONE_REPAIR, dict(PAL_BP11, s=0x9AA2B4))
+    items['backpack_micro_missile'] = paint(MISSILE, PAL_BP11)
+    items['backpack_grapple_anchor'] = paint(GRAPPLE, PAL_GRAPPLE)
+    items['backpack_prism_reflector'] = prism_icon()
+    items['backpack_astral_halo'] = halo_icon()
+    items['backpack_resurrection_core'] = heart_icon()
+    items['backpack_accelerator'] = accel_icon()
+    items['backpack_command_link'] = paint(COMMAND, PAL_COMMAND)
     for k in CHIP_GLYPHS:
         items[f'chip_{k}'] = chip(k)
     return items
