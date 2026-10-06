@@ -233,7 +233,7 @@ public class ValkyrieMenu extends AbstractContainerMenu {
                 case SHIELD -> tenths(v.getShield());
                 case MAX_SHIELD -> tenths(v.getMaxShield());
                 case ENERGY -> v.getEnergy() / 10;
-                case MAX_ENERGY -> ValkyrieEntity.MAX_ENERGY / 10;
+                case MAX_ENERGY -> v.maxEnergy() / 10;
                 case WEIGHT -> tenths(v.carriedWeight());
                 case LIMIT -> tenths(v.weightLimit());
                 case ATTACK -> tenths(v.attackValue());

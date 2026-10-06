@@ -4,7 +4,7 @@
     python tools/gen_valkyrie_unit_items.py [プレビューの出力先.png]
 
 出力（assets/automata_valkyries/ の下）:
-  textures/item/<id>.png      … 36 種
+  textures/item/<id>.png      … 63 種
   models/item/<id>.json       … item/generated
 
 絵は文字の格子で描く。8 文字の行は左半分で、右半分は左右反転して影の色に寄せる（左上から光が当たる）。
@@ -267,6 +267,47 @@ VALKYRIE_TIER_ROWS = {
         'legs': {2: '..oAAAAA', 3: '..oggggg', 8: '.oohgho.', 9: '.oAAAAo.', 10: '.oohhho.', 13: '.oAAAAo.'},
     },
 }
+
+
+# 特殊フレーム 9 種（2026-10-06）: 元の形（valkyrie / fortress / mirage）＋型ごとの色＋飾りの行の差し替え
+SPECIAL_FRAMES = {
+    # 型: (元の形, 色, {部位: {行: 新しい行}})
+    'scout': ('valkyrie', {'o': 0x141A14, 'h': 0x8A9A7C, 'b': 0x637258, 's': 0x3C4636, 'g': 0x6CFF7A, 'a': 0xB8FFC0,
+                           'v': 0x1E3A22, 'V': 0xD0FFD6},
+              {'head': {0: 'o.....og', 1: 'og...ohg', 2: 'o...ohhg'}}),
+    'maintenance': ('fortress', {'o': 0x18161A, 'h': 0xF09A3A, 'b': 0xC8762A, 's': 0x5A626E, 'g': 0xFFC040, 'a': 0x8C96A4,
+                                 'v': 0x6A3A10, 'V': 0xFFE2A0},
+                    {'head': {8: 'ohoggggg'}, 'chest': {13: '...oaaaa'}}),
+    'seraph': ('valkyrie', {'o': 0x2A2030, 'h': 0xFAF6FA, 'b': 0xE6D2E0, 's': 0xB49AAE, 'g': 0xFF9AD8, 'a': 0xFFD0EC,
+                            'v': 0xC0508C, 'V': 0xFFE8F6},
+               {'head': {0: '...aaaaa', 1: '..a..ohg'}, 'chest': {0: 'a.......', 1: 'aaoo....'}}),
+    'striker': ('valkyrie', {'o': 0x100A0C, 'h': 0xE03040, 'b': 0xA82030, 's': 0x2A2830, 'g': 0xFF5060, 'a': 0xFFA0A8,
+                             'v': 0x3A0C14, 'V': 0xFFC0C8},
+                {'legs': {8: '..ohhhoa', 9: '..oaaaaa'}}),
+    'aegis': ('fortress', {'o': 0x0E1426, 'h': 0x7A9CE0, 'b': 0x4A74C8, 's': 0x2A4480, 'g': 0xB8D0FF, 'a': 0xDCE2EA,
+                           'v': 0x1A2C60, 'V': 0xE8F0FF},
+              {'chest': {1: 'oooooo..', 2: 'oaaaaaoo', 3: 'oahhhahh'}}),
+    'tempest': ('valkyrie', {'o': 0x0C2422, 'h': 0xF0F8F8, 'b': 0x7ED8D0, 's': 0x2A8C84, 'g': 0x40FFD8, 'a': 0xC0FFF2,
+                             'v': 0x0E5A54, 'V': 0xD8FFF8},
+                {'chest': {0: 'gg......', 1: 'ohgoo...'}, 'legs': {12: '.oohhho.', 13: 'gohhhho.'}}),
+    'helios': ('fortress', {'o': 0x100C08, 'h': 0x5E566A, 'b': 0x403A4C, 's': 0x26232E, 'g': 0xFFA040, 'a': 0xFFD66E,
+                            'v': 0x5A2A08, 'V': 0xFFF0C8},
+               {'head': {0: '...a.a.a', 1: '....aaaa'}}),
+    'nemesis': ('mirage', {'o': 0x060406, 'h': 0x3A2A30, 'b': 0x241A1E, 's': 0x140E10, 'g': 0xFF2038, 'a': 0xB01828,
+                           'v': 0x500810, 'V': 0xFF8090},
+                {}),
+    'luminous': ('valkyrie', {'o': 0x14304A, 'h': 0xF8FCFF, 'b': 0xBEEAF8, 's': 0x7AB8D0, 'g': 0x3BE8FF, 'a': 0xA8F6FF,
+                              'v': 0x1A7FB0, 'V': 0xFFFFFF},
+                 {'head': {0: '...g..og', 1: '...ag.hg'}, 'chest': {5: 'ohhohgaa', 6: 'ohaohgVV'}}),
+}
+
+
+def special_rows(kind, part):
+    base, _, over = SPECIAL_FRAMES[kind]
+    rows = list(FRAME_SHAPES[base][part])
+    for i, r in over.get(part, {}).items():
+        rows[i] = r
+    return rows
 
 
 def valkyrie_tier_rows(tier, part):
@@ -598,6 +639,9 @@ def build():
     for t in ('valkyrie', 'fortress', 'mirage'):
         for part, rows in FRAME_SHAPES[t].items():
             items[f'frame_{t}_{part}'] = paint(rows, FRAME_PALS[t])
+    for kind, (_, pal, _) in SPECIAL_FRAMES.items():
+        for part in ('head', 'chest', 'legs'):
+            items[f'frame_{kind}_{part}'] = paint(special_rows(kind, part), pal)
     for tier in (2, 3, 4):
         for part in ('head', 'chest', 'legs'):
             items[f'frame_valkyrie_mk{tier}_{part}'] = paint(valkyrie_tier_rows(tier, part), PAL_VALKYRIE4 if tier == 4 else PAL_VALKYRIE)

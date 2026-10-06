@@ -191,10 +191,10 @@ public final class ValkyrieHud {
         int barX = tx + 9, barW = x + W - 5 - digitsW - 3 - barX;
         float hpValue = health(v), hp = ratio(hpValue, v.getMaxHealth());
         boolean hpBlink = hp < 0.25F && Mth.sin(time * 0.4F) < 0;
-        int energyPct = Math.min(100, (int) ((long) v.getEnergy() * 100 / ValkyrieEntity.MAX_ENERGY));
+        int energyPct = Math.min(100, (int) ((long) v.getEnergy() * 100 / v.maxEnergy()));
         int[] rowY = {y + 16, y + 26, y + 36};
         int[] colors = {down ? DIM : SHIELD_COLOR, down ? DIM : hpBlink ? 0xFFFFB0B8 : HP_COLOR, down ? DIM : POWER_COLOR};
-        float[] ratios = {ratio(v.getShield(), v.getMaxShield()), hp, ratio(v.getEnergy(), ValkyrieEntity.MAX_ENERGY)};
+        float[] ratios = {ratio(v.getShield(), v.getMaxShield()), hp, ratio(v.getEnergy(), v.maxEnergy())};
         int[] values = {(int) Math.ceil(v.getShield()), (int) Math.ceil(hpValue), energyPct};
         for (int i = 0; i < 3; i++) {
             int ry = rowY[i], c = colors[i];

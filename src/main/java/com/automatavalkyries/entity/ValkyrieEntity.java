@@ -614,12 +614,29 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         if (getShield() > getMaxShield()) entityData.set(SHIELD, getMaxShield());
     }
 
+    /** 電力の最大（ルミナスフレーム一式で 1.5 倍。クライアントでも見た目の外装から） */
+    public int maxEnergy() {
+        return com.automatavalkyries.entity.ai.ValkyrieUnitEffects.maxEnergy(this);
+    }
+
+    /** 最後に被弾してからの Tick */
+    public int ticksSinceHurt() {
+        return tickCount - lastHurtTick;
+    }
+
+    /** シールドの回復を ticks 分だけ足す（セラフフレーム。回復できる間だけ、電力は使わない） */
+    public void bonusShieldRegen(float ticks) {
+        float shield = getShield();
+        if (isShutdown() || shield >= getMaxShield() || ticksSinceHurt() < SHIELD_DELAY) return;
+        entityData.set(SHIELD, Math.min(getMaxShield(), shield + SHIELD_REGEN * omegaMultiplier() / 20.0F * ticks));
+    }
+
     public int getEnergy() {
         return entityData.get(ENERGY);
     }
 
     public void setEnergy(int energy) {
-        entityData.set(ENERGY, Mth.clamp(energy, 0, MAX_ENERGY));
+        entityData.set(ENERGY, Mth.clamp(energy, 0, maxEnergy()));
     }
 
     /** 電力切れで休眠しているか（動かない。補充されたら起きる） */
@@ -755,8 +772,8 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
             }
         }
         // コアから補充（放電レートと Max I/O で頭打ち）
-        if (energy < MAX_ENERGY && getCore().getItem() instanceof com.automatavalkyries.weapon.LuminalCoreItem c) {
-            energy += c.extract(getCore(), Math.min(MAX_ENERGY - Math.max(0, energy), MAX_IO));
+        if (energy < maxEnergy() && getCore().getItem() instanceof com.automatavalkyries.weapon.LuminalCoreItem c) {
+            energy += c.extract(getCore(), Math.min(maxEnergy() - Math.max(0, energy), MAX_IO));
         }
         setEnergy(energy);
         // 電力 0 で休眠、補充されたら起きる（暫定統一 C）
@@ -1183,7 +1200,7 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         }
         // 段階 2 より前の兵姫（記録が無い）は満タンで始める
         entityData.set(SHIELD, tag.contains("Shield") ? Mth.clamp(tag.getFloat("Shield"), 0.0F, getMaxShield()) : getMaxShield());
-        setEnergy(tag.contains("Energy") ? tag.getInt("Energy") : MAX_ENERGY);
+        setEnergy(tag.contains("Energy") ? tag.getInt("Energy") : maxEnergy());
         entityData.set(ASLEEP, tag.getBoolean("Asleep"));
         kills = tag.getInt("Kills");
         uptime = tag.getLong("Uptime");

@@ -151,7 +151,7 @@ public final class ValkyrieDaily {
             if (raining && !wasRaining && ownerNear) v.talk("rain");
             wasRaining = raining;
             // 低電力（20% 以下）
-            if (v.getEnergy() <= ValkyrieEntity.MAX_ENERGY / 5 && ownerNear) v.talk("low_power");
+            if (v.getEnergy() <= v.maxEnergy() / 5 && ownerNear) v.talk("low_power");
             // 独り言（持ち主がそばにいるとき、ときどき）
             if (ownerNear && v.getRandom().nextInt(90) == 0) {
                 v.talk(v.isSitting() ? "sit" : "idle");
@@ -228,7 +228,7 @@ public final class ValkyrieDaily {
         }
 
         private float power() {
-            return v.getEnergy() / (float) ValkyrieEntity.MAX_ENERGY;
+            return v.getEnergy() / (float) v.maxEnergy();
         }
 
         @Override
@@ -308,7 +308,7 @@ public final class ValkyrieDaily {
             v.setDeltaMovement(Vec3.ZERO);
             v.setCharging(true);
             charger.setCharging(true);
-            int want = Math.min(CHARGE_RATE, ValkyrieEntity.MAX_ENERGY - v.getEnergy());
+            int want = Math.min(Math.round(CHARGE_RATE * ValkyrieUnitEffects.chargeScale(v)), v.maxEnergy() - v.getEnergy()); // メンテナンスフレームは 1.5 倍速
             if (want > 0) v.setEnergy(v.getEnergy() + charger.drain(want));
         }
     }

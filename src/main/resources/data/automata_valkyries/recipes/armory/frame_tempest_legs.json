@@ -1,0 +1,34 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 3,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:plating_stellar"
+      },
+      "count": 3
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:matrix_photon"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_chrono_lattice"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:gate_wormhole"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:frame_tempest_legs"
+  },
+  "energy": 3800000,
+  "time": 800
+}

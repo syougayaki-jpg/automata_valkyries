@@ -1,0 +1,34 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 2,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:alloy_luminal_sterling"
+      },
+      "count": 4
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:matrix_photon"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_quantum_tac"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:crystal_luminal"
+      },
+      "count": 2
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:frame_seraph_legs"
+  },
+  "energy": 1100000,
+  "time": 600
+}

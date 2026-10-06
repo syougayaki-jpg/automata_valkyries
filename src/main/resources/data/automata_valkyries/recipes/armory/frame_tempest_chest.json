@@ -1,0 +1,39 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 3,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:plating_stellar"
+      },
+      "count": 4
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:matrix_photon"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_chrono_lattice"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:gate_wormhole"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:heart_stellar"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:frame_tempest_chest"
+  },
+  "energy": 4000000,
+  "time": 800
+}

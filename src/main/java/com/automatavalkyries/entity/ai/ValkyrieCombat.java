@@ -70,6 +70,8 @@ public final class ValkyrieCombat {
     public static final int HOVER_TICKS = 16, HOVER_COOLDOWN = 200;
     /** スラスターの空中ダッシュ・空中ジャンプを続けて出す間（Tick）【仮】 */
     public static final int AIR_GAP = 12;
+    /** ストライカー: ダッシュ直後の 1 撃が強くなる間（Tick） */
+    public static final int DASH_BOOST_TICKS = 30;
     /** スラスターの滞空で上の相手へ上昇する速さ（ブロック/Tick）【仮】 */
     public static final double ASCEND_SPEED = 0.4;
     /** 電力で射撃の兵装から近接の予備へ持ち替える・戻す割合【仮】 */
@@ -228,6 +230,8 @@ public final class ValkyrieCombat {
         int dodgeScan, hoverTicks, hoverCooldown, stepTicks;
         /** ステップの最中に地面を離れたか（着地するまでステップの最中） */
         boolean stepAirborne;
+        /** ストライカー: ダッシュ直後の 1 撃が強くなる期限・ネメシス: オーバードライブの期限とまた使える時刻（ゲーム時刻） */
+        public long dashBoostUntil, overdriveUntil, overdriveReadyAt;
         /** タキオンドライブのタキオン化をまた使える時刻（ゲーム時刻） */
         public long tachyonReadyAt;
         /** タレットで射程に入って足を止めている（ステップ・回避・空中ダッシュをしない） */
@@ -350,7 +354,7 @@ public final class ValkyrieCombat {
          */
         private void swapForPower() {
             if (v.isUsingItem()) return;
-            float power = v.getEnergy() / (float) ValkyrieEntity.MAX_ENERGY;
+            float power = v.getEnergy() / (float) v.maxEnergy();
             ItemStack main = v.getMainHandItem();
             if (swappedSlot < 0 && power < SWAP_LOW && ranged(main)) {
                 swapToMelee(true);
@@ -408,6 +412,7 @@ public final class ValkyrieCombat {
 
         /** 兵姫の電力を使う（休眠の手前は残す）。使えたら true */
         boolean spend(int fe) {
+            fe = Math.round(fe * ValkyrieUnitEffects.powerScale(v)); // ルミナスフレームは -30%
             if (v.getEnergy() < fe + ValkyrieEntity.WAKE_ENERGY) return false;
             v.setEnergy(v.getEnergy() - fe);
             return true;
@@ -447,6 +452,7 @@ public final class ValkyrieCombat {
             if (h.lengthSqr() < 1.0e-4 || !canStep(h) || !spend(Math.round(fe * ValkyrieUnitEffects.boostCostScale(v)))) return false;
             StepDir d = classify(h);
             stepCooldown[d.ordinal()] = STEP_COOLDOWN;
+            dashBoostUntil = v.level().getGameTime() + DASH_BOOST_TICKS;
             v.playStep(d.ordinal()); // ステップの動き（モデル）
             h = h.normalize().scale(power);
             v.setDeltaMovement(h.x, up, h.z);
@@ -490,6 +496,7 @@ public final class ValkyrieCombat {
             if (m == null || v.onGround() || (stepLocked && !approach) || anchored || airGap > 0 || airDashes >= m.airDashes() || h.lengthSqr() < 1.0e-4 || !spend(thrusterFe())) return false;
             airDashes++;
             airGap = m.evasive() ? AIR_GAP / 2 : AIR_GAP;
+            dashBoostUntil = v.level().getGameTime() + DASH_BOOST_TICKS;
             StepDir d = classify(h);
             v.playStep(d.ordinal());
             h = h.normalize().scale(power);
@@ -1037,6 +1044,11 @@ public final class ValkyrieCombat {
             return true;
         }
 
+        /** 攻撃の間隔（ヘリオスの射撃は 0.8 倍、ネメシスのオーバードライブ中は 2/3） */
+        private int scaled(int ticks) {
+            return Math.max(1, Math.round(ticks * ValkyrieUnitEffects.attackIntervalScale(v)));
+        }
+
         private void stopCharging(boolean release) {
             if (charging > 0 || v.isUsingItem()) {
                 if (release) v.releaseUsingItem();
@@ -1081,7 +1093,7 @@ public final class ValkyrieCombat {
                     charging = 0;
                 } else if (v.getTicksUsingItem() >= charging) {
                     stopCharging(true);
-                    skillTimer = art != null ? art.skillCooldown() : 60;
+                    skillTimer = scaled(art != null ? art.skillCooldown() : 60);
                 } else {
                     v.getNavigation().stop();
                     return;
@@ -1111,7 +1123,7 @@ public final class ValkyrieCombat {
                     aim(v, t);
                     if (art.style() == Style.MELEE) v.playAttack(attackMotion(main, combo, true));
                     if (art.skill().run(level, v, main, t)) {
-                        skillTimer = art.skillCooldown();
+                        skillTimer = scaled(art.skillCooldown());
                         failures = 0;
                         return;
                     }
@@ -1127,7 +1139,7 @@ public final class ValkyrieCombat {
                     aim(v, t);
                     if (blade) v.playAttack(attackMotion(main, combo++, false));
                     if (art.basic().run(level, v, main, t)) {
-                        basicTimer = art.basicInterval();
+                        basicTimer = scaled(art.basicInterval());
                         failures = 0;
                         if (!blade) v.swing(InteractionHand.MAIN_HAND, true); // 撃った反動の動き（モデル）
                     } else {
@@ -1143,7 +1155,7 @@ public final class ValkyrieCombat {
                     aim(v, t);
                     v.playAttack(attackMotion(main, combo++, false));
                     ValkyrieArts.strike(melee).run(level, v, main, t); // バニラの近接攻撃は hurtEnemy を呼ばないので、当てたときの処理もここで
-                    basicTimer = art != null ? art.basicInterval() : 12;
+                    basicTimer = scaled(art != null ? art.basicInterval() : 12);
                 }
             }
         }
@@ -1416,7 +1428,7 @@ public final class ValkyrieCombat {
         }
 
         private float power() {
-            return v.getEnergy() * 100.0F / ValkyrieEntity.MAX_ENERGY;
+            return v.getEnergy() * 100.0F / v.maxEnergy();
         }
 
         @Override
@@ -1717,10 +1729,10 @@ public final class ValkyrieCombat {
             int slot = findNano(true);
             if (slot < 0) return;
             if (p instanceof ValkyrieEntity other) {
-                other.repair(ValkyrieEntity.REPAIR);
+                other.repair(ValkyrieEntity.REPAIR * ValkyrieUnitEffects.healScale(v));
                 v.combat().line("medic_repair", Emote.NOTE);
             } else {
-                p.heal(PLAYER_HEAL);
+                p.heal(PLAYER_HEAL * ValkyrieUnitEffects.healScale(v));
                 p.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.REGENERATION, REGEN_TICKS, 1));
                 v.combat().line("medic_heal", Emote.NOTE);
             }

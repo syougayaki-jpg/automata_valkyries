@@ -333,6 +333,27 @@ public class ValkyrieCombatGameTests {
         helper.succeed();
     }
 
+    /** 特殊なフレーム: ルミナス一式で電力の最大 1.5 倍・消費 0.7 倍、テンペスト一式でスラスターの空中ダッシュ +2・滞空 1.5 倍 */
+    @GameTest(template = TEMPLATE, batch = "valkyrie_units")
+    public static void valkyrieSpecialFrames(GameTestHelper helper) {
+        ValkyrieEntity v = helper.spawn(ModEntities.VALKYRIE.get(), 1, 2, 1);
+        var inv = v.getInventory();
+        var F = com.automatavalkyries.registry.ModValkyrieUnits.FRAMES;
+        int[] slots = {com.automatavalkyries.entity.ValkyrieInventory.HEAD, com.automatavalkyries.entity.ValkyrieInventory.CHEST, com.automatavalkyries.entity.ValkyrieInventory.LEGS};
+        var parts = com.automatavalkyries.item.unit.ValkyrieUnits.FramePart.values();
+        for (int i = 0; i < 3; i++) inv.setItem(slots[i], new ItemStack(F.get(com.automatavalkyries.item.unit.ValkyrieUnits.FrameType.LUMINOUS).get(parts[i]).get()));
+        helper.assertTrue(v.maxEnergy() == ValkyrieEntity.MAX_ENERGY * 3 / 2, "Luminous did not raise max power: " + v.maxEnergy());
+        helper.assertTrue(com.automatavalkyries.entity.ai.ValkyrieUnitEffects.powerScale(v) < 0.75F, "Luminous did not cut power use");
+        for (int i = 0; i < 3; i++) inv.setItem(slots[i], new ItemStack(F.get(com.automatavalkyries.item.unit.ValkyrieUnits.FrameType.TEMPEST).get(parts[i]).get()));
+        inv.setItem(com.automatavalkyries.entity.ValkyrieInventory.BACKPACK, new ItemStack(
+                com.automatavalkyries.registry.ModValkyrieUnits.BACKPACKS.get(com.automatavalkyries.item.unit.ValkyrieUnits.BackpackKind.THRUSTER).get()));
+        var m = com.automatavalkyries.entity.ai.ValkyrieUnitEffects.maneuver(v);
+        helper.assertTrue(m != null && m.airDashes() == 5 && m.hoverTicks() == 90, "Tempest did not boost the thruster: " + m);
+        helper.assertTrue(v.maxEnergy() == ValkyrieEntity.MAX_ENERGY, "max power stayed raised without Luminous");
+        v.releaseAndDiscard();
+        helper.succeed();
+    }
+
     /** メディック: 味方の兵姫の HP が半分を割ったら駆け寄ってナノマシン溶液で修理する */
     @GameTest(template = TEMPLATE, batch = "valkyrie_units", timeoutTicks = 300)
     public static void valkyrieMedicRepairsAlly(GameTestHelper helper) {

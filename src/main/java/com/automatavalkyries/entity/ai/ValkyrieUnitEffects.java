@@ -168,6 +168,7 @@ public final class ValkyrieUnitEffects {
         BackpackKind back = inv(v).backpack();
         LivingEntity target = v.getTarget();
         if (v.tickCount % 10 == 0) applyAttributes(v);
+        frameTick(level, v); // 特殊なフレームの一式の効果
         if (back == BackpackKind.TACHYON_DRIVE && v.tickCount % 20 == 0 && tachyonOn(v)) b.spend(BackpackKind.TACHYON_DRIVE.fe);
         if (back == BackpackKind.TACHYON_DRIVE && tachyonOn(v) && v.getDeltaMovement().horizontalDistanceSqr() > 0.01 && v.tickCount % 2 == 0) {
             Fx.spray(level, Fx.opt(ModParticles.GLOW.get(), 0x7FE8FF, 0.6F, 8), v.position().add(0, 0.9, 0), 2, 0.2, 0.4, 0.2, 0.0); // 残像
@@ -301,6 +302,22 @@ public final class ValkyrieUnitEffects {
         LivingEntity victim = event.getEntity();
         if (victim.level().isClientSide) return;
         Entity attacker = event.getSource().getEntity();
+        if (attacker instanceof ValkyrieEntity v && victim != v) {
+            FrameType set = inv(v).frameSet();
+            boolean melee = event.getSource().getDirectEntity() == v && !ranged(v);
+            float mult = 1.0F;
+            if (set == FrameType.STRIKER && melee) {
+                mult *= 1.2F; // 近接 +20%
+                if (v.level().getGameTime() < v.combat().dashBoostUntil) { // ダッシュ直後の 1 撃は 1.5 倍
+                    mult *= 1.5F;
+                    v.combat().dashBoostUntil = 0;
+                }
+            }
+            if (set == FrameType.TEMPEST && !v.onGround()) mult *= 1.2F; // 空中で +20%
+            if (set == FrameType.HELIOS && ranged(v)) mult *= 1.25F;     // 射撃 +25%
+            if (overdrive(v)) mult *= 1.5F;                              // オーバードライブ
+            if (mult != 1.0F) event.setAmount(event.getAmount() * mult);
+        }
         if (attacker instanceof ValkyrieEntity v && victim != v && inv(v).hasChip(ChipKind.PRECISION) && v.getRandom().nextFloat() < 0.35F) {
             event.setAmount(event.getAmount() * 1.5F);
             if (victim.level() instanceof ServerLevel level) {
@@ -391,10 +408,132 @@ public final class ValkyrieUnitEffects {
         return chip.isEmpty() ? null : com.automatavalkyries.item.unit.ValkyrieUnits.turretTargets(chip);
     }
 
-    /** 背負っているスラスターの機動（スラスターでなければ null） */
+    /** 背負っているスラスターの機動（スラスターでなければ null）。テンペストフレーム一式で空中ダッシュ +2 回・滞空 +50% */
     @org.jetbrains.annotations.Nullable
     public static com.automatavalkyries.item.unit.ValkyrieUnits.Maneuver maneuver(ValkyrieEntity v) {
         BackpackKind k = inv(v).backpack();
-        return k != null ? k.maneuver : null;
+        var m = k != null ? k.maneuver : null;
+        if (m == null || inv(v).frameSet() != FrameType.TEMPEST) return m;
+        int unlimited = com.automatavalkyries.item.unit.ValkyrieUnits.Maneuver.UNLIMITED;
+        return new com.automatavalkyries.item.unit.ValkyrieUnits.Maneuver(
+                m.airDashes() == unlimited ? unlimited : m.airDashes() + 2, m.airJumps(),
+                m.hoverTicks() == unlimited ? unlimited : Math.round(m.hoverTicks() * 1.5F), m.airFollow(), m.airCombat(), m.evasive());
+    }
+
+    // ------------------------------------------------------------------ 特殊なフレーム（2026-10-06）
+
+    /** 見た目の外装（クライアントでも）が 3 部位ともその型か */
+    static boolean wearsSet(ValkyrieEntity v, FrameType type) {
+        for (int slot : new int[]{ValkyrieInventory.HEAD, ValkyrieInventory.CHEST, ValkyrieInventory.LEGS}) {
+            if (!(v.unitItem(slot).getItem() instanceof FrameItem f) || f.type != type) return false;
+        }
+        return true;
+    }
+
+    /** 電力の最大（ルミナス一式で 1.5 倍） */
+    public static int maxEnergy(ValkyrieEntity v) {
+        return wearsSet(v, FrameType.LUMINOUS) ? ValkyrieEntity.MAX_ENERGY * 3 / 2 : ValkyrieEntity.MAX_ENERGY;
+    }
+
+    /** 兵装・スラスター・ユニットの電力消費の倍率（ルミナス一式で 0.7） */
+    public static float powerScale(ValkyrieEntity v) {
+        return inv(v).frameSet() == FrameType.LUMINOUS ? 0.7F : 1.0F;
+    }
+
+    /** 充電スタンドの充電の倍率（メンテナンス一式で 1.5） */
+    public static float chargeScale(ValkyrieEntity v) {
+        return inv(v).frameSet() == FrameType.MAINTENANCE ? 1.5F : 1.0F;
+    }
+
+    /** メディックの回復の倍率（セラフ一式で 1.5） */
+    public static float healScale(ValkyrieEntity v) {
+        return inv(v).frameSet() == FrameType.SERAPH ? 1.5F : 1.0F;
+    }
+
+    /** オーバードライブ中か（ネメシス） */
+    public static boolean overdrive(ValkyrieEntity v) {
+        return v.level().getGameTime() < v.combat().overdriveUntil;
+    }
+
+    /** 攻撃の間隔の倍率（ヘリオスの射撃 0.8、オーバードライブ中 2/3） */
+    public static float attackIntervalScale(ValkyrieEntity v) {
+        float s = 1.0F;
+        if (inv(v).frameSet() == FrameType.HELIOS && ranged(v)) s *= 0.8F;
+        if (overdrive(v)) s /= 1.5F;
+        return s;
+    }
+
+    /** 持った兵装が射撃の型か */
+    static boolean ranged(ValkyrieEntity v) {
+        var art = com.automatavalkyries.weapon.ValkyrieArts.of(v.getMainHandItem());
+        return art != null && art.style() != com.automatavalkyries.weapon.ValkyrieArts.Style.MELEE;
+    }
+
+    /** 外装一式の毎 Tick の効果（スカウト・メンテナンス・セラフ・ネメシス） */
+    static void frameTick(ServerLevel level, ValkyrieEntity v) {
+        FrameType set = inv(v).frameSet();
+        if (set == null) return;
+        switch (set) {
+            case SCOUT -> {
+                if (v.tickCount % 20 == 0) {
+                    for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, v.getBoundingBox().inflate(SCOUT_RANGE),
+                            e -> e instanceof net.minecraft.world.entity.monster.Enemy && e.isAlive() && !ValkyrieCombat.isAlly(v, e) && v.distanceToSqr(e) <= SCOUT_RANGE * SCOUT_RANGE)) {
+                        e.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.GLOWING, 40, 0, false, false));
+                    }
+                }
+            }
+            case MAINTENANCE -> {
+                if (v.tickCount % 20 == 0 && v.getTarget() == null && v.ticksSinceHurt() > 100 && v.getHealth() < v.getMaxHealth()) v.heal(MAINTENANCE_REGEN);
+            }
+            case SERAPH -> {
+                if (v.tickCount % 10 == 0) {
+                    for (ValkyrieEntity other : level.getEntitiesOfClass(ValkyrieEntity.class, v.getBoundingBox().inflate(SERAPH_RANGE),
+                            o -> ValkyrieCombat.isAlly(v, o) && o.distanceToSqr(v) <= SERAPH_RANGE * SERAPH_RANGE)) {
+                        other.bonusShieldRegen(10.0F); // 回復を倍の速さに
+                    }
+                    if (v.tickCount % 40 == 0) Fx.spray(level, Fx.opt(ModParticles.GLOW.get(), 0xFFC8E8, 0.4F, 16), v.position().add(0, 1.0, 0), 4, 1.5, 0.6, 1.5, 0.0);
+                }
+            }
+            case NEMESIS -> {
+                long now = level.getGameTime();
+                var b = v.combat();
+                if (now >= b.overdriveReadyAt && v.getTarget() != null && v.getHealth() < v.getMaxHealth() * 0.3F) {
+                    b.overdriveUntil = now + OVERDRIVE_TICKS;
+                    b.overdriveReadyAt = now + OVERDRIVE_COOLDOWN;
+                    b.line("overdrive", ValkyrieEntity.Emote.ALERT);
+                    Fx.shockwave(level, v.position().add(0, 0.05, 0), 0xFF2040, 3.0F, 14);
+                    level.playSound(null, v.blockPosition(), SoundEvents.WITHER_SPAWN, SoundSource.NEUTRAL, 0.5F, 1.8F);
+                }
+                if (overdrive(v) && v.tickCount % 2 == 0) {
+                    Fx.spray(level, Fx.opt(ModParticles.GLOW.get(), 0xFF2040, 0.5F, 10), v.position().add(0, 1.0, 0), 3, 0.3, 0.6, 0.3, 0.02);
+                }
+            }
+            default -> {
+            }
+        }
+    }
+
+    /** スカウトの見つける距離・メンテナンスの毎秒の回復・セラフの届く距離・オーバードライブの長さとクールタイム（Tick）【仮】 */
+    public static final double SCOUT_RANGE = 24.0, SERAPH_RANGE = 8.0, AEGIS_RANGE = 8.0;
+    public static final float MAINTENANCE_REGEN = 1.0F, AEGIS_SHARE = 0.2F;
+    public static final int OVERDRIVE_TICKS = 200, OVERDRIVE_COOLDOWN = 2400;
+
+    /** イージス: 8 m 以内の持ち主が受けるダメージの 20% を、そばのイージス一式の兵姫が肩代わりする */
+    @SubscribeEvent(priority = EventPriority.LOW)
+    public static void onOwnerHurt(LivingHurtEvent event) {
+        if (!(event.getEntity() instanceof net.minecraft.world.entity.player.Player owner) || owner.level().isClientSide || event.getAmount() <= 0) return;
+        ValkyrieEntity guard = null;
+        for (ValkyrieEntity v : owner.level().getEntitiesOfClass(ValkyrieEntity.class, owner.getBoundingBox().inflate(AEGIS_RANGE),
+                v -> owner.getUUID().equals(v.getOwnerUUID()) && !v.isShutdown() && !v.isAsleep() && v.distanceToSqr(owner) <= AEGIS_RANGE * AEGIS_RANGE
+                        && inv(v).frameSet() == FrameType.AEGIS)) {
+            if (guard == null || v.distanceToSqr(owner) < guard.distanceToSqr(owner)) guard = v;
+        }
+        if (guard == null) return;
+        float part = event.getAmount() * AEGIS_SHARE;
+        event.setAmount(event.getAmount() - part);
+        guard.hurt(guard.level().damageSources().generic(), part);
+        guard.combat().line("aegis_cover", ValkyrieEntity.Emote.ALERT);
+        if (guard.level() instanceof ServerLevel level) Fx.line(level, Fx.opt(ModParticles.GLOW.get(), 0x7FB8FF, 0.4F, 10),
+                guard.position().add(0, 1.0, 0), owner.position().add(0, 1.0, 0), 0.4);
     }
 }

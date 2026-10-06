@@ -34,7 +34,17 @@ public final class ValkyrieUnits {
         VALKYRIE_MK3("valkyrie_mk3", 3, 20, 13, 0.4, 0.0, 8.0F, 70, 100, 0.6F),
         VALKYRIE_MK4("valkyrie_mk4", 4, 24, 16, 0.5, 0.0, 7.0F, 110, 160, 0.5F),
         FORTRESS("fortress", 2, 22, 14, 1.0, 0.0, 25.0F, 60, 40, 1.0F),
-        MIRAGE("mirage", 2, 8, 2, 0.0, 0.25, 6.0F, 10, 20, 1.0F);
+        MIRAGE("mirage", 2, 8, 2, 0.0, 0.25, 6.0F, 10, 20, 1.0F),
+        // 特殊なフレーム（2026-10-06 ユーザー指定「ヴァルキリーフレーム以外の特殊なフレームも各ティアに」。クロノスは保留。数・効果は【仮】）
+        SCOUT("scout", 1, 6, 2, 0.0, 0.10, 5.0F, 10, 20, 1.0F),
+        MAINTENANCE("maintenance", 1, 10, 4, 0.1, 0.0, 8.0F, 20, 10, 1.0F),
+        SERAPH("seraph", 2, 10, 6, 0.1, 0.0, 7.0F, 40, 50, 1.0F),
+        STRIKER("striker", 2, 14, 8, 0.5, 0.0, 10.0F, 30, 30, 1.0F),
+        AEGIS("aegis", 3, 22, 14, 0.8, 0.0, 18.0F, 80, 150, 1.0F),
+        TEMPEST("tempest", 3, 12, 6, 0.2, 0.0, 6.0F, 40, 80, 1.0F),
+        HELIOS("helios", 3, 18, 10, 0.4, 0.0, 12.0F, 60, 100, 1.0F),
+        NEMESIS("nemesis", 4, 26, 18, 0.6, 0.0, 14.0F, 150, 120, 1.0F),
+        LUMINOUS("luminous", 4, 22, 16, 0.4, 0.0, 10.0F, 120, 140, 1.0F);
 
         public final String id;
         public final int tier;

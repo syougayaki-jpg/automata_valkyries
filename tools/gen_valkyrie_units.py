@@ -5,7 +5,8 @@
     python tools/gen_valkyrie_units.py preview    # 兵姫に重ねた確認用の geo とテクスチャを build/unit_preview/ に作る（GeoPreview 用）
 
 出力（assets/automata_valkyries/ の下）:
-  geo/entity/unit/frame_<型>_<部位>.geo.json    … valkyrie（＋ valkyrie_mk2〜mk4）/ fortress / mirage の head・chest・legs
+  geo/entity/unit/frame_<型>_<部位>.geo.json    … valkyrie（＋ valkyrie_mk2〜mk4）/ fortress / mirage /
+                                                 scout / maintenance / seraph / striker / aegis / tempest / helios / nemesis / luminous の head・chest・legs
   geo/entity/unit/backpack_<種類>.geo.json      … thruster（＋ _mk2 / _mk3 / _mk4）/ folding_cannon / ecm_pod / tachyon_drive / memento_familiar / gallia_fortress
   textures/entity/unit/valkyrie_units.png（＋ _glowmask.png）  … 全ユニット共通の素材の見本帳（8x8 の板の絵を面ごとに貼る）
   textures/entity/unit/memento_butterfly.png    … メメント・ファミリアの蝶（描画側で羽ばたかせる）
@@ -34,6 +35,15 @@ def rgb(h):
 
 # 板: (地, 明, 暗)
 PLATE = {
+    # 特殊フレーム（2026-10-06）
+    's_olive': (0x4a5a48, 0x6a7c66, 0x2e3a2c),
+    'n_black': (0x1c1a22, 0x34303c, 0x0e0c12),
+    'n_crimson': (0xa01828, 0xd04050, 0x600c18),
+    'r_red': (0xc82830, 0xf05058, 0x801820),
+    'a_blue': (0x3a64b8, 0x6a90e0, 0x22407c),
+    't_teal': (0x2aa8a0, 0x5ad8cc, 0x187068),
+    'p_pink': (0xf0c8dc, 0xffe8f4, 0xc098b0),
+    'c_crystal': (0x9ef0ff, 0xe0ffff, 0x5ab8d0),
     'v_white': (0xe8eef6, 0xffffff, 0xa0acbe),
     'v_silver': (0xb0bac8, 0xdce2ea, 0x78828f),
     'v_dark': (0x262a3a, 0x464c60, 0x161822),
@@ -48,7 +58,9 @@ PLATE = {
     'b_grey': (0x929aa8, 0xbac2ce, 0x606876),
     'b_dark': (0x3a3e4a, 0x565c6a, 0x22242c),
 }
-GLOWC = {'cyan': (0x64ecff, 0xdcffff), 'violet': (0xb86eff, 0xf0d2ff), 'gold': (0xffd66e, 0xfff4cc),
+GLOWC = {'green': (0x6cff7a, 0xe0ffe4), 'pink': (0xff9ad8, 0xffe4f4), 'red': (0xff3048, 0xffc0c8),
+         'teal': (0x40ffd8, 0xd8fff6), 'orange': (0xffa040, 0xfff0c8), 'blue': (0x5aa0ff, 0xdce8ff),
+         'cyan': (0x64ecff, 0xdcffff), 'violet': (0xb86eff, 0xf0d2ff), 'gold': (0xffd66e, 0xfff4cc),
          'white': (0xb4faff, 0xffffff)}
 
 # ------------------------------------------------------------------ 見本帳（8x8 の板。galaxy だけ 16x16）
@@ -234,6 +246,45 @@ glow_tile('glow_white', 'white')
 plate('v_white_wline', 'v_white', line='white')
 plate('v_white_wvline', 'v_white', vline='white')
 plate('v_white_gvline', 'v_white', vline='gold')
+# 特殊フレーム 9 種（2026-10-06。後ろへ足す）
+plate('s_olive', 's_olive', seam=True)
+plate('s_olive_line', 's_olive', line='green')
+glow_tile('glow_green', 'green')
+nozzle('nozzle_orange', 'orange')
+glow_tile('glow_orange', 'orange')
+plate('v_white_pink', 'v_white', vline='pink')
+plate('v_white_pline', 'v_white', line='pink')
+plate('p_pink', 'p_pink')
+glow_tile('glow_pink', 'pink')
+plate('r_red', 'r_red', seam=True)
+plate('n_black', 'n_black')
+plate('n_black_rline', 'n_black', line='red')
+plate('n_black_rvline', 'n_black', vline='red')
+plate('n_crimson', 'n_crimson')
+glow_tile('glow_red', 'red')
+plate('a_blue', 'a_blue', seam=True)
+plate('a_blue_line', 'a_blue', line='white')
+glow_tile('glow_blue', 'blue')
+plate('t_teal', 't_teal')
+plate('t_teal_line', 't_teal', line='white')
+plate('v_white_tline', 'v_white', line='teal')
+glow_tile('glow_teal', 'teal')
+plate('h_line', 'g_dark', line='orange')
+plate('h_vline', 'g_dark', vline='orange')
+
+
+def crystal(name):
+    """透けて見える結晶の板（地の色を発光にも半分の明るさで入れる）"""
+    u, v = _alloc(name)
+    _bevel(u, v, 'c_crystal')
+    for y in range(8):
+        for x in range(8):
+            p = _base.getpixel((u + x, v + y))
+            k = 0.75 if (x + y) % 5 == 0 or x == y else 0.45
+            _glow.putpixel((u + x, v + y), (int(p[0] * k), int(p[1] * k), int(p[2] * k), 255))
+
+
+crystal('crystal')
 galaxy('galaxy')
 
 # ------------------------------------------------------------------ 形
@@ -243,9 +294,42 @@ MIRROR_BONE = {'right_arm': 'left_arm', 'left_arm': 'right_arm', 'right_leg': 'l
 ATTACH = ('head', 'body', 'right_arm', 'left_arm', 'right_leg', 'left_leg')
 
 
+_VALK_BOXES = []
+
+
+def avoid_valkyrie_planes(a, c):
+    """兵姫の面と同じ平面（0.015 以内）で重なる面を、箱の外側へ 0.04 ずらす（回していない骨同士だけ。coplanar_check と同じ判定）"""
+    if not _VALK_BOXES:
+        path = os.path.join(ASSETS, 'geo', 'entity', 'valkyrie_type_v.geo.json')
+        for vb in json.load(open(path, encoding='utf-8'))['minecraft:geometry'][0]['bones']:
+            if vb.get('rotation'):
+                continue
+            for cu in vb.get('cubes', []):
+                inf = cu.get('inflate', 0)
+                o, sz = cu['origin'], cu['size']
+                _VALK_BOXES.append(([o[i] - inf for i in range(3)], [o[i] + sz[i] + inf for i in range(3)]))
+    a, c = list(a), list(c)
+    for _ in range(6):
+        moved = False
+        for lo, hi in _VALK_BOXES:
+            for ax in range(3):
+                o1, o2 = [i for i in range(3) if i != ax]
+                if not (min(c[o1], hi[o1]) - max(a[o1], lo[o1]) > 0.02 and min(c[o2], hi[o2]) - max(a[o2], lo[o2]) > 0.02):
+                    continue
+                for ov in (lo[ax], hi[ax]):
+                    if abs(a[ax] - ov) < 0.015:
+                        a[ax] = round(a[ax] - 0.04, 3); moved = True
+                    if abs(c[ax] - ov) < 0.015:
+                        c[ax] = round(c[ax] + 0.04, 3); moved = True
+        if not moved:
+            break
+    return a[0], a[1], a[2], c[0], c[1], c[2]
+
+
 class Model:
     def __init__(self, name):
         self.name = name
+        self.avoid = False  # True: 兵姫の面と同じ平面に来る面を少し外へずらす（特殊フレーム用。既存の形は変えない）
         self.bones = {}   # name -> dict
         self.order = []
 
@@ -273,6 +357,9 @@ class Model:
         x0, x1 = sorted((a[0], b[0]))
         y0, y1 = sorted((a[1], b[1]))
         z0, z1 = sorted((a[2], b[2]))
+        b_ = self.bones[bone]
+        if self.avoid and not b_['rotation'] and not (b_['parent'] and self.bones.get(b_['parent'], {}).get('rotation')):
+            x0, y0, z0, x1, y1, z1 = avoid_valkyrie_planes((x0, y0, z0), (x1, y1, z1))
         cx = (x0 + x1) / 2
         fm = {f: mat for f in FACES}
         for k, m in faces.items():
@@ -512,6 +599,260 @@ def frame_mirage():
     l.mbox('right_leg', (-1.45, 1.12, -1.56), (-1.15, 5.32, -1.42), 'glow_cyan')         # 脛の前
     l.mbox('right_leg', (-2.86, 7.98, -0.92), (-2.62, 11.52, 0.92), 'm_white', out='m_white_line')  # 太ももの軽いひれ
     l.mbox('right_leg', (-2.74, 2.42, -1.56), (0.14, 2.72, 1.56), 'm_black', front='m_black_line')  # 足首の輪
+
+
+# ---------------- 外装フレーム: 特殊 9 種（2026-10-06。役割で見た目を決める。特定のキャラクターは写さない）
+# 型ごとに head / chest / legs の 3 つ。Fortress より細身（Aegis だけ少し重め）。腰の後ろは後ろ髪（z 1.4 より後ろ）に入らないよう z 1.38 まで
+def _parts(key):
+    ms = model(f'frame_{key}_head'), model(f'frame_{key}_chest'), model(f'frame_{key}_legs')
+    for m in ms:
+        m.avoid = True
+    return ms
+
+
+def frame_scout():
+    """スカウト（T1）: 軽い偵察。額の跳ね上げバイザー・片側のアンテナ・最小限の板・緑のセンサー灯"""
+    h, c, l = _parts('scout')
+    h.box('head', (-3.22, 26.42, -0.37), (3.22, 27.17, 0.33), 's_olive', top='s_olive_line')       # 頭の上の帯
+    h.mbox('head', (-4.02, 24.82, -0.32), (-3.8, 26.92, 0.32), 'v_dark')
+    h.mbox('head', (-4.5, 22.6, -0.9), (-3.97, 24.6, 1.0), 's_olive', out='s_olive_line')          # 耳のセンサー
+    h.mbox('head', (-4.6, 23.2, -0.3), (-4.5, 24.0, 0.4), 'glow_green')
+    h.box('head', (-2.9, 26.5, -3.4), (2.9, 26.95, -2.9), 's_olive', front='glow_green')            # 額の跳ね上げバイザー
+    h.box('head', (4.1, 24.6, 0.6), (4.3, 29.2, 0.8), 'v_dark')                                    # +x 側のアンテナ
+    h.box('head', (4.07, 29.2, 0.57), (4.33, 29.5, 0.83), 'glow_green')
+    c.mbox('body', (1.0, 17.9, -2.2), (2.4, 19.9, -1.4), 'v_dark', front='s_olive_line')           # 軽い胸当て
+    c.box('body', (-3.05, 12.95, -1.62), (3.05, 13.45, 1.36), 'v_dark', front='s_olive_line')      # ベルト
+    c.mbox('body', (-2.0, 12.2, -1.85), (-1.2, 13.3, -1.6), 's_olive')                            # 小物入れ
+    c.mbox('right_arm', (-4.55, 20.0, -1.0), (-2.6, 20.85, 1.05), 's_olive', out='s_olive_line')   # 小さな肩当て
+    c.mbox('right_arm', (-4.6, 20.2, -0.3), (-4.55, 20.6, 0.3), 'glow_green')
+    c.mbox('right_arm', (-4.35, 13.8, -1.05), (-2.2, 15.0, 1.05), 's_olive', out='s_olive_line')   # 前腕
+    l.mbox('right_leg', (-2.45, 5.3, -2.0), (-0.15, 6.9, -1.2), 's_olive', front='s_olive_line')   # 膝当て
+    l.mbox('right_leg', (-3.05, 8.2, -0.9), (-2.6, 10.8, 0.7), 's_olive', out='s_olive_line')      # 太もものホルスター
+    l.mbox('right_leg', (-2.8, 2.0, -0.6), (-2.62, 3.6, 0.6), 'v_dark')                           # 足首の灯
+    l.mbox('right_leg', (-2.86, 2.6, -0.2), (-2.8, 3.0, 0.2), 'glow_green')
+
+
+def frame_maintenance():
+    """メンテナンス（T1）: 作業・技術者。ゴーグルのバイザー、耳当て、右肩の工具アーム（はさみ）、工具ベルトと腰の袋、橙と灰"""
+    h, c, l = _parts('maintenance')
+    h.box('head', (-3.0, 26.95, -2.2), (3.0, 27.55, 2.5), 'f_orange', top='f_vent')                # 作業帽
+    h.box('head', (-2.6, 26.3, -3.45), (2.6, 26.9, -2.95), 'f_dark', front='glow_orange')         # 額のゴーグル
+    h.mbox('head', (-4.5, 22.3, -1.2), (-3.9, 24.6, 1.2), 'f_steel', out='f_hazard')              # 耳当て
+    h.box('head', (3.9, 25.0, -1.5), (4.6, 25.8, -0.4), 'f_dark', front='glow_orange')            # +x 側のライト
+    c.box('body', (0.4, 16.6, -2.3), (1.9, 18.0, -1.9), 'f_orange')                               # 胸の物入れ
+    c.mbox('body', (-1.6, 15.2, -1.55), (-1.2, 20.6, -1.4), 'f_dark')                             # 吊り帯
+    c.box('body', (-3.0, 12.6, -1.65), (3.0, 13.35, 1.36), 'f_dark', front='f_hazard')            # 工具ベルト
+    c.mbox('body', (-3.4, 11.4, -1.3), (-3.0, 13.0, 0.6), 'f_orange', out='f_vent')               # 腰の袋
+    c.mbox('body', (-2.3, 11.6, -1.95), (-1.3, 12.9, -1.6), 'f_orange', top='f_steel')
+    c.mbox('right_arm', (-4.6, 19.8, -1.1), (-2.5, 20.95, 1.2), 'f_steel', out='f_hazard')         # 肩当て
+    c.mbox('right_arm', (-4.4, 13.4, -1.1), (-2.1, 15.2, 1.1), 'f_steel', out='f_orange')          # 前腕
+    arm = c.bone('tool_arm', 'right_arm', (-4.0, 21.0, 0.8), (-25, 0, -25))                        # 右肩の工具アーム（外・後ろへ）
+    c.box(arm, (-4.25, 20.9, 0.6), (-3.85, 24.0, 1.0), 'f_dark')
+    c.box(arm, (-4.6, 24.0, 0.3), (-3.5, 24.5, 1.3), 'f_orange')
+    c.box(arm, (-4.55, 24.5, 0.35), (-4.3, 25.3, 0.6), 'f_steel')                                 # はさみ
+    c.box(arm, (-3.75, 24.5, 1.0), (-3.55, 25.3, 1.25), 'f_steel')
+    l.mbox('right_leg', (-2.5, 5.2, -2.05), (-0.1, 7.0, -1.2), 'f_orange', front='f_hazard')       # 膝当て
+    l.mbox('right_leg', (-2.85, -0.03, -2.45), (0.25, 1.6, 1.45), 'f_dark', top='f_steel')         # 作業靴
+    l.mbox('right_leg', (-3.05, 8.0, -0.8), (-2.6, 10.4, 0.8), 'f_orange', out='f_vent')           # 太ももの物入れ
+
+
+def frame_seraph():
+    """セラフ（T2）: 救護。白に淡い桃と白の光、頭の上の小さな輪、肩の後ろの小さな羽の板"""
+    h, c, l = _parts('seraph')
+    halo = h.bone('halo', 'head', (0, 28.4, 0.6), (-15, 0, 0))                                     # 頭の上の輪（8 つに分けて回す）
+    for k in range(8):
+        seg = h.bone(f'halo_{k}', halo, (0, 28.4, 0.6), (0, k * 45, 0))
+        h.box(seg, (-0.95, 28.3, 2.85), (0.95, 28.55, 3.1), 'glow_pink')
+    h.mbox('head', (-4.35, 23.0, -0.6), (-3.85, 25.2, 0.9), 'v_white', out='v_white_pink')        # 耳の飾り
+    fr, fl = h.mbone('efin_{s}', 'head', (-4.2, 24.6, 0.6), (35, 0, 0))                           # 耳の小さな羽
+    h.box(fr, (-4.3, 24.4, 0.6), (-4.1, 24.8, 3.0), 'v_white', out='v_white_pline')
+    h.box(fl, (4.1, 24.4, 0.6), (4.3, 24.8, 3.0), 'v_white', out='v_white_pline')
+    c.mbox('body', (1.2, 17.9, -2.25), (2.4, 20.3, -1.3), 'v_white', front='v_white_pink')         # 胸当て
+    c.box('body', (-0.5, 18.8, -2.0), (0.5, 19.6, -1.92), 'glow_pink')                            # 胸の桃の光
+    c.mbox('body', (-3.2, 11.3, -1.3), (-2.65, 13.9, 1.2), 'v_white', out='v_white_pink')         # 腰の帯
+    c.box('body', (-1.4, 11.4, -1.62), (1.4, 13.6, -1.45), 'p_pink', front='v_white_pline')       # 前の柔らかい垂れ
+    c.mbox('right_arm', (-4.6, 19.9, -1.2), (-2.45, 20.9, 1.25), 'v_white', out='v_white_pline')   # 丸い肩当て
+    c.mbox('right_arm', (-4.3, 13.7, -1.05), (-2.2, 15.3, 1.05), 'v_white', out='v_white_pline')   # 前腕
+    for key, piv, rot, ln in (('a', (-4.3, 20.4, 1.0), (15, -25, 0), 2.4), ('b', (-4.3, 19.3, 1.0), (0, -38, 0), 1.7)):
+        fr, fl = c.mbone('feather_' + key + '_{s}', 'right_arm', piv, rot)                         # 肩の後ろの羽の板（外・後ろへ）
+        y = piv[1]
+        c.box(fr, (-4.5, y - 0.7, 1.0), (-4.25, y + 0.5, 1.0 + ln), 'v_white', out='v_white_pink')
+        c.box(fl, (4.25, y - 0.7, 1.0), (4.5, y + 0.5, 1.0 + ln), 'v_white', out='v_white_pink')
+    l.mbox('right_leg', (-2.95, 7.8, -1.1), (-2.6, 11.6, 1.0), 'v_white', out='v_white_pline')     # 太ももの横
+    l.mbox('right_leg', (-2.42, 5.4, -1.95), (-0.18, 7.1, -1.2), 'v_white', front='v_white_pink')  # 膝
+    l.mbox('right_leg', (-2.7, 1.2, -1.62), (0.1, 5.1, -1.45), 'v_white', front='v_white_pline')   # 脛
+    l.mbox('right_leg', (-2.95, 0.85, 0.1), (-2.68, 2.6, 1.55), 'v_white', out='v_white_pink')     # 足首の羽
+
+
+def frame_striker():
+    """ストライカー（T2）: 突撃。赤と黒、角張った前腕の守り、膝の棘、前へ反った鶏冠"""
+    h, c, l = _parts('striker')
+    h.box('head', (-3.5, 26.95, -1.2), (3.5, 27.5, 1.6), 'n_black', top='n_black_rline')           # 兜の帯
+    cr = h.bone('crest', 'head', (0, 27.2, 0.5), (35, 0, 0))                                         # 前へ反った鶏冠
+    h.box(cr, (-0.25, 27.2, 0.2), (0.25, 30.0, 0.8), 'r_red')
+    h.box(cr, (-0.15, 30.0, 0.3), (0.15, 30.6, 0.7), 'glow_red')
+    h.mbox('head', (-4.55, 22.0, -1.25), (-3.92, 25.4, 1.4), 'n_black', out='r_red')                # 頬の角張った守り
+    hr, hl = h.mbone('hfin_{s}', 'head', (-4.3, 25.2, 0.8), (25, 0, 0))                             # 後ろへ伸びる刃
+    h.box(hr, (-4.45, 25.0, 0.6), (-4.15, 25.5, 3.6), 'r_red')
+    h.box(hl, (4.15, 25.0, 0.6), (4.45, 25.5, 3.6), 'r_red')
+    c.box('body', (-2.1, 17.0, -2.35), (2.1, 18.3, -1.6), 'n_black', front='n_black_rline')        # 胸の板
+    c.mbox('body', (1.3, 18.5, -2.2), (2.35, 20.2, -1.3), 'r_red')
+    c.mbox('body', (-3.3, 11.0, -1.45), (-2.65, 14.2, 1.25), 'n_black', out='r_red')                # 腰
+    c.mbox('right_arm', (-4.9, 19.8, -1.3), (-2.4, 21.2, 1.35), 'n_black', out='r_red', top='n_black_rline')  # 角張った肩
+    sr, sl = c.mbone('spike_{s}', 'right_arm', (-4.8, 20.8, 0.0), (0, 0, 30))
+    c.box(sr, (-6.2, 20.6, -0.35), (-4.7, 21.1, 0.35), 'r_red')
+    c.box(sl, (4.7, 20.6, -0.35), (6.2, 21.1, 0.35), 'r_red')
+    c.mbox('right_arm', (-4.6, 12.8, -1.25), (-2.0, 15.8, 1.25), 'n_black', out='n_black_rline', top='r_red')  # 角張った前腕の守り
+    br, bl = c.mbone('blade_{s}', 'right_arm', (-4.6, 13.0, 0.0), (0, 0, -15))
+    c.box(br, (-4.9, 12.6, -0.2), (-4.6, 15.6, 0.2), 'r_red')
+    c.box(bl, (4.6, 12.6, -0.2), (4.9, 15.6, 0.2), 'r_red')
+    l.mbox('right_leg', (-2.5, 5.2, -2.1), (-0.1, 7.2, -1.2), 'n_black', front='n_black_rline')    # 膝
+    kr, kl = l.mbone('kspike_{s}', 'right_leg', (-1.3, 6.6, -2.0), (-40, 0, 0))                    # 膝の棘（前・上へ）
+    l.box(kr, (-1.6, 6.35, -3.2), (-1.0, 6.85, -1.95), 'r_red')
+    l.box(kl, (1.0, 6.35, -3.2), (1.6, 6.85, -1.95), 'r_red')
+    l.mbox('right_leg', (-2.75, 1.1, -1.75), (0.15, 5.1, -1.45), 'r_red', front='n_black_rline')   # 脛
+    l.mbox('right_leg', (-2.95, 7.7, -1.2), (-2.6, 11.7, 1.1), 'n_black', out='r_red')             # 太もも
+    l.mbox('right_leg', (-2.75, 0.2, -2.5), (0.15, 0.98, -1.95), 'r_red')                          # つま先
+
+
+def frame_aegis():
+    """イージス（T3）: 守護。盾のような大きな肩当て（左が大きい）、青と銀、頑丈で上品"""
+    h, c, l = _parts('aegis')
+    h.box('head', (-3.0, 26.45, -3.4), (3.0, 27.05, -2.8), 'a_blue', front='a_blue_line')          # 額の守り
+    h.box('head', (-3.3, 26.98, -2.5), (3.3, 27.7, 2.7), 'v_silver', top='a_blue_line')            # 頭の上
+    h.mbox('head', (-4.65, 22.0, -1.25), (-3.92, 25.6, 1.5), 'a_blue', out='v_silver')            # 耳の守り
+    h.mbox('head', (-4.72, 23.0, -0.4), (-4.65, 24.4, 0.6), 'glow_blue')
+    c.box('body', (-2.5, 16.2, -2.4), (2.5, 18.45, -1.25), 'v_silver', front='a_blue_line', top='a_blue')  # 胸当て
+    c.mbox('body', (1.28, 18.45, -2.2), (2.45, 20.3, -1.28), 'a_blue', front='a_blue_line')
+    c.box('right_arm', (-5.6, 18.6, -1.5), (-2.55, 21.4, 1.36), 'a_blue', out='v_silver', top='a_blue_line')   # 右の肩当て
+    c.box('left_arm', (2.55, 17.8, -1.8), (6.4, 21.7, 1.36), 'a_blue', out='a_blue_line', top='v_silver')     # 左の大きな盾の肩当て
+    c.box('left_arm', (3.95, 17.85, 1.3), (6.38, 21.65, 1.85), 'a_blue', back='v_silver')
+    c.box('left_arm', (6.4, 18.2, -1.4), (6.65, 21.5, 1.45), 'v_silver')
+    c.box('left_arm', (6.65, 19.4, -0.3), (6.72, 20.6, 0.3), 'glow_blue')
+    c.mbox('right_arm', (-4.5, 12.4, -1.2), (-2.05, 15.4, 1.2), 'v_silver', out='a_blue_line')      # 籠手
+    c.mbox('body', (-3.3, 10.6, -1.5), (-2.62, 14.1, 1.25), 'v_silver', out='a_blue_line')          # 腰の草摺
+    c.mbox('body', (-2.3, 10.5, -1.75), (-0.3, 12.6, -1.48), 'a_blue', front='a_blue_line')
+    l.mbox('right_leg', (-2.45, 8.0, -1.7), (-0.15, 11.4, -1.45), 'a_blue')                         # 太ももの前
+    l.mbox('right_leg', (-2.98, 7.6, -1.2), (-2.6, 11.8, 1.1), 'v_silver', out='a_blue_line')        # 太ももの横
+    l.mbox('right_leg', (-2.55, 5.2, -2.1), (-0.05, 7.3, -1.2), 'v_silver', front='a_blue_line')     # 膝
+    l.mbox('right_leg', (-2.85, 0.95, -1.8), (0.25, 5.25, 1.55), 'a_blue', front='v_silver')        # 脛当て
+
+
+def frame_tempest():
+    """テンペスト（T3）: 空戦。肩と腰に翼の形の板、青緑と白、ふくらはぎの後退したひれ"""
+    h, c, l = _parts('tempest')
+    h.box('head', (-3.3, 26.5, -0.6), (3.3, 27.2, 0.5), 'v_white', top='t_teal_line')
+    h.mbox('head', (-4.5, 22.6, -0.9), (-3.95, 24.5, 1.1), 'v_white', out='v_white_tline')
+    fr, fl = h.mbone('efin_{s}', 'head', (-4.2, 24.0, 0.4), (25, 0, 0))                             # 後ろへ流れる耳のひれ
+    h.box(fr, (-4.4, 23.6, 0.3), (-4.1, 24.4, 4.2), 't_teal', out='v_white_tline')
+    h.box(fl, (4.1, 23.6, 0.3), (4.4, 24.4, 4.2), 't_teal', out='v_white_tline')
+    c.mbox('body', (1.27, 18.0, -2.2), (2.42, 20.25, -1.3), 'v_white', front='v_white_tline')      # 胸当て
+    c.box('body', (-1.2, 16.6, -2.2), (1.2, 17.6, -1.9), 't_teal')
+    c.mbox('right_arm', (-4.7, 19.9, -1.2), (-2.45, 20.95, 1.25), 'v_white', out='v_white_tline')   # 肩
+    wr, wl = c.mbone('swing_{s}', 'right_arm', (-4.5, 20.5, 0.4), (0, 20, 25))                     # 肩の翼（外・上・後ろへ）
+    for w, s in ((wr, -1), (wl, 1)):
+        c.box(w, (s * 4.5, 19.8, 0.25), (s * 7.3, 21.0, 0.55), 'v_white', front='v_white_tline', back='v_white_tline')
+        c.box(w, (s * 7.3, 20.25, 0.28), (s * 8.4, 21.0, 0.52), 't_teal')
+    c.mbox('right_arm', (-4.3, 13.8, -1.05), (-2.2, 15.2, 1.05), 't_teal', out='v_white_tline')    # 前腕
+    c.mbox('body', (-3.25, 10.2, -1.2), (-2.62, 13.9, 1.2), 'v_white', out='v_white_tline')        # 腰の横
+    hr, hl = c.mbone('hwing_{s}', 'body', (-3.25, 10.4, 0.3), (0, 15, -20))                       # 腰の翼（外・下へ。手より下）
+    for w, s in ((hr, -1), (hl, 1)):
+        c.box(w, (s * 3.25, 9.9, 0.15), (s * 6.0, 10.8, 0.45), 't_teal', front='v_white_tline', back='v_white_tline')
+        c.box(w, (s * 6.0, 10.2, 0.18), (s * 6.9, 10.8, 0.42), 'v_white')
+    l.mbox('right_leg', (-2.7, 1.2, -1.65), (0.1, 5.0, -1.45), 'v_white', front='v_white_tline')   # 脛
+    l.mbox('right_leg', (-2.45, 5.3, -1.98), (-0.15, 7.0, -1.22), 't_teal')                        # 膝
+    l.mbox('right_leg', (-2.95, 7.8, -1.1), (-2.6, 11.4, 1.0), 'v_white', out='t_teal_line')       # 太ももの横
+    cr, cl = l.mbone('cfin_{s}', 'right_leg', (-2.75, 3.0, 0.5), (30, 0, 0))                       # ふくらはぎの後退したひれ
+    l.box(cr, (-2.95, 2.6, 0.4), (-2.7, 3.5, 3.2), 't_teal', out='v_white_tline')
+    l.box(cl, (2.7, 2.6, 0.4), (2.95, 3.5, 3.2), 't_teal', out='v_white_tline')
+
+
+def frame_helios():
+    """ヘリオス（T3）: 砲撃。片目の照準鏡（目の横）、肩の後ろの測距器、橙と金の日輪の光の線"""
+    h, c, l = _parts('helios')
+    h.box('head', (-3.4, 26.95, -0.45), (3.4, 27.35, 0.5), 'g_dark', top='h_line')                # 頭の帯
+    h.box('head', (-0.8, 27.3, -0.15), (0.8, 28.9, 0.15), 'g_gold', front='glow_orange', back='glow_orange')  # 日輪
+    for k, a in enumerate((-60, -30, 0, 30, 60)):
+        ray = h.bone(f'fx_ray_{k}', 'head', (0, 28.1, 0), (0, 0, a))
+        h.box(ray, (-0.12, 28.95, -0.1), (0.12, 29.7, 0.1), 'glow_orange')
+    h.mbox('head', (-4.6, 22.4, -1.2), (-3.95, 25.0, 1.3), 'g_dark', out='h_line')                # 耳当て
+    h.box('head', (4.05, 23.5, -3.45), (4.3, 23.9, -0.8), 'g_dark')                               # 照準鏡の腕（+x、横髪の外）
+    h.box('head', (2.0, 23.0, -3.6), (4.35, 24.4, -3.4), 'g_dark', front='nozzle_orange')         # 照準鏡（目の横・横髪の前）
+    c.box('body', (-2.2, 16.7, -2.3), (2.2, 18.35, -1.6), 'g_dark', front='h_line')               # 胸の板
+    sun = c.bone('fx_sun', 'body', (0, 16.75, -2.33))                                              # 胸の日輪の光（発光だけ）
+    for k, a in enumerate((-50, -25, 0, 25, 50)):
+        ray = c.bone(f'sun_{k}', sun, (0, 16.75, -2.33), (0, 0, a))
+        c.box(ray, (-0.08, 16.8, -2.37), (0.08, 18.2, -2.32), 'glow_orange')
+    c.mbox('right_arm', (-4.8, 19.9, -1.25), (-2.45, 21.0, 1.3), 'g_dark', out='h_line')           # 肩
+    c.mbox('right_arm', (-5.2, 20.4, 1.2), (-4.0, 21.6, 3.0), 'g_dark', back='nozzle_orange', top='g_gold')  # 肩の後ろの測距器
+    c.box('body', (-3.0, 12.9, -1.6), (3.0, 13.5, 1.36), 'g_dark', front='g_gold')                # 弾帯
+    c.mbox('body', (-3.3, 11.0, -1.2), (-2.62, 13.0, 1.1), 'g_dark', out='h_line')
+    c.mbox('right_arm', (-4.45, 13.2, -1.15), (-2.1, 15.5, 1.15), 'g_dark', out='h_line', top='g_gold')  # 前腕
+    l.mbox('right_leg', (-2.9, -0.03, -2.5), (0.3, 1.8, 1.5), 'g_dark', top='g_gold', front='h_line')    # 踏ん張る靴
+    l.mbox('right_leg', (-2.48, 5.25, -2.05), (-0.12, 7.2, -1.2), 'g_gold', front='h_vline')       # 膝
+    l.mbox('right_leg', (-2.96, 7.7, -1.15), (-2.6, 11.6, 1.05), 'g_dark', out='h_vline')          # 太もも
+
+
+def frame_nemesis():
+    """ネメシス（T4）: 決戦。黒と深紅、赤く光る線、鋭い重ねた板、角の飾り"""
+    h, c, l = _parts('nemesis')
+    h.box('head', (-3.45, 26.95, -1.3), (3.45, 27.55, 1.8), 'n_black', top='n_black_rline')        # 兜の帯
+    hr, hl = h.mbone('horn_{s}', 'head', (-2.6, 27.3, 0.0), (-20, 0, -25))                         # 角（外・後ろへ）
+    for b, s in ((hr, -1), (hl, 1)):
+        h.box(b, (s * 2.9, 27.3, -0.3), (s * 2.3, 29.5, 0.3), 'n_black', out='n_black_rvline')
+        h.box(b, (s * 2.8, 29.5, -0.2), (s * 2.4, 30.3, 0.2), 'n_crimson')
+    h.mbox('head', (-4.6, 21.9, -1.25), (-3.92, 25.4, 1.5), 'n_black', out='n_black_rvline')        # 耳の重ねた板
+    h.mbox('head', (-4.8, 22.4, -0.8), (-4.6, 24.9, 1.1), 'n_crimson')
+    h.mbox('head', (-4.86, 23.2, -0.2), (-4.8, 24.2, 0.6), 'glow_red')
+    c.box('body', (-2.35, 16.5, -2.4), (2.35, 18.3, -1.3), 'n_black', front='n_black_rline')       # 胸の板
+    c.mbox('body', (1.27, 18.3, -2.25), (2.4, 20.35, -1.3), 'n_crimson', front='n_black_rvline')
+    c.box('body', (-2.0, 17.2, -2.45), (2.0, 17.35, -2.4), 'glow_red')
+    c.mbox('right_arm', (-5.0, 19.8, -1.35), (-2.45, 21.15, 1.36), 'n_black', out='n_black_rline')  # 重ねた肩
+    c.mbox('right_arm', (-5.3, 18.9, -1.2), (-3.5, 19.85, 1.2), 'n_crimson')
+    for key, piv, a, box in (('a', (-4.9, 20.9, 0.0), 35, ((-6.5, 20.7, -0.3), (-4.9, 21.15, 0.35), 'n_black')),
+                             ('b', (-5.2, 19.6, 0.0), 25, ((-6.0, 19.4, -0.25), (-5.2, 19.8, 0.3), 'n_crimson'))):
+        sr, sl = c.mbone('spike_' + key + '_{s}', 'right_arm', piv, (0, 0, a))
+        (x0, y0, z0), (x1, y1, z1), mat = box
+        c.box(sr, (x0, y0, z0), (x1, y1, z1), mat)
+        c.box(sl, (-x0, y0, z0), (-x1, y1, z1), mat)
+    c.mbox('right_arm', (-4.55, 12.5, -1.2), (-2.05, 15.6, 1.2), 'n_black', out='n_black_rline', top='n_crimson')  # 籠手
+    c.mbox('body', (-3.35, 10.4, -1.45), (-2.62, 14.1, 1.25), 'n_black', out='n_black_rvline')      # 腰の重ねた草摺
+    c.mbox('body', (-2.4, 10.2, -1.75), (-0.3, 12.6, -1.5), 'n_crimson', front='n_black_rvline')
+    l.mbox('right_leg', (-2.98, 7.5, -1.25), (-2.6, 11.8, 1.12), 'n_black', out='n_black_rvline')    # 太もも
+    l.mbox('right_leg', (-2.5, 5.2, -2.1), (-0.1, 7.3, -1.2), 'n_black', front='n_black_rline')      # 膝
+    kr, kl = l.mbone('kspike_{s}', 'right_leg', (-1.3, 6.6, -2.0), (-40, 0, 0))
+    l.box(kr, (-1.6, 6.35, -3.2), (-1.0, 6.85, -1.95), 'n_crimson')
+    l.box(kl, (1.0, 6.35, -3.2), (1.6, 6.85, -1.95), 'n_crimson')
+    l.mbox('right_leg', (-2.78, 1.1, -1.8), (0.18, 5.15, -1.45), 'n_black', front='n_black_rvline')  # 脛
+    l.mbox('right_leg', (-2.85, 1.3, -1.38), (-2.62, 5.0, 1.25), 'n_crimson')
+    l.mbox('right_leg', (-2.78, 0.2, -2.55), (0.18, 0.98, -1.9), 'n_crimson')                       # つま先
+
+
+def frame_luminous():
+    """ルミナス（T4）: 力。透けて見える結晶の板（発光）、白にシアンの光の導管が手足を走る、胸のコア"""
+    h, c, l = _parts('luminous')
+    h.box('head', (-3.3, 26.95, -0.5), (3.3, 27.4, 0.45), 'v_white', top='v_white_line')          # 結晶の冠の台
+    h.box('head', (-0.35, 27.4, -0.3), (0.35, 29.0, 0.3), 'crystal')
+    h.mbox('head', (-1.6, 27.4, -0.2), (-1.1, 28.3, 0.25), 'crystal')
+    h.mbox('head', (-4.55, 22.4, -1.1), (-3.95, 24.9, 1.3), 'v_white', out='v_white_line')        # 耳
+    fr, fl = h.mbone('efin_{s}', 'head', (-4.25, 24.3, 1.0), (28, 0, 0))                          # 結晶のひれ
+    h.box(fr, (-4.4, 24.0, 0.8), (-4.1, 24.6, 3.8), 'crystal')
+    h.box(fl, (4.1, 24.0, 0.8), (4.4, 24.6, 3.8), 'crystal')
+    c.box('body', (-1.1, 18.75, -2.25), (1.1, 20.35, -1.95), 'crystal', front='glow_cyan')        # 胸のコア
+    c.mbox('body', (1.3, 18.0, -2.2), (2.45, 20.4, -1.3), 'v_white', front='v_white_vline')
+    c.box('body', (-0.12, 14.55, -1.48), (0.12, 16.4, -1.43), 'glow_cyan')                        # 腹の導管
+    c.mbox('body', (-3.25, 11.2, -1.3), (-2.62, 13.95, 1.2), 'v_white', out='v_white_vline')       # 腰
+    c.mbox('right_arm', (-4.85, 19.95, -1.25), (-2.45, 21.0, 1.3), 'v_white', out='v_white_line')  # 肩
+    sr, sl = c.mbone('shard_{s}', 'right_arm', (-4.8, 20.7, 0.0), (0, 0, 25))                      # 肩の結晶
+    c.box(sr, (-6.0, 20.4, -0.4), (-4.7, 21.0, 0.4), 'crystal')
+    c.box(sl, (4.7, 20.4, -0.4), (6.0, 21.0, 0.4), 'crystal')
+    c.mbox('right_arm', (-4.47, 12.9, -0.15), (-4.42, 20.5, 0.15), 'glow_cyan')                    # 腕の導管
+    c.mbox('right_arm', (-4.38, 13.5, -1.1), (-2.15, 15.3, 1.1), 'v_white', out='crystal')         # 前腕
+    l.mbox('right_leg', (-2.97, 7.7, -1.1), (-2.6, 11.7, 1.05), 'v_white', out='v_white_vline')    # 太もも
+    l.mbox('right_leg', (-2.72, 1.0, -0.15), (-2.67, 7.5, 0.15), 'glow_cyan')                      # 脚の導管
+    l.mbox('right_leg', (-2.45, 5.3, -2.0), (-0.15, 7.1, -1.2), 'crystal')                         # 結晶の膝
+    l.mbox('right_leg', (-2.75, 1.15, -1.7), (0.15, 5.2, -1.42), 'v_white', front='v_white_vline')  # 脛
+    l.mbox('right_leg', (-1.35, 1.3, -1.75), (-1.05, 5.1, -1.7), 'glow_cyan')
 
 
 # ---------------- 背部ユニット（胴の骨。背中の横から張り出す腕で、後ろ髪の外へ出す）
@@ -769,6 +1110,15 @@ frame_valkyrie()
 frame_valkyrie_tier(2)
 frame_valkyrie_tier(3)
 frame_valkyrie_tier(4)
+frame_scout()
+frame_maintenance()
+frame_seraph()
+frame_striker()
+frame_aegis()
+frame_tempest()
+frame_helios()
+frame_nemesis()
+frame_luminous()
 frame_fortress()
 frame_mirage()
 backpack_thruster()
@@ -928,6 +1278,15 @@ def main():
             'mirage': ['frame_mirage_head', 'frame_mirage_chest', 'frame_mirage_legs', 'backpack_ecm_pod'],
             'gallia': ['backpack_gallia_fortress'],
             'tachyon': ['backpack_tachyon_drive'],
+            'scout': ['frame_scout_head', 'frame_scout_chest', 'frame_scout_legs'],
+            'maintenance': ['frame_maintenance_head', 'frame_maintenance_chest', 'frame_maintenance_legs'],
+            'seraph': ['frame_seraph_head', 'frame_seraph_chest', 'frame_seraph_legs'],
+            'striker': ['frame_striker_head', 'frame_striker_chest', 'frame_striker_legs'],
+            'aegis': ['frame_aegis_head', 'frame_aegis_chest', 'frame_aegis_legs'],
+            'tempest': ['frame_tempest_head', 'frame_tempest_chest', 'frame_tempest_legs'],
+            'helios': ['frame_helios_head', 'frame_helios_chest', 'frame_helios_legs'],
+            'nemesis': ['frame_nemesis_head', 'frame_nemesis_chest', 'frame_nemesis_legs'],
+            'luminous': ['frame_luminous_head', 'frame_luminous_chest', 'frame_luminous_legs'],
             'memento': ['backpack_memento_familiar'],
             'valkyrie_mk2': ['frame_valkyrie_mk2_head', 'frame_valkyrie_mk2_chest', 'frame_valkyrie_mk2_legs'],
             'valkyrie_mk3': ['frame_valkyrie_mk3_head', 'frame_valkyrie_mk3_chest', 'frame_valkyrie_mk3_legs'],
