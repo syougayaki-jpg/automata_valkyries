@@ -28,8 +28,8 @@ public class ValkyrieMenu extends AbstractContainerMenu {
 
     /** 画面の大きさと枠の位置（{@code client/ValkyrieScreen} と合わせる） */
     public static final int WIDTH = 320, HEIGHT = 250, INV_X = 80, INV_Y = 170, AMMO_Y = 146;
-    /** 持ち物タブの予備の武器・拾った物の行 */
-    public static final int SPARE_Y = 50, PICKUP_Y = 110;
+    /** 持ち物タブの予備の武器の行・拾った物（3 行 × 9）の始まりの行（2026-10-06 拾った物を 27 枠に） */
+    public static final int SPARE_Y = 38, PICKUP_Y = 76;
     public static final int[][] SLOT_POS = new int[ValkyrieInventory.SIZE][];
 
     static {
@@ -43,7 +43,7 @@ public class ValkyrieMenu extends AbstractContainerMenu {
         for (int i = 0; i < ValkyrieInventory.CHIPS; i++) SLOT_POS[ValkyrieInventory.CHIP + i] = new int[]{37 + 18 * i, 124};
         for (int i = 0; i < ValkyrieInventory.MAX_AMMO; i++) SLOT_POS[ValkyrieInventory.AMMO + i] = new int[]{8 + 18 * i, AMMO_Y};
         for (int i = 0; i < ValkyrieInventory.SPARES; i++) SLOT_POS[ValkyrieInventory.SPARE + i] = new int[]{INV_X + 18 * i, SPARE_Y};
-        for (int i = 0; i < ValkyrieInventory.PICKUPS; i++) SLOT_POS[ValkyrieInventory.PICKUP + i] = new int[]{INV_X + 18 * i, PICKUP_Y};
+        for (int i = 0; i < ValkyrieInventory.PICKUPS; i++) SLOT_POS[ValkyrieInventory.PICKUP + i] = new int[]{INV_X + 18 * (i % 9), PICKUP_Y + 18 * (i / 9)};
     }
 
     // ---- 数値の番号

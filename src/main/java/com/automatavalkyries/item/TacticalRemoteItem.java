@@ -34,7 +34,9 @@ import java.util.List;
 public class TacticalRemoteItem extends Item {
 
     public static final double RANGE = 32.0;
-    private static final String[] DIRS = {"forward", "back", "left", "right", "wave", "joy", "nod", "peek", "dejected", "talk"};
+    private static final String[] DIRS = {"forward", "back", "left", "right", "wave", "joy", "nod", "peek", "dejected", "talk", "carry_home", "hand_over"};
+    /** ポーターへの指示（運び先へ運ぶ・持ち主に渡す）の番号 */
+    private static final int CARRY_HOME = 10, HAND_OVER = 11;
     /** 仕草の指示の種類（DIRS の 4 番から） */
     private static final int[] GESTURES = {ValkyrieEntity.GESTURE_WAVE, ValkyrieEntity.GESTURE_JOY, ValkyrieEntity.GESTURE_NOD,
             ValkyrieEntity.GESTURE_PEEK, ValkyrieEntity.GESTURE_DEJECTED};
@@ -93,6 +95,12 @@ public class TacticalRemoteItem extends Item {
         int mode = dir(stack);
         if (mode < 4) return ValkyrieCombat.orderStep(v, direction(player, stack));
         if (v.isShutdown() || v.isAsleep()) return false;
+        if (mode == CARRY_HOME || mode == HAND_OVER) { // ロジック: ポーター（チップが無くても「渡して」は効く）
+            if (!v.getInventory().hasPickup()) return false;
+            v.combat().porterTrip = mode == CARRY_HOME ? com.automatavalkyries.entity.ai.ValkyriePorter.TRIP_HOME : com.automatavalkyries.entity.ai.ValkyriePorter.TRIP_OWNER;
+            v.gesture(ValkyrieEntity.GESTURE_NOD);
+            return true;
+        }
         if (mode < 4 + GESTURES.length) {
             int g = GESTURES[mode - 4];
             v.gesture(g);

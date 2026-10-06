@@ -151,6 +151,7 @@ public class ValkyrieScreen extends AbstractContainerScreen<ValkyrieMenu> {
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         renderBackground(g);
         super.render(g, mouseX, mouseY, partialTick);
+        if (menu.tab == 3) renderTooltip(g, mouseX, mouseY); // 持ち物タブでも物の説明を出す
         if (menu.tab == 0) {
             renderTooltip(g, mouseX, mouseY);
             Slot hovered = hoveredSlot;
@@ -215,8 +216,8 @@ public class ValkyrieScreen extends AbstractContainerScreen<ValkyrieMenu> {
         g.fill(x + w - 1, y + h - c, x + w, y + h, color);
     }
 
-    private void renderEquipment(GuiGraphics g, int x, int y, int glow, int mouseX, int mouseY) {
-        // 枠
+    /** 見えている枠の下地と縁（換装タブ・持ち物タブ） */
+    private void drawSlots(GuiGraphics g, int x, int y, int glow) {
         for (Slot s : menu.slots) {
             if (!s.isActive()) continue;
             int sx = x + s.x - 1, sy = y + s.y - 1;
@@ -227,6 +228,10 @@ public class ValkyrieScreen extends AbstractContainerScreen<ValkyrieMenu> {
                 g.fill(sx + 5, sy + 8, sx + 13, sy + 10, 0x40FFFFFF);
             }
         }
+    }
+
+    private void renderEquipment(GuiGraphics g, int x, int y, int glow, int mouseX, int mouseY) {
+        drawSlots(g, x, y, glow);
         // 3D モデル（ドラッグで回転）
         g.fill(x + MODEL_X, y + MODEL_Y, x + MODEL_X + MODEL_W, y + MODEL_Y + MODEL_H, PANEL);
         frame(g, x + MODEL_X, y + MODEL_Y, MODEL_W, MODEL_H, glow);
@@ -351,12 +356,42 @@ public class ValkyrieScreen extends AbstractContainerScreen<ValkyrieMenu> {
         }
     }
 
-    /** 持ち物タブ: 予備の武器（電力が減ると射撃の兵装から持ち替える）と、お掃除で拾った物 */
+    /**
+     * 持ち物タブ: 予備の武器（電力が減ると射撃の兵装から持ち替える）と、お掃除・ポーターで拾った物（プレイヤーの持ち物と同じ 3 行 × 9）。
+     * 左の列に説明とポーターの運び方・運び先を出す（2026-10-06 ユーザー指定「見やすい UI に」）
+     */
     private void renderItems(GuiGraphics g, int x, int y, int glow) {
-        g.drawString(font, Component.translatable("gui.automata_valkyries.valkyrie.items.spare"), x + ValkyrieMenu.INV_X, y + ValkyrieMenu.SPARE_Y - 12, TEXT, false);
-        g.drawString(font, Component.translatable("gui.automata_valkyries.valkyrie.items.spare_note"), x + ValkyrieMenu.INV_X, y + ValkyrieMenu.SPARE_Y + 20, DIM, false);
-        g.drawString(font, Component.translatable("gui.automata_valkyries.valkyrie.items.pickup"), x + ValkyrieMenu.INV_X, y + ValkyrieMenu.PICKUP_Y - 12, TEXT, false);
-        g.drawString(font, Component.translatable("gui.automata_valkyries.valkyrie.items.pickup_note"), x + ValkyrieMenu.INV_X, y + ValkyrieMenu.PICKUP_Y + 20, DIM, false);
+        int ix = x + ValkyrieMenu.INV_X, right = x + ValkyrieMenu.INV_X + 9 * 18;
+        // 予備の武器
+        g.drawString(font, Component.translatable("gui.automata_valkyries.valkyrie.items.spare"), ix, y + ValkyrieMenu.SPARE_Y - 11, TEXT, false);
+        // 拾った物（使っている枠の数を右に）
+        int used = 0;
+        for (int i = 0; i < ValkyrieInventory.PICKUPS; i++) if (!menu.getSlot(ValkyrieInventory.PICKUP + i).getItem().isEmpty()) used++;
+        g.drawString(font, Component.translatable("gui.automata_valkyries.valkyrie.items.pickup"), ix, y + ValkyrieMenu.PICKUP_Y - 11, TEXT, false);
+        Component count = Component.translatable("gui.automata_valkyries.valkyrie.items.pickup_count", used, ValkyrieInventory.PICKUPS);
+        g.drawString(font, count, right - font.width(count), y + ValkyrieMenu.PICKUP_Y - 11, used >= ValkyrieInventory.PICKUPS ? BAD : DIM, false);
+        // 拾った物の枠の帯（3 行の区切りが分かるよう、うっすら背景）
+        g.fill(ix - 2, y + ValkyrieMenu.PICKUP_Y - 2, right + 1, y + ValkyrieMenu.PICKUP_Y + 3 * 18, PANEL);
+        drawSlots(g, x, y, glow); // 持ち物タブにも枠を描く（無くて見づらかった）
+        // 左の列: 説明とポーター
+        int lx = x + 8, lw = ValkyrieMenu.INV_X - 14;
+        g.drawWordWrap(font, Component.translatable("gui.automata_valkyries.valkyrie.items.spare_note"), lx, y + ValkyrieMenu.SPARE_Y - 11, lw, DIM);
+        g.drawWordWrap(font, Component.translatable("gui.automata_valkyries.valkyrie.items.pickup_note"), lx, y + ValkyrieMenu.PICKUP_Y, lw, DIM);
+        ItemStack porter = v().getInventory().chip(com.automatavalkyries.item.unit.ValkyrieUnits.ChipKind.PORTER);
+        int py = y + ValkyrieMenu.PICKUP_Y + 3 * 18 + 6;
+        if (porter.isEmpty()) {
+            g.drawString(font, Component.translatable("gui.automata_valkyries.valkyrie.items.porter_none"), ix, py, DIM, false);
+            return;
+        }
+        int mode = com.automatavalkyries.item.unit.ValkyrieUnits.porterMode(porter);
+        g.drawString(font, Component.translatable("gui.automata_valkyries.valkyrie.items.porter",
+                Component.translatable("gui.automata_valkyries.unit.chip.porter.mode." + mode)), ix, py, GOOD, false);
+        BlockPos dest = com.automatavalkyries.item.unit.ValkyrieUnits.porterPos(porter, "Dest", null);
+        BlockPos src = com.automatavalkyries.item.unit.ValkyrieUnits.porterPos(porter, "Source", null);
+        Component where = dest == null ? Component.translatable("gui.automata_valkyries.unit.chip.porter.unset")
+                : Component.translatable("gui.automata_valkyries.valkyrie.items.porter_dest", dest.getX(), dest.getY(), dest.getZ());
+        if (mode == 1 && src != null) where = Component.translatable("gui.automata_valkyries.valkyrie.items.porter_source", src.getX(), src.getY(), src.getZ()).append(" → ").append(where);
+        g.drawString(font, where, ix + 4, py + 10, DIM, false);
     }
 
     private void renderOrders(GuiGraphics g, int x, int y, int glow) {

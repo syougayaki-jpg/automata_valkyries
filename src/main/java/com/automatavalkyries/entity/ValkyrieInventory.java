@@ -25,7 +25,7 @@ public class ValkyrieInventory implements Container {
     public static final int CHIP = 7, CHIPS = 3;
     public static final int AMMO = CHIP + CHIPS, MAX_AMMO = 8;
     /** 持ち物タブ（段階 4、2026-10-06 ユーザー指定「拾った物が分かるようにインベントリ」）: 予備の武器（電力が減ると持ち替える）と、お掃除で拾った物 */
-    public static final int SPARE = AMMO + MAX_AMMO, SPARES = 9, PICKUP = SPARE + SPARES, PICKUPS = 9;
+    public static final int SPARE = AMMO + MAX_AMMO, SPARES = 9, PICKUP = SPARE + SPARES, PICKUPS = 27; // 拾った物はプレイヤーの持ち物と同じ 27 枠（2026-10-06 ユーザー指定）
     public static final int SIZE = PICKUP + PICKUPS;
 
     private final ValkyrieEntity owner;

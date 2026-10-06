@@ -187,6 +187,35 @@ public class ValkyrieCombatGameTests {
         });
     }
 
+    /** ロジック: ポーター（チェスト間）: 運び元のチェストの中身を運び先のチェストへ運ぶ */
+    @GameTest(template = TEMPLATE, batch = "valkyrie_daily_porter", timeoutTicks = 600)
+    public static void valkyriePorterMovesChestToChest(GameTestHelper helper) {
+        clearAround(helper);
+        net.minecraft.core.BlockPos src = new net.minecraft.core.BlockPos(2, 0, 1), dest = new net.minecraft.core.BlockPos(2, 0, 4);
+        helper.setBlock(src, net.minecraft.world.level.block.Blocks.CHEST);
+        helper.setBlock(dest, net.minecraft.world.level.block.Blocks.BARREL);
+        ((net.minecraft.world.level.block.entity.ChestBlockEntity) helper.getBlockEntity(src)).setItem(0, new ItemStack(net.minecraft.world.item.Items.IRON_INGOT, 20));
+        ValkyrieEntity v = helper.spawn(ModEntities.VALKYRIE.get(), 1, 2, 2);
+        v.setMode(ValkyrieEntity.Mode.WAIT);
+        ItemStack chip = new ItemStack(com.automatavalkyries.registry.ModValkyrieUnits.CHIPS.get(com.automatavalkyries.item.unit.ValkyrieUnits.ChipKind.PORTER).get());
+        var tag = chip.getOrCreateTag();
+        tag.putInt("PorterMode", 1);
+        tag.putLong("Source", helper.absolutePos(src).asLong());
+        tag.putLong("Dest", helper.absolutePos(dest).asLong());
+        String dim = helper.getLevel().dimension().location().toString();
+        tag.putString("SourceDim", dim);
+        tag.putString("DestDim", dim);
+        v.getInventory().setItem(com.automatavalkyries.entity.ValkyrieInventory.CHIP, chip);
+        WeaponGameTests.forceChunks(helper, v);
+        helper.succeedWhen(() -> {
+            var be = helper.getBlockEntity(dest);
+            helper.assertTrue(be instanceof net.minecraft.world.level.block.entity.BarrelBlockEntity barrel
+                    && barrel.countItem(net.minecraft.world.item.Items.IRON_INGOT) == 20, "the porter did not move the ingots (pickup=" + v.getInventory().hasPickup()
+                    + " pos=" + helper.relativeVec(v.position()) + ")");
+            v.releaseAndDiscard();
+        });
+    }
+
     @GameTest(template = TEMPLATE, batch = "valkyrie_daily_charge", timeoutTicks = 800)
     public static void valkyrieChargesAtStation(GameTestHelper helper) {
         clearAround(helper);

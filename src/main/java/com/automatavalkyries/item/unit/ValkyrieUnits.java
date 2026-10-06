@@ -200,7 +200,9 @@ public final class ValkyrieUnits {
         /** 通常攻撃だけ／チャージ攻撃だけ（しゃがみ右クリックで切り替え） */
         ATTACK_MODE("attack_mode", 1, false),
         /** 固定砲台: 覚えた対象を探し、通常・チャージ攻撃の最大射程に入ったら動かずに撃つ */
-        TURRET("turret", 2, false);
+        TURRET("turret", 2, false),
+        /** ポーター: 運搬のお手伝い（拾った物を運び先へ・チェスト間・持ち主の荷物持ち。entity/ai/ValkyriePorter） */
+        PORTER("porter", 1, false);
 
         public final String id;
         public final int tier;
@@ -236,6 +238,15 @@ public final class ValkyrieUnits {
             if (kind == ChipKind.ATTACK_MODE) {
                 tooltip.add(Component.translatable("gui.automata_valkyries.unit.chip.attack_mode." + (chargeOnly(stack) ? "charge" : "normal")).withStyle(ChatFormatting.AQUA));
             }
+            if (kind == ChipKind.PORTER) {
+                int mode = porterMode(stack);
+                tooltip.add(Component.translatable("gui.automata_valkyries.unit.chip.porter.mode",
+                        Component.translatable("gui.automata_valkyries.unit.chip.porter.mode." + mode)).withStyle(ChatFormatting.AQUA));
+                net.minecraft.core.BlockPos dest = porterPos(stack, "Dest", null), src = porterPos(stack, "Source", null);
+                tooltip.add(dest == null ? Component.translatable("gui.automata_valkyries.unit.chip.porter.unset").withStyle(ChatFormatting.DARK_GRAY)
+                        : Component.translatable("gui.automata_valkyries.unit.chip.porter.dest", dest.getX(), dest.getY(), dest.getZ()).withStyle(ChatFormatting.GRAY));
+                if (mode == 1 && src != null) tooltip.add(Component.translatable("gui.automata_valkyries.unit.chip.porter.source", src.getX(), src.getY(), src.getZ()).withStyle(ChatFormatting.GRAY));
+            }
             if (kind == ChipKind.TURRET) {
                 List<net.minecraft.world.entity.EntityType<?>> types = turretTargets(stack);
                 if (types.isEmpty()) {
@@ -255,9 +266,13 @@ public final class ValkyrieUnits {
         @Override
         public net.minecraft.world.InteractionResultHolder<ItemStack> use(Level level, net.minecraft.world.entity.player.Player player, net.minecraft.world.InteractionHand hand) {
             ItemStack stack = player.getItemInHand(hand);
-            if (!player.isShiftKeyDown() || (kind != ChipKind.ATTACK_MODE && kind != ChipKind.TURRET)) return super.use(level, player, hand);
+            if (!player.isShiftKeyDown() || (kind != ChipKind.ATTACK_MODE && kind != ChipKind.TURRET && kind != ChipKind.PORTER)) return super.use(level, player, hand);
             if (!level.isClientSide) {
-                if (kind == ChipKind.ATTACK_MODE) {
+                if (kind == ChipKind.PORTER) {
+                    stack.getOrCreateTag().putInt("PorterMode", (porterMode(stack) + 1) % 3);
+                    player.displayClientMessage(Component.translatable("gui.automata_valkyries.unit.chip.porter.mode",
+                            Component.translatable("gui.automata_valkyries.unit.chip.porter.mode." + porterMode(stack))).withStyle(ChatFormatting.AQUA), true);
+                } else if (kind == ChipKind.ATTACK_MODE) {
                     stack.getOrCreateTag().putBoolean("ChargeOnly", !chargeOnly(stack));
                     player.displayClientMessage(Component.translatable("gui.automata_valkyries.unit.chip.attack_mode." + (chargeOnly(stack) ? "charge" : "normal")).withStyle(ChatFormatting.AQUA), true);
                 } else {
@@ -267,6 +282,32 @@ public final class ValkyrieUnits {
                 level.playSound(null, player.blockPosition(), net.minecraft.sounds.SoundEvents.UI_BUTTON_CLICK.value(), net.minecraft.sounds.SoundSource.PLAYERS, 0.5F, 1.4F);
             }
             return net.minecraft.world.InteractionResultHolder.sidedSuccess(stack, level.isClientSide);
+        }
+
+        /**
+         * ポーター: 入れ物を右クリックで運び先を覚える（チェスト間のモードでは、しゃがみで運び先・普通で運び元）。
+         * ブロックの右クリック（チェストを開く）より先に呼ばれる onItemUseFirst で受ける（useOn では先にチェストが開いていた。2026-10-07）
+         */
+        @Override
+        public net.minecraft.world.InteractionResult onItemUseFirst(ItemStack stack, net.minecraft.world.item.context.UseOnContext ctx) {
+            if (kind != ChipKind.PORTER || ctx.getPlayer() == null) return net.minecraft.world.InteractionResult.PASS;
+            Level level = ctx.getLevel();
+            var player = ctx.getPlayer();
+            if (!level.isClientSide) {
+                var be = level.getBlockEntity(ctx.getClickedPos());
+                if (be == null || !be.getCapability(net.minecraftforge.common.capabilities.ForgeCapabilities.ITEM_HANDLER).isPresent()) {
+                    player.displayClientMessage(Component.translatable("gui.automata_valkyries.unit.chip.porter.not_container").withStyle(ChatFormatting.RED), true);
+                } else {
+                    ItemStack held = player.getItemInHand(ctx.getHand());
+                    boolean source = porterMode(held) == 1 && !player.isShiftKeyDown();
+                    String key = source ? "Source" : "Dest";
+                    held.getOrCreateTag().putLong(key, ctx.getClickedPos().asLong());
+                    held.getOrCreateTag().putString(key + "Dim", level.dimension().location().toString());
+                    player.displayClientMessage(Component.translatable("gui.automata_valkyries.unit.chip.porter." + (source ? "set_source" : "set_dest")).withStyle(ChatFormatting.AQUA), true);
+                    level.playSound(null, player.blockPosition(), net.minecraft.sounds.SoundEvents.UI_BUTTON_CLICK.value(), net.minecraft.sounds.SoundSource.PLAYERS, 0.5F, 1.8F);
+                }
+            }
+            return net.minecraft.world.InteractionResult.sidedSuccess(level.isClientSide);
         }
 
         /** タレット: モブを右クリックでその種類を対象に覚える（プレイヤー・兵姫は覚えない） */
@@ -292,6 +333,19 @@ public final class ValkyrieUnits {
             }
             return net.minecraft.world.InteractionResult.sidedSuccess(player.level().isClientSide);
         }
+    }
+
+    /** ポーターの運び方（0 = 拾った物を運び先へ、1 = チェスト間、2 = 持ち主の荷物持ち） */
+    public static int porterMode(ItemStack stack) {
+        return stack.hasTag() ? Math.floorMod(stack.getTag().getInt("PorterMode"), 3) : 0;
+    }
+
+    /** ポーターが覚えた運び先（key = "Dest"）・運び元（"Source"）。level を渡せば同じディメンションの物だけ。無ければ null */
+    @Nullable
+    public static net.minecraft.core.BlockPos porterPos(ItemStack stack, String key, @Nullable Level level) {
+        if (!stack.hasTag() || !stack.getTag().contains(key)) return null;
+        if (level != null && !level.dimension().location().toString().equals(stack.getTag().getString(key + "Dim"))) return null;
+        return net.minecraft.core.BlockPos.of(stack.getTag().getLong(key));
     }
 
     /** アタックセレクトがチャージ攻撃だけか（でなければ通常攻撃だけ） */

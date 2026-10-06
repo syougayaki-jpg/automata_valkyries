@@ -232,6 +232,8 @@ public final class ValkyrieCombat {
         boolean stepAirborne;
         /** ストライカー: ダッシュ直後の 1 撃が強くなる期限・ネメシス: オーバードライブの期限とまた使える時刻（ゲーム時刻） */
         public long dashBoostUntil, overdriveUntil, overdriveReadyAt;
+        /** ポーター: リモコンの指示（{@link ValkyriePorter#TRIP_HOME} など） */
+        public int porterTrip;
         /** 追加の背部ユニットの次に使える時刻（ゲーム時刻。ValkyrieSupportUnits）・アストラルハローが働いているか */
         public long batteryReadyAt, missileReadyAt, grappleReadyAt, reflectReadyAt, reviveReadyAt, ownerSaveReadyAt;
         public boolean haloOn;

@@ -463,6 +463,8 @@ public final class ValkyrieDaily {
 
         @Nullable
         private BlockPos findChest() {
+            BlockPos porter = ValkyriePorter.cleanDestination(v); // ロジック: ポーター（拾った物を運び先へ）
+            if (porter != null && !unreachable.contains(porter)) return porter;
             BlockPos c = center(v);
             BlockPos best = null;
             double bestD = Double.MAX_VALUE;
@@ -529,32 +531,11 @@ public final class ValkyrieDaily {
                 }
                 if (--repath <= 0) {
                     repath = 10;
-                    BlockPos stand = standBeside(chest);
+                    BlockPos stand = standBeside(v, chest);
                     if (stand != null) v.getNavigation().moveTo(stand.getX() + 0.5, stand.getY(), stand.getZ() + 0.5, ValkyrieGoals.pathSpeed(v, 1.1));
                     else v.getNavigation().moveTo(c.x, c.y, c.z, ValkyrieGoals.pathSpeed(v, 1.1));
                 }
             }
-        }
-
-        /** チェストの横の立てる所（空気で、足元が固い）。自分にいちばん近い所。無ければ null */
-        @Nullable
-        private BlockPos standBeside(BlockPos chestPos) {
-            BlockPos best = null;
-            double bestD = Double.MAX_VALUE;
-            for (Direction d : Direction.Plane.HORIZONTAL) {
-                for (int dy = 0; dy >= -1; dy--) {
-                    BlockPos p = chestPos.relative(d).above(dy);
-                    if (!v.level().getBlockState(p).getCollisionShape(v.level(), p).isEmpty()
-                            || !v.level().getBlockState(p.above()).getCollisionShape(v.level(), p.above()).isEmpty()
-                            || v.level().getBlockState(p.below()).getCollisionShape(v.level(), p.below()).isEmpty()) continue;
-                    double dist = p.distSqr(v.blockPosition());
-                    if (dist < bestD) {
-                        bestD = dist;
-                        best = p;
-                    }
-                }
-            }
-            return best;
         }
 
         private void pickUp(ItemEntity e) {
@@ -564,22 +545,47 @@ public final class ValkyrieDaily {
             else e.setItem(rest);
         }
 
-        /** チェストへ入れる（入りきらない物は持ったまま）。蓋を少し開け閉めする */
         private void deliver(BlockPos pos) {
-            BlockEntity be = v.level().getBlockEntity(pos);
-            if (be == null) return;
-            IItemHandler handler = be.getCapability(ForgeCapabilities.ITEM_HANDLER, Direction.UP).orElse(null);
-            if (handler == null) return;
-            v.getInventory().deliverPickups(handler);
-            v.getLookControl().setLookAt(Vec3.atCenterOf(pos));
-            v.level().blockEvent(pos, be.getBlockState().getBlock(), 1, 1);
-            com.automatavalkyries.weapon.WeaponUtil.later((ServerLevel) v.level(), 20, () -> v.level().blockEvent(pos, be.getBlockState().getBlock(), 1, 0));
-            v.playSound(net.minecraft.sounds.SoundEvents.CHEST_OPEN, 0.5F, 1.1F);
+            depositInto(v, pos);
             if (!v.getInventory().hasPickup()) {
                 v.talk("clean_done");
                 v.gesture(ValkyrieEntity.GESTURE_NOD);
             }
         }
+    }
+
+    /** 入れ物の横の立てる所（空気で、足元が固い）。兵姫にいちばん近い所。無ければ null（お掃除・ポーター） */
+    @Nullable
+    static BlockPos standBeside(ValkyrieEntity v, BlockPos chestPos) {
+        BlockPos best = null;
+        double bestD = Double.MAX_VALUE;
+        for (Direction d : Direction.Plane.HORIZONTAL) {
+            for (int dy = 0; dy >= -1; dy--) {
+                BlockPos p = chestPos.relative(d).above(dy);
+                if (!v.level().getBlockState(p).getCollisionShape(v.level(), p).isEmpty()
+                        || !v.level().getBlockState(p.above()).getCollisionShape(v.level(), p.above()).isEmpty()
+                        || v.level().getBlockState(p.below()).getCollisionShape(v.level(), p.below()).isEmpty()) continue;
+                double dist = p.distSqr(v.blockPosition());
+                if (dist < bestD) {
+                    bestD = dist;
+                    best = p;
+                }
+            }
+        }
+        return best;
+    }
+
+    /** 拾った物を入れ物へ入れる（入りきらない物は持ったまま）。蓋を少し開け閉めする（お掃除・ポーター） */
+    static void depositInto(ValkyrieEntity v, BlockPos pos) {
+        BlockEntity be = v.level().getBlockEntity(pos);
+        if (be == null) return;
+        IItemHandler handler = be.getCapability(ForgeCapabilities.ITEM_HANDLER, Direction.UP).orElse(null);
+        if (handler == null) return;
+        v.getInventory().deliverPickups(handler);
+        v.getLookControl().setLookAt(Vec3.atCenterOf(pos));
+        v.level().blockEvent(pos, be.getBlockState().getBlock(), 1, 1);
+        com.automatavalkyries.weapon.WeaponUtil.later((ServerLevel) v.level(), 20, () -> v.level().blockEvent(pos, be.getBlockState().getBlock(), 1, 0));
+        v.playSound(net.minecraft.sounds.SoundEvents.CHEST_OPEN, 0.5F, 1.1F);
     }
 
     // ------------------------------------------------------------------ 作業の見守り

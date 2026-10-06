@@ -277,6 +277,7 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         // 日常（段階 4）: 自分で充電・作業の見守り・お掃除・腰掛け
         goalSelector.addGoal(1, new com.automatavalkyries.entity.ai.ValkyrieDaily.SelfCharge(this));
         goalSelector.addGoal(2, new com.automatavalkyries.entity.ai.ValkyrieDaily.WatchWork(this));
+        goalSelector.addGoal(2, new com.automatavalkyries.entity.ai.ValkyriePorter(this)); // ロジック: ポーター（運搬）
         goalSelector.addGoal(4, new com.automatavalkyries.entity.ai.ValkyrieDaily.Clean(this));
         goalSelector.addGoal(5, new com.automatavalkyries.entity.ai.ValkyrieDaily.Sit(this));
         goalSelector.addGoal(2, new ValkyrieCombat.Fight(this));

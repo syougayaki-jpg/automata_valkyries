@@ -4,7 +4,7 @@
     python tools/gen_valkyrie_unit_items.py [プレビューの出力先.png]
 
 出力（assets/automata_valkyries/ の下）:
-  textures/item/<id>.png      … 74 種
+  textures/item/<id>.png      … 75 種
   models/item/<id>.json       … item/generated
 
 絵は文字の格子で描く。8 文字の行は左半分で、右半分は左右反転して影の色に寄せる（左上から光が当たる）。
@@ -802,6 +802,17 @@ CHIP_GLYPHS = {
         '.rRRRr..',
         'rrrrrrr.',
         '.r...r..',
+    ]),
+    # ポーター: 運ぶ矢印と木箱（青緑）
+    'porter': ({'r': 0x2AB8A8, 'R': 0x8CF0E0, 'w': 0xE0FFFA}, [
+        '...ww...',
+        '..wwww..',
+        '...ww...',
+        'rrrrrrrr',
+        'rRrRRrRr',
+        'rrrrrrrr',
+        'rRrRRrRr',
+        'rrrrrrrr',
     ]),
 }
 
