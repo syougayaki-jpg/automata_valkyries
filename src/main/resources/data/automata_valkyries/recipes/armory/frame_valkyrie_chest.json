@@ -1,0 +1,34 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 1,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:alloy_luminal_sterling"
+      },
+      "count": 5
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:composite_plate"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:crystal_luminal"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_advanced"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:frame_valkyrie_chest"
+  },
+  "energy": 120000,
+  "time": 400
+}

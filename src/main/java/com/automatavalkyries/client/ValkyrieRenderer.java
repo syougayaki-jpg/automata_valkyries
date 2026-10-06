@@ -24,6 +24,7 @@ public class ValkyrieRenderer extends GeoEntityRenderer<ValkyrieEntity> {
         this.shadowRadius = 0.45F;
         addRenderLayer(new AutoGlowingGeoLayer<>(this));
         addRenderLayer(new CoreStarsLayer(this));
+        addRenderLayer(new ValkyrieUnitLayer(this)); // 外装フレーム・背部ユニット
         addRenderLayer(new HeldItemLayer(this));
     }
 
@@ -35,10 +36,11 @@ public class ValkyrieRenderer extends GeoEntityRenderer<ValkyrieEntity> {
         T4BackdropClient.render(entity, poseStack, bufferSource, partialTick);
         GenesisBackdropClient.render(entity, poseStack, bufferSource, partialTick);
         RequiemBackdropClient.render(entity, poseStack, bufferSource, partialTick);
+        MementoButterflies.render(entity, poseStack, bufferSource, partialTick); // メメント・ファミリアの蝶
         ValkyrieOverhead.render(entity, poseStack, bufferSource, partialTick, entityRenderDispatcher, getFont()); // 名前・バー・感情アイコン・吹き出し
     }
 
-    /** HUD の顔（{@link ValkyrieHud#drawFace}）を描いている最中か: 背の飾り・頭上の表示・手の物・名札を出さない */
+    /** HUD の顔（{@link ValkyrieHud#drawFace}）を描いている最中か: 背の飾り・背部ユニット（蝶も）・頭上の表示・手の物・名札を出さない（外装フレームは出す） */
     static boolean portraitPass;
 
     /** 頭上の表示が出る距離ではバニラの名札を出さない（名前が二重にならないよう） */

@@ -1,0 +1,28 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 1,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_advanced"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:crystal_luminal"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:coil_chrono"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:chip_resource_saver"
+  },
+  "energy": 80000,
+  "time": 300
+}

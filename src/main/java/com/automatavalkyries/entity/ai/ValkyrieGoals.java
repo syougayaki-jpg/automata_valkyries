@@ -68,11 +68,27 @@ public final class ValkyrieGoals {
         }
 
         @Nullable private BlockPos ground;
+        /** 空中で付いて行っている（Mk-III 以上のスラスターで、持ち主が飛んでいるとき） */
+        private boolean flying;
 
-        /** 追う先: 持ち主の足元の地面（地上にいれば持ち主の位置そのもの） */
+        /**
+         * 追う先: 持ち主の足元の地面（地上にいれば持ち主の位置そのもの）。Mk-III 以上のスラスターなら、飛んでいる持ち主の斜め後ろの空中
+         * （2026-10-06 ユーザー指定「ダッシュ・浮遊・空中ジャンプでヴァルキリー要素を出す」）
+         */
         private Vec3 goal(Player o) {
+            flying = false;
             if (o.onGround() || o.isPassenger()) return o.position();
             ground = groundBelow(o);
+            var m = ValkyrieUnitEffects.maneuver(v);
+            boolean high = o.getAbilities().flying || o.isFallFlying() || ground == null || o.getY() - ground.getY() > 3.0;
+            if (m != null && m.airFollow() && high && !o.isInWater()) {
+                flying = true;
+                Vec3 look = o.getLookAngle();
+                Vec3 back = new Vec3(-look.x, 0, -look.z);
+                back = back.lengthSqr() < 1.0e-4 ? Vec3.ZERO : back.normalize();
+                Vec3 side = new Vec3(-back.z, 0, back.x);
+                return o.position().add(back.scale(2.0)).add(side.scale(1.2)).add(0, 0.3, 0);
+            }
             return ground != null ? Vec3.atBottomCenterOf(ground) : null;
         }
 
@@ -91,7 +107,7 @@ public final class ValkyrieGoals {
         public boolean canContinueToUse() {
             if (owner == null || !owner.isAlive() || v.getMode() != Mode.FOLLOW || v.isShutdown() || v.isPassenger()) return false;
             Vec3 g = goal(owner);
-            return g != null && (v.position().distanceToSqr(g) > STOP_DIST * STOP_DIST || owner.isPassenger());
+            return g != null && (flying || v.position().distanceToSqr(g) > STOP_DIST * STOP_DIST || owner.isPassenger());
         }
 
         @Override
@@ -114,6 +130,16 @@ public final class ValkyrieGoals {
             double dist = Math.sqrt(v.position().distanceToSqr(g));
             Entity vehicle = owner.getVehicle();
             if (vehicle != null && v.distanceTo(owner) < 4.0 && v.startRiding(vehicle)) return; // 同乗（空いていなければ失敗して並走）
+            if (flying) { // 空中で付いて行く（離れすぎたら持ち主のそばの空中へ）。電力が足りなければ地上の追従に戻る
+                if (dist > TELEPORT_DIST * 2) {
+                    v.teleportTo(g.x, g.y, g.z);
+                    return;
+                }
+                if (v.combat().fly(g, dist > 12 ? 1.6 : dist > 4 ? 0.9 : 0.4)) return;
+                g = ground != null ? Vec3.atBottomCenterOf(ground) : null;
+                if (g == null) return;
+                dist = Math.sqrt(v.position().distanceToSqr(g));
+            }
             if (dist > TELEPORT_DIST) {
                 v.teleportNear(BlockPos.containing(g));
                 return;

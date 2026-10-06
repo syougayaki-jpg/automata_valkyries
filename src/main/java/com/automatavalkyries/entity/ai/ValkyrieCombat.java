@@ -68,6 +68,8 @@ public final class ValkyrieCombat {
     /** 横ステップの確率・間隔、ダッシュの間隔、滞空の長さ（Tick）【仮】 */
     public static final float DODGE_CHANCE = 0.6F;
     public static final int HOVER_TICKS = 16, HOVER_COOLDOWN = 200;
+    /** スラスターの空中ダッシュ・空中ジャンプを続けて出す間（Tick）【仮】 */
+    public static final int AIR_GAP = 12;
     /** 電力で射撃の兵装から近接の予備へ持ち替える・戻す割合【仮】 */
     public static final float SWAP_LOW = 0.3F, SWAP_BACK = 0.6F;
     /**
@@ -224,6 +226,8 @@ public final class ValkyrieCombat {
         int dodgeScan, hoverTicks, hoverCooldown, stepTicks;
         /** ステップの最中に地面を離れたか（着地するまでステップの最中） */
         boolean stepAirborne;
+        /** スラスター: 着地してから使った空中ダッシュ・空中ジャンプの回数と、次を出すまでの間（Tick） */
+        int airDashes, airJumps, airGap;
         /** 向きごとのステップのクールタイム（{@link StepDir} の順） */
         final int[] stepCooldown = new int[StepDir.values().length];
         long lastEngageLine = -ENGAGE_LINE_COOLDOWN, lastBarrierLine = -BARRIER_LINE_COOLDOWN, lastDownLine = -DOWN_LINE_COOLDOWN;
@@ -260,10 +264,23 @@ public final class ValkyrieCombat {
             } else if (stepAirborne && v.onGround()) {
                 stepAirborne = false;
             }
+            if (airGap > 0) airGap--;
+            if (v.onGround()) {
+                airDashes = 0;
+                airJumps = 0;
+                airHoverUsed = 0;
+            } else if (maneuver() != null && v.getDeltaMovement().y < -0.6 && hoverTicks == 0 && spend(HOVER_FE_PER_TICK)) {
+                // スラスターで落ちる速さを抑えて降りる（高い所からの着地で落下ダメージを受けない）
+                Vec3 d = v.getDeltaMovement();
+                v.setDeltaMovement(d.x, -0.6, d.z);
+                v.fallDistance = 0.0F;
+                if (v.tickCount % 3 == 0) thrust(v.position(), 1);
+            }
             if (dodgeScan > 0) dodgeScan--;
             if (hoverCooldown > 0) hoverCooldown--;
             if (hoverTicks > 0) {
                 hoverTicks--;
+                if (!v.onGround() && airHoverUsed < 100000) airHoverUsed++;
                 if (spend(HOVER_FE_PER_TICK)) {
                     Vec3 d = v.getDeltaMovement();
                     v.setDeltaMovement(d.x * 0.85, Math.max(d.y * 0.5, 0.0), d.z * 0.85);
@@ -276,7 +293,11 @@ public final class ValkyrieCombat {
             if (dodgeScan == 0 && !stepping() && v.tickCount % 2 == 0) dodge();
             if (v.tickCount % 20 == 0) swapForPower();
             if (v.tickCount % 4 == 0) rangedShield();
+            ValkyrieUnitEffects.tick(v, this); // 外装・背部ユニット・ロジックチップ
         }
+
+        /** ECM・アブソリュートの間隔 */
+        int ecmCooldown, absoluteCooldown;
 
         /** 遠距離を防ぐ盾の間隔・構えている残り（バニラの盾） */
         int shieldCooldown, shieldRaised;
@@ -414,7 +435,7 @@ public final class ValkyrieCombat {
         /** ステップ（水平の向き dir へ、強さ power、上へ up）。できたら true。その向きのクールタイムを始める */
         boolean step(Vec3 dir, double power, double up, int fe, float pitch) {
             Vec3 h = new Vec3(dir.x, 0, dir.z);
-            if (h.lengthSqr() < 1.0e-4 || !canStep(h) || !spend(fe)) return false;
+            if (h.lengthSqr() < 1.0e-4 || !canStep(h) || !spend(Math.round(fe * ValkyrieUnitEffects.boostCostScale(v)))) return false;
             StepDir d = classify(h);
             stepCooldown[d.ordinal()] = STEP_COOLDOWN;
             v.playStep(d.ordinal()); // ステップの動き（モデル）
@@ -428,18 +449,132 @@ public final class ValkyrieCombat {
             return true;
         }
 
-        /** 短いダッシュ（地上から、水平の向き dir へ）。できたら true */
+        /** 短いダッシュ（地上から、水平の向き dir へ。スラスターがあれば空中でも）。できたら true */
         boolean dash(Vec3 dir, double power) {
-            return v.onGround() && step(dir, power, 0.18, DASH_FE, 1.1F);
+            if (v.onGround()) return step(dir, power, dir.y > 2.0 ? 0.45 : 0.18, DASH_FE, 1.1F);
+            return airDash(dir, power);
+        }
+
+        /** 背負っているスラスターの機動（無ければ null） */
+        @Nullable
+        com.automatavalkyries.item.unit.ValkyrieUnits.Maneuver maneuver() {
+            return ValkyrieUnitEffects.maneuver(v);
+        }
+
+        private int thrusterFe() {
+            var k = ValkyrieUnitEffects.backpack(v);
+            return Math.round((k != null ? k.fe : DASH_FE) * ValkyrieUnitEffects.boostCostScale(v));
+        }
+
+        /**
+         * ハイマニューバスラスターの空中ダッシュ（相手が上なら上へ）。着地までスラスターの回数だけ続けて出せ、向きごとのクールタイムは掛けない
+         * （2026-10-06 ユーザー指定「A」）。続けて出すときは少し間を空ける
+         */
+        public boolean airDash(Vec3 dir, double power) {
+            var m = maneuver();
+            Vec3 h = new Vec3(dir.x, 0, dir.z);
+            if (m == null || v.onGround() || stepLocked || airGap > 0 || airDashes >= m.airDashes() || h.lengthSqr() < 1.0e-4 || !spend(thrusterFe())) return false;
+            airDashes++;
+            airGap = AIR_GAP;
+            StepDir d = classify(h);
+            v.playStep(d.ordinal());
+            h = h.normalize().scale(power);
+            v.setDeltaMovement(h.x, dir.y > 1.0 ? 0.5 : dir.y < -1.0 ? -0.2 : 0.12, h.z);
+            v.hasImpulse = true;
+            v.fallDistance = 0.0F;
+            stepTicks = STEP_TICKS;
+            thrust(v.position(), 10);
+            wingBurst(0x7FE8FF);
+            v.playSound(ValkyrieEntity.sound("boost"), 0.7F, 1.3F + 0.1F * airDashes);
+            return true;
+        }
+
+        /** 空中ジャンプ（空中でもう一度上へ跳ぶ）。着地までスラスターの回数だけ。できたら true */
+        public boolean airJump() {
+            var m = maneuver();
+            if (m == null || v.onGround() || airGap > 0 || airJumps >= m.airJumps() || !spend(thrusterFe())) return false;
+            airJumps++;
+            airGap = AIR_GAP;
+            Vec3 d = v.getDeltaMovement();
+            v.setDeltaMovement(d.x * 1.1, 0.62, d.z * 1.1);
+            v.hasImpulse = true;
+            v.fallDistance = 0.0F;
+            thrust(v.position(), 14);
+            wingBurst(0xFFFFFF);
+            v.playSound(ValkyrieEntity.sound("boost"), 0.8F, 1.5F);
+            return true;
+        }
+
+        /** 地上なら跳び上がり、空中なら空中ジャンプで上へ（相手・持ち主が上にいるとき） */
+        boolean climb() {
+            if (v.onGround()) {
+                if (maneuver() == null || airGap > 0 || !spend(Math.round(DASH_FE * ValkyrieUnitEffects.boostCostScale(v)))) return false;
+                Vec3 d = v.getDeltaMovement();
+                v.setDeltaMovement(d.x, 0.6, d.z);
+                v.hasImpulse = true;
+                airGap = AIR_GAP;
+                thrust(v.position(), 10);
+                v.playSound(ValkyrieEntity.sound("boost"), 0.6F, 1.2F);
+                return true;
+            }
+            return v.getDeltaMovement().y < 0.1 && airJump();
+        }
+
+        /** スラスターの滞空を続ける（空中で、スラスターの滞空の長さまで。保てたら true） */
+        boolean airHover(int ticks) {
+            var m = maneuver();
+            if (m == null || m.hoverTicks() <= 0 || v.onGround() || v.getEnergy() < HOVER_FE_PER_TICK + ValkyrieEntity.WAKE_ENERGY) return false;
+            int left = m.hoverTicks() - airHoverUsed;
+            if (left <= 0) return false;
+            hoverTicks = Math.max(hoverTicks, Math.min(ticks, left));
+            return true;
+        }
+
+        /** 着地してから使った滞空の長さ（スラスターの滞空の長さまで） */
+        int airHoverUsed;
+
+        /**
+         * 空中で飛んで付いて行く・寄る（Mk-III 以上）。to へまっすぐ向かい、高さを保つ。電力は滞空と同じ毎 Tick。できたら true。
+         * 兵姫は常時は飛ばない（§3）ので、飛ぶのはスラスターの機動が許すときだけ
+         */
+        boolean fly(Vec3 to, double speed) {
+            if (v.getEnergy() < HOVER_FE_PER_TICK * 2 + ValkyrieEntity.WAKE_ENERGY) return false;
+            Vec3 d = to.subtract(v.position());
+            double len = d.length();
+            Vec3 vel = len < 1.0e-3 ? Vec3.ZERO : d.scale(Math.min(speed, len * 0.25) / len);
+            if (!spend(Math.round(HOVER_FE_PER_TICK * ValkyrieUnitEffects.boostCostScale(v)))) return false;
+            v.setDeltaMovement(vel.x, vel.y + 0.08, vel.z); // 重力の分だけ少し上へ（毎 Tick 引かれる）
+            v.hasImpulse = true;
+            v.fallDistance = 0.0F;
+            v.getNavigation().stop();
+            if (v.tickCount % 2 == 0) thrust(v.position(), 2);
+            if (v.tickCount % 6 == 0) wingBurst(0x9FE8FF);
+            return true;
+        }
+
+        /** 背中から光の羽のように広がる噴射（空中ダッシュ・空中ジャンプ・飛行） */
+        void wingBurst(int color) {
+            if (!(v.level() instanceof ServerLevel server)) return;
+            float yaw = v.yBodyRot * Mth.DEG_TO_RAD;
+            Vec3 back = v.position().add(Mth.sin(yaw) * 0.3, v.getBbHeight() * 0.7, -Mth.cos(yaw) * 0.3);
+            Vec3 right = new Vec3(-Mth.cos(yaw), 0, -Mth.sin(yaw));
+            var opt = Fx.opt(com.automatavalkyries.registry.ModParticles.GLOW.get(), color, 0.5F, 10);
+            for (int side = -1; side <= 1; side += 2) {
+                for (int i = 1; i <= 4; i++) {
+                    Vec3 p = back.add(right.scale(side * 0.18 * i)).add(0, 0.12 * i - 0.1 * (i * i) / 4.0, 0);
+                    server.sendParticles(opt, p.x, p.y, p.z, 1, 0.02, 0.02, 0.02, 0.0);
+                }
+            }
         }
 
         /** ジャンプからの滞空（射撃中） */
         boolean hover() {
-            if (hoverCooldown > 0 || stepping() || !v.onGround() || !spend(HOVER_FE_PER_TICK * 4)) return false;
+            if (hoverCooldown > 0 || stepping() || !v.onGround() || !spend(Math.round(HOVER_FE_PER_TICK * 4 * ValkyrieUnitEffects.boostCostScale(v)))) return false;
             v.setDeltaMovement(v.getDeltaMovement().x, 0.55, v.getDeltaMovement().z);
             v.hasImpulse = true;
-            hoverTicks = HOVER_TICKS;
-            hoverCooldown = HOVER_COOLDOWN;
+            var m = maneuver();
+            hoverTicks = m != null ? Math.max(HOVER_TICKS, m.hoverTicks()) : HOVER_TICKS;
+            hoverCooldown = m != null && m.hoverTicks() > 0 ? HOVER_COOLDOWN / 2 : HOVER_COOLDOWN;
             thrust(v.position(), 10);
             v.playSound(ValkyrieEntity.sound("boost"), 0.6F, 1.3F);
             return true;
@@ -712,7 +847,10 @@ public final class ValkyrieCombat {
                 boolean hostile = aggressive && e instanceof Enemy && !(e instanceof Player);
                 if (!hostile && !attackedUs(e)) continue;
                 if (!v.hasLineOfSight(e) && v.distanceToSqr(e) > 16.0) continue;
-                double score = switch (o.priority) {
+                // ロジック: プレシジョン はボスを優先して狙う
+                ValkyrieOrders.Priority priority = v.getInventory().hasChip(com.automatavalkyries.item.unit.ValkyrieUnits.ChipKind.PRECISION)
+                        ? ValkyrieOrders.Priority.BOSS_FIRST : o.priority;
+                double score = switch (priority) {
                     case NEAREST, TURRET_FIRST -> v.distanceToSqr(e); // タレット・警報は侵食基地ができてから
                     case LOWEST_HEALTH -> DirectRead.health(e) * 100.0 + v.distanceToSqr(e) * 0.01;
                     case BOSS_FIRST -> (e.getType().is(Tags.EntityTypes.BOSSES) ? 0.0 : 1.0e6) + v.distanceToSqr(e);
@@ -932,15 +1070,31 @@ public final class ValkyrieCombat {
                 v.getNavigation().stop(); // 待機はその場から（届くときだけ攻撃）
                 return;
             }
+            var m = brain.maneuver();
             switch (style) {
                 case MELEE -> {
+                    // Mk-IV: 飛んでいる相手には空中で寄って戦う（間合いの 6 割の所、相手と同じ高さ）
+                    if (m != null && m.airCombat() && flyingTarget(t) && dist < 32.0) {
+                        Vec3 away = new Vec3(v.getX() - t.getX(), 0, v.getZ() - t.getZ());
+                        away = away.lengthSqr() < 1.0e-4 ? Vec3.ZERO : away.normalize().scale(reach * 0.6);
+                        if (brain.fly(new Vec3(t.getX() + away.x, t.getY(), t.getZ() + away.z), dist > 8 ? 0.9 : 0.5)) {
+                            moving = dist > reach;
+                            return;
+                        }
+                    }
                     // 届かなくなってから詰め始め、間合いの 8 割まで入ったら止まる（境目で動く・止まるを繰り返さないよう幅を持たせる）
                     if (dist > reach) moving = true;
                     else if (dist <= reach * 0.8) moving = false;
+                    if (!moving && m != null && !v.onGround() && !t.onGround()) brain.airHover(20); // 空中の相手とは浮いたまま打ち合う
                     if (moving) {
                         // ダッシュはまっすぐ行けるとき（見えていて、高さがほぼ同じ）だけ。障害物や段差へ突っ込んで道を探し直していた
                         if (dist > 5.0 && dist < 16.0 && v.hasLineOfSight(t) && Math.abs(t.getY() - v.getY()) < 1.0) {
                             brain.dash(t.position().subtract(v.position()), 1.1);
+                        }
+                        // スラスター: 上にいる相手へは跳んで空中ジャンプ、空中からは空中ダッシュで詰める
+                        if (m != null && dist < 16.0 && v.hasLineOfSight(t)) {
+                            if (t.getY() - v.getY() > 1.5) brain.climb();
+                            if (!v.onGround() && dist > 2.5) brain.airDash(t.position().subtract(v.position()), 1.0);
                         }
                         if (--repath <= 0) {
                             repath = 8;
@@ -968,7 +1122,18 @@ public final class ValkyrieCombat {
                     } else {
                         v.getNavigation().stop();
                         strafe(t);
-                        if (v.getRandom().nextFloat() < 0.005F) brain.hover();
+                        boolean canHover = m != null && m.hoverTicks() > 0;
+                        if (v.getRandom().nextFloat() < (canHover ? 0.02F : 0.005F)) brain.hover();
+                        if (canHover && !v.onGround()) {
+                            // スラスターの滞空: 浮いたまま撃ち、時々空中で横へ跳び、下がってきたら空中ジャンプで高さを取り戻す
+                            brain.airHover(20);
+                            if (v.getRandom().nextFloat() < 0.03F) {
+                                Vec3 to = t.position().subtract(v.position());
+                                Vec3 side = new Vec3(-to.z, 0, to.x);
+                                brain.airDash(v.getRandom().nextBoolean() ? side : side.reverse(), 0.7);
+                            }
+                            if (v.getDeltaMovement().y < -0.1 && v.getRandom().nextFloat() < 0.05F) brain.airJump();
+                        }
                     }
                 }
                 case SUPPORT -> {
@@ -1005,6 +1170,17 @@ public final class ValkyrieCombat {
         }
 
         /** 撃ちながら時々横へ動く: 0.5〜1 秒動いて、2〜4 秒は立ち止まって撃つ（ずっと横へ動き続けて落ち着きがなかった。2026-10-06） */
+        /** 空を飛んでいる相手か（足が地面になく、3 ブロック以内の下に地面が無い） */
+        private boolean flyingTarget(LivingEntity t) {
+            if (t.onGround() || t.isInWater() || t.isPassenger()) return false;
+            BlockPos p = t.blockPosition();
+            for (int i = 0; i < 3; i++) {
+                p = p.below();
+                if (!t.level().getBlockState(p).getCollisionShape(t.level(), p).isEmpty()) return false;
+            }
+            return true;
+        }
+
         private void strafe(LivingEntity t) {
             if (--strafeTimer <= 0) {
                 strafing = !strafing;

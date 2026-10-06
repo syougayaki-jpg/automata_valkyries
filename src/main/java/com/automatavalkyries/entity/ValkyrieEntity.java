@@ -150,6 +150,11 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
     public static final int ATTACK_PUNCH_RIGHT = 5, ATTACK_PUNCH_LEFT = 6;
     /** 攻撃の動きの長さ（Tick、種類の順。添字 0 は使わない） */
     public static final int[] ATTACK_TICKS = {0, 8, 7, 12, 10, 6, 6};
+    /** 外装（頭・胴・脚）と背部ユニット（クライアントへ送る写し。見た目に出す。2026-10-06） */
+    private static final EntityDataAccessor<ItemStack> UNIT_HEAD = SynchedEntityData.defineId(ValkyrieEntity.class, EntityDataSerializers.ITEM_STACK);
+    private static final EntityDataAccessor<ItemStack> UNIT_CHEST = SynchedEntityData.defineId(ValkyrieEntity.class, EntityDataSerializers.ITEM_STACK);
+    private static final EntityDataAccessor<ItemStack> UNIT_LEGS = SynchedEntityData.defineId(ValkyrieEntity.class, EntityDataSerializers.ITEM_STACK);
+    private static final EntityDataAccessor<ItemStack> UNIT_BACK = SynchedEntityData.defineId(ValkyrieEntity.class, EntityDataSerializers.ITEM_STACK);
     /** 胸のコア（クライアントへ送る写し。HUD・頭上の発光線の色に使う） */
     private static final EntityDataAccessor<ItemStack> CORE_ITEM = SynchedEntityData.defineId(ValkyrieEntity.class, EntityDataSerializers.ITEM_STACK);
 
@@ -247,6 +252,10 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         entityData.define(EMOTE, 0);
         entityData.define(EMOTE_TICKS, 0);
         entityData.define(CORE_ITEM, ItemStack.EMPTY);
+        entityData.define(UNIT_HEAD, ItemStack.EMPTY);
+        entityData.define(UNIT_CHEST, ItemStack.EMPTY);
+        entityData.define(UNIT_LEGS, ItemStack.EMPTY);
+        entityData.define(UNIT_BACK, ItemStack.EMPTY);
         entityData.define(COMBAT_POSE, (byte) 0);
         entityData.define(STEP_ANIM, 0);
         entityData.define(ATTACK_ANIM, 0);
@@ -370,6 +379,29 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
     public void setCore(ItemStack stack) {
         core = stack == null ? ItemStack.EMPTY : stack.copy();
         syncCore();
+    }
+
+    private static EntityDataAccessor<ItemStack> unitKey(int slot) {
+        return switch (slot) {
+            case ValkyrieInventory.HEAD -> UNIT_HEAD;
+            case ValkyrieInventory.CHEST -> UNIT_CHEST;
+            case ValkyrieInventory.LEGS -> UNIT_LEGS;
+            default -> UNIT_BACK;
+        };
+    }
+
+    /** 外装・背部の物をクライアントへ（種類だけ） */
+    public void syncUnit(int slot, ItemStack stack) {
+        if (level() == null || level().isClientSide || entityData == null) return;
+        ItemStack copy = stack == null || stack.isEmpty() ? ItemStack.EMPTY : new ItemStack(stack.getItem());
+        EntityDataAccessor<ItemStack> key = unitKey(slot);
+        if (!ItemStack.isSameItem(entityData.get(key), copy)) entityData.set(key, copy);
+    }
+
+    /** 外装・背部の物（{@link ValkyrieInventory#HEAD} など）。クライアントでも使える（見た目） */
+    public ItemStack unitItem(int slot) {
+        if (level() != null && level().isClientSide) return entityData.get(unitKey(slot));
+        return getInventory().getItem(slot);
     }
 
     /** コアの写しをクライアントへ（種類だけ見るので、電力の NBT は付けない） */
@@ -572,7 +604,13 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
     }
 
     public float getMaxShield() {
-        return getBody().maxShield * omegaMultiplier();
+        return (getBody().maxShield + com.automatavalkyries.entity.ai.ValkyrieUnitEffects.frameShield(this)) * omegaMultiplier();
+    }
+
+    /** HP・シールドを今の最大まで下げる（外装・コアを外したとき） */
+    public void clampVitals() {
+        if (DirectRead.health(this) > getMaxHealth()) super.setHealth(getMaxHealth());
+        if (getShield() > getMaxShield()) entityData.set(SHIELD, getMaxShield());
     }
 
     public int getEnergy() {
@@ -595,6 +633,7 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
             if (getInventory().getItem(slot).getItem() instanceof com.automatavalkyries.weapon.TacticalWeaponItem weapon) w += weapon.weight();
         }
         if (getCore().getItem() instanceof com.automatavalkyries.weapon.LuminalCoreItem c) w += c.grade().weight;
+        w += com.automatavalkyries.entity.ai.ValkyrieUnitEffects.unitWeight(this); // 外装・背部ユニット・チップ（2026-10-06）
         return w;
     }
 
@@ -652,8 +691,7 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         applyModifier(Attributes.ARMOR, OMEGA_ARMOR_ID, "valkyrie omega armor", bonus);
         applyModifier(Attributes.ARMOR_TOUGHNESS, OMEGA_TOUGHNESS_ID, "valkyrie omega toughness", bonus);
         applyModifier(Attributes.MOVEMENT_SPEED, OMEGA_SPEED_ID, "valkyrie omega speed", bonus);
-        if (DirectRead.health(this) > getMaxHealth()) super.setHealth(getMaxHealth());
-        if (getShield() > getMaxShield()) entityData.set(SHIELD, getMaxShield());
+        clampVitals();
     }
 
     /** 同調率の能力上昇の倍率（20% ごとに段階的、100% で 1.2 倍【仮】） */
@@ -663,7 +701,7 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
 
     /** 装備一式の毎 Tick の消費 FE（今は体の維持だけ。兵装は撃つたび・背部ユニットは使うたびなので入れない） */
     public int fePerTick() {
-        return UPKEEP;
+        return com.automatavalkyries.entity.ai.ValkyrieUnitEffects.upkeep(this);
     }
 
     /** 装備が変わったとき（換装画面）: 積載超過の遅さを付け直す */
@@ -696,7 +734,7 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
     private void powerTick() {
         int energy = getEnergy();
         // 使う分（維持・兵装・シールド）を先に引き、最後にコアから補充する（補充を先にすると、コアに電力があっても満タンに見えなかった。2026-10-05）
-        if (!isShutdown()) energy -= UPKEEP;
+        if (!isShutdown()) energy -= com.automatavalkyries.entity.ai.ValkyrieUnitEffects.upkeep(this); // リソースセーバーなら半分
         setEnergy(energy);
         // 手の兵装の毎 Tick の処理（プレイヤーの持ち物と同じく inventoryTick: 兵姫の電力から内蔵バッテリーへ補充・T4 の加護など。段階 3）
         if (!isShutdown()) {

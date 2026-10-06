@@ -10,6 +10,7 @@
 | `GenEmpty.java` | `data/automata_valkyries/structures/empty.nbt` | GameTest 用の空ストラクチャ |
 | `gen_valkyrie_v.py` | `geo/entity/valkyrie_type_v.geo.json`・`textures/entity/valkyrie_type_v*.png`（表情 9 枚＋発光マスク） | 戦術兵姫 Type-V のモデルとテクスチャ（Python、標準ライブラリだけ）。形は `build()`、色は `PAL`、目は `eye_grid()`（表情ごと）。1px に 2 ドット（目は 12×12）の面ごとの UV で、置き場所は自動で詰める |
 | `gen_valkyrie_sounds.py` | `sounds/valkyrie/*.ogg`・`sounds.json`・字幕（lang） | 戦術兵姫の効果音を波形の計算で合成（Python。`pip install numpy soundfile` が要る）。音ごとに a/b/c の 3 つ。数値は各関数で調整し、`python tools/gen_valkyrie_sounds.py [名前の一部]` で作り直す |
+| `gen_valkyrie_units.py` | `geo/entity/unit/*.geo.json`・`textures/entity/unit/valkyrie_units*.png`・`memento_butterfly.png` | 兵姫の外装フレーム（型×部位）・背部ユニットの形と共通の素材の見本帳（Python＋PIL）。座標は兵姫のモデルと同じ。`preview` を付けると兵姫に重ねた確認用 geo を `build/unit_preview/` に作る（GeoPreview で描く）。兵姫の面と同じ平面の面を警告する |
 | `GeoPreview.java` | 任意の PNG | GeckoLib モデルを 3 ポーズ × 4 方向で描画して確認（ゲーム起動不要） |
 
 ```bash

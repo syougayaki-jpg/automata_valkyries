@@ -1,0 +1,34 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 2,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:alloy_chrono_fortress"
+      },
+      "count": 8
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:composite_plate"
+      },
+      "count": 3
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:ingot_stellachronodyme"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:processor_synapse"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:frame_fortress_chest"
+  },
+  "energy": 1200000,
+  "time": 600
+}

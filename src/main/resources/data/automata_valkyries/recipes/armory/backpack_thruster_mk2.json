@@ -1,0 +1,39 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 2,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:backpack_thruster"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:drive_tachyon"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:field_distortion"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:alloy_luminal_sterling"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_quantum_tac"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:backpack_thruster_mk2"
+  },
+  "energy": 1200000,
+  "time": 600
+}

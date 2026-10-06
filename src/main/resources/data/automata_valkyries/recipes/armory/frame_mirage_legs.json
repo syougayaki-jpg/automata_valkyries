@@ -1,0 +1,32 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 2,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:alloy_eclipse_biometal"
+      },
+      "count": 4
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:drive_tachyon"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:matrix_photon"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:processor_synapse"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:frame_mirage_legs"
+  },
+  "energy": 1100000,
+  "time": 600
+}

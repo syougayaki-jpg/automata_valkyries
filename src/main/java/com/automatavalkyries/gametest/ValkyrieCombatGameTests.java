@@ -306,4 +306,73 @@ public class ValkyrieCombatGameTests {
         v.releaseAndDiscard();
         helper.succeed();
     }
+
+    /** ハイマニューバスラスター: 空中ダッシュは着地まで回数だけ続けて出せ（向きのクールタイムは掛けない）、空中ジャンプも回数だけ。地上では出ない */
+    @GameTest(template = TEMPLATE, batch = "valkyrie_units", timeoutTicks = 200)
+    public static void valkyrieThrusterAirChain(GameTestHelper helper) {
+        ValkyrieEntity v = helper.spawn(ModEntities.VALKYRIE.get(), 1, 6, 1);
+        v.setNoGravity(true); // 空中に留めて数える
+        v.setEnergy(ValkyrieEntity.MAX_ENERGY);
+        v.getInventory().setItem(com.automatavalkyries.entity.ValkyrieInventory.BACKPACK, new ItemStack(
+                com.automatavalkyries.registry.ModValkyrieUnits.BACKPACKS.get(com.automatavalkyries.item.unit.ValkyrieUnits.BackpackKind.THRUSTER).get()));
+        int[] dashes = {0};
+        net.minecraft.world.phys.Vec3 fwd = new net.minecraft.world.phys.Vec3(1, 0, 0);
+        var seq = helper.startSequence().thenIdle(2);
+        for (int i = 0; i < 4; i++) {
+            seq = seq.thenExecute(() -> {
+                v.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
+                if (v.combat().airDash(fwd, 0.6)) dashes[0]++;
+            }).thenIdle(com.automatavalkyries.entity.ai.ValkyrieCombat.AIR_GAP + 1);
+        }
+        seq.thenExecute(() -> {
+            helper.assertTrue(dashes[0] == 3, "the T1 thruster should allow 3 air dashes before landing, got " + dashes[0]);
+            helper.assertTrue(v.combat().airJump(), "the air jump did not fire");
+        }).thenIdle(com.automatavalkyries.entity.ai.ValkyrieCombat.AIR_GAP + 1).thenExecute(() -> {
+            helper.assertFalse(v.combat().airJump(), "the T1 thruster allowed a second air jump");
+            v.releaseAndDiscard();
+        }).thenSucceed();
+    }
+
+    /** 装備ユニット: 外装は部位の枠だけに入り、一式で装甲値が上がり重さが増える。ガリア（全身）は 50 以下のダメージを 1 にする。チップは同じ種類 1 つまで */
+    @GameTest(template = TEMPLATE, batch = "valkyrie_units", timeoutTicks = 200)
+    public static void valkyrieUnitsApply(GameTestHelper helper) {
+        ValkyrieEntity v = helper.spawn(ModEntities.VALKYRIE.get(), 1, 2, 1);
+        var inv = v.getInventory();
+        var F = com.automatavalkyries.registry.ModValkyrieUnits.FRAMES;
+        ItemStack head = new ItemStack(F.get(com.automatavalkyries.item.unit.ValkyrieUnits.FrameType.VALKYRIE).get(com.automatavalkyries.item.unit.ValkyrieUnits.FramePart.HEAD).get());
+        ItemStack chest = new ItemStack(F.get(com.automatavalkyries.item.unit.ValkyrieUnits.FrameType.VALKYRIE).get(com.automatavalkyries.item.unit.ValkyrieUnits.FramePart.CHEST).get());
+        ItemStack legs = new ItemStack(F.get(com.automatavalkyries.item.unit.ValkyrieUnits.FrameType.VALKYRIE).get(com.automatavalkyries.item.unit.ValkyrieUnits.FramePart.LEGS).get());
+        ItemStack gallia = new ItemStack(F.get(com.automatavalkyries.item.unit.ValkyrieUnits.FrameType.GALLIA).get(com.automatavalkyries.item.unit.ValkyrieUnits.FramePart.FULL).get());
+        helper.assertFalse(inv.accepts(com.automatavalkyries.entity.ValkyrieInventory.CHEST, head), "a head frame fit the chest slot");
+        helper.assertTrue(inv.accepts(com.automatavalkyries.entity.ValkyrieInventory.HEAD, head), "a head frame did not fit the head slot");
+        ItemStack chip = new ItemStack(com.automatavalkyries.registry.ModValkyrieUnits.CHIPS.get(com.automatavalkyries.item.unit.ValkyrieUnits.ChipKind.PRECISION).get());
+        inv.setItem(com.automatavalkyries.entity.ValkyrieInventory.CHIP, chip.copy());
+        helper.assertFalse(inv.accepts(com.automatavalkyries.entity.ValkyrieInventory.CHIP + 1, chip), "the same chip fit twice");
+        double baseArmor = v.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ARMOR);
+        float baseWeight = v.carriedWeight();
+        float baseMaxHp = v.getMaxHealth();
+        float baseShield = v.getMaxShield();
+        inv.setItem(com.automatavalkyries.entity.ValkyrieInventory.HEAD, head);
+        inv.setItem(com.automatavalkyries.entity.ValkyrieInventory.CHEST, chest);
+        inv.setItem(com.automatavalkyries.entity.ValkyrieInventory.LEGS, legs);
+        com.automatavalkyries.entity.ai.ValkyrieUnitEffects.applyAttributes(v);
+        helper.assertTrue(inv.frameSet() == com.automatavalkyries.item.unit.ValkyrieUnits.FrameType.VALKYRIE, "the Valkyrie frame set was not recognised");
+        helper.assertTrue(Math.abs(v.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ARMOR) - baseArmor - 12) < 0.01, "the set did not add 12 armor");
+        helper.assertTrue(Math.abs(v.getMaxHealth() - baseMaxHp - 20) < 0.01, "the set did not add 20 max health");
+        helper.assertTrue(Math.abs(v.getMaxShield() - baseShield - 30) < 0.01, "the set did not add 30 max shield");
+        helper.assertTrue(v.carriedWeight() > baseWeight, "frames added no weight");
+        // ガリア（全身）: 頭・脚が空のときだけ胴へ。50 以下のダメージは 1
+        inv.setItem(com.automatavalkyries.entity.ValkyrieInventory.HEAD, ItemStack.EMPTY);
+        inv.setItem(com.automatavalkyries.entity.ValkyrieInventory.LEGS, ItemStack.EMPTY);
+        inv.setItem(com.automatavalkyries.entity.ValkyrieInventory.CHEST, ItemStack.EMPTY);
+        helper.assertTrue(inv.accepts(com.automatavalkyries.entity.ValkyrieInventory.CHEST, gallia), "Gallia did not fit the empty chest slot");
+        inv.setItem(com.automatavalkyries.entity.ValkyrieInventory.CHEST, gallia);
+        helper.assertFalse(inv.accepts(com.automatavalkyries.entity.ValkyrieInventory.HEAD, head), "a head frame fit over the Gallia full frame");
+        float hp = com.automatavalkyries.protect.DirectRead.health(v) + v.getShield();
+        v.hurt(helper.getLevel().damageSources().generic(), 30.0F);
+        float lost = hp - (com.automatavalkyries.protect.DirectRead.health(v) + v.getShield());
+        helper.assertTrue(lost <= 1.01F, "Gallia did not turn a 30 hit into 1: lost " + lost);
+        v.releaseAndDiscard();
+        helper.succeed();
+    }
 }

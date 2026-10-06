@@ -1,0 +1,32 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 2,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:alloy_eclipse_biometal"
+      },
+      "count": 3
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:matrix_photon"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:field_distortion"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:processor_synapse"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:frame_mirage_head"
+  },
+  "energy": 1000000,
+  "time": 600
+}

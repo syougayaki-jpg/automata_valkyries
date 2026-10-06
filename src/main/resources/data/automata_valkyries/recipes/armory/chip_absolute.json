@@ -1,0 +1,32 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 3,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_chrono_lattice"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:anchor_causal"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:processor_synapse"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:star_chronos"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:chip_absolute"
+  },
+  "energy": 3000000,
+  "time": 800
+}
