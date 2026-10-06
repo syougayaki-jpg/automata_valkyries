@@ -20,7 +20,11 @@ import java.util.List;
  */
 public class VoidRepositoryBlockEntity extends ChronoMachineBlockEntity {
 
-    /** 入っている物（1 個分の見本と数）。並びは入れた順（画面と同じ） */
+    /**
+     * 入っている物（1 個分の見本と数）。場所は固定で、取り出しきった所は空き（null）のまま残し、新しい種類は前の空きから埋める
+     * （取り出すたびに後ろが詰まって場所が動いていた。2026-10-07 ユーザー指定「インベントリの場所が動いている」）。
+     * 並べ直すのは画面の「整理」だけ（素材 → 装備、ID 順・耐久の減り順。{@link #ORDER}）
+     */
     public static final class Entry {
         public final ItemStack key;
         public long count;
@@ -57,7 +61,34 @@ public class VoidRepositoryBlockEntity extends ChronoMachineBlockEntity {
         };
     }
 
+    /** 中身（空きは null） */
     public List<Entry> entries() { return entries; }
+
+    /** 入っている種類の数（空きを除く） */
+    public int types() {
+        int n = 0;
+        for (Entry e : entries) if (e != null) n++;
+        return n;
+    }
+
+    /** 整理: 空きを詰めて、素材 → 装備・ID 順に並べ直す（画面のボタン） */
+    public void sortContents() {
+        entries.removeIf(java.util.Objects::isNull);
+        entries.sort(ORDER);
+        changed();
+    }
+
+    /** 装備（重ならない物）か。画面の絞り込みにも使う */
+    public static boolean gear(ItemStack stack) {
+        return stack.getMaxStackSize() == 1;
+    }
+
+    /** 並び: 素材 → 装備、ID 順、耐久の減りの少ない順、NBT の文字列順 */
+    public static final java.util.Comparator<Entry> ORDER = java.util.Comparator
+            .<Entry>comparingInt(e -> gear(e.key) ? 1 : 0)
+            .thenComparing(e -> String.valueOf(net.minecraftforge.registries.ForgeRegistries.ITEMS.getKey(e.key.getItem())))
+            .thenComparingInt(e -> e.key.getDamageValue())
+            .thenComparing(e -> e.key.hasTag() ? e.key.getTag().toString() : "");
     public int version() { return version; }
 
     @Override protected int maxReceive(ChronoTier tier) { return 0; }
@@ -70,7 +101,7 @@ public class VoidRepositoryBlockEntity extends ChronoMachineBlockEntity {
         ChronoTier tier = tier();
         long cap = maxPerType(tier);
         for (Entry entry : entries) {
-            if (!ItemStack.isSameItemSameTags(entry.key, stack)) continue;
+            if (entry == null || !ItemStack.isSameItemSameTags(entry.key, stack)) continue;
             long room = cap - entry.count;
             int moved = (int) Math.min(room, stack.getCount());
             if (!simulate && moved > 0) {
@@ -79,10 +110,13 @@ public class VoidRepositoryBlockEntity extends ChronoMachineBlockEntity {
             }
             return stack.copyWithCount(stack.getCount() - moved);
         }
-        if (entries.size() >= maxTypes(tier)) return stack;
+        if (types() >= maxTypes(tier)) return stack;
         int moved = (int) Math.min(cap, stack.getCount());
         if (!simulate) {
-            entries.add(new Entry(stack, moved));
+            Entry added = new Entry(stack, moved);
+            int hole = entries.indexOf(null);
+            if (hole >= 0) entries.set(hole, added); // 前の空きへ
+            else entries.add(added);
             changed();
         }
         return stack.copyWithCount(stack.getCount() - moved);
@@ -90,13 +124,16 @@ public class VoidRepositoryBlockEntity extends ChronoMachineBlockEntity {
 
     /** index 番目を最大 amount 個取り出す */
     public ItemStack extract(int index, int amount, boolean simulate) {
-        if (index < 0 || index >= entries.size() || amount <= 0) return ItemStack.EMPTY;
+        if (index < 0 || index >= entries.size() || amount <= 0 || entries.get(index) == null) return ItemStack.EMPTY;
         Entry entry = entries.get(index);
         int taken = (int) Math.min(Math.min(amount, entry.key.getMaxStackSize()), entry.count);
         ItemStack out = entry.key.copyWithCount(taken);
         if (!simulate) {
             entry.count -= taken;
-            if (entry.count <= 0) entries.remove(index);
+            if (entry.count <= 0) { // 空きのまま残す（後ろを詰めない）。末尾の空きだけ消す
+                entries.set(index, null);
+                while (!entries.isEmpty() && entries.get(entries.size() - 1) == null) entries.remove(entries.size() - 1);
+            }
             changed();
         }
         return out;
@@ -135,7 +172,7 @@ public class VoidRepositoryBlockEntity extends ChronoMachineBlockEntity {
     @Override
     protected int extraData(int index) {
         return switch (index) {
-            case 0 -> entries.size() & 0xFFFF;
+            case 0 -> types() & 0xFFFF;
             case 1 -> version & 0xFFFF;
             default -> 0;
         };
@@ -149,7 +186,7 @@ public class VoidRepositoryBlockEntity extends ChronoMachineBlockEntity {
 
             @Override
             public @NotNull ItemStack getStackInSlot(int slot) {
-                if (slot >= entries.size()) return ItemStack.EMPTY;
+                if (slot >= entries.size() || entries.get(slot) == null) return ItemStack.EMPTY;
                 Entry entry = entries.get(slot);
                 return entry.key.copyWithCount((int) Math.min(entry.count, entry.key.getMaxStackSize()));
             }
@@ -171,8 +208,11 @@ public class VoidRepositoryBlockEntity extends ChronoMachineBlockEntity {
     protected void saveAdditional(CompoundTag tag) {
         super.saveAdditional(tag);
         ListTag list = new ListTag();
-        for (Entry entry : entries) {
+        for (int i = 0; i < entries.size(); i++) {
+            Entry entry = entries.get(i);
+            if (entry == null) continue;
             CompoundTag e = new CompoundTag();
+            e.putInt("slot", i);
             e.put("item", entry.key.save(new CompoundTag()));
             e.putLong("count", entry.count);
             list.add(e);
@@ -187,8 +227,13 @@ public class VoidRepositoryBlockEntity extends ChronoMachineBlockEntity {
         for (Tag t : tag.getList("Contents", Tag.TAG_COMPOUND)) {
             CompoundTag e = (CompoundTag) t;
             ItemStack key = ItemStack.of(e.getCompound("item"));
-            if (!key.isEmpty() && e.getLong("count") > 0) entries.add(new Entry(key, e.getLong("count")));
+            if (key.isEmpty() || e.getLong("count") <= 0) continue;
+            int slot = e.contains("slot") ? e.getInt("slot") : entries.size(); // 場所の無い前の版は順に
+            while (entries.size() <= slot) entries.add(null);
+            if (entries.get(slot) == null) entries.set(slot, new Entry(key, e.getLong("count")));
+            else entries.add(new Entry(key, e.getLong("count")));
         }
+        while (!entries.isEmpty() && entries.get(entries.size() - 1) == null) entries.remove(entries.size() - 1);
         version++;
     }
 }

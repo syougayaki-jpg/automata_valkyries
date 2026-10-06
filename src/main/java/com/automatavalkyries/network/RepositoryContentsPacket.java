@@ -17,9 +17,10 @@ public record RepositoryContentsPacket(int containerId, List<ItemStack> keys, lo
     public static RepositoryContentsPacket of(int containerId, List<VoidRepositoryBlockEntity.Entry> entries) {
         List<ItemStack> keys = new ArrayList<>(entries.size());
         long[] counts = new long[entries.size()];
-        for (int i = 0; i < entries.size(); i++) {
-            keys.add(entries.get(i).key);
-            counts[i] = entries.get(i).count;
+        for (int i = 0; i < entries.size(); i++) { // 空きは空の物と 0
+            var e = entries.get(i);
+            keys.add(e == null ? ItemStack.EMPTY : e.key);
+            counts[i] = e == null ? 0 : e.count;
         }
         return new RepositoryContentsPacket(containerId, keys, counts);
     }

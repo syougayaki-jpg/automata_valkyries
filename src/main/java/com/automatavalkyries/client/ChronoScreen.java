@@ -36,12 +36,27 @@ public class ChronoScreen extends AbstractContainerScreen<ChronoMenu> {
 
     private static final int GAUGE_X = 8, GAUGE_Y = 22, GAUGE_W = 10, GAUGE_H = 72;
     private static final int REPO_X = 48, REPO_Y = 22, REPO_COLS = 8, REPO_ROWS = 4;
+    /** リポジトリの左の列（預け入れ口 22〜38 の下）の行 */
+    private static final int REPO_TYPES_Y = 42, REPO_FILTER_Y = 51, REPO_PAGE_Y = 65, REPO_ARROW_Y = 75, REPO_SORT_Y = 85;
 
     private record Star(float x, float y, int size, int color, float phase, float speed) {}
 
     private final List<Star> stars = new ArrayList<>();
     private final ChronoTier tier;
     private int page;
+    /** ヴォイド・リポジトリの絞り込み（0 = 全部、1 = 素材、2 = 装備） */
+    private int repoFilter;
+
+    /** 絞り込みで見える物の番号（中身の並びの番号） */
+    private List<Integer> repoVisible() {
+        List<Integer> out = new ArrayList<>();
+        for (int i = 0; i < menu.repository.size(); i++) {
+            var e = menu.repository.get(i);
+            if (repoFilter == 0) out.add(i); // 全部は空きも場所のまま見せる（場所が動かないよう）
+            else if (e != null && (repoFilter == 1) != VoidRepositoryBlockEntity.gear(e.key)) out.add(i);
+        }
+        return out;
+    }
 
     public ChronoScreen(ChronoMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
@@ -353,6 +368,14 @@ public class ChronoScreen extends AbstractContainerScreen<ChronoMenu> {
                 int p = menu.extra(0);
                 g.fill(x + 22, y + 76, x + 184, y + 78, 0xFF101828);
                 g.fill(x + 22, y + 76, x + 22 + 162 * p / 1000, y + 78, argb(255, accent()));
+                // 止まっている理由: 進み具合の線の上に文（カードが 2 行まで＝T1〜T3。T4 はカードで埋まるので線の色とツールチップだけ）。
+                // 止まっていれば線の地を橙に。題の帯にはティアの印があり重なっていた（2026-10-07）
+                int status = menu.extra(2);
+                if (status != 0) g.fill(x + 22, y + 76, x + 184, y + 78, 0x80FF9A6A);
+                if (ChronoMachineType.cardSlots(tier) <= 18) {
+                    g.drawString(font, Component.translatable("gui.automata_valkyries.chrono.fab_status." + status), x + 22, y + 65,
+                            status == 0 ? 0xFF6CFF9A : 0xFFFF9A6A, false);
+                }
             }
             case TETHER_PYLON -> {
                 int cx = x + 132, cy = y + 56;
@@ -391,16 +414,18 @@ public class ChronoScreen extends AbstractContainerScreen<ChronoMenu> {
 
     private void repositoryGrid(GuiGraphics g, int x, int y) {
         List<VoidRepositoryBlockEntity.Entry> list = menu.repository;
+        List<Integer> visible = repoVisible();
         int perPage = REPO_COLS * REPO_ROWS;
-        int pages = Math.max(1, (list.size() + perPage - 1) / perPage);
+        int pages = Math.max(1, (visible.size() + perPage - 1) / perPage);
         page = Math.min(page, pages - 1);
         int edge = argb(120, accent());
         for (int i = 0; i < perPage; i++) {
             int sx = x + REPO_X + (i % REPO_COLS) * 18, sy = y + REPO_Y + (i / REPO_COLS) * 18;
             glassSlot(g, sx - 1, sy - 1, edge);
-            int index = page * perPage + i;
-            if (index >= list.size()) continue;
-            VoidRepositoryBlockEntity.Entry entry = list.get(index);
+            int shown = page * perPage + i;
+            if (shown >= visible.size()) continue;
+            VoidRepositoryBlockEntity.Entry entry = list.get(visible.get(shown));
+            if (entry == null) continue; // 空き
             g.renderItem(entry.key, sx, sy);
             String count = compact(entry.count);
             g.pose().pushPose();
@@ -410,12 +435,23 @@ public class ChronoScreen extends AbstractContainerScreen<ChronoMenu> {
             g.pose().popPose();
         }
         long max = VoidRepositoryBlockEntity.maxTypes(tier);
-        String types = list.size() + " / " + (max == Integer.MAX_VALUE ? "∞" : Long.toString(max));
-        g.drawString(font, types, x + 22, y + 44, argb(255, 0xE6F0FF), false);
-        // ページ送り
-        g.drawString(font, "◀", x + 22, y + 74, argb(255, page > 0 ? accent() : 0x404860), false);
-        g.drawString(font, (page + 1) + "/" + pages, x + 22, y + 62, argb(255, 0xE6F0FF), false);
-        g.drawString(font, "▶", x + 34, y + 74, argb(255, page < pages - 1 ? accent() : 0x404860), false);
+        int stored = 0;
+        for (var e : list) if (e != null) stored++;
+        String types = stored + " / " + (max == Integer.MAX_VALUE ? "∞" : Long.toString(max));
+        // 左の列（預け入れ口の下）: 種類の数 → 絞り込み → ページ → 送り → 整理（題・預け入れ口と重ならないよう縦に並べる）
+        g.drawString(font, types, x + 22, y + REPO_TYPES_Y, argb(255, 0xE6F0FF), false);
+        button(g, x + 21, y + REPO_FILTER_Y, Component.translatable("gui.automata_valkyries.chrono.repo_filter." + repoFilter));
+        g.drawString(font, (page + 1) + "/" + pages, x + 22, y + REPO_PAGE_Y, argb(255, 0xE6F0FF), false);
+        g.drawString(font, "◀", x + 22, y + REPO_ARROW_Y, argb(255, page > 0 ? accent() : 0x404860), false);
+        g.drawString(font, "▶", x + 36, y + REPO_ARROW_Y, argb(255, page < pages - 1 ? accent() : 0x404860), false);
+        button(g, x + 21, y + REPO_SORT_Y, Component.translatable("gui.automata_valkyries.chrono.repo_sort"));
+    }
+
+    /** 左の列の小さなボタン（幅 26・高さ 11） */
+    private void button(GuiGraphics g, int bx, int by, Component text) {
+        g.fill(bx, by, bx + 26, by + 11, argb(160, 0x101828));
+        g.renderOutline(bx, by, 26, 11, argb(200, accent()));
+        g.drawString(font, text, bx + 13 - font.width(text) / 2, by + 2, argb(255, 0xE6F0FF), false);
     }
 
     private static String compact(long count) {
@@ -483,8 +519,12 @@ public class ChronoScreen extends AbstractContainerScreen<ChronoMenu> {
             lines.add(Component.translatable("gui.automata_valkyries.chrono.link_help").withStyle(net.minecraft.ChatFormatting.GRAY));
             g.renderComponentTooltip(font, lines, mouseX, mouseY);
         }
-        if (menu.type() == ChronoMachineType.CHRONO_FABRICATOR && inside(mouseX, mouseY, leftPos + 22, topPos + 74, 162, 6)) {
-            g.renderTooltip(font, Component.translatable("gui.automata_valkyries.chrono.crafts", ChronoMachineType.craftsPerOp(tier), menu.extra(1)), mouseX, mouseY);
+        if (menu.type() == ChronoMachineType.CHRONO_FABRICATOR && (inside(mouseX, mouseY, leftPos + 22, topPos + 74, 162, 6)
+                || (ChronoMachineType.cardSlots(tier) <= 18 && inside(mouseX, mouseY, leftPos + 22, topPos + 63, 162, 11)))) { // 進み具合の線か、状態の文
+            g.renderComponentTooltip(font, java.util.List.of(
+                    Component.translatable("gui.automata_valkyries.chrono.fab_status." + menu.extra(2)),
+                    Component.translatable("gui.automata_valkyries.chrono.fab_hint." + menu.extra(2)).withStyle(net.minecraft.ChatFormatting.GRAY),
+                    Component.translatable("gui.automata_valkyries.chrono.crafts", ChronoMachineType.craftsPerOp(tier), menu.extra(1))), mouseX, mouseY);
         }
         if (menu.type() == ChronoMachineType.VOID_REPOSITORY) {
             int index = repositoryIndexAt(mouseX, mouseY);
@@ -504,8 +544,11 @@ public class ChronoScreen extends AbstractContainerScreen<ChronoMenu> {
     private int repositoryIndexAt(double mx, double my) {
         int rx = (int) mx - leftPos - REPO_X, ry = (int) my - topPos - REPO_Y;
         if (rx < 0 || ry < 0 || rx >= REPO_COLS * 18 || ry >= REPO_ROWS * 18) return -1;
-        int index = page * REPO_COLS * REPO_ROWS + (ry / 18) * REPO_COLS + rx / 18;
-        return index < menu.repository.size() ? index : -1;
+        int shown = page * REPO_COLS * REPO_ROWS + (ry / 18) * REPO_COLS + rx / 18;
+        List<Integer> visible = repoVisible();
+        if (shown >= visible.size()) return -1;
+        int index = visible.get(shown);
+        return menu.repository.get(index) == null ? -1 : index;
     }
 
     @Override
@@ -524,8 +567,13 @@ public class ChronoScreen extends AbstractContainerScreen<ChronoMenu> {
                 minecraft.gameMode.handleInventoryButtonClick(menu.containerId, ChronoMenu.BUTTON_EXTRACT + index);
                 return true;
             }
-            if (inside(mx, my, leftPos + 20, topPos + 72, 10, 10)) { page = Math.max(0, page - 1); return true; }
-            if (inside(mx, my, leftPos + 32, topPos + 72, 10, 10)) { page++; return true; }
+            if (inside(mx, my, leftPos + 21, topPos + REPO_FILTER_Y, 26, 11)) { repoFilter = (repoFilter + 1) % 3; page = 0; return true; }
+            if (inside(mx, my, leftPos + 21, topPos + REPO_SORT_Y, 26, 11)) {
+                minecraft.gameMode.handleInventoryButtonClick(menu.containerId, ChronoMenu.BUTTON_SORT);
+                return true;
+            }
+            if (inside(mx, my, leftPos + 20, topPos + REPO_ARROW_Y - 2, 12, 11)) { page = Math.max(0, page - 1); return true; }
+            if (inside(mx, my, leftPos + 34, topPos + REPO_ARROW_Y - 2, 12, 11)) { page++; return true; }
         }
         return super.mouseClicked(mx, my, button);
     }

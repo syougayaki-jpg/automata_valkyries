@@ -29,7 +29,7 @@ import java.util.List;
  */
 public class ChronoMenu extends AbstractContainerMenu {
 
-    public static final int BUTTON_MODE = 100, BUTTON_REMOVE = 200, BUTTON_EXTRACT = 1000;
+    public static final int BUTTON_MODE = 100, BUTTON_REMOVE = 200, BUTTON_EXTRACT = 1000, BUTTON_SORT = 99;
 
     private final ChronoMachineType type;
     private final ChronoTier tier;
@@ -113,13 +113,35 @@ public class ChronoMenu extends AbstractContainerMenu {
             if (id >= BUTTON_REMOVE && id < BUTTON_REMOVE + 16 && id - BUTTON_REMOVE < links.size()) links.remove(id - BUTTON_REMOVE);
             return true;
         }
-        if (id >= BUTTON_MODE && id < BUTTON_MODE + 16) machine.cycleLinkMode(id - BUTTON_MODE);
-        else if (id >= BUTTON_REMOVE && id < BUTTON_REMOVE + 16) machine.removeLink(id - BUTTON_REMOVE);
+        if (id == BUTTON_SORT && machine instanceof VoidRepositoryBlockEntity repo) repo.sortContents(); // 整理
+        else if (id >= BUTTON_MODE && id < BUTTON_MODE + 16) machine.cycleLinkMode(id - BUTTON_MODE);
+        else if (id >= BUTTON_REMOVE && id < BUTTON_REMOVE + 16) {
+            int index = id - BUTTON_REMOVE;
+            ChronoLink removed = index < machine.links().size() ? machine.links().get(index) : null;
+            machine.removeLink(index);
+            if (removed != null) forgetInTuners(player, removed);
+        }
         else if (id >= BUTTON_EXTRACT && machine instanceof VoidRepositoryBlockEntity repo) {
             ItemStack taken = repo.extract(id - BUTTON_EXTRACT, 64, false);
             if (!taken.isEmpty() && !player.getInventory().add(taken)) player.drop(taken, false);
         }
         return true;
+    }
+
+    /**
+     * 外したリンクの先を、持ち物のクロノ・チューナーが覚えていれば忘れさせる
+     * （2026-10-07 ユーザー指定「機械側でリンクを消したとき、チューナーが覚えた場所も消す」）
+     */
+    private static void forgetInTuners(Player player, ChronoLink removed) {
+        String dim = removed.dimension().location().toString();
+        for (ItemStack stack : player.getInventory().items) forget(stack, removed, dim);
+        for (ItemStack stack : player.getInventory().offhand) forget(stack, removed, dim);
+    }
+
+    private static void forget(ItemStack stack, ChronoLink removed, String dim) {
+        if (!(stack.getItem() instanceof com.automatavalkyries.item.ChronoTunerItem) || stack.getTag() == null || !stack.getTag().contains("Target")) return;
+        var target = stack.getTag().getCompound("Target");
+        if (target.getLong("pos") == removed.pos().asLong() && dim.equals(target.getString("dim"))) stack.removeTagKey("Target");
     }
 
     @Override

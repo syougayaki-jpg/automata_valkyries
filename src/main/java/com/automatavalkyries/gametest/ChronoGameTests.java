@@ -170,6 +170,19 @@ public class ChronoGameTests {
                 "smelter energy " + smelter.energy().getEnergyStored() + ", reactor " + reactor.energy().getEnergyStored()));
     }
 
+    /** 互いにリンクした 2 台: 片方でリンクを外すと、相手からのリンクも外れる */
+    @GameTest(template = TEMPLATE)
+    public static void removingLinkRemovesReverseLink(GameTestHelper helper) {
+        ChronoMachineBlockEntity a = place(helper, new BlockPos(0, 2, 0), ChronoMachineType.CHRONO_FABRICATOR);
+        ChronoMachineBlockEntity b = place(helper, new BlockPos(3, 2, 0), ChronoMachineType.VOID_REPOSITORY);
+        a.addLink(link(helper, new BlockPos(3, 2, 0), ChronoLink.Mode.OUT));
+        b.addLink(link(helper, new BlockPos(0, 2, 0), ChronoLink.Mode.IN));
+        a.removeLink(0);
+        helper.assertTrue(a.links().isEmpty(), "the link was not removed");
+        helper.assertTrue(b.links().isEmpty(), "the reverse link was left: " + b.links());
+        helper.succeed();
+    }
+
     /** クロノ・ファブリケータ: 設計図カード（棒）で、搬入リンクのチェストの板材から組み立てる */
     @GameTest(template = TEMPLATE, timeoutTicks = 200)
     public static void fabricatorCraftsFromBlueprint(GameTestHelper helper) {

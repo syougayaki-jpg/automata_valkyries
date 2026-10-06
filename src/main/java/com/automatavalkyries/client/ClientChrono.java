@@ -4,6 +4,7 @@ import com.automatavalkyries.chrono.ChronoMenu;
 import com.automatavalkyries.chrono.VoidRepositoryBlockEntity;
 import com.automatavalkyries.network.RepositoryContentsPacket;
 import net.minecraft.client.Minecraft;
+import net.minecraft.world.item.ItemStack;
 
 /** クロノリンク・マシンのクライアント側の受け取り */
 public final class ClientChrono {
@@ -16,7 +17,8 @@ public final class ClientChrono {
         if (player == null || !(player.containerMenu instanceof ChronoMenu menu) || menu.containerId != packet.containerId()) return;
         menu.repository.clear();
         for (int i = 0; i < packet.keys().size(); i++) {
-            menu.repository.add(new VoidRepositoryBlockEntity.Entry(packet.keys().get(i), packet.counts()[i]));
+            ItemStack key = packet.keys().get(i);
+            menu.repository.add(key.isEmpty() ? null : new VoidRepositoryBlockEntity.Entry(key, packet.counts()[i])); // 空きは null
         }
     }
 }

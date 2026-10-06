@@ -42,6 +42,8 @@ public abstract class ChronoMachineBlockEntity extends BlockEntity implements Me
 
     /** 読み込まれているクロノリンク・マシン（テザー・パイロンの給電先を探す） */
     public static final Set<ChronoMachineBlockEntity> LOADED = ConcurrentHashMap.newKeySet();
+    /** クライアントで読み込まれているマシン（チューナーを持っている間のリンクの表示。client/ChronoLinkOverlay） */
+    public static final Set<ChronoMachineBlockEntity> CLIENT_LOADED = ConcurrentHashMap.newKeySet();
 
     /** 画面へ送る数値の数（共通 9 + 種類ごと） */
     public static final int DATA_COUNT = 48;
@@ -206,20 +208,67 @@ public abstract class ChronoMachineBlockEntity extends BlockEntity implements Me
             if (existing.pos().equals(link.pos()) && existing.dimension().equals(link.dimension()) && existing.face() == link.face()) return false;
         }
         links.add(link);
-        setChanged();
+        linksChanged();
         return true;
     }
 
+    /**
+     * リンクを外す。リンク先もクロノリンク・マシンなら、そちらからこのマシンへのリンクも外す
+     * （2026-10-07 ユーザー指定「機械側でリンクを消したとき、リンク先のリンクを消す」）
+     */
     public void removeLink(int index) {
         if (index < 0 || index >= links.size()) return;
-        links.remove(index);
-        setChanged();
+        ChronoLink removed = links.remove(index);
+        linksChanged();
+        if (level instanceof net.minecraft.server.level.ServerLevel server) {
+            net.minecraft.server.level.ServerLevel there = server.getServer().getLevel(removed.dimension());
+            if (there != null && there.isLoaded(removed.pos()) && there.getBlockEntity(removed.pos()) instanceof ChronoMachineBlockEntity other) {
+                boolean any = other.links.removeIf(l -> l.pos().equals(worldPosition) && l.dimension().equals(level.dimension()));
+                if (any) other.linksChanged();
+            }
+        }
     }
 
     public void cycleLinkMode(int index) {
         if (index < 0 || index >= links.size()) return;
         links.set(index, links.get(index).withMode(links.get(index).mode().next()));
+        linksChanged();
+    }
+
+    /** リンクが変わった: 保存し、クライアントへ送る（チューナーを持っている間の表示） */
+    private void linksChanged() {
         setChanged();
+        if (level != null && !level.isClientSide) level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+    }
+
+    /** クライアントへ送るのはリンクだけ（中身・電力は画面が送る） */
+    @Override
+    public CompoundTag getUpdateTag() {
+        CompoundTag tag = new CompoundTag();
+        ListTag list = new ListTag();
+        for (ChronoLink link : links) list.add(link.save());
+        tag.put("links", list);
+        return tag;
+    }
+
+    @Override
+    public net.minecraft.network.protocol.Packet<net.minecraft.network.protocol.game.ClientGamePacketListener> getUpdatePacket() {
+        return net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket.create(this);
+    }
+
+    @Override
+    public void handleUpdateTag(CompoundTag tag) {
+        readLinks(tag);
+    }
+
+    @Override
+    public void onDataPacket(net.minecraft.network.Connection net, net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket packet) {
+        if (packet.getTag() != null) readLinks(packet.getTag());
+    }
+
+    private void readLinks(CompoundTag tag) {
+        links.clear();
+        for (Tag t : tag.getList("links", Tag.TAG_COMPOUND)) links.add(ChronoLink.load((CompoundTag) t));
     }
 
     // ---- 保存 -----------------------------------------------------------------
@@ -251,18 +300,21 @@ public abstract class ChronoMachineBlockEntity extends BlockEntity implements Me
     public void onLoad() {
         super.onLoad();
         if (level != null && !level.isClientSide) LOADED.add(this);
+        else if (level != null) CLIENT_LOADED.add(this);
     }
 
     @Override
     public void setRemoved() {
         super.setRemoved();
         LOADED.remove(this);
+        CLIENT_LOADED.remove(this);
     }
 
     @Override
     public void onChunkUnloaded() {
         super.onChunkUnloaded();
         LOADED.remove(this);
+        CLIENT_LOADED.remove(this);
     }
 
     // ---- 能力 -----------------------------------------------------------------

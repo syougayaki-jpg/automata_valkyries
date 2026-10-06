@@ -23,6 +23,12 @@ public class ChronoFabricatorBlockEntity extends ChronoMachineBlockEntity {
 
     public static final int BASE_TIME = 40, ENERGY_PER_CRAFT = 1_000;
     private int progress, craftedLast;
+    /**
+     * 止まっている理由（画面に出す。2026-10-07 ユーザー「動いてない」）: 0 = 動いている、1 = カードが無い、2 = カードのレシピが見つからない、
+     * 3 = 届く搬入リンクが無い、4 = 材料が足りない、5 = 電力が足りない、6 = 置き場がいっぱい
+     */
+    private int status = 1;
+    public static final int OK = 0, NO_CARD = 1, NO_RECIPE = 2, NO_SOURCE = 3, NO_MATERIALS = 4, NO_POWER = 5, FULL = 6;
 
     public ChronoFabricatorBlockEntity(BlockPos pos, BlockState state) {
         super(ModChrono.FABRICATOR_ENTITY.get(), ChronoMachineType.CHRONO_FABRICATOR, pos, state);
@@ -60,25 +66,43 @@ public class ChronoFabricatorBlockEntity extends ChronoMachineBlockEntity {
             IItemHandler source = ChronoLinks.items(level, worldPosition, tier, link);
             if (source != null) sources.add(source);
         }
-        if (sources.isEmpty()) return false;
         int perCard = ChronoMachineType.craftsPerOp(tier);
         int perCraft = tier.scaleEnergy(ENERGY_PER_CRAFT);
+        int why = NO_CARD;
         for (int c = 0; c < ChronoMachineType.cardSlots(tier); c++) {
             ResourceLocation id = BlueprintCardItem.recipeId(items.getStackInSlot(c));
             if (id == null) continue;
             Recipe<?> recipe = level.getRecipeManager().byKey(id).orElse(null);
-            if (recipe == null) continue;
+            if (recipe == null) {
+                why = Math.max(why, NO_RECIPE);
+                continue;
+            }
+            if (sources.isEmpty()) {
+                why = Math.max(why, NO_SOURCE);
+                continue;
+            }
             ItemStack result = recipe.getResultItem(level.registryAccess());
             List<Need> needs = needs(recipe);
             for (int n = 0; n < perCard; n++) {
-                if (energy.getEnergyStored() < perCraft || !bufferFits(result)) break;
-                if (!take(sources, needs, true)) break;
+                if (energy.getEnergyStored() < perCraft) {
+                    why = Math.max(why, NO_POWER);
+                    break;
+                }
+                if (!bufferFits(result)) {
+                    why = Math.max(why, FULL);
+                    break;
+                }
+                if (!take(sources, needs, true)) {
+                    why = Math.max(why, NO_MATERIALS);
+                    break;
+                }
                 take(sources, needs, false);
                 energy.consume(perCraft);
                 insertBuffer(result.copy());
                 craftedLast++;
             }
         }
+        status = craftedLast > 0 ? OK : why;
         if (craftedLast > 0) setChanged();
         return craftedLast > 0;
     }
@@ -138,6 +162,7 @@ public class ChronoFabricatorBlockEntity extends ChronoMachineBlockEntity {
         return switch (index) {
             case 0 -> 1000 * progress / Math.max(1, tier().scaleTime(BASE_TIME));
             case 1 -> craftedLast;
+            case 2 -> status;
             default -> 0;
         };
     }

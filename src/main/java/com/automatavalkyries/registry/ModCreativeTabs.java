@@ -47,6 +47,7 @@ public class ModCreativeTabs {
         if (item instanceof BossDropItem || item instanceof SpawnEggItem || id.equals("overload_memory") || id.equals("custom_maximizer") || id.equals("overload_igniter") || id.equals("ward_charm") || id.equals("invincible_charm") || id.equals("rescue_communicator") || id.equals("tactical_remote") || id.equals("luminal_candy") || id.equals("cooling_ice") || id.equals("valkyrie_charger") || id.equals("eviction_notice") || id.equals("privilege_aegis") || id.contains("kill_stick") || id.contains("terminus")) {
             return Group.SPECIAL;
         }
+        if (item instanceof com.automatavalkyries.item.ChronoTunerItem) return Group.MACHINES; // マシンの調整に使うのでマシンのタブへ（2026-10-07 ユーザー指定）
         if (item instanceof TacticalWeaponItem || item instanceof LuminalCoreItem || id.startsWith("ammo_") || id.equals("nano_solution")
                 || item instanceof com.automatavalkyries.item.unit.ValkyrieUnits.FrameItem || item instanceof com.automatavalkyries.item.unit.ValkyrieUnits.BackpackItem
                 || item instanceof com.automatavalkyries.item.unit.ValkyrieUnits.ChipItem
