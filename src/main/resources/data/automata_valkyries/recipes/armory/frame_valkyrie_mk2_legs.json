@@ -1,0 +1,37 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 2,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:frame_valkyrie_legs"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:alloy_luminal_sterling"
+      },
+      "count": 4
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:matrix_photon"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:field_distortion"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_quantum_tac"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:frame_valkyrie_mk2_legs"
+  },
+  "energy": 1100000,
+  "time": 600
+}

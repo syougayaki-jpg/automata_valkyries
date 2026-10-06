@@ -4,13 +4,13 @@
     python tools/gen_valkyrie_unit_items.py [プレビューの出力先.png]
 
 出力（assets/automata_valkyries/ の下）:
-  textures/item/<id>.png      … 22 種
+  textures/item/<id>.png      … 36 種
   models/item/<id>.json       … item/generated
 
 絵は文字の格子で描く。8 文字の行は左半分で、右半分は左右反転して影の色に寄せる（左上から光が当たる）。
 色の決まり: 地は紺・ガンメタル、発光はシアン（#3BE8FF）。
   ヴァルキリー = 白銀＋シアン / フォートレス = 重いガンメタル＋橙 / ミラージュ = 黒＋紫・桃の発光線 /
-  ガリア・フォートレス = 暗いガンメタル＋金の鋲＋青赤の銀河の板（ボス素材「ガリア重護装甲板」に合わせる）
+  ガリア・フォートレス（背部ユニット）= 暗いガンメタル＋金の発電機と、まわりを回る金縁の盾
 """
 import json
 import math
@@ -247,52 +247,54 @@ FRAME_SHAPES = {
 
 FRAME_PALS = {'valkyrie': PAL_VALKYRIE, 'fortress': PAL_FORTRESS, 'mirage': PAL_MIRAGE}
 
-# ガリア・フォートレス（全身 1 つ）: 兜＋重い胴＋脚。胸に銀河の板（n）、金の鋲（A）、赤いスリット（g）
-GALLIA = [
-    '.....ooooo......',
-    '....ohhhhhbo....',
-    '....ohgggggo....',
-    '.oooohhhhbboooo.',
-    'ohhAhoooooobhAbo',
-    'ohhhonnnnnnobbso',
-    'ohhhonnnnnnobbso',
-    'ohhhonnnnnnobbso',
-    'oAhhonnnnnnobbAo',
-    '.ooohoooooobsoo.',
-    '...ohhAhhAbbso..',
-    '...ohhhoobbbso..',
-    '...ohhho.obbso..',
-    '...ohhho.obbso..',
-    '..oohAho.obAsoo.',
-    '..oooooo.oooooo.',
-]
+# ヴァルキリーフレーム Mk-II〜Ⅳ（アストライア、2026-10-06）: Mk-I の絵の行を差し替えて飾りを足す（{部位: {行: 新しい行}}）
+# Mk-II = 光の線を増やす / Mk-III = 飾り・アンテナ・肩のひれ・膝当て（銀とシアン） / Ⅳ = 金の冠・重ねた肩当て・前垂れ・白シアンの光
+PAL_VALKYRIE4 = dict(PAL_VALKYRIE, **{'A': 0xFFD25A, 'g': 0x9FF8FF, 'a': 0xD8FFFF})
+VALKYRIE_TIER_ROWS = {
+    2: {
+        'head': {5: '..ohgggg', 12: '...oshgg'},
+        'chest': {3: 'ohghhhhh', 11: '...ogggg'},
+        'legs': {3: '..oggggg', 8: '..ohgho.'},
+    },
+    3: {
+        'head': {0: '..o...og', 1: '..ao.ohg', 2: '...aohhg', 5: '..ohgggg', 12: '...oshgg'},
+        'chest': {0: 'oo......', 1: 'oaooo...', 3: 'ohghhhhh', 11: '...ogggg', 12: '...oaahh'},
+        'legs': {3: '..oggggg', 8: '.oohgho.', 9: '.oaaaao.', 10: '.oohhho.'},
+    },
+    4: {
+        'head': {0: '...A..oA', 1: '..aAAoAA', 2: '...AoAAA', 5: '..ohgggg', 7: 'oAoooooo', 10: 'oAoohhhh', 12: '...oshgg'},
+        'chest': {0: 'oo......', 1: 'oAAAA...', 2: 'oAAAAooo', 3: 'ohghhhhh', 11: '...ogggg', 12: '...oAAAA', 13: '...ohgsg'},
+        'legs': {2: '..oAAAAA', 3: '..oggggg', 8: '.oohgho.', 9: '.oAAAAo.', 10: '.oohhho.', 13: '.oAAAAo.'},
+    },
+}
 
 
-def galaxy(img):
-    """胸の板（n の所）を青赤の銀河で塗る（ボス素材と同じ色味）"""
-    rnd = random.Random(7041)
-    cx, cy = 7.5, 6.5
-    for y, r in enumerate(GALLIA):
-        for x, c in enumerate(r):
-            if c != 'n':
-                continue
-            d = math.hypot(x - cx, (y - cy) * 1.4)
-            ang = math.atan2(y - cy, x - cx) + d * 0.9
-            t = 0.5 + 0.5 * math.sin(ang * 2)
-            # 青（外）と赤紫（渦）を混ぜる
-            blue = (0x24, 0x38, 0xA8)
-            red = (0xB0, 0x2C, 0x58)
-            base = (0x0C, 0x10, 0x36)
-            mix = tuple(int(base[i] + (blue[i] - base[i]) * (1 - t) * 0.8 + (red[i] - base[i]) * t * 0.6) for i in range(3))
-            img.putpixel((x, y), mix + (255,))
-    for (x, y) in [(6, 5), (9, 7), (7, 8)]:
-        img.putpixel((x, y), (255, 255, 255, 255))
-    img.putpixel((8, 6), (200, 212, 240, 255))
-    _ = rnd
-    return img
-
+def valkyrie_tier_rows(tier, part):
+    rows = list(FRAME_SHAPES['valkyrie'][part])
+    for i, r in VALKYRIE_TIER_ROWS[tier][part].items():
+        rows[i] = r
+    return rows
 
 # ------------------------------------------------------------------ 背部ユニット
+
+# ガリア・フォートレス（T3 の背部ユニット、2026-10-06 に全身外装から変更）: 中央の発電機（赤い芯）のまわりを 4 枚の金縁の盾が回る
+GALLIA = [
+    '......oooo......',
+    '.....ohhAbo.....',
+    '.....ohAAbo.....',
+    '......obbo......',
+    '.oo..........oo.',
+    'ohho..oooo..ohbo',
+    'ohAo.ohAAbo.oAbo',
+    'oAAo.oAggAo.oAAo',
+    'ohAo.oAggAo.oAbo',
+    'ohbo.obAAso.ohso',
+    '.oo...oooo...oo.',
+    '......oooo......',
+    '.....ohhAbo.....',
+    '.....ohAAbo.....',
+    '......obbo......',
+]
 
 THRUSTER = [
     '........',
@@ -496,6 +498,62 @@ CHIP_GLYPHS = {
         '.rRRRRr.',
         '.rrrrrr.',
     ]),
+    # 2026-10-06 追加: 役割（前衛・後衛・救護）、攻撃の選び方、固定砲台
+    # ヴァンガード: 盾＋前への山形
+    'vanguard': ({'r': 0x2C7CFF, 'R': 0x8CC4FF, 'w': 0xD8ECFF}, [
+        'rrrr....',
+        'rRRr.w..',
+        'rRRr..w.',
+        'rRRr...w',
+        'rRRr...w',
+        '.rRr..w.',
+        '..rr.w..',
+        '........',
+    ]),
+    # リアガード: 照準の前に小さな人影
+    'rearguard': ({'r': 0x58D838, 'R': 0xB8FF9C, 'w': 0xFFFFFF}, [
+        '...rrr..',
+        '..r.R.r.',
+        '.r..R..r',
+        '.rRR.RRr',
+        '.w..R..r',
+        'www.R.r.',
+        '.w.rrr..',
+        'w.w.....',
+    ]),
+    # メディック: 白い十字（赤の縁）＋弾薬の粒
+    'medic': ({'r': 0xFF3B4E, 'w': 0xFFFFFF, 'a': 0xFFE08A, 'A': 0xC89A3A}, [
+        '..rrr...',
+        '..rwr...',
+        'rrrwrrr.',
+        'rwwwwwr.',
+        'rrrwrrr.',
+        '..rwr..a',
+        '..rrr..A',
+        '.......A',
+    ]),
+    # アタックセレクト: 左に一太刀、右にチャージの渦（間に仕切り）
+    'attack_mode': ({'r': 0xFF8A1E, 'R': 0xFFD08A, 'd': 0x5A6478}, [
+        '...d....',
+        'R..drrrr',
+        'R..d...r',
+        '.R.drR.r',
+        '.R.dr..r',
+        '..Rdrrrr',
+        '..Rd....',
+        '...d....',
+    ]),
+    # タレット: 据え付けの砲台と照準
+    'turret': ({'r': 0x9A4CFF, 'R': 0xD2A6FF, 'w': 0xFFFFFF}, [
+        '.....R.R',
+        '......w.',
+        '.....R.R',
+        '....r...',
+        '..rrr...',
+        '.rRRRr..',
+        'rrrrrrr.',
+        '.r...r..',
+    ]),
 }
 
 
@@ -540,7 +598,9 @@ def build():
     for t in ('valkyrie', 'fortress', 'mirage'):
         for part, rows in FRAME_SHAPES[t].items():
             items[f'frame_{t}_{part}'] = paint(rows, FRAME_PALS[t])
-    items['frame_gallia_fortress'] = galaxy(paint(GALLIA, PAL_GALLIA))
+    for tier in (2, 3, 4):
+        for part in ('head', 'chest', 'legs'):
+            items[f'frame_valkyrie_mk{tier}_{part}'] = paint(valkyrie_tier_rows(tier, part), PAL_VALKYRIE4 if tier == 4 else PAL_VALKYRIE)
     items['backpack_thruster'] = paint(THRUSTER, PAL_UNIT)
     items['backpack_thruster_mk2'] = paint(THRUSTER_MK2, PAL_UNIT)
     items['backpack_thruster_mk3'] = paint(THRUSTER_MK3, PAL_THRUSTER3)
@@ -548,6 +608,7 @@ def build():
     items['backpack_folding_cannon'] = paint(FOLDING_CANNON, PAL_UNIT)
     items['backpack_ecm_pod'] = paint(ECM_POD, PAL_UNIT)
     items['backpack_tachyon_drive'] = tachyon()
+    items['backpack_gallia_fortress'] = paint(GALLIA, PAL_GALLIA)
     items['backpack_memento_familiar'] = paint(MEMENTO, PAL_MEMENTO)
     for k in CHIP_GLYPHS:
         items[f'chip_{k}'] = chip(k)

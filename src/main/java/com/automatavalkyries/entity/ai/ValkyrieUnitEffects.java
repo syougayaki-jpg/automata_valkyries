@@ -69,7 +69,9 @@ public final class ValkyrieUnitEffects {
 
     /** フォールディングキャノンの間隔・1 発のダメージ、黒死蝶の間隔・1 基のダメージ【仮】 */
     public static final int CANNON_INTERVAL = 60, FAMILIAR_INTERVAL = 40;
-    public static final float CANNON_DAMAGE = 60.0F, FAMILIAR_DAMAGE = 6.0F, FAMILIAR_LIFESTEAL = 0.3F;
+    public static final float CANNON_DAMAGE = 60.0F, FAMILIAR_SHARE = 0.2F, FAMILIAR_LIFESTEAL = 0.3F;
+    /** タキオン化（HP が尽きる 1 撃を無かったことにする）のクールタイム（Tick）【仮】 */
+    public static final int TACHYON_PHASE_COOLDOWN = 1200;
     /** インターセプト・アブソリュートの電力【仮】 */
     public static final int INTERCEPT_FE = 2_000, ABSOLUTE_FE = 10_000;
 
@@ -135,9 +137,10 @@ public final class ValkyrieUnitEffects {
 
     // ------------------------------------------------------------------ 電力の割引
 
-    /** ブーストの電力の倍率（ヴァルキリーフレーム一式 -30%、リソースセーバー -50%） */
+    /** ブーストの電力の倍率（ヴァルキリーフレーム一式 -30%〜-50%（Mk ごと）、リソースセーバー -50%） */
     public static float boostCostScale(ValkyrieEntity v) {
-        float s = inv(v).frameSet() == FrameType.VALKYRIE ? 0.7F : 1.0F;
+        FrameType set = inv(v).frameSet();
+        float s = set != null ? set.boostScale : 1.0F; // ヴァルキリー系の一式（Mk ごと）
         if (saving(v)) s *= 0.5F;
         return s;
     }
@@ -205,6 +208,11 @@ public final class ValkyrieUnitEffects {
     }
 
     /** 黒死蝶ファミリア: 8 基の蝶が 16m の敵へ突撃し、与えたダメージの 30% を回復 */
+    /** 黒死蝶 1 基のダメージ: 手持ちの攻撃力（{@link ValkyrieEntity#attackValue}）の 20%（2026-10-06 ユーザー指定「手持ちの攻撃力依存」。最低 1） */
+    static float familiarDamage(ValkyrieEntity v) {
+        return Math.max(1.0F, v.attackValue() * FAMILIAR_SHARE);
+    }
+
     private static void familiar(ServerLevel level, ValkyrieEntity v, ValkyrieCombat.Brain b, LivingEntity t) {
         if (v.distanceTo(t) > 16 || !b.spend(BackpackKind.MEMENTO_FAMILIAR.fe)) return;
         float before = t.getHealth();
@@ -214,7 +222,7 @@ public final class ValkyrieUnitEffects {
             Vec3 from = v.position().add(Math.cos(a) * 1.2, 1.2 + Math.sin(a * 2) * 0.3, Math.sin(a) * 1.2);
             Fx.line(level, Fx.opt(ModParticles.GLOW.get(), 0xB070FF, 0.35F, 10), from, to, 0.5);
             t.invulnerableTime = 0;
-            t.hurt(WeaponDamage.source(v, WeaponDamage.ENERGY, v, v), FAMILIAR_DAMAGE);
+            t.hurt(WeaponDamage.source(v, WeaponDamage.ENERGY, v, v), familiarDamage(v));
         }
         Fx.burst(level, Fx.opt(ModParticles.GLOW.get(), 0xFF8AD8, 0.4F, 12), to, 16, 0.3);
         float dealt = Math.max(0, before - t.getHealth());
@@ -306,25 +314,45 @@ public final class ValkyrieUnitEffects {
         }
     }
 
-    /** ガリア・フォートレス（絶対重護）: 防具の後で 50 以下のダメージは 1 */
+    /** ガリア・フォートレス（背部ユニット。絶対重護）: 防具の後で 50 以下のダメージは 1 */
     @SubscribeEvent(priority = EventPriority.HIGH)
     public static void onDamage(LivingDamageEvent event) {
-        if (event.getEntity() instanceof ValkyrieEntity v && !v.level().isClientSide && inv(v).frameSet() == FrameType.GALLIA
+        if (event.getEntity() instanceof ValkyrieEntity v && !v.level().isClientSide && inv(v).backpack() == BackpackKind.GALLIA_FORTRESS
                 && event.getAmount() > 0 && event.getAmount() <= 50.0F) {
             event.setAmount(Math.min(event.getAmount(), 1.0F));
         }
     }
 
-    /** タキオンドライブ: ボスの攻撃を 60% で避ける（残像を残して） */
-    @SubscribeEvent(priority = EventPriority.HIGH)
-    public static void onAttacked(LivingAttackEvent event) {
-        if (!(event.getEntity() instanceof ValkyrieEntity v) || v.level().isClientSide || !tachyonOn(v)) return;
-        Entity attacker = event.getSource().getEntity();
-        boolean boss = attacker != null && (attacker.getType().is(Tags.EntityTypes.BOSSES) || attacker instanceof com.automatavalkyries.protect.IEprotected);
-        if (boss && v.getRandom().nextFloat() < 0.6F) {
-            event.setCanceled(true);
-            if (v.level() instanceof ServerLevel level) Fx.spray(level, Fx.opt(ModParticles.GLOW.get(), 0x7FE8FF, 0.8F, 12), v.position().add(0, 0.9, 0), 8, 0.3, 0.5, 0.3, 0.0);
+    /**
+     * ガリア・フォートレスの変換を、シールドが受ける前に掛ける（{@link ValkyrieEntity#actuallyHurt} から）。
+     * シールドは防具より前に受けるので、防具の後の量を見積もって 50 以下なら 1 にする
+     */
+    public static float galliaBarrier(ValkyrieEntity v, net.minecraft.world.damagesource.DamageSource source, float amount) {
+        if (amount <= 0 || inv(v).backpack() != BackpackKind.GALLIA_FORTRESS) return amount;
+        float after = source.is(DamageTypeTags.BYPASSES_ARMOR) ? amount
+                : net.minecraft.world.damagesource.CombatRules.getDamageAfterAbsorb(amount, v.getArmorValue(), (float) v.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ARMOR_TOUGHNESS));
+        return after <= 50.0F ? Math.min(amount, 1.0F) : amount;
+    }
+
+    /**
+     * タキオンドライブ: HP が尽きる 1 撃（シールドの後）を、タキオン化して無かったことにする（{@link #TACHYON_PHASE_COOLDOWN} ごと）。
+     * {@link ValkyrieEntity#actuallyHurt} から。消したら true（2026-10-06 ユーザー指定）
+     */
+    public static boolean tachyonPhase(ValkyrieEntity v, net.minecraft.world.damagesource.DamageSource source, float amount) {
+        if (amount <= 0 || !tachyonOn(v) || v.level().getGameTime() < v.combat().tachyonReadyAt) return false;
+        float after = source.is(DamageTypeTags.BYPASSES_ARMOR) ? amount
+                : net.minecraft.world.damagesource.CombatRules.getDamageAfterAbsorb(amount, v.getArmorValue(), (float) v.getAttributeValue(Attributes.ARMOR_TOUGHNESS));
+        if (after < com.automatavalkyries.protect.DirectRead.health(v)) return false;
+        v.combat().tachyonReadyAt = v.level().getGameTime() + TACHYON_PHASE_COOLDOWN;
+        v.invulnerableTime = 20;
+        if (v.level() instanceof ServerLevel level) {
+            Vec3 at = v.position().add(0, 0.9, 0);
+            Fx.spray(level, Fx.opt(ModParticles.GLOW.get(), 0x7FE8FF, 0.9F, 16), at, 24, 0.4, 0.7, 0.4, 0.02);
+            Fx.shockwave(level, v.position().add(0, 0.05, 0), 0x7FE8FF, 2.5F, 12);
+            level.playSound(null, v.blockPosition(), SoundEvents.ILLUSIONER_MIRROR_MOVE, SoundSource.NEUTRAL, 1.0F, 1.4F);
         }
+        v.combat().line("tachyon_evade", ValkyrieEntity.Emote.NOTE);
+        return true;
     }
 
     /** ミラージュ一式: 敵がこの兵姫に気付けるのは、いつもの半分の距離まで */
@@ -340,6 +368,27 @@ public final class ValkyrieUnitEffects {
     @Nullable
     public static BackpackKind backpack(ValkyrieEntity v) {
         return inv(v).backpack();
+    }
+
+    /** 挿している役割のチップ（ヴァンガード・リアガード・メディック。無ければ null） */
+    @org.jetbrains.annotations.Nullable
+    public static ChipKind role(ValkyrieEntity v) {
+        for (ChipKind k : new ChipKind[]{ChipKind.VANGUARD, ChipKind.REARGUARD, ChipKind.MEDIC}) if (inv(v).hasChip(k)) return k;
+        return null;
+    }
+
+    /** アタックセレクト: null = 挿していない、true = チャージ攻撃だけ、false = 通常攻撃だけ */
+    @org.jetbrains.annotations.Nullable
+    public static Boolean chargeOnly(ValkyrieEntity v) {
+        net.minecraft.world.item.ItemStack chip = inv(v).chip(ChipKind.ATTACK_MODE);
+        return chip.isEmpty() ? null : com.automatavalkyries.item.unit.ValkyrieUnits.chargeOnly(chip);
+    }
+
+    /** タレット: 覚えた対象（空なら敵対モブみな）。挿していなければ null */
+    @org.jetbrains.annotations.Nullable
+    public static java.util.List<net.minecraft.world.entity.EntityType<?>> turretTargets(ValkyrieEntity v) {
+        net.minecraft.world.item.ItemStack chip = inv(v).chip(ChipKind.TURRET);
+        return chip.isEmpty() ? null : com.automatavalkyries.item.unit.ValkyrieUnits.turretTargets(chip);
     }
 
     /** 背負っているスラスターの機動（スラスターでなければ null） */

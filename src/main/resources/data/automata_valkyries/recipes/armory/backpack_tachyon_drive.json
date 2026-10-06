@@ -1,6 +1,6 @@
 {
   "type": "automata_valkyries:armory_assembling",
-  "tier": 4,
+  "tier": 3,
   "ingredients": [
     {
       "ingredient": {
@@ -10,30 +10,31 @@
     },
     {
       "ingredient": {
-        "item": "automata_valkyries:boss_drop_luxion_core"
-      }
-    },
-    {
-      "ingredient": {
         "item": "automata_valkyries:drive_tachyon"
       },
       "count": 4
     },
     {
       "ingredient": {
-        "item": "automata_valkyries:circuit_causal"
+        "item": "automata_valkyries:heart_stellar"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_chrono_lattice"
       },
       "count": 2
     },
     {
       "ingredient": {
-        "item": "automata_valkyries:engine_perpetual"
-      }
+        "item": "automata_valkyries:plating_stellar"
+      },
+      "count": 2
     }
   ],
   "result": {
     "item": "automata_valkyries:backpack_tachyon_drive"
   },
-  "energy": 20000000,
-  "time": 1200
+  "energy": 4000000,
+  "time": 800
 }

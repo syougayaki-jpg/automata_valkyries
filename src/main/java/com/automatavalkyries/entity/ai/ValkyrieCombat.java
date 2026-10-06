@@ -226,6 +226,10 @@ public final class ValkyrieCombat {
         int dodgeScan, hoverTicks, hoverCooldown, stepTicks;
         /** ステップの最中に地面を離れたか（着地するまでステップの最中） */
         boolean stepAirborne;
+        /** タキオンドライブのタキオン化をまた使える時刻（ゲーム時刻） */
+        public long tachyonReadyAt;
+        /** タレットで射程に入って足を止めている（ステップ・回避・空中ダッシュをしない） */
+        boolean anchored;
         /** スラスター: 着地してから使った空中ダッシュ・空中ジャンプの回数と、次を出すまでの間（Tick） */
         int airDashes, airJumps, airGap;
         /** 向きごとのステップのクールタイム（{@link StepDir} の順） */
@@ -290,7 +294,7 @@ public final class ValkyrieCombat {
                     hoverTicks = 0;
                 }
             }
-            if (dodgeScan == 0 && !stepping() && v.tickCount % 2 == 0) dodge();
+            if (dodgeScan == 0 && !stepping() && !anchored && v.tickCount % 2 == 0) dodge();
             if (v.tickCount % 20 == 0) swapForPower();
             if (v.tickCount % 4 == 0) rangedShield();
             ValkyrieUnitEffects.tick(v, this); // 外装・背部ユニット・ロジックチップ
@@ -429,7 +433,7 @@ public final class ValkyrieCombat {
 
         /** その向きへステップできるか（最中でなく、封じられておらず、その向きのクールタイムが明けている） */
         boolean canStep(Vec3 dir) {
-            return !stepping() && !stepLocked && stepCooldown[classify(dir).ordinal()] == 0;
+            return !stepping() && !stepLocked && !anchored && stepCooldown[classify(dir).ordinal()] == 0;
         }
 
         /** ステップ（水平の向き dir へ、強さ power、上へ up）。できたら true。その向きのクールタイムを始める */
@@ -473,7 +477,7 @@ public final class ValkyrieCombat {
         public boolean airDash(Vec3 dir, double power) {
             var m = maneuver();
             Vec3 h = new Vec3(dir.x, 0, dir.z);
-            if (m == null || v.onGround() || stepLocked || airGap > 0 || airDashes >= m.airDashes() || h.lengthSqr() < 1.0e-4 || !spend(thrusterFe())) return false;
+            if (m == null || v.onGround() || stepLocked || anchored || airGap > 0 || airDashes >= m.airDashes() || h.lengthSqr() < 1.0e-4 || !spend(thrusterFe())) return false;
             airDashes++;
             airGap = AIR_GAP;
             StepDir d = classify(h);
@@ -747,11 +751,25 @@ public final class ValkyrieCombat {
     }
 
     static double leash(ValkyrieEntity v) {
-        return switch (v.getMode()) {
+        double r = switch (v.getMode()) {
             case FOLLOW -> v.orders.chase;
             case DEFEND, PATROL -> v.homeRadius + HOME_MARGIN;
             case WAIT -> WAIT_SCAN;
         };
+        // ロジック: ヴァンガードは持ち主のそば（10 m）から離れない。タレットは兵装の最大射程まで探す
+        if (v.getMode() == Mode.FOLLOW && ValkyrieUnitEffects.role(v) == com.automatavalkyries.item.unit.ValkyrieUnits.ChipKind.VANGUARD) r = Math.min(r, VANGUARD_LEASH);
+        if (ValkyrieUnitEffects.turretTargets(v) != null) r = Math.max(r, maxRange(v));
+        return r;
+    }
+
+    /** ヴァンガードが持ち主から離れてよい距離・持ち主の前に立つ距離、リアガードが持ち主の後ろに立つ距離【仮】 */
+    static final double VANGUARD_LEASH = 10.0, VANGUARD_FRONT = 2.5, REARGUARD_BACK = 3.0;
+
+    /** 持った兵装の通常攻撃・チャージ攻撃（技）の最大射程（素手・技の無い近接は 2.5） */
+    static double maxRange(ValkyrieEntity v) {
+        Art art = ValkyrieArts.of(v.getMainHandItem());
+        if (art == null) return 2.5;
+        return Math.max(2.5, Math.max(art.reach(), art.skill() != null || art.chargedSkill() ? art.skillRange() : 0.0));
     }
 
     /** 相手がまだ追ってよい範囲にいるか */
@@ -839,12 +857,16 @@ public final class ValkyrieCombat {
             List<LivingEntity> list = v.level().getEntitiesOfClass(LivingEntity.class, new AABB(center, center).inflate(r, Math.max(8.0, r * 0.5), r),
                     e -> e != v && valid(e) && e.position().distanceToSqr(center) <= r * r);
             boolean aggressive = o.policy == ValkyrieOrders.Policy.AGGRESSIVE;
+            // ロジック: タレットは覚えた対象（無ければ敵対モブみな）を探す。ヴァンガード・リアガードは持ち主を狙う敵を優先する
+            List<net.minecraft.world.entity.EntityType<?>> turret = ValkyrieUnitEffects.turretTargets(v);
+            var role = ValkyrieUnitEffects.role(v);
             Player owner = v.getOwner();
             LivingEntity ownerFocus = owner != null ? owner.getLastHurtMob() : null;
             LivingEntity best = null;
             double bestScore = Double.MAX_VALUE;
             for (LivingEntity e : list) {
                 boolean hostile = aggressive && e instanceof Enemy && !(e instanceof Player);
+                if (turret != null) hostile = !(e instanceof Player) && (turret.isEmpty() ? e instanceof Enemy : turret.contains(e.getType()));
                 if (!hostile && !attackedUs(e)) continue;
                 if (!v.hasLineOfSight(e) && v.distanceToSqr(e) > 16.0) continue;
                 // ロジック: プレシジョン はボスを優先して狙う
@@ -857,6 +879,10 @@ public final class ValkyrieCombat {
                 };
                 // 連携: 持ち主・ほかの味方の兵姫が狙っている相手を優先する
                 if (e == ownerFocus || focusedByAllies(e)) score *= 0.35;
+                boolean onOwner = owner != null && e instanceof Mob mob && mob.getTarget() == owner;
+                if (role == com.automatavalkyries.item.unit.ValkyrieUnits.ChipKind.VANGUARD && onOwner) score *= 0.2;
+                else if (role == com.automatavalkyries.item.unit.ValkyrieUnits.ChipKind.REARGUARD && onOwner) score *= 0.4;
+                if (turret != null && !turret.isEmpty() && turret.contains(e.getType())) score *= 0.1; // 覚えた対象を先に
                 if (e == v.getTarget()) score *= 0.5; // すぐに乗り換えない（敵が動くたびに乗り換えてジグザグに動いていた。2026-10-06）
                 if (score < bestScore) {
                     bestScore = score;
@@ -915,6 +941,23 @@ public final class ValkyrieCombat {
             stopCharging(false);
             v.getNavigation().stop();
             v.setCombatPose(0);
+            v.combat().anchored = false;
+        }
+
+        /**
+         * ロジック: タレット。相手が通常・チャージ攻撃の最大射程に入って見えていれば、その場で足を止めて撃つ（ステップ・回避もしない）。
+         * 止めたら true（立ち回りをしない）。射程の外なら普段どおり詰める
+         */
+        private boolean turretHold(LivingEntity t, double dist) {
+            Brain b = v.combat();
+            boolean hold = ValkyrieUnitEffects.turretTargets(v) != null && dist <= maxRange(v) && v.hasLineOfSight(t);
+            if (hold && !b.anchored) b.line("turret_lock", Emote.ALERT);
+            b.anchored = hold;
+            if (hold) {
+                v.getNavigation().stop();
+                moving = false;
+            }
+            return hold;
         }
 
         @Override
@@ -941,14 +984,16 @@ public final class ValkyrieCombat {
             if (skillTimer > 0) skillTimer--;
             if (offhandTimer > 0) offhandTimer--;
             if (offSkillTimer > 0) offSkillTimer--;
-            offhandWeapon(level, t, dist);
+            Boolean chargeOnly = ValkyrieUnitEffects.chargeOnly(v); // ロジック: アタックセレクト
+            var role = ValkyrieUnitEffects.role(v);
+            if (chargeOnly == null || chargeOnly) offhandWeapon(level, t, dist);
             if (emptyTicks > 0 && --emptyTicks == 0) {
                 saidEmpty = false;
                 failures = 0;
             }
             boolean empty = emptyTicks > 0;
             Style style = art == null ? Style.MELEE : art.style();
-            if (empty && v.orders.meleeOnEmpty) style = Style.MELEE;
+            if (empty && v.orders.meleeOnEmpty && role != com.automatavalkyries.item.unit.ValkyrieUnits.ChipKind.REARGUARD) style = Style.MELEE; // リアガードは近接へ移らない
             double reach = art == null || (empty && v.orders.meleeOnEmpty && art.style() != Style.MELEE) ? 2.5 : Math.max(2.0, art.reach());
 
             v.combat().engage(t, style == Style.MELEE);
@@ -971,7 +1016,7 @@ public final class ValkyrieCombat {
                 }
             }
 
-            move(t, style, dist, reach);
+            if (!turretHold(t, dist)) move(t, style, dist, reach);
 
             // 左手のモジュール（回復・障壁など）
             Art off = ValkyrieArts.of(v.getOffhandItem());
@@ -980,8 +1025,8 @@ public final class ValkyrieCombat {
                 else offhandTimer = 20;
             }
 
-            // 技（溜め撃ちはアイテムの使用で）
-            if (art != null && skillTimer == 0 && dist <= art.skillRange() && art.wants(v, t) && v.hasLineOfSight(t)) {
+            // 技（溜め撃ちはアイテムの使用で）。アタックセレクトが通常攻撃だけなら出さない
+            if (art != null && skillTimer == 0 && (chargeOnly == null || chargeOnly) && dist <= art.skillRange() && art.wants(v, t) && v.hasLineOfSight(t)) {
                 if (art.chargedSkill() && main.getItem() instanceof ChargedWeaponItem charged) {
                     aim(v, t);
                     v.startUsingItem(InteractionHand.MAIN_HAND);
@@ -1003,8 +1048,8 @@ public final class ValkyrieCombat {
                 }
             }
 
-            // 通常攻撃
-            if (basicTimer > 0) return;
+            // 通常攻撃。アタックセレクトがチャージ攻撃だけなら出さない
+            if (basicTimer > 0 || Boolean.TRUE.equals(chargeOnly)) return;
             if (art != null && art.basic() != null && !(empty && v.orders.meleeOnEmpty)) {
                 if (dist <= art.reach() && v.hasLineOfSight(t)) {
                     aim(v, t);
@@ -1055,8 +1100,8 @@ public final class ValkyrieCombat {
             if (art.style() == Style.MELEE) return;
             if (++failures >= 3 && emptyTicks == 0) {
                 emptyTicks = 200;
-                v.combat().swapToMelee(false); // 予備の近接の兵装があれば持ち替える（2026-10-06 ユーザー指定）
-                if (!saidEmpty && v.orders.meleeOnEmpty) {
+                if (ValkyrieUnitEffects.role(v) != com.automatavalkyries.item.unit.ValkyrieUnits.ChipKind.REARGUARD) v.combat().swapToMelee(false); // リアガードは近接へ持ち替えない // 予備の近接の兵装があれば持ち替える（2026-10-06 ユーザー指定）
+                if (!saidEmpty && v.orders.meleeOnEmpty && ValkyrieUnitEffects.role(v) != com.automatavalkyries.item.unit.ValkyrieUnits.ChipKind.REARGUARD) {
                     saidEmpty = true;
                     v.combat().line("out_of_ammo", Emote.SWEAT);
                 }
@@ -1071,6 +1116,19 @@ public final class ValkyrieCombat {
                 return;
             }
             var m = brain.maneuver();
+            var role = ValkyrieUnitEffects.role(v);
+            Player roleOwner = v.getOwner();
+            if (role == com.automatavalkyries.item.unit.ValkyrieUnits.ChipKind.REARGUARD && roleOwner != null && v.getMode() == Mode.FOLLOW) {
+                rearguardMove(t, roleOwner, dist, reach);
+                return;
+            }
+            if (role == com.automatavalkyries.item.unit.ValkyrieUnits.ChipKind.VANGUARD && roleOwner != null && style != Style.MELEE && v.getMode() == Mode.FOLLOW) {
+                // ヴァンガードの射撃: 持ち主と相手の間（持ち主の前）に立って撃つ
+                Vec3 to = new Vec3(t.getX() - roleOwner.getX(), 0, t.getZ() - roleOwner.getZ());
+                Vec3 spot = to.lengthSqr() < 1.0e-4 ? roleOwner.position() : roleOwner.position().add(to.normalize().scale(Math.min(VANGUARD_FRONT + 1.0, to.length() * 0.5)));
+                holdSpot(t, spot, 1.3);
+                return;
+            }
             switch (style) {
                 case MELEE -> {
                     // Mk-IV: 飛んでいる相手には空中で寄って戦う（間合いの 6 割の所、相手と同じ高さ）
@@ -1145,6 +1203,36 @@ public final class ValkyrieCombat {
                     }
                 }
             }
+        }
+
+        /** 決めた立ち位置へ（2 ブロックずれたら歩き、着いたら止まって相手を見る） */
+        private void holdSpot(LivingEntity t, Vec3 spot, double speed) {
+            if (v.position().distanceToSqr(spot) > 4.0) {
+                moving = true;
+                if (--repath <= 0) {
+                    repath = 8;
+                    v.getNavigation().moveTo(spot.x, spot.y, spot.z, ValkyrieGoals.pathSpeed(v, speed));
+                }
+            } else {
+                moving = false;
+                v.getNavigation().stop();
+                v.getLookControl().setLookAt(t, 30.0F, 30.0F);
+            }
+        }
+
+        /**
+         * ロジック: リアガード。持ち主の後ろ（相手と反対側）に立ち、そこから撃つ。相手が届かなければ届く所まで寄るが、持ち主より前へは出ない。
+         * 近接の兵装なら相手が寄ってきたときだけ殴る
+         */
+        private void rearguardMove(LivingEntity t, Player owner, double dist, double reach) {
+            Vec3 away = new Vec3(owner.getX() - t.getX(), 0, owner.getZ() - t.getZ());
+            if (away.lengthSqr() < 1.0e-4) away = owner.getLookAngle().reverse();
+            away = new Vec3(away.x, 0, away.z).normalize();
+            Vec3 spot = owner.position().add(away.scale(REARGUARD_BACK));
+            double toTarget = Math.sqrt(spot.distanceToSqr(t.position()));
+            if (toTarget > reach * 0.85) spot = owner.position().add(away.scale(Math.max(0.0, REARGUARD_BACK - (toTarget - reach * 0.85))));
+            holdSpot(t, spot, 1.25);
+            if (!moving && v.combat().maneuver() != null && v.combat().maneuver().hoverTicks() > 0 && v.getRandom().nextFloat() < 0.02F) v.combat().hover();
         }
 
         /** 射撃の立ち位置: 相手から見て、前衛（近接の味方の兵姫）がいればその側、いなければ自分のいる側に、保つ距離だけ離れた所 */
@@ -1390,6 +1478,239 @@ public final class ValkyrieCombat {
                 level.sendParticles(ParticleTypes.END_ROD, spot.x, spot.y + 1.0, spot.z, 16, 0.6, 0.7, 0.6, 0.01);
             }
             if (off.getItem() instanceof ShieldItem && !v.isUsingItem()) v.startUsingItem(InteractionHand.OFF_HAND); // 盾を構える
+        }
+    }
+
+    // ------------------------------------------------------------------ 救護（ロジック: メディック）
+
+    /**
+     * ロジック: メディック（2026-10-06 ユーザー指定「体力を見て回復や、弾が無いなら物拾いインベントリから弾薬やナノマシンを渡す救護チップ」）。
+     * 持ち主・味方の兵姫の HP が {@link #MEDIC_HEAL} を割ったら、駆け寄ってナノマシン溶液を 1 本使って回復する
+     * （兵姫は修理、プレイヤーは回復＋再生）。持ち主が持った武器の弾を持っていなければ、拾った物・弾薬庫から渡す（自分の兵装の弾は弾薬庫から渡さない）
+     */
+    public static class Medic extends Goal {
+        /** 回復する HP の割合・プレイヤーへの回復量・再生の長さ・手当ての間隔・渡す弾の数【仮】 */
+        public static final float MEDIC_HEAL = 0.5F, PLAYER_HEAL = 8.0F;
+        public static final int REGEN_TICKS = 100, CARE_COOLDOWN = 60, HAND_OVER = 32;
+        private final ValkyrieEntity v;
+        @Nullable private LivingEntity patient;
+        /** 何をするか: 0 = 回復、1 = 弾を渡す */
+        private int task;
+        private int scan, cooldown, repath;
+
+        public Medic(ValkyrieEntity v) {
+            this.v = v;
+            setFlags(EnumSet.of(Flag.MOVE, Flag.LOOK));
+        }
+
+        private boolean medic() {
+            return ValkyrieUnitEffects.role(v) == com.automatavalkyries.item.unit.ValkyrieUnits.ChipKind.MEDIC;
+        }
+
+        @Override
+        public boolean canUse() {
+            if (cooldown > 0) cooldown--;
+            if (!active(v) || v.combat().retreating || v.isPassenger() || cooldown > 0 || !medic()) return false;
+            if (--scan > 0) return false;
+            scan = 10;
+            return find();
+        }
+
+        @Override
+        public boolean canContinueToUse() {
+            return active(v) && patient != null && patient.isAlive() && medic() && stillNeeds() && v.distanceToSqr(patient) < 32 * 32;
+        }
+
+        @Override
+        public void start() {
+            repath = 0;
+        }
+
+        @Override
+        public void stop() {
+            patient = null;
+            v.getNavigation().stop();
+        }
+
+        /** 手当てする相手を探す（持ち主が先、回復が先） */
+        private boolean find() {
+            double reach = v.getMode() == Mode.WAIT ? 6.0 : 24.0;
+            Player owner = v.getOwner();
+            List<LivingEntity> patients = new java.util.ArrayList<>();
+            if (owner != null && owner.isAlive() && !owner.isSpectator() && v.distanceToSqr(owner) < reach * reach) patients.add(owner);
+            for (ValkyrieEntity other : v.level().getEntitiesOfClass(ValkyrieEntity.class, v.getBoundingBox().inflate(Math.min(reach, 16.0)))) {
+                if (other != v && isAlly(v, other) && !other.isShutdown()) patients.add(other);
+            }
+            for (LivingEntity p : patients) {
+                if (healthRatio(p) < MEDIC_HEAL) {
+                    if (findNano(false) < 0) {
+                        v.combat().line("medic_empty", Emote.SWEAT);
+                        continue;
+                    }
+                    patient = p;
+                    task = 0;
+                    return true;
+                }
+            }
+            for (LivingEntity p : patients) {
+                if (ammoNeeded(p) != null && supply(ammoNeeded(p), false) >= 0) {
+                    patient = p;
+                    task = 1;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private boolean stillNeeds() {
+            if (patient == null) return false;
+            if (task == 0) return healthRatio(patient) < MEDIC_HEAL + 0.1F && findNano(false) >= 0;
+            var need = ammoNeeded(patient);
+            return need != null && supply(need, false) >= 0;
+        }
+
+        @Override
+        public boolean requiresUpdateEveryTick() {
+            return true;
+        }
+
+        @Override
+        public void tick() {
+            if (patient == null) return;
+            v.getLookControl().setLookAt(patient, 30.0F, 30.0F);
+            if (v.distanceToSqr(patient) > 2.5 * 2.5) {
+                if (--repath <= 0) {
+                    repath = 6;
+                    v.getNavigation().moveTo(patient, ValkyrieGoals.pathSpeed(v, 1.45));
+                }
+                return;
+            }
+            v.getNavigation().stop();
+            if (task == 0) heal(patient);
+            else handOver(patient);
+            cooldown = CARE_COOLDOWN;
+            patient = null;
+        }
+
+        /** ナノマシン溶液を 1 本使って回復する */
+        private void heal(LivingEntity p) {
+            int slot = findNano(true);
+            if (slot < 0) return;
+            if (p instanceof ValkyrieEntity other) {
+                other.repair(ValkyrieEntity.REPAIR);
+                v.combat().line("medic_repair", Emote.NOTE);
+            } else {
+                p.heal(PLAYER_HEAL);
+                p.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.REGENERATION, REGEN_TICKS, 1));
+                v.combat().line("medic_heal", Emote.NOTE);
+            }
+            v.swing(InteractionHand.MAIN_HAND, true);
+            v.gesture(ValkyrieEntity.GESTURE_NOD);
+            if (v.level() instanceof ServerLevel level) {
+                level.sendParticles(ParticleTypes.HEART, p.getX(), p.getY() + p.getBbHeight() + 0.3, p.getZ(), 3, 0.3, 0.2, 0.3, 0.0);
+                Fx.spray(level, Fx.opt(com.automatavalkyries.registry.ModParticles.GLOW.get(), 0x7FFFB0, 0.5F, 14),
+                        p.position().add(0, p.getBbHeight() * 0.5, 0), 12, 0.4, 0.6, 0.4, 0.01);
+            }
+            v.playSound(net.minecraft.sounds.SoundEvents.BREWING_STAND_BREW, 0.6F, 1.6F);
+        }
+
+        /** 足りない弾を渡す（プレイヤーは持ち物へ、兵姫は弾薬庫へ。入りきらなければ足元に落とす） */
+        private void handOver(LivingEntity p) {
+            var need = ammoNeeded(p);
+            if (need == null) return;
+            int left = HAND_OVER;
+            boolean any = false;
+            while (left > 0) {
+                int slot = supply(need, true);
+                if (slot < 0) break;
+                ItemStack from = v.getInventory().getItem(slot);
+                ItemStack give = from.split(Math.min(left, from.getCount()));
+                v.getInventory().setItem(slot, from.isEmpty() ? ItemStack.EMPTY : from);
+                left -= give.getCount();
+                any = true;
+                if (p instanceof Player player) {
+                    if (!player.getInventory().add(give)) player.drop(give, false);
+                } else if (p instanceof ValkyrieEntity other) {
+                    for (int i = ValkyrieInventory.AMMO; i < ValkyrieInventory.AMMO + other.getBody().ammoSlots && !give.isEmpty(); i++) {
+                        ItemStack cur = other.getInventory().getItem(i);
+                        if (cur.isEmpty()) {
+                            other.getInventory().setItem(i, give.copy());
+                            give = ItemStack.EMPTY;
+                        } else if (ItemStack.isSameItemSameTags(cur, give) && cur.getCount() < cur.getMaxStackSize()) {
+                            int n = Math.min(give.getCount(), cur.getMaxStackSize() - cur.getCount());
+                            cur.grow(n);
+                            give.shrink(n);
+                            other.getInventory().setChanged();
+                        }
+                    }
+                    if (!give.isEmpty()) other.spawnAtLocation(give);
+                }
+            }
+            if (!any) return;
+            v.combat().line("medic_ammo", Emote.NOTE);
+            v.swing(InteractionHand.MAIN_HAND, true);
+            v.playSound(net.minecraft.sounds.SoundEvents.ITEM_PICKUP, 0.6F, 1.0F);
+        }
+
+        /** ナノマシン溶液のある枠（弾薬庫 → 拾った物）。take でなければ探すだけ。1 本使う。無ければ -1 */
+        private int findNano(boolean take) {
+            var inv = v.getInventory();
+            int[][] ranges = {{ValkyrieInventory.AMMO, ValkyrieInventory.AMMO + v.getBody().ammoSlots}, {ValkyrieInventory.PICKUP, ValkyrieInventory.PICKUP + ValkyrieInventory.PICKUPS}};
+            for (int[] r : ranges) {
+                for (int i = r[0]; i < r[1]; i++) {
+                    ItemStack s = inv.getItem(i);
+                    if (!s.is(ModWeapons.NANO_SOLUTION.get())) continue;
+                    if (take) {
+                        s.shrink(1);
+                        inv.setItem(i, s.isEmpty() ? ItemStack.EMPTY : s);
+                    }
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        /** その弾を渡せる枠（拾った物 → 弾薬庫。弾薬庫からは自分の兵装の弾は渡さない）。無ければ -1 */
+        private int supply(java.util.function.Predicate<ItemStack> need, boolean forTake) {
+            var inv = v.getInventory();
+            for (int i = ValkyrieInventory.PICKUP; i < ValkyrieInventory.PICKUP + ValkyrieInventory.PICKUPS; i++) {
+                if (!inv.getItem(i).isEmpty() && need.test(inv.getItem(i))) return i;
+            }
+            var mine = ammoFor(v.getMainHandItem());
+            for (int i = ValkyrieInventory.AMMO; i < ValkyrieInventory.AMMO + v.getBody().ammoSlots; i++) {
+                ItemStack s = inv.getItem(i);
+                if (s.isEmpty() || !need.test(s) || (mine != null && mine.test(s))) continue;
+                return i;
+            }
+            return -1;
+        }
+
+        /** その人が持った武器の弾を持っていなければ、その弾の条件（足りていれば null）。プレイヤーは持ち物、兵姫は弾薬庫を見る */
+        @Nullable
+        static java.util.function.Predicate<ItemStack> ammoNeeded(LivingEntity p) {
+            if (p instanceof Player player && player.getAbilities().instabuild) return null;
+            for (ItemStack held : new ItemStack[]{p.getMainHandItem(), p.getOffhandItem()}) {
+                var need = ammoFor(held);
+                if (need == null) continue;
+                boolean has = false;
+                if (p instanceof Player player) {
+                    for (int i = 0; i < player.getInventory().getContainerSize() && !has; i++) has = need.test(player.getInventory().getItem(i));
+                } else if (p instanceof ValkyrieEntity other) {
+                    for (int i = ValkyrieInventory.AMMO; i < ValkyrieInventory.AMMO + other.getBody().ammoSlots && !has; i++) has = need.test(other.getInventory().getItem(i));
+                }
+                if (!has) return need;
+            }
+            return null;
+        }
+
+        /** その武器の弾（レールライフルは徹甲弾、リペアインジェクターはナノマシン溶液、弓・クロスボウは矢など）。弾を使わなければ null */
+        @Nullable
+        static java.util.function.Predicate<ItemStack> ammoFor(ItemStack weapon) {
+            if (weapon.isEmpty()) return null;
+            if (weapon.getItem() instanceof com.automatavalkyries.weapon.RailRifleItem) return s -> s.is(ModWeapons.AMMO_AP_ROUND.get());
+            if (weapon.getItem() instanceof com.automatavalkyries.weapon.RepairInjectorItem) return s -> s.is(ModWeapons.NANO_SOLUTION.get());
+            if (weapon.getItem() instanceof net.minecraft.world.item.ProjectileWeaponItem pw) return pw.getAllSupportedProjectiles();
+            return null;
         }
     }
 }

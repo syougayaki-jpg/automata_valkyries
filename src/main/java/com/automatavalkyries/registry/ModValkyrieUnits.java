@@ -15,7 +15,7 @@ import java.util.Map;
 
 /**
  * 戦術兵姫の装備ユニット（外装フレーム・背部ユニット・ロジックチップ。2026-10-06、{@link ValkyrieUnits}）。
- * 名前: 外装 {@code frame_<型>_<部位>}（ガリアは {@code frame_gallia_fortress}）、背部 {@code backpack_<種類>}、チップ {@code chip_<種類>}
+ * 名前: 外装 {@code frame_<型>_<部位>}、背部 {@code backpack_<種類>}、チップ {@code chip_<種類>}
  */
 public final class ModValkyrieUnits {
 
@@ -30,12 +30,8 @@ public final class ModValkyrieUnits {
     static {
         for (FrameType type : FrameType.values()) {
             Map<FramePart, RegistryObject<Item>> parts = new EnumMap<>(FramePart.class);
-            if (type == FrameType.GALLIA) {
-                parts.put(FramePart.FULL, reg("frame_" + type.id, () -> new ValkyrieUnits.FrameItem(new Item.Properties(), type, FramePart.FULL)));
-            } else {
-                for (FramePart part : new FramePart[]{FramePart.HEAD, FramePart.CHEST, FramePart.LEGS}) {
-                    parts.put(part, reg("frame_" + type.id + "_" + part.id, () -> new ValkyrieUnits.FrameItem(new Item.Properties(), type, part)));
-                }
+            for (FramePart part : FramePart.values()) {
+                parts.put(part, reg("frame_" + type.id + "_" + part.id, () -> new ValkyrieUnits.FrameItem(new Item.Properties(), type, part)));
             }
             FRAMES.put(type, parts);
         }

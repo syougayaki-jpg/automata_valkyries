@@ -28,17 +28,22 @@ public final class ValkyrieUnits {
      * （2026-10-06 ユーザー指定「装甲値と防具強度は上限に抑えてシールドと体力を盛る」。HP・シールドの数は【仮】）
      */
     public enum FrameType {
-        VALKYRIE("valkyrie", 1, 12, 6, 0.2, 0.0, 9.0F, 20, 30),
-        FORTRESS("fortress", 2, 22, 14, 1.0, 0.0, 25.0F, 60, 40),
-        MIRAGE("mirage", 2, 8, 2, 0.0, 0.25, 6.0F, 10, 20),
-        GALLIA("gallia_fortress", 4, 26, 18, 1.0, 0.0, 40.0F, 120, 100);
+        VALKYRIE("valkyrie", 1, 12, 6, 0.2, 0.0, 9.0F, 20, 30, 0.7F),
+        // ヴァルキリーフレームを T2〜T4 へ上げていく基本装備（2026-10-06 ユーザー指定。前の Mk の同じ部位から作る。数は【仮】）
+        VALKYRIE_MK2("valkyrie_mk2", 2, 16, 9, 0.3, 0.0, 9.0F, 40, 60, 0.65F),
+        VALKYRIE_MK3("valkyrie_mk3", 3, 20, 13, 0.4, 0.0, 8.0F, 70, 100, 0.6F),
+        VALKYRIE_MK4("valkyrie_mk4", 4, 24, 16, 0.5, 0.0, 7.0F, 110, 160, 0.5F),
+        FORTRESS("fortress", 2, 22, 14, 1.0, 0.0, 25.0F, 60, 40, 1.0F),
+        MIRAGE("mirage", 2, 8, 2, 0.0, 0.25, 6.0F, 10, 20, 1.0F);
 
         public final String id;
         public final int tier;
         public final double armor, toughness, knockback, speed, health, shield;
         public final float weight;
+        /** 一式のブースト移動の消費電力の倍率（ヴァルキリー系だけ） */
+        public final float boostScale;
 
-        FrameType(String id, int tier, double armor, double toughness, double knockback, double speed, float weight, double health, double shield) {
+        FrameType(String id, int tier, double armor, double toughness, double knockback, double speed, float weight, double health, double shield, float boostScale) {
             this.id = id;
             this.tier = tier;
             this.armor = armor;
@@ -48,12 +53,18 @@ public final class ValkyrieUnits {
             this.weight = weight;
             this.health = health;
             this.shield = shield;
+            this.boostScale = boostScale;
+        }
+
+        /** ヴァルキリーフレームの系統（Mk を混ぜても一式になる） */
+        public boolean valkyrie() {
+            return this == VALKYRIE || this == VALKYRIE_MK2 || this == VALKYRIE_MK3 || this == VALKYRIE_MK4;
         }
     }
 
-    /** 部位: 頭・胴・脚（一式の能力の割合）。ガリア・フォートレスは全身で 1 つ（胴の枠に入れ、頭・脚の枠を塞ぐ） */
+    /** 部位: 頭・胴・脚（一式の能力の割合） */
     public enum FramePart {
-        HEAD("head", 0.25F), CHEST("chest", 0.45F), LEGS("legs", 0.30F), FULL("full", 1.0F);
+        HEAD("head", 0.25F), CHEST("chest", 0.45F), LEGS("legs", 0.30F);
 
         public final String id;
         public final float share;
@@ -86,6 +97,7 @@ public final class ValkyrieUnits {
             tooltip.add(Component.translatable("gui.automata_valkyries.unit.frame.stats", fmt(armor()), fmt(toughness()), fmt(weight())).withStyle(ChatFormatting.GRAY));
             tooltip.add(Component.translatable("gui.automata_valkyries.unit.frame.vitals", fmt(health()), fmt(shield())).withStyle(ChatFormatting.GRAY));
             tooltip.add(Component.translatable("gui.automata_valkyries.unit.frame.set." + type.id).withStyle(ChatFormatting.GOLD));
+            if (type.valkyrie()) tooltip.add(Component.translatable("gui.automata_valkyries.unit.frame.family_set").withStyle(ChatFormatting.DARK_GRAY));
         }
     }
 
@@ -106,8 +118,11 @@ public final class ValkyrieUnits {
         THRUSTER_MK4("thruster_mk4", 4, 6.0F, 10_000, new Maneuver(5, 3, 200, true, true)),
         FOLDING_CANNON("folding_cannon", 3, 20.0F, 50_000, null),
         ECM_POD("ecm_pod", 2, 8.0F, 80_000, null),
-        TACHYON_DRIVE("tachyon_drive", 4, 4.0F, 20_000, null),
-        MEMENTO_FAMILIAR("memento_familiar", 3, 7.0F, 30_000, null);
+        // タキオンドライブは T3（2026-10-06 ユーザー指定。T4 から下げ、ボスの攻撃 60% 回避を「HP が尽きる 1 撃を無かったことにする」へ）
+        TACHYON_DRIVE("tachyon_drive", 3, 4.0F, 20_000, null),
+        MEMENTO_FAMILIAR("memento_familiar", 3, 7.0F, 30_000, null),
+        // ガリア・フォートレスは全身の外装から、まわりを盾が回る背部ユニット（T3）へ（2026-10-06 ユーザー指定。重さは【仮】）
+        GALLIA_FORTRESS("gallia_fortress", 3, 20.0F, 0, null);
 
         public final String id;
         public final int tier;
@@ -144,18 +159,37 @@ public final class ValkyrieUnits {
 
     // ------------------------------------------------------------------ ロジックチップ（§7.5）
 
-    /** ロジックチップの種類（重さ 0.5t【仮】、電力は働くときだけ【仮】） */
+    /**
+     * ロジックチップの種類（重さ 0.5t【仮】、電力は働くときだけ【仮】）。
+     * 役割のチップ（ヴァンガード・リアガード・メディック）は同時に 1 つだけ（2026-10-06 ユーザー指定）
+     */
     public enum ChipKind {
-        PRECISION("precision", 1), INTERCEPT("intercept", 2), ABSOLUTE("absolute", 3), RESOURCE_SAVER("resource_saver", 1);
+        PRECISION("precision", 1, false), INTERCEPT("intercept", 2, false), ABSOLUTE("absolute", 3, false), RESOURCE_SAVER("resource_saver", 1, false),
+        /** 前衛: 持ち主の前に立ち、持ち主を狙う敵を優先する */
+        VANGUARD("vanguard", 1, true),
+        /** 後衛: 持ち主の後ろから援護射撃に徹する（近接へ詰めない） */
+        REARGUARD("rearguard", 1, true),
+        /** 救護: 持ち主・味方の HP を見てナノマシン溶液で回復し、弾が無ければ弾薬・溶液を渡す */
+        MEDIC("medic", 2, true),
+        /** 通常攻撃だけ／チャージ攻撃だけ（しゃがみ右クリックで切り替え） */
+        ATTACK_MODE("attack_mode", 1, false),
+        /** 固定砲台: 覚えた対象を探し、通常・チャージ攻撃の最大射程に入ったら動かずに撃つ */
+        TURRET("turret", 2, false);
 
         public final String id;
         public final int tier;
+        /** 役割のチップ（同時に 1 つだけ） */
+        public final boolean role;
 
-        ChipKind(String id, int tier) {
+        ChipKind(String id, int tier, boolean role) {
             this.id = id;
             this.tier = tier;
+            this.role = role;
         }
     }
+
+    /** 固定砲台のチップが覚えられる対象の数 */
+    public static final int TURRET_TARGETS = 8;
 
     public static final float CHIP_WEIGHT = 0.5F;
 
@@ -172,7 +206,84 @@ public final class ValkyrieUnits {
             tooltip.add(Component.translatable("gui.automata_valkyries.unit.valkyrie_only").withStyle(ChatFormatting.DARK_AQUA));
             tooltip.add(Component.translatable("gui.automata_valkyries.unit.chip.stats", fmt(CHIP_WEIGHT)).withStyle(ChatFormatting.GRAY));
             tooltip.add(Component.translatable("gui.automata_valkyries.unit.chip." + kind.id).withStyle(ChatFormatting.GOLD));
+            if (kind.role) tooltip.add(Component.translatable("gui.automata_valkyries.unit.chip.role_exclusive").withStyle(ChatFormatting.DARK_GRAY));
+            if (kind == ChipKind.ATTACK_MODE) {
+                tooltip.add(Component.translatable("gui.automata_valkyries.unit.chip.attack_mode." + (chargeOnly(stack) ? "charge" : "normal")).withStyle(ChatFormatting.AQUA));
+            }
+            if (kind == ChipKind.TURRET) {
+                List<net.minecraft.world.entity.EntityType<?>> types = turretTargets(stack);
+                if (types.isEmpty()) {
+                    tooltip.add(Component.translatable("gui.automata_valkyries.unit.chip.turret.any").withStyle(ChatFormatting.AQUA));
+                } else {
+                    net.minecraft.network.chat.MutableComponent names = Component.empty();
+                    for (int i = 0; i < types.size(); i++) {
+                        if (i > 0) names.append(", ");
+                        names.append(types.get(i).getDescription());
+                    }
+                    tooltip.add(Component.translatable("gui.automata_valkyries.unit.chip.turret.targets", names).withStyle(ChatFormatting.AQUA));
+                }
+            }
         }
+
+        /** アタックセレクト: しゃがみ右クリックで 通常攻撃だけ ⇔ チャージ攻撃だけ。タレット: しゃがみ右クリックで覚えた対象を消す */
+        @Override
+        public net.minecraft.world.InteractionResultHolder<ItemStack> use(Level level, net.minecraft.world.entity.player.Player player, net.minecraft.world.InteractionHand hand) {
+            ItemStack stack = player.getItemInHand(hand);
+            if (!player.isShiftKeyDown() || (kind != ChipKind.ATTACK_MODE && kind != ChipKind.TURRET)) return super.use(level, player, hand);
+            if (!level.isClientSide) {
+                if (kind == ChipKind.ATTACK_MODE) {
+                    stack.getOrCreateTag().putBoolean("ChargeOnly", !chargeOnly(stack));
+                    player.displayClientMessage(Component.translatable("gui.automata_valkyries.unit.chip.attack_mode." + (chargeOnly(stack) ? "charge" : "normal")).withStyle(ChatFormatting.AQUA), true);
+                } else {
+                    stack.removeTagKey("Targets");
+                    player.displayClientMessage(Component.translatable("gui.automata_valkyries.unit.chip.turret.cleared").withStyle(ChatFormatting.AQUA), true);
+                }
+                level.playSound(null, player.blockPosition(), net.minecraft.sounds.SoundEvents.UI_BUTTON_CLICK.value(), net.minecraft.sounds.SoundSource.PLAYERS, 0.5F, 1.4F);
+            }
+            return net.minecraft.world.InteractionResultHolder.sidedSuccess(stack, level.isClientSide);
+        }
+
+        /** タレット: モブを右クリックでその種類を対象に覚える（プレイヤー・兵姫は覚えない） */
+        @Override
+        public net.minecraft.world.InteractionResult interactLivingEntity(ItemStack stack, net.minecraft.world.entity.player.Player player,
+                                                                         net.minecraft.world.entity.LivingEntity target, net.minecraft.world.InteractionHand hand) {
+            if (kind != ChipKind.TURRET || player.isShiftKeyDown() || target instanceof net.minecraft.world.entity.player.Player
+                    || target instanceof com.automatavalkyries.entity.ValkyrieEntity) return net.minecraft.world.InteractionResult.PASS;
+            if (!player.level().isClientSide) {
+                ItemStack held = player.getItemInHand(hand); // クリエイティブでは stack が写しなので、手の物を直接書き換える
+                var id = net.minecraftforge.registries.ForgeRegistries.ENTITY_TYPES.getKey(target.getType());
+                net.minecraft.nbt.ListTag list = held.getOrCreateTag().getList("Targets", net.minecraft.nbt.Tag.TAG_STRING);
+                boolean known = false;
+                for (int i = 0; i < list.size(); i++) known |= list.getString(i).equals(String.valueOf(id));
+                if (!known && list.size() >= TURRET_TARGETS) {
+                    player.displayClientMessage(Component.translatable("gui.automata_valkyries.unit.chip.turret.full").withStyle(ChatFormatting.RED), true);
+                } else {
+                    if (!known && id != null) list.add(net.minecraft.nbt.StringTag.valueOf(id.toString()));
+                    held.getOrCreateTag().put("Targets", list);
+                    player.displayClientMessage(Component.translatable("gui.automata_valkyries.unit.chip.turret.added", target.getType().getDescription()).withStyle(ChatFormatting.AQUA), true);
+                    player.level().playSound(null, player.blockPosition(), net.minecraft.sounds.SoundEvents.UI_BUTTON_CLICK.value(), net.minecraft.sounds.SoundSource.PLAYERS, 0.5F, 1.8F);
+                }
+            }
+            return net.minecraft.world.InteractionResult.sidedSuccess(player.level().isClientSide);
+        }
+    }
+
+    /** アタックセレクトがチャージ攻撃だけか（でなければ通常攻撃だけ） */
+    public static boolean chargeOnly(ItemStack stack) {
+        return stack.hasTag() && stack.getTag().getBoolean("ChargeOnly");
+    }
+
+    /** タレットが覚えた対象の種類（空なら敵対モブみな） */
+    public static List<net.minecraft.world.entity.EntityType<?>> turretTargets(ItemStack stack) {
+        List<net.minecraft.world.entity.EntityType<?>> out = new java.util.ArrayList<>();
+        if (!stack.hasTag()) return out;
+        net.minecraft.nbt.ListTag list = stack.getTag().getList("Targets", net.minecraft.nbt.Tag.TAG_STRING);
+        for (int i = 0; i < list.size(); i++) {
+            var id = net.minecraft.resources.ResourceLocation.tryParse(list.getString(i));
+            var type = id == null ? null : net.minecraftforge.registries.ForgeRegistries.ENTITY_TYPES.getValue(id);
+            if (type != null && !out.contains(type)) out.add(type);
+        }
+        return out;
     }
 
     static String fmt(double v) {

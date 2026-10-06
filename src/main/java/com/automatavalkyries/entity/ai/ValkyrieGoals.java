@@ -92,6 +92,17 @@ public final class ValkyrieGoals {
             return ground != null ? Vec3.atBottomCenterOf(ground) : null;
         }
 
+        /** ロジック: ヴァンガードは持ち主の前、リアガードは持ち主の後ろに立つ（持ち主が地上にいるとき） */
+        private Vec3 roleSpot(Player o, Vec3 g) {
+            var role = ValkyrieUnitEffects.role(v);
+            if (flying || role == null || role == com.automatavalkyries.item.unit.ValkyrieUnits.ChipKind.MEDIC || !(o.onGround())) return g;
+            Vec3 look = new Vec3(o.getLookAngle().x, 0, o.getLookAngle().z);
+            if (look.lengthSqr() < 1.0e-4) return g;
+            look = look.normalize();
+            return role == com.automatavalkyries.item.unit.ValkyrieUnits.ChipKind.VANGUARD
+                    ? g.add(look.scale(ValkyrieCombat.VANGUARD_FRONT)) : g.subtract(look.scale(ValkyrieCombat.REARGUARD_BACK));
+        }
+
         @Override
         public boolean canUse() {
             if (v.getMode() != Mode.FOLLOW || v.isShutdown() || v.isPassenger()) return false;
@@ -100,6 +111,7 @@ public final class ValkyrieGoals {
             owner = o;
             Vec3 g = goal(o);
             if (g == null) return false;
+            g = roleSpot(o, g);
             return v.position().distanceToSqr(g) > START_DIST * START_DIST || (o.isPassenger() && !v.isPassenger());
         }
 
@@ -107,6 +119,7 @@ public final class ValkyrieGoals {
         public boolean canContinueToUse() {
             if (owner == null || !owner.isAlive() || v.getMode() != Mode.FOLLOW || v.isShutdown() || v.isPassenger()) return false;
             Vec3 g = goal(owner);
+            if (g != null) g = roleSpot(owner, g);
             return g != null && (flying || v.position().distanceToSqr(g) > STOP_DIST * STOP_DIST || owner.isPassenger());
         }
 
@@ -127,6 +140,7 @@ public final class ValkyrieGoals {
             v.getLookControl().setLookAt(owner, 10.0F, v.getMaxHeadXRot());
             Vec3 g = goal(owner);
             if (g == null) return;
+            g = roleSpot(owner, g);
             double dist = Math.sqrt(v.position().distanceToSqr(g));
             Entity vehicle = owner.getVehicle();
             if (vehicle != null && v.distanceTo(owner) < 4.0 && v.startRiding(vehicle)) return; // 同乗（空いていなければ失敗して並走）

@@ -5,8 +5,8 @@
     python tools/gen_valkyrie_units.py preview    # 兵姫に重ねた確認用の geo とテクスチャを build/unit_preview/ に作る（GeoPreview 用）
 
 出力（assets/automata_valkyries/ の下）:
-  geo/entity/unit/frame_<型>_<部位>.geo.json    … valkyrie / fortress / mirage の head・chest・legs、gallia_fortress の full
-  geo/entity/unit/backpack_<種類>.geo.json      … thruster（＋ _mk2 / _mk3 / _mk4）/ folding_cannon / ecm_pod / tachyon_drive / memento_familiar
+  geo/entity/unit/frame_<型>_<部位>.geo.json    … valkyrie（＋ valkyrie_mk2〜mk4）/ fortress / mirage の head・chest・legs
+  geo/entity/unit/backpack_<種類>.geo.json      … thruster（＋ _mk2 / _mk3 / _mk4）/ folding_cannon / ecm_pod / tachyon_drive / memento_familiar / gallia_fortress
   textures/entity/unit/valkyrie_units.png（＋ _glowmask.png）  … 全ユニット共通の素材の見本帳（8x8 の板の絵を面ごとに貼る）
   textures/entity/unit/memento_butterfly.png    … メメント・ファミリアの蝶（描画側で羽ばたかせる）
 
@@ -230,6 +230,10 @@ plate('b_white_gold', 'b_white', line='gold')
 plate('b_white_vgold', 'b_white', vline='gold')
 nozzle('nozzle_white', 'white')
 glow_tile('glow_white', 'white')
+# ヴァルキリーフレーム・アストライア（Mk-IV）用（2026-10-06。後ろへ足す）
+plate('v_white_wline', 'v_white', line='white')
+plate('v_white_wvline', 'v_white', vline='white')
+plate('v_white_gvline', 'v_white', vline='gold')
 galaxy('galaxy')
 
 # ------------------------------------------------------------------ 形
@@ -342,6 +346,106 @@ def frame_valkyrie():
     l.mbox('right_leg', (-2.97, 0.88, 0.02), (-2.68, 2.42, 1.62), 'v_white', out='v_white_line')  # 足首のひれ
 
 
+# ---------------- 外装フレーム: ヴァルキリー Mk-II〜Ⅳ（アストライア）。Mk-I と同じ形に、ティアごとに装甲・光の線・飾りを足す
+VALK_MATS = {
+    2: {'w': 'v_white', 's': 'v_silver', 'l': 'v_white_line', 'vl': 'v_white_vline', 'g': 'glow_cyan', 'acc': 'v_silver'},
+    3: {'w': 'v_white', 's': 'v_silver', 'l': 'v_white_line', 'vl': 'v_white_vline', 'g': 'glow_cyan', 'acc': 'v_silver'},
+    4: {'w': 'v_white', 's': 'v_silver', 'l': 'v_white_wline', 'vl': 'v_white_wvline', 'g': 'glow_white', 'acc': 'g_gold'},
+}
+
+
+def _valk_base(h, c, l, M):
+    """Mk-I（frame_valkyrie）と同じ形。素材だけ差し替える"""
+    w, sv, ln, vl, g = M['w'], M['s'], M['l'], M['vl'], M['g']
+    h.box('head', (-4.15, 27.08, -0.45), (4.15, 27.46, 0.55), w)
+    h.box('head', (-1.1, 27.46, -0.25), (1.1, 27.66, 0.35), ln, top=g)
+    h.mbox('head', (-4.17, 24.85, -0.45), (-3.82, 27.46, 0.55), sv)
+    h.mbox('head', (-4.6, 22.42, -1.18), (-3.97, 24.88, 1.37), w, out=ln)
+    h.mbox('head', (-4.72, 23.08, -0.42), (-4.6, 24.22, 0.62), g)
+    fr, fl = h.mbone('fin_{s}', 'head', (-4.3, 24.3, 1.0), (28, 0, 0))
+    h.box(fr, (-4.45, 24.05, 0.9), (-4.08, 24.62, 4.3), w, out=ln)
+    h.box(fl, (4.08, 24.05, 0.9), (4.45, 24.62, 4.3), w, out=ln)
+    h.box(fr, (-4.38, 24.62, 1.6), (-4.15, 25.0, 3.6), sv)
+    h.box(fl, (4.15, 24.62, 1.6), (4.38, 25.0, 3.6), sv)
+    h.box('head', (3.86, 21.92, -2.85), (4.08, 22.2, -1.1), sv)
+    h.box('head', (3.8, 21.82, -3.08), (4.14, 22.3, -2.85), g)
+
+    c.mbox('body', (1.31, 17.95, -2.27), (2.47, 20.43, -1.29), w, front=vl)
+    c.box('body', (-2.47, 20.48, -1.62), (2.47, 20.92, 1.37), sv)
+    c.box('body', (-1.5, 14.62, -1.42), (1.5, 16.18, -1.17), sv, front=ln)
+    c.mbox('body', (-3.27, 11.28, -1.36), (-2.62, 14.02, 1.22), w, out=vl, front=ln)
+    c.mbox('right_arm', (-4.76, 19.92, -1.28), (-2.38, 21.06, 1.33), w, out=ln)
+    c.mbox('right_arm', (-4.97, 18.58, -1.22), (-3.42, 20.12, 1.24), sv)
+    sr, sl = c.mbone('spike_{s}', 'right_arm', (-4.9, 20.4, 0.0), (0, 0, 22))
+    c.box(sr, (-5.75, 20.15, -0.3), (-4.6, 20.68, 0.42), w, top=ln)
+    c.box(sl, (4.6, 20.15, -0.3), (5.75, 20.68, 0.42), w, top=ln)
+    c.mbox('right_arm', (-4.37, 13.62, -1.12), (-2.13, 15.62, 1.12), w, out=ln)
+
+    l.mbox('right_leg', (-2.97, 7.62, -1.18), (-2.57, 11.78, 1.08), w, out=vl)
+    l.mbox('right_leg', (-2.38, 8.02, -1.66), (-0.22, 11.38, -1.43), sv)
+    l.mbox('right_leg', (-2.47, 5.28, -2.02), (-0.13, 7.32, -1.18), w, front=vl)
+    kr, kl = l.mbone('knee_{s}', 'right_leg', (-1.3, 7.3, -1.9), (-35, 0, 0))
+    l.box(kr, (-1.85, 7.0, -2.25), (-0.75, 8.6, -1.7), w)
+    l.box(kl, (0.75, 7.0, -2.25), (1.85, 8.6, -1.7), w)
+    l.mbox('right_leg', (-2.72, 1.18, -1.67), (0.12, 5.26, -1.37), w, front=vl)
+    l.mbox('right_leg', (-2.83, 1.38, -1.36), (-2.62, 4.98, 1.22), sv)
+    l.mbox('right_leg', (-2.97, 0.88, 0.02), (-2.68, 2.42, 1.62), w, out=ln)
+
+
+def frame_valkyrie_tier(tier):
+    key = 'valkyrie_mk%d' % tier
+    M = VALK_MATS[tier]
+    w, ln, vl, g, acc = M['w'], M['l'], M['vl'], M['g'], M['acc']
+    h = model(f'frame_{key}_head')
+    c = model(f'frame_{key}_chest')
+    l = model(f'frame_{key}_legs')
+    _valk_base(h, c, l, M)
+
+    # ---- Mk-II 以上: 装甲を一枚ずつ足し、光の線を増やす
+    h.mbox('head', (-4.66, 21.95, -0.95), (-4.0, 22.5, 1.15), M['s'])                  # 耳当ての下の板
+    h.mbox('head', (-4.7, 22.1, -0.6), (-4.66, 22.3, 0.8), g)
+    h.box('head', (-2.6, 27.15, -0.53), (2.6, 27.35, -0.47), g)                         # 輪の前の光の線
+    c.box('body', (-2.0, 17.6, -2.33), (2.0, 17.98, -1.62), w, front=ln)               # 胸当ての下の帯
+    c.mbox('right_arm', (-4.8, 20.3, -1.33), (-2.66, 20.45, -1.28), g)                   # 肩の前の光の線
+    c.mbox('right_arm', (-4.62, 16.4, -0.9), (-4.42, 18.4, 0.9), w, out=vl)            # 上腕の板
+    c.mbox('right_arm', (-4.42, 14.5, -0.5), (-4.37, 14.75, 0.5), g)                    # 前腕の光の輪
+    l.mbox('right_leg', (-1.35, 1.5, -1.72), (-1.05, 4.9, -1.67), g)                    # 脛の光の線
+    l.mbox('right_leg', (-3.02, 8.5, -0.2), (-2.97, 10.9, 0.1), g)                      # 太ももの横の光の線
+    l.mbox('right_leg', (-2.72, 0.3, -2.4), (0.12, 0.95, -1.9), acc)                    # つま先の覆い
+
+    if tier >= 3:
+        # ---- Mk-III 以上: ヘッドセットの飾り・アンテナ、肩の小さなひれ、膝当て
+        h.box('head', (-0.3, 27.62, -0.2), (0.3, 28.75, 0.3), acc)                         # 頭の上の飾り
+        h.box('head', (-0.22, 28.75, -0.12), (0.22, 29.1, 0.22), g)
+        ar, al = h.mbone('antenna_{s}', 'head', (-4.55, 24.95, 0.5), (-25, 0, 0))          # 耳当ての上のアンテナ（後ろへ傾ける）
+        h.box(ar, (-4.62, 24.95, 0.42), (-4.48, 27.9, 0.58), acc)
+        h.box(al, (4.48, 24.95, 0.42), (4.62, 27.9, 0.58), acc)
+        h.box(ar, (-4.65, 27.9, 0.39), (-4.45, 28.25, 0.61), g)
+        h.box(al, (4.45, 27.9, 0.39), (4.65, 28.25, 0.61), g)
+        fr, fl = c.mbone('sfin_{s}', 'right_arm', (-4.7, 20.6, 0.9), (0, 30, 12))         # 肩の後ろの小さなひれ（外・後ろへ）
+        c.box(fr, (-4.7, 20.38, 0.78), (-6.3, 20.82, 1.02), w, top=ln)
+        c.box(fl, (4.7, 20.38, 0.78), (6.3, 20.82, 1.02), w, top=ln)
+        c.box(fr, (-5.4, 20.44, 1.02), (-6.2, 20.76, 1.08), g)
+        c.box(fl, (5.4, 20.44, 1.02), (6.2, 20.76, 1.08), g)
+        l.mbox('right_leg', (-2.68, 5.0, -2.2), (0.08, 5.62, -1.25), acc)                    # 膝当ての下の縁
+        l.mbox('right_leg', (-1.45, 5.7, -2.07), (-1.15, 6.9, -2.02), g)                   # 膝の光の線
+
+    if tier >= 4:
+        # ---- Ⅳ（アストライア）: 金の冠、重ねた肩当て、腰の前垂れ、白シアンの光と金の飾り
+        h.box('head', (-4.22, 27.1, -0.51), (4.22, 27.4, -0.43), 'g_gold')               # 輪の前の金の縁（光の線の下）
+        h.mbox('head', (-1.95, 27.4, -0.18), (-1.45, 28.3, 0.32), 'g_gold')               # 冠の左右の尖り
+        h.mbox('head', (-1.85, 28.3, -0.1), (-1.55, 28.55, 0.24), 'glow_gold')
+        h.mbox('head', (-4.68, 24.8, -1.0), (-3.99, 25.05, 1.2), 'g_gold')               # 耳当ての上の金の縁
+        c.mbox('right_arm', (-4.95, 21.0, -1.38), (-2.55, 21.35, 1.43), 'g_gold')          # 重ねた肩当て（上）
+        c.mbox('right_arm', (-5.12, 18.3, -1.3), (-3.6, 18.75, 1.32), 'g_gold')            # 重ねた肩当て（下の縁）
+        c.mbox('right_arm', (-5.25, 18.7, -1.05), (-4.95, 20.0, 1.08), w, out='v_white_gvline')  # 肩当ての外の板
+        c.box('body', (-0.2, 14.35, -1.47), (0.2, 16.45, -1.42), 'glow_white')            # 腹の光の線
+        c.mbox('body', (-2.45, 10.2, -1.78), (-0.3, 12.4, -1.55), w, front='v_white_gvline', bottom='g_gold')  # 腰の前垂れ
+        c.mbox('body', (-2.5, 12.35, -1.8), (-0.25, 12.7, -1.5), 'g_gold')
+        l.mbox('right_leg', (-2.5, 7.28, -1.95), (-0.1, 7.5, -1.2), 'g_gold')             # 膝当ての上の金の縁
+        l.mbox('right_leg', (-3.0, 0.95, 0.4), (-2.97, 2.1, 1.3), 'glow_white')           # 足首のひれの光
+
+
 # ---------------- 外装フレーム: フォートレス（巨大な肩部装甲＋重厚な外骨格）
 def frame_fortress():
     h = model('frame_fortress_head')
@@ -408,39 +512,6 @@ def frame_mirage():
     l.mbox('right_leg', (-1.45, 1.12, -1.56), (-1.15, 5.32, -1.42), 'glow_cyan')         # 脛の前
     l.mbox('right_leg', (-2.86, 7.98, -0.92), (-2.62, 11.52, 0.92), 'm_white', out='m_white_line')  # 太ももの軽いひれ
     l.mbox('right_leg', (-2.74, 2.42, -1.56), (0.14, 2.72, 1.56), 'm_black', front='m_black_line')  # 足首の輪
-
-
-# ---------------- 外装フレーム: ガリア・フォートレス（全身。暗い重装甲・金の鋲・銀河の板）
-def frame_gallia():
-    m = model('frame_gallia_fortress_full')
-    # 頭: 冠の兜（顔は開ける）
-    m.box('head', (-3.46, 26.92, -2.92), (3.46, 28.02, 3.22), 'g_dark', top='g_gold')
-    m.box('head', (-3.02, 26.42, -3.37), (3.02, 26.97, -2.77), 'g_gold')                 # 額の金の帯
-    m.box('head', (-0.32, 28.02, -2.62), (0.32, 29.52, -1.98), 'g_gold', front='glow_violet')  # 冠の角
-    m.mbox('head', (-1.72, 28.02, -2.52), (-1.22, 28.92, -2.02), 'g_gold')
-    m.mbox('head', (-4.82, 21.62, -2.02), (-3.82, 26.92, 2.32), 'g_dark', out='g_dark_vline')  # 頬の大きな装甲
-    m.mbox('head', (-4.97, 23.4, -0.8), (-4.82, 25.0, 0.8), 'glow_violet')
-    # 胴
-    m.box('body', (-2.87, 15.82, -2.62), (2.87, 18.37, -1.12), 'g_dark', front='galaxy', top='g_gold')  # 銀河の板
-    m.mbox('body', (-2.92, 18.37, -2.52), (-1.31, 20.72, -1.29), 'g_dark', front='g_dark_line')  # コアの左右
-    m.mbox('body', (-1.28, 18.42, -2.32), (-1.02, 18.72, -2.02), 'glow_violet')
-    m.box('body', (-3.02, 20.42, -1.92), (3.02, 21.32, 1.38), 'g_gold', top='g_dark')     # 首の輪
-    m.box('body', (-2.32, 13.98, -1.52), (2.32, 15.82, 1.38), 'g_dark')                  # 腰
-    m.mbox('body', (-2.62, 9.58, -1.92), (-0.22, 13.98, -1.52), 'g_dark', front='g_dark_vline', bottom='g_gold')  # 前の草摺
-    m.mbox('body', (-3.62, 9.78, -1.62), (-2.62, 14.22, 1.38), 'g_dark', out='g_dark_vline', bottom='g_gold')   # 横の草摺
-    # 腕: 巨大な肩・籠手
-    m.mbox('right_arm', (-6.42, 18.22, -1.28), (-2.52, 22.22, 1.34), 'g_dark', out='galaxy', top='g_gold')
-    m.mbox('right_arm', (-6.62, 17.42, -1.24), (-4.62, 18.42, 1.24), 'g_gold')
-    pr, pl = m.mbone('horn_{s}', 'right_arm', (-5.2, 22.2, 0.0), (0, 0, 25))           # 肩の角
-    m.box(pr, (-5.6, 22.0, -0.35), (-4.8, 23.9, 0.45), 'g_gold')
-    m.box(pl, (4.8, 22.0, -0.35), (5.6, 23.9, 0.45), 'g_gold')
-    m.mbox('right_arm', (-4.72, 11.32, -1.36), (-1.82, 16.02, 1.36), 'g_dark', out='g_dark_line', top='g_gold')
-    # 脚: 重い脛当て
-    m.mbox('right_leg', (-3.02, -0.05, -2.72), (0.42, 6.02, 1.72), 'g_dark', front='g_dark_vline', out='g_dark_line')
-    m.mbox('right_leg', (-2.82, 5.82, -2.32), (0.22, 7.82, -0.92), 'g_gold')
-    m.mbox('right_leg', (-1.62, 6.42, -2.47), (-0.98, 7.22, -2.32), 'glow_violet')
-    m.mbox('right_leg', (-2.67, 7.82, -1.82), (0.07, 12.02, -1.42), 'g_dark', front='g_dark_line')
-    m.mbox('right_leg', (-3.17, 7.62, -1.32), (-2.62, 12.22, 1.32), 'g_dark', out='g_dark_vline')
 
 
 # ---------------- 背部ユニット（胴の骨。背中の横から張り出す腕で、後ろ髪の外へ出す）
@@ -601,6 +672,38 @@ def backpack_thruster_mk4():
         m.box(f, (s * 4.6, 10.3, 1.6), (s * 5.55, 12.78, 2.15), 'glow_white')
         m.box(f, (s * 4.6, 10.3, 2.65), (s * 5.55, 12.78, 3.2), 'glow_white')
 
+def backpack_gallia_fortress():
+    """ガリア・フォートレス（T3、2026-10-06 に全身外装から背部ユニットへ）: 背中の重い発電機（灰と金）＋兵姫のまわりを回る 5 枚の盾。
+    盾の輪は兵姫の縦の軸（x=0, z=0）で回る（spin_y_）。半径 16px で腕・髪・武器の外を回る"""
+    m = model('backpack_gallia_fortress')
+    strut(m)
+    m.mbox('body', (-5.7, 14.8, 1.25), (-4.02, 19.8, 3.5), 'f_steel', out='f_steel_line', back='f_vent', top='g_gold', bottom='g_gold')  # 左右の発電機
+    m.mbox('body', (-5.85, 18.6, 1.15), (-3.95, 19.05, 3.6), 'g_gold')                     # 金の輪
+    m.mbox('body', (-5.85, 15.5, 1.15), (-3.95, 15.95, 3.6), 'g_gold')
+    m.mbox('body', (-5.8, 16.4, 1.9), (-5.7, 18.1, 2.9), 'glow_gold')                      # 外の光る窓
+    m.mbox('body', (-5.3, 19.8, 1.85), (-4.4, 20.6, 2.9), 'f_dark', top='glow_gold')        # 上の放熱の筒
+    m.mbox('body', (-5.3, 14.1, 1.85), (-4.4, 14.8, 2.9), 'f_dark', bottom='glow_gold')     # 下の筒
+    R_, cy, n = 16.0, 16.0, 5
+    ring = m.bone('spin_y_ring', 'body', (0, cy, 0))
+    for k in range(n):
+        sh = m.bone(f'shield_{k}', ring, (0, cy, 0), (0, k * 360 / n, 0))
+        t = m.bone(f'tilt_{k}', sh, (0, 12.5, R_), (-10, 0, 0))                          # 上を外へ少し傾ける
+        z0, z1 = R_, R_ + 0.4
+        m.box(t, (-1.8, 13.9, z0), (1.8, 18.1, z1), 'f_steel', back='g_dark', front='f_steel')   # 盾の胴（外＝south）
+        m.box(t, (-1.2, 18.0, z0 + 0.03), (1.2, 19.2, z1 - 0.03), 'f_steel', back='g_gold')           # 上の肩
+        m.box(t, (-0.55, 19.1, z0 + 0.06), (0.55, 19.8, z1 - 0.06), 'g_gold')                         # 上の尖り
+        m.box(t, (-1.2, 12.8, z0 + 0.03), (1.2, 14.0, z1 - 0.03), 'f_steel', back='g_gold')           # 下の肩
+        m.box(t, (-0.55, 12.2, z0 + 0.06), (0.55, 12.9, z1 - 0.06), 'g_gold')                         # 下の尖り
+        m.box(t, (-1.95, 13.9, z0 - 0.05), (-1.8, 18.1, z1 + 0.05), 'g_gold')                         # 左右の金の縁
+        m.box(t, (1.8, 13.9, z0 - 0.05), (1.95, 18.1, z1 + 0.05), 'g_gold')
+        m.box(t, (-0.35, 15.4, z1), (0.35, 16.6, z1 + 0.08), 'glow_gold')                             # 中央の紋の光
+        fx = m.bone(f'fx_edge_{k}', t, (0, 12.5, R_), None)                                # 光る縁（発光だけ）
+        m.box(fx, (-2.05, 14.0, z1 + 0.1), (-1.9, 18.0, z1 + 0.16), 'glow_gold')
+        m.box(fx, (1.9, 14.0, z1 + 0.1), (2.05, 18.0, z1 + 0.16), 'glow_gold')
+        m.box(fx, (-1.15, 19.25, z1 + 0.1), (1.15, 19.4, z1 + 0.16), 'glow_white')
+        m.box(fx, (-1.15, 12.6, z1 + 0.1), (1.15, 12.75, z1 + 0.16), 'glow_white')
+
+
 def backpack_folding_cannon():
     m = model('backpack_folding_cannon')
     strut(m)
@@ -663,9 +766,11 @@ def backpack_memento_familiar():
 
 
 frame_valkyrie()
+frame_valkyrie_tier(2)
+frame_valkyrie_tier(3)
+frame_valkyrie_tier(4)
 frame_fortress()
 frame_mirage()
-frame_gallia()
 backpack_thruster()
 backpack_folding_cannon()
 backpack_ecm_pod()
@@ -674,6 +779,7 @@ backpack_memento_familiar()
 backpack_thruster_mk2()
 backpack_thruster_mk3()
 backpack_thruster_mk4()
+backpack_gallia_fortress()
 
 
 # ------------------------------------------------------------------ 書き出し
@@ -820,8 +926,12 @@ def main():
             'valkyrie': ['frame_valkyrie_head', 'frame_valkyrie_chest', 'frame_valkyrie_legs', 'backpack_thruster'],
             'fortress': ['frame_fortress_head', 'frame_fortress_chest', 'frame_fortress_legs', 'backpack_folding_cannon'],
             'mirage': ['frame_mirage_head', 'frame_mirage_chest', 'frame_mirage_legs', 'backpack_ecm_pod'],
-            'gallia': ['frame_gallia_fortress_full', 'backpack_tachyon_drive'],
+            'gallia': ['backpack_gallia_fortress'],
+            'tachyon': ['backpack_tachyon_drive'],
             'memento': ['backpack_memento_familiar'],
+            'valkyrie_mk2': ['frame_valkyrie_mk2_head', 'frame_valkyrie_mk2_chest', 'frame_valkyrie_mk2_legs'],
+            'valkyrie_mk3': ['frame_valkyrie_mk3_head', 'frame_valkyrie_mk3_chest', 'frame_valkyrie_mk3_legs'],
+            'valkyrie_mk4': ['frame_valkyrie_mk4_head', 'frame_valkyrie_mk4_chest', 'frame_valkyrie_mk4_legs'],
             'thruster_mk2': ['frame_valkyrie_head', 'frame_valkyrie_chest', 'frame_valkyrie_legs', 'backpack_thruster_mk2'],
             'thruster_mk3': ['frame_valkyrie_head', 'frame_valkyrie_chest', 'frame_valkyrie_legs', 'backpack_thruster_mk3'],
             'thruster_mk4': ['frame_valkyrie_head', 'frame_valkyrie_chest', 'frame_valkyrie_legs', 'backpack_thruster_mk4'],

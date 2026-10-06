@@ -64,48 +64,61 @@ public class ValkyrieInventory implements Container {
         if (slot >= PICKUP) return true; // 拾った物（何でも。プレイヤーが入れた物も片付けに運ぶ）
         if (slot >= SPARE) return isSpareWeapon(stack);
         if (slot >= AMMO) return slot - AMMO < owner.getBody().ammoSlots && isAmmo(stack);
-        // 外装フレーム: 部位の合う物。ガリア・フォートレス（全身）は胴の枠で、頭・脚が空のときだけ。全身が入っていれば頭・脚は塞がる
+        // 外装フレーム: 部位の合う物
         if (slot == HEAD || slot == CHEST || slot == LEGS) {
             if (!(stack.getItem() instanceof com.automatavalkyries.item.unit.ValkyrieUnits.FrameItem frame)) return false;
-            boolean fullOn = getItem(CHEST).getItem() instanceof com.automatavalkyries.item.unit.ValkyrieUnits.FrameItem c && c.part == com.automatavalkyries.item.unit.ValkyrieUnits.FramePart.FULL;
             return switch (slot) {
-                case HEAD -> frame.part == com.automatavalkyries.item.unit.ValkyrieUnits.FramePart.HEAD && !fullOn;
-                case LEGS -> frame.part == com.automatavalkyries.item.unit.ValkyrieUnits.FramePart.LEGS && !fullOn;
-                default -> frame.part == com.automatavalkyries.item.unit.ValkyrieUnits.FramePart.CHEST
-                        || (frame.part == com.automatavalkyries.item.unit.ValkyrieUnits.FramePart.FULL && getItem(HEAD).isEmpty() && getItem(LEGS).isEmpty());
+                case HEAD -> frame.part == com.automatavalkyries.item.unit.ValkyrieUnits.FramePart.HEAD;
+                case LEGS -> frame.part == com.automatavalkyries.item.unit.ValkyrieUnits.FramePart.LEGS;
+                default -> frame.part == com.automatavalkyries.item.unit.ValkyrieUnits.FramePart.CHEST;
             };
         }
         if (slot == BACKPACK) return stack.getItem() instanceof com.automatavalkyries.item.unit.ValkyrieUnits.BackpackItem;
         if (slot >= CHIP && slot < CHIP + CHIPS) { // ロジックチップ（同じ種類は 1 つまで）
             if (!(stack.getItem() instanceof com.automatavalkyries.item.unit.ValkyrieUnits.ChipItem chip)) return false;
             for (int i = CHIP; i < CHIP + CHIPS; i++) {
-                if (i != slot && getItem(i).getItem() instanceof com.automatavalkyries.item.unit.ValkyrieUnits.ChipItem other && other.kind == chip.kind) return false;
+                if (i != slot && getItem(i).getItem() instanceof com.automatavalkyries.item.unit.ValkyrieUnits.ChipItem other
+                        && (other.kind == chip.kind || (other.kind.role && chip.kind.role))) return false; // 役割のチップは 1 つだけ
             }
             return true;
         }
         return false;
     }
 
-    /** 外装（部位の枠、全身は胴の枠）の物。無ければ null */
+    /** 外装（部位の枠）の物。無ければ null */
     @org.jetbrains.annotations.Nullable
     public com.automatavalkyries.item.unit.ValkyrieUnits.FrameItem frame(int slot) {
         return getItem(slot).getItem() instanceof com.automatavalkyries.item.unit.ValkyrieUnits.FrameItem f ? f : null;
     }
 
-    /** 外装の一式の型（頭・胴・脚が同じ型か、全身。そろっていなければ null） */
+    /** 外装の一式の型（頭・胴・脚が同じ型。ヴァルキリー系は Mk を混ぜても一式で、一番低い Mk。そろっていなければ null） */
     @org.jetbrains.annotations.Nullable
     public com.automatavalkyries.item.unit.ValkyrieUnits.FrameType frameSet() {
         var chest = frame(CHEST);
         if (chest == null) return null;
-        if (chest.part == com.automatavalkyries.item.unit.ValkyrieUnits.FramePart.FULL) return chest.type;
         var head = frame(HEAD);
         var legs = frame(LEGS);
-        return head != null && legs != null && head.type == chest.type && legs.type == chest.type ? chest.type : null;
+        if (head == null || legs == null) return null;
+        if (head.type.valkyrie() && chest.type.valkyrie() && legs.type.valkyrie()) {
+            var low = chest.type;
+            if (head.type.tier < low.tier) low = head.type;
+            if (legs.type.tier < low.tier) low = legs.type;
+            return low;
+        }
+        return head.type == chest.type && legs.type == chest.type ? chest.type : null;
     }
 
     @org.jetbrains.annotations.Nullable
     public com.automatavalkyries.item.unit.ValkyrieUnits.BackpackKind backpack() {
         return getItem(BACKPACK).getItem() instanceof com.automatavalkyries.item.unit.ValkyrieUnits.BackpackItem b ? b.kind : null;
+    }
+
+    /** 挿しているそのロジックチップ（無ければ空） */
+    public ItemStack chip(com.automatavalkyries.item.unit.ValkyrieUnits.ChipKind kind) {
+        for (int i = CHIP; i < CHIP + CHIPS; i++) {
+            if (getItem(i).getItem() instanceof com.automatavalkyries.item.unit.ValkyrieUnits.ChipItem c && c.kind == kind) return getItem(i);
+        }
+        return ItemStack.EMPTY;
     }
 
     /** そのロジックチップを挿しているか */

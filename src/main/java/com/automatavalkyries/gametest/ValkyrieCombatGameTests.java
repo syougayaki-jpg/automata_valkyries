@@ -307,7 +307,58 @@ public class ValkyrieCombatGameTests {
         helper.succeed();
     }
 
-    /** ハイマニューバスラスター: 空中ダッシュは着地まで回数だけ続けて出せ（向きのクールタイムは掛けない）、空中ジャンプも回数だけ。地上では出ない */
+    /** 役割のチップ（ヴァンガード・リアガード・メディック）は 1 つだけ。アタックセレクトは切り替えが読める。タレットは覚えた対象を返す */
+    @GameTest(template = TEMPLATE, batch = "valkyrie_units")
+    public static void valkyrieRoleChips(GameTestHelper helper) {
+        ValkyrieEntity v = helper.spawn(ModEntities.VALKYRIE.get(), 1, 2, 1);
+        var inv = v.getInventory();
+        var C = com.automatavalkyries.registry.ModValkyrieUnits.CHIPS;
+        int chip = com.automatavalkyries.entity.ValkyrieInventory.CHIP;
+        inv.setItem(chip, new ItemStack(C.get(com.automatavalkyries.item.unit.ValkyrieUnits.ChipKind.VANGUARD).get()));
+        helper.assertFalse(inv.accepts(chip + 1, new ItemStack(C.get(com.automatavalkyries.item.unit.ValkyrieUnits.ChipKind.MEDIC).get())), "two role chips fit together");
+        ItemStack mode = new ItemStack(C.get(com.automatavalkyries.item.unit.ValkyrieUnits.ChipKind.ATTACK_MODE).get());
+        mode.getOrCreateTag().putBoolean("ChargeOnly", true);
+        helper.assertTrue(inv.accepts(chip + 1, mode), "the attack select chip did not fit beside a role chip");
+        inv.setItem(chip + 1, mode);
+        ItemStack turret = new ItemStack(C.get(com.automatavalkyries.item.unit.ValkyrieUnits.ChipKind.TURRET).get());
+        net.minecraft.nbt.ListTag list = new net.minecraft.nbt.ListTag();
+        list.add(net.minecraft.nbt.StringTag.valueOf("minecraft:zombie"));
+        turret.getOrCreateTag().put("Targets", list);
+        inv.setItem(chip + 2, turret);
+        helper.assertTrue(com.automatavalkyries.entity.ai.ValkyrieUnitEffects.role(v) == com.automatavalkyries.item.unit.ValkyrieUnits.ChipKind.VANGUARD, "the role was not read");
+        helper.assertTrue(Boolean.TRUE.equals(com.automatavalkyries.entity.ai.ValkyrieUnitEffects.chargeOnly(v)), "charge only was not read");
+        var targets = com.automatavalkyries.entity.ai.ValkyrieUnitEffects.turretTargets(v);
+        helper.assertTrue(targets != null && targets.size() == 1 && targets.get(0) == EntityType.ZOMBIE, "the turret targets were not read: " + targets);
+        v.releaseAndDiscard();
+        helper.succeed();
+    }
+
+    /** メディック: 味方の兵姫の HP が半分を割ったら駆け寄ってナノマシン溶液で修理する */
+    @GameTest(template = TEMPLATE, batch = "valkyrie_units", timeoutTicks = 300)
+    public static void valkyrieMedicRepairsAlly(GameTestHelper helper) {
+        UUID owner = UUID.randomUUID();
+        ValkyrieEntity medic = helper.spawn(ModEntities.VALKYRIE.get(), 1, 2, 1);
+        ValkyrieEntity hurt = helper.spawn(ModEntities.VALKYRIE.get(), 4, 2, 1);
+        medic.setOwnerUUID(owner);
+        hurt.setOwnerUUID(owner);
+        medic.setMode(com.automatavalkyries.entity.ValkyrieEntity.Mode.WAIT);
+        hurt.setMode(com.automatavalkyries.entity.ValkyrieEntity.Mode.WAIT);
+        medic.setEnergy(ValkyrieEntity.MAX_ENERGY);
+        hurt.setEnergy(ValkyrieEntity.MAX_ENERGY);
+        medic.getInventory().setItem(com.automatavalkyries.entity.ValkyrieInventory.CHIP,
+                new ItemStack(com.automatavalkyries.registry.ModValkyrieUnits.CHIPS.get(com.automatavalkyries.item.unit.ValkyrieUnits.ChipKind.MEDIC).get()));
+        medic.getInventory().setItem(com.automatavalkyries.entity.ValkyrieInventory.AMMO, new ItemStack(ModWeapons.NANO_SOLUTION.get(), 4));
+        hurt.setHealth(hurt.getMaxHealth() * 0.3F);
+        float before = DirectRead.health(hurt);
+        helper.succeedWhen(() -> {
+            helper.assertTrue(DirectRead.health(hurt) > before, "the medic did not repair the ally");
+            helper.assertTrue(medic.getInventory().getItem(com.automatavalkyries.entity.ValkyrieInventory.AMMO).getCount() == 3, "no nanomachine solution was used");
+            medic.releaseAndDiscard();
+            hurt.releaseAndDiscard();
+        });
+    }
+
+    /** ハイマニューバスラスター:空中ダッシュは着地まで回数だけ続けて出せ（向きのクールタイムは掛けない）、空中ジャンプも回数だけ。地上では出ない */
     @GameTest(template = TEMPLATE, batch = "valkyrie_units", timeoutTicks = 200)
     public static void valkyrieThrusterAirChain(GameTestHelper helper) {
         ValkyrieEntity v = helper.spawn(ModEntities.VALKYRIE.get(), 1, 6, 1);
@@ -333,7 +384,7 @@ public class ValkyrieCombatGameTests {
         }).thenSucceed();
     }
 
-    /** 装備ユニット: 外装は部位の枠だけに入り、一式で装甲値が上がり重さが増える。ガリア（全身）は 50 以下のダメージを 1 にする。チップは同じ種類 1 つまで */
+    /** 装備ユニット: 外装は部位の枠だけに入り、一式で装甲値が上がり重さが増える。ガリア・フォートレス（背部）は 50 以下のダメージを 1 にする。チップは同じ種類 1 つまで */
     @GameTest(template = TEMPLATE, batch = "valkyrie_units", timeoutTicks = 200)
     public static void valkyrieUnitsApply(GameTestHelper helper) {
         ValkyrieEntity v = helper.spawn(ModEntities.VALKYRIE.get(), 1, 2, 1);
@@ -342,7 +393,7 @@ public class ValkyrieCombatGameTests {
         ItemStack head = new ItemStack(F.get(com.automatavalkyries.item.unit.ValkyrieUnits.FrameType.VALKYRIE).get(com.automatavalkyries.item.unit.ValkyrieUnits.FramePart.HEAD).get());
         ItemStack chest = new ItemStack(F.get(com.automatavalkyries.item.unit.ValkyrieUnits.FrameType.VALKYRIE).get(com.automatavalkyries.item.unit.ValkyrieUnits.FramePart.CHEST).get());
         ItemStack legs = new ItemStack(F.get(com.automatavalkyries.item.unit.ValkyrieUnits.FrameType.VALKYRIE).get(com.automatavalkyries.item.unit.ValkyrieUnits.FramePart.LEGS).get());
-        ItemStack gallia = new ItemStack(F.get(com.automatavalkyries.item.unit.ValkyrieUnits.FrameType.GALLIA).get(com.automatavalkyries.item.unit.ValkyrieUnits.FramePart.FULL).get());
+        ItemStack gallia = new ItemStack(com.automatavalkyries.registry.ModValkyrieUnits.BACKPACKS.get(com.automatavalkyries.item.unit.ValkyrieUnits.BackpackKind.GALLIA_FORTRESS).get());
         helper.assertFalse(inv.accepts(com.automatavalkyries.entity.ValkyrieInventory.CHEST, head), "a head frame fit the chest slot");
         helper.assertTrue(inv.accepts(com.automatavalkyries.entity.ValkyrieInventory.HEAD, head), "a head frame did not fit the head slot");
         ItemStack chip = new ItemStack(com.automatavalkyries.registry.ModValkyrieUnits.CHIPS.get(com.automatavalkyries.item.unit.ValkyrieUnits.ChipKind.PRECISION).get());
@@ -361,13 +412,12 @@ public class ValkyrieCombatGameTests {
         helper.assertTrue(Math.abs(v.getMaxHealth() - baseMaxHp - 20) < 0.01, "the set did not add 20 max health");
         helper.assertTrue(Math.abs(v.getMaxShield() - baseShield - 30) < 0.01, "the set did not add 30 max shield");
         helper.assertTrue(v.carriedWeight() > baseWeight, "frames added no weight");
-        // ガリア（全身）: 頭・脚が空のときだけ胴へ。50 以下のダメージは 1
-        inv.setItem(com.automatavalkyries.entity.ValkyrieInventory.HEAD, ItemStack.EMPTY);
-        inv.setItem(com.automatavalkyries.entity.ValkyrieInventory.LEGS, ItemStack.EMPTY);
-        inv.setItem(com.automatavalkyries.entity.ValkyrieInventory.CHEST, ItemStack.EMPTY);
-        helper.assertTrue(inv.accepts(com.automatavalkyries.entity.ValkyrieInventory.CHEST, gallia), "Gallia did not fit the empty chest slot");
-        inv.setItem(com.automatavalkyries.entity.ValkyrieInventory.CHEST, gallia);
-        helper.assertFalse(inv.accepts(com.automatavalkyries.entity.ValkyrieInventory.HEAD, head), "a head frame fit over the Gallia full frame");
+        // ヴァルキリー系は Mk を混ぜても一式（一番低い Mk）
+        inv.setItem(com.automatavalkyries.entity.ValkyrieInventory.CHEST, new ItemStack(F.get(com.automatavalkyries.item.unit.ValkyrieUnits.FrameType.VALKYRIE_MK4).get(com.automatavalkyries.item.unit.ValkyrieUnits.FramePart.CHEST).get()));
+        helper.assertTrue(inv.frameSet() == com.automatavalkyries.item.unit.ValkyrieUnits.FrameType.VALKYRIE, "a mixed-Mk Valkyrie set did not count as the lowest Mk");
+        // ガリア・フォートレス（背部ユニット）: 50 以下のダメージは 1
+        helper.assertFalse(inv.accepts(com.automatavalkyries.entity.ValkyrieInventory.CHEST, gallia), "the Gallia back unit fit the chest slot");
+        inv.setItem(com.automatavalkyries.entity.ValkyrieInventory.BACKPACK, gallia);
         float hp = com.automatavalkyries.protect.DirectRead.health(v) + v.getShield();
         v.hurt(helper.getLevel().damageSources().generic(), 30.0F);
         float lost = hp - (com.automatavalkyries.protect.DirectRead.health(v) + v.getShield());

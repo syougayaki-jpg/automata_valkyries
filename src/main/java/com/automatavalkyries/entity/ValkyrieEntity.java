@@ -273,6 +273,7 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         // 戦闘（段階 3）: かばう・後退・戦うが追従より先
         goalSelector.addGoal(1, new ValkyrieCombat.Guard(this));
         goalSelector.addGoal(1, new ValkyrieCombat.Retreat(this));
+        goalSelector.addGoal(1, new ValkyrieCombat.Medic(this)); // ロジック: メディック（戦うより先に手当て）
         // 日常（段階 4）: 自分で充電・作業の見守り・お掃除・腰掛け
         goalSelector.addGoal(1, new com.automatavalkyries.entity.ai.ValkyrieDaily.SelfCharge(this));
         goalSelector.addGoal(2, new com.automatavalkyries.entity.ai.ValkyrieDaily.WatchWork(this));
@@ -876,6 +877,7 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
     protected void actuallyHurt(DamageSource source, float amount) {
         if (!level().isClientSide && !isInvulnerableTo(source)) {
             lastHurtTick = tickCount;
+            amount = com.automatavalkyries.entity.ai.ValkyrieUnitEffects.galliaBarrier(this, source, amount); // シールドより先に（シールドが受けると変換されなかった）
             float shield = getShield();
             if (shield > 0.0F && amount > 0.0F) {
                 float absorbed = Math.min(shield, amount);
@@ -883,6 +885,7 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
                 amount -= absorbed;
                 if (amount <= 0.0F) return;
             }
+            if (com.automatavalkyries.entity.ai.ValkyrieUnitEffects.tachyonPhase(this, source, amount)) return; // タキオンドライブ
         }
         super.actuallyHurt(source, amount);
     }

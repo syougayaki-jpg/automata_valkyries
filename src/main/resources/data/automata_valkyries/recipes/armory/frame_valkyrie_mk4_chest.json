@@ -4,30 +4,19 @@
   "ingredients": [
     {
       "ingredient": {
-        "item": "automata_valkyries:boss_drop_gallia_plate"
-      },
-      "count": 4
-    },
-    {
-      "ingredient": {
-        "item": "automata_valkyries:boss_drop_distortion_gen"
-      }
-    },
-    {
-      "ingredient": {
-        "item": "automata_valkyries:frame_fortress_chest"
-      }
-    },
-    {
-      "ingredient": {
-        "item": "automata_valkyries:singularity_neverlast"
+        "item": "automata_valkyries:frame_valkyrie_mk3_chest"
       }
     },
     {
       "ingredient": {
         "item": "automata_valkyries:shell_causal"
       },
-      "count": 2
+      "count": 3
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:singularity_neverlast"
+      }
     },
     {
       "ingredient": {
@@ -39,12 +28,12 @@
       "ingredient": {
         "item": "automata_valkyries:plating_stellar"
       },
-      "count": 4
+      "count": 3
     }
   ],
   "result": {
-    "item": "automata_valkyries:frame_gallia_fortress"
+    "item": "automata_valkyries:frame_valkyrie_mk4_chest"
   },
-  "energy": 30000000,
-  "time": 1600
+  "energy": 20000000,
+  "time": 1200
 }
