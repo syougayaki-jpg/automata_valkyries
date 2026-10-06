@@ -112,6 +112,12 @@ public class ModItems {
             new com.automatavalkyries.item.ValkyrieStretcherItem(new Item.Properties().stacksTo(1)));
     public static final RegistryObject<Item> EMERGENCY_RECALL = ITEMS.register("emergency_recall", () ->
             new com.automatavalkyries.item.EmergencyRecallItem(new Item.Properties().stacksTo(1)));
+    /** 戦術ポインター（追加拡張仕様書 §13.1）: 戦術級コードを要請する */
+    public static final RegistryObject<Item> TOOL_TAC_POINTER = ITEMS.register("tool_tac_pointer", () ->
+            new com.automatavalkyries.item.TacPointerItem(new Item.Properties().stacksTo(1).rarity(net.minecraft.world.item.Rarity.EPIC)));
+    /** 同調率マキシマイザー（クリエイティブ用、2026-10-07 ユーザー指定）: 自分の兵姫の同調率を 100% に */
+    public static final RegistryObject<Item> SYNC_MAXIMIZER = ITEMS.register("sync_maximizer", () ->
+            new com.automatavalkyries.item.SyncMaximizerItem(new Item.Properties().stacksTo(1).rarity(net.minecraft.world.item.Rarity.EPIC)));
     /** 兵姫探知レーダー（2026-10-07 ユーザー指定）: 墜落ポッドの未起動の兵姫を探す。組み立て機で作る */
     public static final RegistryObject<Item> VALKYRIE_RADAR = ITEMS.register("valkyrie_radar", () ->
             new com.automatavalkyries.item.ValkyrieRadarItem(new Item.Properties().stacksTo(1)));

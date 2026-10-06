@@ -1017,6 +1017,7 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         if (!owner.equals(player.getUUID())) return InteractionResult.PASS;
         if (held.getItem() instanceof com.automatavalkyries.item.TacticalRemoteItem) return InteractionResult.PASS; // 指示リモコン（アイテムの側で指示する）
         if (held.getItem() instanceof com.automatavalkyries.item.ValkyrieStretcherItem) return InteractionResult.PASS; // 担架（アイテムの側で乗せる）
+        if (held.getItem() instanceof com.automatavalkyries.item.SyncMaximizerItem) return InteractionResult.PASS; // 同調率マキシマイザー（アイテムの側で）
         // 好物を渡す（ルミナルキャンディ・冷却アイス。拡張仕様書 §12.1 +5%）
         boolean candy = held.is(com.automatavalkyries.registry.ModItems.LUMINAL_CANDY.get()), ice = held.is(com.automatavalkyries.registry.ModItems.COOLING_ICE.get());
         if ((candy || ice) && !isShutdown()) {

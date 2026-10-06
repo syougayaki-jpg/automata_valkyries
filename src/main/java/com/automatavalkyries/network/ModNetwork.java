@@ -78,6 +78,12 @@ public final class ModNetwork {
                 .decoder(ValkyrieCommandPacket::decode)
                 .consumerMainThread(ValkyrieCommandPacket::handle)
                 .add();
+        // 戦術ポインターのコードの切り替え（V キー、2026-10-07）
+        CHANNEL.messageBuilder(TacticalCyclePacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(TacticalCyclePacket::encode)
+                .decoder(TacticalCyclePacket::decode)
+                .consumerMainThread(TacticalCyclePacket::handle)
+                .add();
         // 二刀流のクリック（2026-10-06）
         CHANNEL.messageBuilder(DualWieldPacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
                 .encoder(DualWieldPacket::encode)

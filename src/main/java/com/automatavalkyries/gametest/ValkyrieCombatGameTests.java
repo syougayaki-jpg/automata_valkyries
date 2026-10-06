@@ -216,7 +216,29 @@ public class ValkyrieCombatGameTests {
         });
     }
 
-    /** 墜落ポッド: 組み立てると深く眠る兵姫・端末・チェストがあり、兵姫は右クリックでは持ち主にできず、端末（プロトコア）で目覚めて持ち主になる */
+    /** 戦術級コード: 近くの自分の兵姫（同調率・コアの電力が足りる）が承認してコアから払い、クールタイム中はもう一度は通らない。同調率が足りなければ通らない */
+    @GameTest(template = TEMPLATE, batch = "valkyrie_tactical", timeoutTicks = 100)
+    public static void tacticalProtocolApproval(GameTestHelper helper) {
+        Player player = helper.makeMockPlayer(); // 通信の無い試験用のプレイヤー（ServerPlayer の試験用は送信で落ちる）
+        player.setPos(helper.absoluteVec(new net.minecraft.world.phys.Vec3(1, 2, 1)));
+        ValkyrieEntity v = helper.spawn(ModEntities.VALKYRIE.get(), 2, 2, 2);
+        v.setOwnerUUID(player.getUUID());
+        v.setEnergy(ValkyrieEntity.MAX_ENERGY);
+        ItemStack core = ((com.automatavalkyries.weapon.LuminalCoreItem) com.automatavalkyries.registry.ModWeapons.CORE_HIGH_DENSITY.get()).charged();
+        v.getInventory().setItem(com.automatavalkyries.entity.ValkyrieInventory.CORE, core);
+        var iris = com.automatavalkyries.tactical.TacticalProtocol.IRIS;
+        net.minecraft.world.phys.Vec3 target = player.position();
+        helper.assertTrue(com.automatavalkyries.tactical.TacticalProtocols.tryRequest(player, iris, target).approver() == null, "approved with sync 0");
+        v.addSync(100.0F, "test");
+        int before = com.automatavalkyries.item.ItemEnergy.get(v.getCore());
+        helper.assertTrue(com.automatavalkyries.tactical.TacticalProtocols.tryRequest(player, iris, target).approver() == v, "IRIS was not approved");
+        helper.assertTrue(before - com.automatavalkyries.item.ItemEnergy.get(v.getCore()) == iris.fe, "the core did not pay " + iris.fe);
+        helper.assertTrue(com.automatavalkyries.tactical.TacticalProtocols.tryRequest(player, iris, target).result().equals("cooldown"), "approved again during the cooldown");
+        v.releaseAndDiscard();
+        helper.succeed();
+    }
+
+    /** 墜落ポッド:組み立てると深く眠る兵姫・端末・チェストがあり、兵姫は右クリックでは持ち主にできず、端末（プロトコア）で目覚めて持ち主になる */
     @GameTest(template = TEMPLATE, batch = "valkyrie_pod", timeoutTicks = 100)
     public static void crashedPodWakesWithProtoCore(GameTestHelper helper) {
         clearAround(helper);

@@ -13,6 +13,8 @@ public final class ValkyrieConfig {
     public static final ForgeConfigSpec.BooleanValue EASY_POD_WAKE;
     /** 簡易化で目覚めたときの電力（FE） */
     public static final ForgeConfigSpec.IntValue EASY_POD_ENERGY;
+    /** 戦術級コードで地形を壊すか（追加拡張仕様書 §13.1） */
+    public static final ForgeConfigSpec.BooleanValue TACTICAL_GRIEFING;
 
     static {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
@@ -23,6 +25,10 @@ public final class ValkyrieConfig {
         EASY_POD_ENERGY = builder.comment("簡易化で目覚めたときに入る電力（FE）")
                 .defineInRange("easyPodEnergy", 30_000, 1_000, 100_000);
         builder.pop();
+        builder.comment("戦術級コード（追加拡張仕様書 §13）").push("tactical");
+        TACTICAL_GRIEFING = builder.comment("true にすると、戦術級コード（CARPET の爆発・GUNGNIR の光の柱）で地形も壊れる。false ならモブへのダメージだけ")
+                .define("enableTacticalGriefing", false);
+        builder.pop();
         SPEC = builder.build();
     }
 
@@ -31,6 +37,14 @@ public final class ValkyrieConfig {
     public static boolean easyPodWake() {
         try {
             return EASY_POD_WAKE.get();
+        } catch (IllegalStateException notLoaded) {
+            return false;
+        }
+    }
+
+    public static boolean tacticalGriefing() {
+        try {
+            return TACTICAL_GRIEFING.get();
         } catch (IllegalStateException notLoaded) {
             return false;
         }
