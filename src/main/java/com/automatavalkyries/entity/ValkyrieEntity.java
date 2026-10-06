@@ -971,6 +971,7 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
             return false;
         }
         podSleeper = false;
+        com.automatavalkyries.world.CrashedPods.forget(sl, blockPosition()); // 兵姫探知レーダーの記録から外す
         setOwnerUUID(player.getUUID());
         setMode(Mode.FOLLOW);
         setEnergy(getEnergy() + energy);

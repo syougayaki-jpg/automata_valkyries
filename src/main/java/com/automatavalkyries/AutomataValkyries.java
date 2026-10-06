@@ -58,6 +58,7 @@ public class AutomataValkyries {
         context.registerConfig(ModConfig.Type.COMMON, com.automatavalkyries.config.WorldgenConfig.SPEC, MODID + "-worldgen.toml");
         context.registerConfig(ModConfig.Type.COMMON, com.automatavalkyries.config.MachineConfig.SPEC, MODID + "-machines.toml");
         context.registerConfig(ModConfig.Type.COMMON, com.automatavalkyries.config.WeaponConfig.SPEC, MODID + "-weapons.toml");
+        context.registerConfig(ModConfig.Type.COMMON, com.automatavalkyries.config.ValkyrieConfig.SPEC, MODID + "-valkyries.toml");
         context.registerConfig(ModConfig.Type.CLIENT, com.automatavalkyries.config.ValkyrieClientConfig.SPEC, MODID + "-client.toml");
         net.minecraftforge.common.crafting.CraftingHelper.register(com.automatavalkyries.config.MachineConfig.Condition.SERIALIZER);
         // ブラックリストは設定の読み込み・再読み込み（コマンドでの保存を含む）のたびに作り直す

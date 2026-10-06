@@ -112,6 +112,9 @@ public class ModItems {
             new com.automatavalkyries.item.ValkyrieStretcherItem(new Item.Properties().stacksTo(1)));
     public static final RegistryObject<Item> EMERGENCY_RECALL = ITEMS.register("emergency_recall", () ->
             new com.automatavalkyries.item.EmergencyRecallItem(new Item.Properties().stacksTo(1)));
+    /** 兵姫探知レーダー（2026-10-07 ユーザー指定）: 墜落ポッドの未起動の兵姫を探す。組み立て機で作る */
+    public static final RegistryObject<Item> VALKYRIE_RADAR = ITEMS.register("valkyrie_radar", () ->
+            new com.automatavalkyries.item.ValkyrieRadarItem(new Item.Properties().stacksTo(1)));
     /** 退去願い（2026-10-05 ユーザー指定）: 検証用のダミーゾンビに正規の退場をしてもらう */
     public static final RegistryObject<Item> EVICTION_NOTICE = ITEMS.register("eviction_notice", () ->
             new com.automatavalkyries.item.EvictionNoticeItem(new Item.Properties().stacksTo(1)));

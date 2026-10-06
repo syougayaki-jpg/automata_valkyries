@@ -132,6 +132,54 @@ public final class CrashedPods {
             v.makePodSleeper();
             level.addFreshEntity(v);
         }
+        record(level, base.above(1));
+    }
+
+    // ------------------------------------------------------------------ 置いたポッドの記録（兵姫探知レーダー）
+
+    /** 生成の途中（ワーカースレッド）で置いたポッドの場所とディメンション。サーバーの Tick で記録へ移す */
+    private static final java.util.concurrent.ConcurrentLinkedQueue<Object[]> PENDING = new java.util.concurrent.ConcurrentLinkedQueue<>();
+
+    /** まだ目覚めていない兵姫がいるポッドの場所（ディメンションごと） */
+    public static class Registry extends SavedData {
+        public final java.util.Set<Long> pods = new java.util.HashSet<>();
+
+        static Registry load(CompoundTag tag) {
+            Registry r = new Registry();
+            for (long l : tag.getLongArray("Pods")) r.pods.add(l);
+            return r;
+        }
+
+        @Override
+        public CompoundTag save(CompoundTag tag) {
+            tag.putLongArray("Pods", pods.stream().mapToLong(Long::longValue).toArray());
+            return tag;
+        }
+    }
+
+    public static Registry registry(ServerLevel level) {
+        return level.getDataStorage().computeIfAbsent(Registry::load, Registry::new, AutomataValkyries.MODID + "_pods");
+    }
+
+    /** ポッドを置いた（どのスレッドからでも） */
+    static void record(WorldGenLevel level, BlockPos pos) {
+        PENDING.add(new Object[]{pos.asLong(), level.getLevel().dimension()});
+    }
+
+    /** 兵姫が目覚めた: 近くのポッドを記録から外す */
+    public static void forget(ServerLevel level, BlockPos near) {
+        Registry r = registry(level);
+        if (r.pods.removeIf(l -> BlockPos.of(l).distSqr(near) <= 10 * 10)) r.setDirty();
+    }
+
+    private static void flushPending(net.minecraft.server.MinecraftServer server) {
+        Object[] e;
+        while ((e = PENDING.poll()) != null) {
+            @SuppressWarnings("unchecked") ServerLevel l = server.getLevel((net.minecraft.resources.ResourceKey<Level>) e[1]);
+            if (l == null) continue;
+            Registry r = registry(l);
+            if (r.pods.add((Long) e[0])) r.setDirty();
+        }
     }
 
     // ------------------------------------------------------------------ 初期スポーンの近くに 1 つ
@@ -156,6 +204,7 @@ public final class CrashedPods {
     @SubscribeEvent
     public static void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
+        if (!PENDING.isEmpty()) flushPending(event.getServer());
         ServerLevel level = event.getServer().getLevel(Level.OVERWORLD);
         if (level == null || event.getServer().getTickCount() % 20 != 5) return;
         Placed placed = level.getDataStorage().computeIfAbsent(Placed::load, Placed::new, AutomataValkyries.MODID + "_crashed_pod");

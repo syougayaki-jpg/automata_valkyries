@@ -53,12 +53,15 @@ public class DamagedInterfaceBlock extends HorizontalDirectionalBlock {
     public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
         ItemStack held = player.getItemInHand(hand);
         if (level.isClientSide) return InteractionResult.SUCCESS;
-        if (!(held.getItem() instanceof ProtoCoreItem)) {
+        boolean easy = com.automatavalkyries.config.ValkyrieConfig.easyPodWake(); // 序盤の簡易化（設定。既定はオフ）
+        if (!(held.getItem() instanceof ProtoCoreItem) && !easy) {
             player.displayClientMessage(Component.translatable("message.automata_valkyries.pod.need_core").withStyle(ChatFormatting.AQUA), true);
             return InteractionResult.CONSUME;
         }
-        int charge = ItemEnergy.get(held);
-        if (charge < ProtoCoreItem.CAPACITY) {
+        boolean core = held.getItem() instanceof ProtoCoreItem;
+        int charge = core ? ItemEnergy.get(held) : 0;
+        if (easy) charge = Math.max(charge, com.automatavalkyries.config.ValkyrieConfig.easyPodEnergy());
+        else if (charge < ProtoCoreItem.CAPACITY) {
             player.displayClientMessage(Component.translatable("message.automata_valkyries.pod.no_charge", charge, ProtoCoreItem.CAPACITY).withStyle(ChatFormatting.RED), true);
             return InteractionResult.CONSUME;
         }
@@ -71,7 +74,7 @@ public class DamagedInterfaceBlock extends HorizontalDirectionalBlock {
             return InteractionResult.CONSUME;
         }
         if (!sleeper.wakeFromPod(player, charge)) return InteractionResult.CONSUME; // 登録の上限など（兵姫の側でメッセージ）
-        if (!player.getAbilities().instabuild) held.shrink(1);
+        if (core && !player.getAbilities().instabuild) held.shrink(1);
         level.playSound(null, pos, SoundEvents.BEACON_ACTIVATE, SoundSource.BLOCKS, 1.0F, 1.2F);
         player.displayClientMessage(Component.translatable("message.automata_valkyries.pod.woke", sleeper.getDisplayName()).withStyle(ChatFormatting.AQUA), true);
         return InteractionResult.CONSUME;
