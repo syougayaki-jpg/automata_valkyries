@@ -789,7 +789,7 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
             setTarget(null);
             setSitting(false);
             talk("sleepy");
-        } else if (isAsleep() && getEnergy() >= WAKE_ENERGY) {
+        } else if (isAsleep() && getEnergy() >= WAKE_ENERGY && !podSleeper) { // 墜落ポッドの深い休眠は端末でだけ起きる
             entityData.set(ASLEEP, false);
             life().onWake();
         }
@@ -942,6 +942,48 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
 
     // ------------------------------------------------------------------ 操作
 
+    // ------------------------------------------------------------------ 墜落ポッド（追加拡張仕様書 §8.2）
+
+    /** 墜落ポッドで深く眠っている（端末にプロトコアを差すまで起きない・持ち主にできない） */
+    private boolean podSleeper;
+
+    public boolean isPodSleeper() {
+        return podSleeper;
+    }
+
+    /** 墜落ポッドの中で眠らせる（HP 5、電力 0、深い休眠。生成のとき） */
+    public void makePodSleeper() {
+        podSleeper = true;
+        super.setHealth(5.0F);
+        setEnergy(0);
+        entityData.set(ASLEEP, true);
+        setSitting(true);
+    }
+
+    /**
+     * 端末（{@link com.automatavalkyries.block.DamagedInterfaceBlock}）で目覚める: 使った人が持ち主になり、プロトコアの電力が入る。
+     * 持ち主にできなければ（登録の上限）false
+     */
+    public boolean wakeFromPod(Player player, int energy) {
+        if (!(level() instanceof ServerLevel sl)) return false;
+        if (ValkyrieProtect.ownedCount(sl.getServer(), player.getUUID()) >= ValkyrieProtect.MAX_REGISTERED) {
+            player.displayClientMessage(Component.translatable("message.automata_valkyries.valkyrie.registry_full", ValkyrieProtect.MAX_REGISTERED).withStyle(ChatFormatting.RED), true);
+            return false;
+        }
+        podSleeper = false;
+        setOwnerUUID(player.getUUID());
+        setMode(Mode.FOLLOW);
+        setEnergy(getEnergy() + energy);
+        entityData.set(ASLEEP, false);
+        setSitting(false);
+        playSound(sound("core_startup"), 1.0F, 1.0F);
+        sl.sendParticles(ParticleTypes.ELECTRIC_SPARK, getX(), getY(1.0), getZ(), 20, 0.4, 0.5, 0.4, 0.15);
+        lookAt(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES, player.getEyePosition());
+        talkNow("pod_wake");
+        gesture(GESTURE_NOD);
+        return true;
+    }
+
     /** 担架で持ち主の頭の上に乗っているときは、頭の上に座る高さへ */
     @Override
     public double getMyRidingOffset() {
@@ -954,6 +996,10 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         boolean client = level().isClientSide;
         UUID owner = getOwnerUUID();
         ItemStack held = player.getItemInHand(hand);
+        if (owner == null && podSleeper) { // 墜落ポッドの深い休眠: 端末にプロトコアを
+            if (!client) player.displayClientMessage(Component.translatable("message.automata_valkyries.pod.sleeping").withStyle(ChatFormatting.AQUA), true);
+            return InteractionResult.sidedSuccess(client);
+        }
         if (owner == null) {
             if (!client && level() instanceof ServerLevel sl && ValkyrieProtect.ownedCount(sl.getServer(), player.getUUID()) >= ValkyrieProtect.MAX_REGISTERED) {
                 player.displayClientMessage(Component.translatable("message.automata_valkyries.valkyrie.registry_full", ValkyrieProtect.MAX_REGISTERED).withStyle(ChatFormatting.RED), true);
@@ -1153,6 +1199,7 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
     @Override
     public void addAdditionalSaveData(CompoundTag tag) {
         super.addAdditionalSaveData(tag);
+        if (podSleeper) tag.putBoolean("PodSleeper", true);
         tag.putInt("Expression", getExpression());
         tag.putString("Mode", getMode().name());
         tag.putBoolean("Shutdown", isShutdown());
@@ -1189,6 +1236,7 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
     @Override
     public void readAdditionalSaveData(CompoundTag tag) {
         super.readAdditionalSaveData(tag);
+        podSleeper = tag.getBoolean("PodSleeper");
         setExpression(tag.getInt("Expression"));
         try {
             entityData.set(MODE, Mode.valueOf(tag.getString("Mode")).ordinal());

@@ -105,6 +105,12 @@ public class ModBlocks {
                 .mapColor(color).requiresCorrectToolForDrops().strength(5.0F, 6.0F).sound(sound)));
     }
 
+    /** 墜落ポッド（追加拡張仕様書 §8.2。world/CrashedPods）: 黒焦げの外殻と、目覚めの端末 */
+    public static final RegistryObject<Block> CRASHED_POD_HULL = register("crashed_pod_hull", () -> new Block(BlockBehaviour.Properties.of()
+            .mapColor(MapColor.COLOR_BLACK).requiresCorrectToolForDrops().strength(30.0F, 1200.0F).sound(SoundType.NETHERITE_BLOCK)));
+    public static final RegistryObject<Block> DAMAGED_INTERFACE = register("damaged_interface", () -> new com.automatavalkyries.block.DamagedInterfaceBlock(
+            BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_GRAY).requiresCorrectToolForDrops().strength(8.0F, 600.0F).sound(SoundType.METAL).lightLevel(s -> 4)));
+
     /** ブロックと、同じ名前のブロックアイテム（クリエイティブタブは ModItems の登録順に並ぶ） */
     private static RegistryObject<Block> register(String name, Supplier<Block> factory) {
         RegistryObject<Block> block = BLOCKS.register(name, factory);

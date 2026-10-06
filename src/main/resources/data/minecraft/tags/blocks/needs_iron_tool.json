@@ -32,6 +32,7 @@
     "automata_valkyries:tether_pylon",
     "automata_valkyries:void_repository",
     "automata_valkyries:tactical_armory",
-    "automata_valkyries:upgrade_station"
+    "automata_valkyries:upgrade_station",
+    "automata_valkyries:crashed_pod_hull"
   ]
 }

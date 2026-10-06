@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/orientable",
+  "textures": {
+    "front": "automata_valkyries:block/damaged_interface_front",
+    "side": "automata_valkyries:block/crashed_pod_hull",
+    "top": "automata_valkyries:block/crashed_pod_hull"
+  }
+}

@@ -216,6 +216,24 @@ public class ValkyrieCombatGameTests {
         });
     }
 
+    /** 墜落ポッド: 組み立てると深く眠る兵姫・端末・チェストがあり、兵姫は右クリックでは持ち主にできず、端末（プロトコア）で目覚めて持ち主になる */
+    @GameTest(template = TEMPLATE, batch = "valkyrie_pod", timeoutTicks = 100)
+    public static void crashedPodWakesWithProtoCore(GameTestHelper helper) {
+        clearAround(helper);
+        net.minecraft.core.BlockPos surface = helper.absolutePos(new net.minecraft.core.BlockPos(4, 0, 4)); // 空の型の床の上
+        com.automatavalkyries.world.CrashedPods.place(helper.getLevel(), surface, net.minecraft.util.RandomSource.create(1)); // テストの世界は海のバイオームなので場所の確認は飛ばす
+        var sleepers = helper.getLevel().getEntitiesOfClass(ValkyrieEntity.class, new net.minecraft.world.phys.AABB(surface).inflate(4), ValkyrieEntity::isPodSleeper);
+        helper.assertTrue(sleepers.size() == 1, "expected one sleeping valkyrie, found " + sleepers.size());
+        ValkyrieEntity v = sleepers.get(0);
+        helper.assertTrue(v.isAsleep() && v.getOwnerUUID() == null, "the pod valkyrie was not asleep and unowned");
+        Player player = helper.makeMockPlayer();
+        helper.assertTrue(v.wakeFromPod(player, com.automatavalkyries.item.ProtoCoreItem.CAPACITY), "the valkyrie did not wake");
+        helper.assertTrue(!v.isAsleep() && !v.isPodSleeper() && player.getUUID().equals(v.getOwnerUUID()) && v.getEnergy() >= com.automatavalkyries.item.ProtoCoreItem.CAPACITY,
+                "the woken valkyrie was not owned and powered");
+        v.releaseAndDiscard();
+        helper.succeed();
+    }
+
     @GameTest(template = TEMPLATE, batch = "valkyrie_daily_charge", timeoutTicks = 800)
     public static void valkyrieChargesAtStation(GameTestHelper helper) {
         clearAround(helper);

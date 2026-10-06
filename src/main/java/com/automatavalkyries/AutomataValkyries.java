@@ -31,6 +31,7 @@ public class AutomataValkyries {
         ModEntities.ENTITY_TYPES.register(modEventBus);
         // ブロックを先に読み込む（ブロックアイテムを ModItems.ITEMS に足すので、ITEMS より前に登録する）
         com.automatavalkyries.registry.ModBlocks.BLOCKS.register(modEventBus);
+        com.automatavalkyries.registry.ModWorldgen.FEATURES.register(modEventBus); // 墜落ポッド
         com.automatavalkyries.registry.IndustrialMetals.init(); // 工業 MOD 連携の金属（アイテム・ブロックを ITEMS / BLOCKS に足す）
         com.automatavalkyries.world.ConfigurableOresBiomeModifier.SERIALIZERS.register(modEventBus);
         // 基礎文明マシン（ブロック・アイテムを BLOCKS / ITEMS に足すので、ITEMS より前に読み込む）
