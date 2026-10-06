@@ -21,7 +21,9 @@ public enum ChronoMachineType {
     /** ヴォイド・リポジトリ: 空間圧縮ストレージ（中身は別に持つ。スロットは預け入れ口 1） */
     VOID_REPOSITORY("void_repository", 1),
     /** タクティカル・アーモリー: 兵装・ルミナルコアの組み立て（材料 9 + 結果 1。docs/SPEC_WEAPON_UNITS.md） */
-    TACTICAL_ARMORY("tactical_armory", 10);
+    TACTICAL_ARMORY("tactical_armory", 10),
+    /** 給電ドック: 兵姫の給電・修復（オーブ 1 + ナノマシン溶液 1 + コア 1。§4.7） */
+    CHARGING_DOCK("charging_dock", 3);
 
     public final String id;
     /** 内部の入れ物の大きさ（いちばん上のティアの分） */
@@ -71,6 +73,11 @@ public enum ChronoMachineType {
             case TACTICAL_ARMORY -> {
                 for (int i = 0; i < 9; i++) out.add(new SlotSpec(i, 34 + (i % 3) * 18, 31 + (i / 3) * 18, Role.INPUT));
                 out.add(new SlotSpec(9, 150, 49, Role.OUTPUT));
+            }
+            case CHARGING_DOCK -> {
+                out.add(new SlotSpec(0, 34, 31, Role.CHARGE));                     // 光子励起のオーブ
+                if (tier.level >= 2) out.add(new SlotSpec(1, 34, 61, Role.INPUT)); // ナノマシン溶液（T2 から）
+                out.add(new SlotSpec(2, 150, 49, Role.CHARGE));                    // ルミナルコアの充電
             }
         }
         return out;

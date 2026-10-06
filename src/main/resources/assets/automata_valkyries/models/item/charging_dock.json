@@ -1,0 +1,23 @@
+{
+  "parent": "automata_valkyries:block/charging_dock_t1",
+  "overrides": [
+    {
+      "predicate": {
+        "automata_valkyries:tier": 2
+      },
+      "model": "automata_valkyries:block/charging_dock_t2"
+    },
+    {
+      "predicate": {
+        "automata_valkyries:tier": 3
+      },
+      "model": "automata_valkyries:block/charging_dock_t3"
+    },
+    {
+      "predicate": {
+        "automata_valkyries:tier": 4
+      },
+      "model": "automata_valkyries:block/charging_dock_t4"
+    }
+  ]
+}

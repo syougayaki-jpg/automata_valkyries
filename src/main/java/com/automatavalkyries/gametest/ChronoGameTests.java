@@ -170,6 +170,26 @@ public class ChronoGameTests {
                 "smelter energy " + smelter.energy().getEnergyStored() + ", reactor " + reactor.energy().getEnergyStored()));
     }
 
+    /** 給電ドック（T2）: 上に立った兵姫へ給電し、ナノマシン溶液で機能停止を修復する */
+    @GameTest(template = TEMPLATE, timeoutTicks = 200)
+    public static void chargingDockChargesAndRepairs(GameTestHelper helper) {
+        BlockPos pos = new BlockPos(2, 1, 2);
+        com.automatavalkyries.chrono.ChargingDockBlockEntity dock = place(helper, pos, ChronoMachineType.CHARGING_DOCK);
+        setTier(helper, pos, 2);
+        dock = (com.automatavalkyries.chrono.ChargingDockBlockEntity) helper.getBlockEntity(pos);
+        powered(dock);
+        dock.items().setStackInSlot(com.automatavalkyries.chrono.ChargingDockBlockEntity.NANO_SLOT, new ItemStack(com.automatavalkyries.registry.ModWeapons.NANO_SOLUTION.get(), 2));
+        com.automatavalkyries.entity.ValkyrieEntity v = helper.spawn(com.automatavalkyries.registry.ModEntities.VALKYRIE.get(), 2, 2, 2);
+        v.setNoGravity(true);
+        v.setEnergy(5_000);
+        v.shutdown();
+        helper.succeedWhen(() -> {
+            helper.assertTrue(v.getEnergy() > 20_000, "the dock did not charge the valkyrie: " + v.getEnergy());
+            helper.assertFalse(v.isShutdown(), "the dock did not repair the shut-down valkyrie");
+            v.releaseAndDiscard();
+        });
+    }
+
     /** 互いにリンクした 2 台: 片方でリンクを外すと、相手からのリンクも外れる */
     @GameTest(template = TEMPLATE)
     public static void removingLinkRemovesReverseLink(GameTestHelper helper) {

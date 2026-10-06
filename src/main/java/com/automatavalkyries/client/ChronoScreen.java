@@ -364,6 +364,11 @@ public class ChronoScreen extends AbstractContainerScreen<ChronoMenu> {
                 if (batch > 1) g.drawCenteredString(font, "×" + batch, x + 112, y + 38, text);
             }
             case TACTICAL_ARMORY -> arrow(g, x + 102, y + 49, menu.extra(0) / 1000F);
+            case CHARGING_DOCK -> { // 立っている兵姫の数と、送っている電力
+                arrow(g, x + 102, y + 49, menu.extra(1) > 0 ? 1.0F : 0.0F);
+                g.drawString(font, Component.translatable("gui.automata_valkyries.chrono.dock_status", menu.extra(0), menu.extra(1) * 100), x + 56, y + 80,
+                        menu.extra(1) > 0 ? 0xFF6CFF9A : 0xFFB8C4D8, false);
+            }
             case CHRONO_FABRICATOR -> {
                 int p = menu.extra(0);
                 g.fill(x + 22, y + 76, x + 184, y + 78, 0xFF101828);

@@ -1,0 +1,31 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "ICI",
+    "AFA",
+    "IXI"
+  ],
+  "key": {
+    "I": {
+      "item": "automata_valkyries:alloy_luminal_sterling"
+    },
+    "C": {
+      "item": "automata_valkyries:circuit_photonic"
+    },
+    "A": {
+      "item": "automata_valkyries:lens_luminal"
+    },
+    "F": {
+      "item": "automata_valkyries:frame_future"
+    },
+    "X": {
+      "item": "automata_valkyries:valkyrie_charger"
+    }
+  },
+  "result": {
+    "item": "automata_valkyries:charging_dock",
+    "count": 1,
+    "nbt": "{BlockStateTag:{tier:\"2\"}}"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "type": "minecraft:block",
+  "pools": [
+    {
+      "bonus_rolls": 0.0,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "automata_valkyries:charging_dock",
+          "functions": [
+            {
+              "function": "minecraft:copy_state",
+              "block": "automata_valkyries:charging_dock",
+              "properties": [ "tier" ]
+            }
+          ]
+        }
+      ],
+      "rolls": 1.0
+    }
+  ],
+  "random_sequence": "automata_valkyries:blocks/charging_dock"
+}

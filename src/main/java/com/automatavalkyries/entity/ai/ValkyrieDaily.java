@@ -224,6 +224,10 @@ public final class ValkyrieDaily {
     public static class SelfCharge extends Goal {
         private final ValkyrieEntity v;
         @Nullable private ValkyrieChargerBlockEntity charger;
+        /** 給電ドック（あれば充電台より先に使う。上に立つとドックが送電する） */
+        @Nullable private com.automatavalkyries.chrono.ChargingDockBlockEntity dock;
+        /** ドックの蓄えが続けて空の Tick */
+        private int dockEmpty;
         private int repath, search, walking;
         private boolean seated;
 
@@ -242,6 +246,8 @@ public final class ValkyrieDaily {
             if (--search > 0 || !(v.level() instanceof ServerLevel level)) return false;
             search = 100;
             BlockPos c = v.getOwner() != null && v.getMode() == Mode.FOLLOW ? v.getOwner().blockPosition() : center(v);
+            dock = nearestDock(level, c);
+            if (dock != null) return true;
             for (ValkyrieChargerBlockEntity ch : ValkyrieChargerBlockEntity.findNear(level, c, 32)) {
                 if (ch.stored() > 0 && ch.claim(v.getUUID())) {
                     charger = ch;
@@ -251,8 +257,30 @@ public final class ValkyrieDaily {
             return false;
         }
 
+        /** 32 ブロック以内の、電力のある給電ドック（同じワールド、いちばん近い物） */
+        @Nullable
+        private com.automatavalkyries.chrono.ChargingDockBlockEntity nearestDock(ServerLevel level, BlockPos c) {
+            com.automatavalkyries.chrono.ChargingDockBlockEntity best = null;
+            double bestD = 32 * 32;
+            for (var m : com.automatavalkyries.chrono.ChronoMachineBlockEntity.LOADED) {
+                if (!(m instanceof com.automatavalkyries.chrono.ChargingDockBlockEntity d) || d.isRemoved() || d.getLevel() != level
+                        || d.energy().getEnergyStored() <= 0) continue;
+                double dist = d.getBlockPos().distSqr(c);
+                if (dist < bestD) {
+                    bestD = dist;
+                    best = d;
+                }
+            }
+            return best;
+        }
+
         @Override
         public boolean canContinueToUse() {
+            if (dock != null) {
+                // ドックの蓄えは送るそばから空になるので、10 秒続けて空のときだけ諦める（空になった瞬間に立ち去って持ち主の所へ来ていた。2026-10-07）
+                return !dock.isRemoved() && !v.isShutdown() && v.getTarget() == null && power() < CHARGE_DONE
+                        && (seated ? dockEmpty < 200 : walking < 400);
+            }
             return charger != null && !charger.isRemoved() && !v.isShutdown() && v.getTarget() == null && power() < CHARGE_DONE
                     && (seated ? charger.stored() > 0 : walking < 400); // 20 秒歩いても着かなければ諦める
         }
@@ -262,6 +290,7 @@ public final class ValkyrieDaily {
             seated = false;
             repath = 0;
             walking = 0;
+            dockEmpty = 0;
             v.setSitting(false);
         }
 
@@ -276,6 +305,12 @@ public final class ValkyrieDaily {
                     v.gesture(ValkyrieEntity.GESTURE_JOY);
                 }
             }
+            if (dock != null && seated && power() >= CHARGE_DONE) {
+                v.addSync(2.0F, "full_charge");
+                v.talk("charge_full");
+                v.gesture(ValkyrieEntity.GESTURE_JOY);
+            }
+            dock = null;
             charger = null;
             seated = false;
             v.setCharging(false);
@@ -288,6 +323,28 @@ public final class ValkyrieDaily {
 
         @Override
         public void tick() {
+            if (dock != null) {
+                // ドックの上に立つ（送電はドックの側）
+                Vec3 spot = Vec3.atBottomCenterOf(dock.getBlockPos().above());
+                double d2 = v.position().distanceToSqr(spot);
+                if (!seated) {
+                    walking++;
+                    if (d2 > 1.2 * 1.2) {
+                        if (--repath <= 0) {
+                            repath = 10;
+                            v.getNavigation().moveTo(spot.x, spot.y, spot.z, ValkyrieGoals.pathSpeed(v, 1.1));
+                        }
+                        return;
+                    }
+                    seated = true;
+                    v.getNavigation().stop();
+                    v.talk("charge_start");
+                }
+                if (d2 > 0.04) v.moveTo(spot.x, spot.y, spot.z, v.getYRot(), 0.0F);
+                v.setDeltaMovement(Vec3.ZERO);
+                dockEmpty = dock.energy().getEnergyStored() > 0 ? 0 : dockEmpty + 1;
+                return;
+            }
             if (charger == null) return;
             charger.claim(v.getUUID()); // 使っている間は取り続ける
             Vec3 seat = charger.seatPos();

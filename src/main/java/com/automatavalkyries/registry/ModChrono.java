@@ -51,6 +51,8 @@ public final class ModChrono {
     public static final RegistryObject<Block> VOID_REPOSITORY = machine(ChronoMachineType.VOID_REPOSITORY, () -> VoidRepositoryBlockEntity::new);
     public static final RegistryObject<Block> TACTICAL_ARMORY = machine(ChronoMachineType.TACTICAL_ARMORY,
             () -> com.automatavalkyries.chrono.TacticalArmoryBlockEntity::new);
+    public static final RegistryObject<Block> CHARGING_DOCK = machine(ChronoMachineType.CHARGING_DOCK,
+            () -> com.automatavalkyries.chrono.ChargingDockBlockEntity::new);
 
     @SuppressWarnings("DataFlowIssue")
     public static final RegistryObject<BlockEntityType<LuminalReactorBlockEntity>> REACTOR_ENTITY = ModMachines.BLOCK_ENTITIES.register("luminal_reactor",
@@ -74,6 +76,9 @@ public final class ModChrono {
     @SuppressWarnings("DataFlowIssue")
     public static final RegistryObject<BlockEntityType<com.automatavalkyries.chrono.TacticalArmoryBlockEntity>> ARMORY_ENTITY = ModMachines.BLOCK_ENTITIES.register("tactical_armory",
             () -> BlockEntityType.Builder.of(com.automatavalkyries.chrono.TacticalArmoryBlockEntity::new, TACTICAL_ARMORY.get()).build(null));
+    @SuppressWarnings("DataFlowIssue")
+    public static final RegistryObject<BlockEntityType<com.automatavalkyries.chrono.ChargingDockBlockEntity>> DOCK_ENTITY = ModMachines.BLOCK_ENTITIES.register("charging_dock",
+            () -> BlockEntityType.Builder.of(com.automatavalkyries.chrono.ChargingDockBlockEntity::new, CHARGING_DOCK.get()).build(null));
 
     public static final RegistryObject<MenuType<ChronoMenu>> MENU = ModMachines.MENUS.register("chrono_machine", () -> IForgeMenuType.create(ChronoMenu::new));
 
