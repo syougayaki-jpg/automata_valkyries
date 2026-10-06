@@ -8,9 +8,13 @@ import net.minecraftforge.network.NetworkEvent;
 import java.util.function.Supplier;
 
 /** サーバー → クライアント: 戦術級コードの演出を始める（kind 0 = GUNGNIR の赤黒い螺旋の光。client/TacticalFx） */
-public record TacticalFxPacket(int kind, double x, double y, double z, float radius, int duration) {
+public record TacticalFxPacket(int kind, double x, double y, double z, float radius, int duration, long seed) {
 
-    public static final int GUNGNIR = 0;
+    public static final int GUNGNIR = 0, CARPET = 1, IRIS = 2, ABYSS = 3;
+
+    public TacticalFxPacket(int kind, double x, double y, double z, float radius, int duration) {
+        this(kind, x, y, z, radius, duration, 0L);
+    }
     /** GUNGNIR: 光が落ちてくる間と、照射の長さ（Tick。2026-10-07 ユーザー指定「演出が見やすいように 10 秒」） */
     public static final int GUNGNIR_DESCENT = 40, GUNGNIR_STRIKE = 200, GUNGNIR_ARMS = 8;
 
@@ -32,10 +36,11 @@ public record TacticalFxPacket(int kind, double x, double y, double z, float rad
         buf.writeDouble(p.z);
         buf.writeFloat(p.radius);
         buf.writeVarInt(p.duration);
+        buf.writeLong(p.seed);
     }
 
     public static TacticalFxPacket decode(FriendlyByteBuf buf) {
-        return new TacticalFxPacket(buf.readVarInt(), buf.readDouble(), buf.readDouble(), buf.readDouble(), buf.readFloat(), buf.readVarInt());
+        return new TacticalFxPacket(buf.readVarInt(), buf.readDouble(), buf.readDouble(), buf.readDouble(), buf.readFloat(), buf.readVarInt(), buf.readLong());
     }
 
     public static void handle(TacticalFxPacket p, Supplier<NetworkEvent.Context> context) {

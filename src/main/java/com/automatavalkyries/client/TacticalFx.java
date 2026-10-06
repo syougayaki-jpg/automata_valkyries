@@ -37,14 +37,16 @@ public final class TacticalFx {
     public static final int DESCENT = TacticalFxPacket.GUNGNIR_DESCENT;
     private static final double HEIGHT = 140.0;
 
-    private record Effect(int kind, Vec3 pos, float radius, int duration, long start) {}
+    private record Effect(int kind, Vec3 pos, float radius, int duration, long start, long seed,
+                          java.util.List<com.automatavalkyries.tactical.TacticalPatterns.Bomb> bombs, java.util.Map<Integer, Double> groundY) {}
 
     private static final List<Effect> ACTIVE = new ArrayList<>();
 
     public static void start(TacticalFxPacket p) {
         var level = Minecraft.getInstance().level;
         if (level == null) return;
-        ACTIVE.add(new Effect(p.kind(), new Vec3(p.x(), p.y(), p.z()), p.radius(), p.duration(), level.getGameTime()));
+        ACTIVE.add(new Effect(p.kind(), new Vec3(p.x(), p.y(), p.z()), p.radius(), p.duration(), level.getGameTime(), p.seed(),
+                p.kind() == TacticalFxPacket.CARPET ? com.automatavalkyries.tactical.TacticalPatterns.carpetBombs(p.seed()) : java.util.List.of(), new java.util.HashMap<>()));
     }
 
     /** 腕の先から土砂・溶岩・煙を噴き上げる（えぐり取る様子。地形が壊れない設定でも見た目は出す） */
@@ -55,6 +57,11 @@ public final class TacticalFx {
         if (level == null || Minecraft.getInstance().isPaused()) return;
         var rand = level.random;
         for (Effect e : ACTIVE) {
+            if (e.kind == TacticalFxPacket.CARPET) {
+                carpetEmbers(level, e);
+                continue;
+            }
+            if (e.kind != TacticalFxPacket.GUNGNIR) continue;
             float st = level.getGameTime() - e.start - DESCENT;
             if (st < 0 || st > TacticalFxPacket.GUNGNIR_STRIKE) continue;
             for (int arm = 0; arm < TacticalFxPacket.GUNGNIR_ARMS; arm++) {
@@ -100,12 +107,28 @@ public final class TacticalFx {
             Matrix4f m = pose.last().pose();
             VertexConsumer glow = buffers.getBuffer(RenderType.lightning());
             VertexConsumer dark = buffers.getBuffer(RenderType.debugQuads());
-            if (t < DESCENT) descent(m, glow, dark, e.radius, t / DESCENT, t);
-            else strike(m, glow, dark, e.radius, t - DESCENT, fade);
+            switch (e.kind) {
+                case TacticalFxPacket.CARPET -> carpet(m, glow, dark, e, t, fade);
+                case TacticalFxPacket.IRIS -> iris(m, glow, dark, e, t, fade);
+                case TacticalFxPacket.ABYSS -> abyss(m, glow, dark, e, t);
+                default -> {
+                    if (t < DESCENT) descent(m, glow, dark, e.radius, t / DESCENT, t);
+                    else strike(m, glow, dark, e.radius, t - DESCENT, fade);
+                }
+            }
+            // 素材を貼った光・炎・煙・花びら（TacticalSprites）を重ねる
+            TacticalSprites.Ctx k = new TacticalSprites.Ctx(m, event.getCamera().getLeftVector(), event.getCamera().getUpVector(), buffers);
+            switch (e.kind) {
+                case TacticalFxPacket.CARPET -> TacticalSprites.carpet(k, e.seed, e.bombs, (x, z) -> groundY(e, x, z), t, fade);
+                case TacticalFxPacket.IRIS -> TacticalSprites.iris(k, e.seed, e.radius, t, fade);
+                case TacticalFxPacket.ABYSS -> TacticalSprites.abyss(k, e.seed, t, e.duration);
+                default -> TacticalSprites.gungnir(k, e.radius, t, fade);
+            }
             pose.popPose();
         }
         buffers.endBatch(RenderType.lightning());
         buffers.endBatch(RenderType.debugQuads());
+        for (RenderType type : TacticalSprites.types()) buffers.endBatch(type);
     }
 
     /** 降下: 螺旋 8 本の頭が空から地面へ。半径は高さに比例（上で radius、下で 3） */
@@ -188,7 +211,206 @@ public final class TacticalFx {
         }
     }
 
+    // ------------------------------------------------------------------ CARPET（異空間から現れる無人爆撃機・焼夷弾・残る炎）
+
+    private static double groundY(Effect e, double x, double z) {
+        int bx = Mth.floor(e.pos.x + x), bz = Mth.floor(e.pos.z + z);
+        int key = (bx * 73856093) ^ (bz * 19349663);
+        return e.groundY.computeIfAbsent(key, k -> {
+            var level = Minecraft.getInstance().level;
+            return (double) level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING, bx, bz) - e.pos.y;
+        });
+    }
+
+    private static void carpet(Matrix4f m, VertexConsumer glow, VertexConsumer dark, Effect e, float t, float fade) {
+        Vec3 dir = com.automatavalkyries.tactical.TacticalPatterns.carpetDir(e.seed), perp = new Vec3(-dir.z, 0, dir.x);
+        int portal = com.automatavalkyries.tactical.TacticalPatterns.CARPET_PORTAL, pass = com.automatavalkyries.tactical.TacticalPatterns.CARPET_PASS;
+        double r = com.automatavalkyries.tactical.TacticalPatterns.CARPET_R, alt = com.automatavalkyries.tactical.TacticalPatterns.CARPET_ALT + 2;
+        // 異空間の裂け目（入口: 開いて爆撃機を吐き出し閉じる、出口: 最後に開いて飲み込む）
+        float in = t < portal ? t / portal : t < portal + 30 ? 1F : Math.max(0F, 1F - (t - portal - 30) / 15F);
+        float out = t < portal + pass - 30 ? 0F : t < portal + pass + 5 ? Math.min(1F, (t - (portal + pass - 30)) / 15F) : Math.max(0F, 1F - (t - portal - pass - 5) / 15F);
+        rift(m, glow, dark, dir.scale(-r - 30).add(0, alt, 0), perp, in, t);
+        rift(m, glow, dark, dir.scale(r + 30).add(0, alt, 0), perp, out, t);
+        // 爆撃機
+        if (t >= portal && t <= portal + pass) {
+            for (int i = 0; i < com.automatavalkyries.tactical.TacticalPatterns.CARPET_BOMBERS; i++) bomberModel(m, glow, dark, com.automatavalkyries.tactical.TacticalPatterns.bomber(i, t, e.seed), dir, perp, t + i);
+        }
+        // 焼夷弾（落ちる間は光る筋）と残る炎
+        for (com.automatavalkyries.tactical.TacticalPatterns.Bomb b : e.bombs) {
+            if (t >= b.dropTick() && t < b.landTick()) {
+                float k = (t - b.dropTick()) / (b.landTick() - b.dropTick());
+                double gy = groundY(e, b.x(), b.z());
+                double y = b.dropPos().y + (gy - b.dropPos().y) * k * k;
+                double x = b.dropPos().x + (b.x() - b.dropPos().x) * k, z = b.dropPos().z + (b.z() - b.dropPos().z) * k;
+                ribbon(glow, m, x, y + 3.5, z, x, y, z, 0.35, 255, 140, 40, 220);
+                cube(glow, m, x, y, z, 0.35, 255, 220, 120, 255);
+            } else if (t >= b.landTick() && t < b.landTick() + com.automatavalkyries.tactical.TacticalPatterns.CARPET_FIRE) {
+                float age = t - b.landTick();
+                float life = Math.min(1F, (com.automatavalkyries.tactical.TacticalPatterns.CARPET_FIRE - age) / 30F) * fade;
+                flames(glow, m, b.x(), groundY(e, b.x(), b.z()), b.z(), t + b.dropTick() * 3, life * 0.35F, age < 6 ? 1.0F + (6 - age) * 0.4F : 1.0F);
+            }
+        }
+    }
+
+    /** 裂け目（縦長の楕円の渦。黒い縁と紫の光） */
+    private static void rift(Matrix4f m, VertexConsumer glow, VertexConsumer dark, Vec3 c, Vec3 side, float open, float t) {
+        if (open <= 0.01F) return;
+        int seg = 40;
+        for (int ring = 0; ring < 4; ring++) {
+            double w = (16 - ring * 3) * open, h = (9 - ring * 1.6) * open;
+            double rot = t * (0.05 + ring * 0.03) * (ring % 2 == 0 ? 1 : -1);
+            for (int i = 0; i < seg; i++) {
+                double a0 = i * Math.PI * 2 / seg + rot, a1 = (i + 1) * Math.PI * 2 / seg + rot;
+                Vec3 p0 = c.add(side.scale(Math.cos(a0) * w)).add(0, Math.sin(a0) * h, 0);
+                Vec3 p1 = c.add(side.scale(Math.cos(a1) * w)).add(0, Math.sin(a1) * h, 0);
+                if (ring == 0) ribbon(dark, m, p0.x, p0.y, p0.z, p1.x, p1.y, p1.z, 2.2, 5, 0, 12, (int) (220 * open));
+                else ribbon(glow, m, p0.x, p0.y, p0.z, p1.x, p1.y, p1.z, 0.6, 170 + ring * 20, 60, 255, (int) (200 * open));
+            }
+        }
+    }
+
+    /** 無人爆撃機（黒い胴・三角の翼・赤い噴射口） */
+    private static void bomberModel(Matrix4f m, VertexConsumer glow, VertexConsumer dark, Vec3 p, Vec3 dir, Vec3 perp, float t) {
+        Vec3 nose = p.add(dir.scale(4.5)), tail = p.add(dir.scale(-3.5));
+        Vec3 wl = p.add(perp.scale(-6)).add(dir.scale(-2.5)), wr = p.add(perp.scale(6)).add(dir.scale(-2.5));
+        int[] hull = {28, 26, 34, 255};
+        // 翼（上下 2 枚で厚みを出す）
+        for (double dy : new double[]{0.0, 0.25}) {
+            quadPts(dark, m, nose.add(0, dy, 0), wl.add(0, dy, 0), tail.add(0, dy, 0), wr.add(0, dy, 0), hull);
+        }
+        // 胴（尖った箱）
+        Vec3 up = new Vec3(0, 0.6, 0);
+        quadPts(dark, m, nose, tail.add(perp.scale(0.8)), tail.add(perp.scale(0.8)).add(up), nose.add(up.scale(0.5)), hull);
+        quadPts(dark, m, nose, tail.add(perp.scale(-0.8)), tail.add(perp.scale(-0.8)).add(up), nose.add(up.scale(0.5)), hull);
+        // 赤い光の筋と噴射口
+        int[] red = {255, 30, 40, 230};
+        ribbon(glow, m, wl.x, wl.y + 0.3, wl.z, nose.x, nose.y + 0.3, nose.z, 0.12, red[0], red[1], red[2], red[3]);
+        ribbon(glow, m, wr.x, wr.y + 0.3, wr.z, nose.x, nose.y + 0.3, nose.z, 0.12, red[0], red[1], red[2], red[3]);
+        float flick = 0.8F + 0.2F * Mth.sin(t * 1.7F);
+        Vec3 exhaust = tail.add(dir.scale(-3.0 * flick));
+        ribbon(glow, m, tail.x, tail.y + 0.3, tail.z, exhaust.x, exhaust.y + 0.3, exhaust.z, 0.9, 255, 120, 60, 220);
+    }
+
+    /** 独自の炎（黄白の芯から橙・紫へ移る揺らめく炎を、十字に 2 枚） */
+    private static void flames(VertexConsumer c, Matrix4f m, double x, double y, double z, float t, float life, float burst) {
+        if (life <= 0.01F) return;
+        for (int k = 0; k < 3; k++) {
+            double a = k * Math.PI / 3 + t * 0.03;
+            double dx = Math.cos(a), dz = Math.sin(a);
+            double h = (1.8 + 0.6 * Math.sin(t * 0.45 + k * 2)) * burst;
+            double w = 0.9 * burst;
+            int al = (int) (220 * life);
+            // 下: 黄白、中: 橙、上: 紫（足し算の描き方なので重なるほど明るい）
+            quad(c, m, new float[]{(float) (x - dx * w), (float) y, (float) (z - dz * w), (float) (x + dx * w), (float) y, (float) (z + dz * w),
+                            (float) (x + dx * w * 0.6), (float) (y + h * 0.5), (float) (z + dz * w * 0.6), (float) (x - dx * w * 0.6), (float) (y + h * 0.5), (float) (z - dz * w * 0.6)},
+                    new int[]{255, 240, 170, al, 255, 240, 170, al, 255, 120, 30, al, 255, 120, 30, al});
+            quad(c, m, new float[]{(float) (x - dx * w * 0.6), (float) (y + h * 0.5), (float) (z - dz * w * 0.6), (float) (x + dx * w * 0.6), (float) (y + h * 0.5), (float) (z + dz * w * 0.6),
+                            (float) (x + dx * 0.05), (float) (y + h), (float) (z + dz * 0.05), (float) (x - dx * 0.05), (float) (y + h), (float) (z - dz * 0.05)},
+                    new int[]{255, 120, 30, al, 255, 120, 30, al, 190, 40, 255, 0, 190, 40, 255, 0});
+        }
+    }
+
+    /** 炎から火の粉と煙（クライアントの Tick） */
+    private static void carpetEmbers(net.minecraft.client.multiplayer.ClientLevel level, Effect e) {
+        float t = level.getGameTime() - e.start;
+        var rand = level.random;
+        for (com.automatavalkyries.tactical.TacticalPatterns.Bomb b : e.bombs) {
+            if (t < b.landTick() || t >= b.landTick() + com.automatavalkyries.tactical.TacticalPatterns.CARPET_FIRE || rand.nextFloat() > 0.25F) continue;
+            double x = e.pos.x + b.x(), z = e.pos.z + b.z(), y = e.pos.y + groundY(e, b.x(), b.z());
+            level.addParticle(net.minecraft.core.particles.ParticleTypes.FLAME, x + rand.nextGaussian() * 0.4, y + 0.3, z + rand.nextGaussian() * 0.4, 0, 0.06, 0);
+            if (rand.nextFloat() < 0.3F) level.addParticle(net.minecraft.core.particles.ParticleTypes.SMOKE, x, y + 1.5, z, 0, 0.08, 0);
+            if (t == b.landTick()) level.addParticle(net.minecraft.core.particles.ParticleTypes.LAVA, x, y + 0.5, z, 0, 0, 0);
+        }
+    }
+
+    // ------------------------------------------------------------------ IRIS（舞い落ちるカラフルな花びら）
+
+
+    private static void iris(Matrix4f m, VertexConsumer glow, VertexConsumer dark, Effect e, float t, float fade) {
+        double r = e.radius;
+        // 花びらは TacticalSprites#iris（素材を貼った面）で描く
+        // うっすら光るドームの縁と、地面の花の輪
+        ring(glow, m, r, 0.15, 0.8, 255, 160, 210, (int) (140 * fade));
+        ring(glow, m, r * 0.5 + Math.sin(t * 0.05) * 1.5, 0.12, 0.5, 140, 230, 255, (int) (90 * fade));
+    }
+
+    // ------------------------------------------------------------------ ABYSS（ひび割れた球体から漏れる光・広がる吸引）
+
+    private static void abyss(Matrix4f m, VertexConsumer glow, VertexConsumer dark, Effect e, float t) {
+        float life = e.duration;
+        float end = Math.max(0F, (t - (life - 12)) / 12F);                 // 最後の 0.6 秒で潰れる
+        double sr = 2.6 * (1 + t / life * 0.6) * (1 - end * 0.9);
+        // 黒い球（緯度・経度で分けた面）
+        int lat = 24, lon = 48; // 解像度を上げた球
+        for (int i = 0; i < lat; i++) {
+            double t0 = Math.PI * i / lat, t1 = Math.PI * (i + 1) / lat;
+            for (int k = 0; k < lon; k++) {
+                double p0 = Math.PI * 2 * k / lon, p1 = Math.PI * 2 * (k + 1) / lon;
+                quadPts(dark, m, sph(t0, p0, sr), sph(t0, p1, sr), sph(t1, p1, sr), sph(t1, p0, sr), new int[]{8, 0, 14, 255});
+            }
+        }
+        // ひび（光る割れ目）と漏れ出す光の筋
+        java.util.Random rnd = new java.util.Random(e.seed);
+        float pulse = 0.7F + 0.3F * Mth.sin(t * 0.5F);
+        int cracks = 12;
+        for (int c = 0; c < cracks; c++) {
+            double th = rnd.nextDouble() * Math.PI, ph = rnd.nextDouble() * Math.PI * 2;
+            Vec3 prev = sph(th, ph, sr * 1.01);
+            int steps = 5 + rnd.nextInt(5);
+            for (int s = 0; s < steps; s++) {
+                th += (rnd.nextDouble() - 0.5) * 0.5;
+                ph += (rnd.nextDouble() - 0.5) * 0.6;
+                Vec3 next = sph(th, ph, sr * 1.01);
+                if ((float) s / steps < t / (life * 0.5F)) { // ひびは時間とともに伸びる
+                    ribbon(glow, m, prev.x, prev.y, prev.z, next.x, next.y, next.z, 0.18, 230, 180, 255, (int) (255 * pulse));
+                    if (s % 2 == 0) { // 光が漏れ出す
+                        Vec3 ray = next.normalize().scale(sr + 4 + 8 * pulse * (0.5 + 0.5 * Mth.sin(t * 0.3F + c + s)));
+                        ribbon(glow, m, next.x, next.y, next.z, ray.x, ray.y, ray.z, 0.5, 200, 120, 255, (int) (120 * pulse));
+                    }
+                }
+                prev = next;
+            }
+        }
+        // 吸い込む範囲（広がる輪）と、外から中心へ流れ込む螺旋の筋
+        double pr = com.automatavalkyries.tactical.TacticalPatterns.abyssRadius(t);
+        ring(glow, m, pr, -1.4, 1.0, 150, 60, 255, (int) (200 * (1 - end)));
+        ring(dark, m, pr + 1.2, -1.45, 1.4, 0, 0, 0, (int) (160 * (1 - end)));
+        for (int k = 0; k < 10; k++) {
+            float ph = ((t * 2 + k * 9) % 45) / 45F;                       // 0 = 外、1 = 中心
+            double rr = pr * (1 - ph), a0 = k * Math.PI / 5 + ph * Math.PI * 2;
+            double x0 = Math.cos(a0) * rr, z0 = Math.sin(a0) * rr;
+            double rr2 = pr * (1 - Math.min(1, ph + 0.08)), a1 = a0 + 0.5;
+            double x1 = Math.cos(a1) * rr2, z1 = Math.sin(a1) * rr2;
+            ribbon(glow, m, x0, -1.0 + ph, z0, x1, -1.0 + ph, z1, 0.6, 180, 90, 255, (int) (200 * (1 - ph)));
+        }
+        if (end > 0) ring(glow, m, 6 + end * 30, 0, 2.5, 255, 230, 255, (int) (255 * (1 - end))); // 爆縮の閃き
+    }
+
+    private static Vec3 sph(double theta, double phi, double r) {
+        return new Vec3(Math.sin(theta) * Math.cos(phi) * r, Math.cos(theta) * r, Math.sin(theta) * Math.sin(phi) * r);
+    }
+
     // ------------------------------------------------------------------ 形
+
+    /** 4 点の面（両面） */
+    private static void quadPts(VertexConsumer c, Matrix4f m, Vec3 a, Vec3 b, Vec3 cc, Vec3 d, int[] rgba) {
+        quad(c, m, new float[]{(float) a.x, (float) a.y, (float) a.z, (float) b.x, (float) b.y, (float) b.z, (float) cc.x, (float) cc.y, (float) cc.z, (float) d.x, (float) d.y, (float) d.z},
+                new int[]{rgba[0], rgba[1], rgba[2], rgba[3], rgba[0], rgba[1], rgba[2], rgba[3], rgba[0], rgba[1], rgba[2], rgba[3], rgba[0], rgba[1], rgba[2], rgba[3]});
+    }
+
+    /** 小さな立方体（焼夷弾） */
+    private static void cube(VertexConsumer c, Matrix4f m, double x, double y, double z, double h, int r, int g, int b, int a) {
+        Vec3 o = new Vec3(x, y, z);
+        int[] col = {r, g, b, a};
+        Vec3[] v = new Vec3[8];
+        for (int i = 0; i < 8; i++) v[i] = o.add((i & 1) == 0 ? -h : h, (i & 2) == 0 ? -h : h, (i & 4) == 0 ? -h : h);
+        quadPts(c, m, v[0], v[1], v[3], v[2], col);
+        quadPts(c, m, v[4], v[5], v[7], v[6], col);
+        quadPts(c, m, v[0], v[1], v[5], v[4], col);
+        quadPts(c, m, v[2], v[3], v[7], v[6], col);
+        quadPts(c, m, v[0], v[2], v[6], v[4], col);
+        quadPts(c, m, v[1], v[3], v[7], v[5], col);
+    }
 
     /** 4 点の面を表と裏の両方（裏から見ても消えないよう）。xyz は 4 点分、rgba は 4 点分 */
     private static void quad(VertexConsumer c, Matrix4f m, float[] p, int[] col) {
