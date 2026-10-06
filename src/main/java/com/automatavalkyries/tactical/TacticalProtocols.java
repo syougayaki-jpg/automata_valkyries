@@ -163,6 +163,7 @@ public final class TacticalProtocols {
             case GUNGNIR -> ACTIVE.add(new Gungnir(level, best, target));
             case ABYSS -> ACTIVE.add(new Abyss(level, best, target.add(0, 1.5, 0)));
             case IRIS -> ACTIVE.add(new Iris(level, best, target));
+            case COMET -> ACTIVE.add(new Comet(level, best, target));
         }
         return new Outcome("approved", best, 0);
     }
@@ -364,6 +365,60 @@ public final class TacticalProtocols {
                 }
                 e.invulnerableTime = 0;
                 e.hurt(WeaponDamage.source(source, WeaponDamage.ENERGY, source, source), e.getMaxHealth() * 0.3F); // 最大 HP の 30%（保護対象は上限が掛かる）
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------ COMET（仮想彗星）
+
+    /**
+     * 青白い光の彗星が残光を引いて斜め上から落ちてくる（{@link TacticalPatterns#cometPos}、3 秒）。着弾で半径 30 m の敵に、中心 800 から縁 200 へ
+     * 減っていくダメージと吹き飛ばし。地形を壊す設定のときは半径 9 のクレーター。演出は client/TacticalFx・TacticalSprites
+     */
+    private static final class Comet extends Active {
+        final long seed;
+
+        Comet(ServerLevel level, ValkyrieEntity source, Vec3 center) {
+            super(level, source, center, TacticalPatterns.COMET_FALL + TacticalPatterns.COMET_AFTER);
+            seed = level.random.nextLong();
+            sendFx(level, center, new com.automatavalkyries.network.TacticalFxPacket(com.automatavalkyries.network.TacticalFxPacket.COMET,
+                    center.x, center.y, center.z, (float) TacticalPatterns.COMET_R, life, seed));
+            level.playSound(null, BlockPos.containing(center), SoundEvents.BEACON_ACTIVATE, SoundSource.PLAYERS, 4.0F, 0.5F);
+        }
+
+        @Override
+        void tick() {
+            if (age == TacticalPatterns.COMET_FALL / 2) level.playSound(null, BlockPos.containing(center), SoundEvents.ELYTRA_FLYING, SoundSource.PLAYERS, 4.0F, 0.6F);
+            if (age != TacticalPatterns.COMET_FALL) return;
+            // 着弾
+            level.playSound(null, BlockPos.containing(center), SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 8.0F, 0.4F);
+            level.playSound(null, BlockPos.containing(center), SoundEvents.LIGHTNING_BOLT_IMPACT, SoundSource.PLAYERS, 8.0F, 0.6F);
+            level.playSound(null, BlockPos.containing(center), SoundEvents.AMETHYST_BLOCK_RESONATE, SoundSource.PLAYERS, 6.0F, 0.5F);
+            level.sendParticles(ParticleTypes.EXPLOSION_EMITTER, center.x, center.y + 1, center.z, 3, 2, 1, 2, 0);
+            for (ServerPlayer p : level.players()) {
+                if (p.distanceToSqr(center) < 200 * 200) com.automatavalkyries.network.ModNetwork.CHANNEL.send(net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> p),
+                        new com.automatavalkyries.network.TwilightPacket(20, com.automatavalkyries.network.TwilightPacket.FLASH));
+            }
+            double r = TacticalPatterns.COMET_R;
+            for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, new AABB(center, center).inflate(r), e -> foe(source, e) && e.distanceToSqr(center) <= r * r)) {
+                double k = Math.sqrt(e.distanceToSqr(center)) / r;
+                e.invulnerableTime = 0;
+                e.hurt(WeaponDamage.source(source, WeaponDamage.ENERGY, source, source), (float) (TacticalPatterns.COMET_CORE + (TacticalPatterns.COMET_EDGE - TacticalPatterns.COMET_CORE) * k));
+                Vec3 push = e.position().subtract(center);
+                push = push.lengthSqr() < 1.0e-4 ? new Vec3(0, 1, 0) : push.normalize();
+                e.setDeltaMovement(e.getDeltaMovement().add(push.scale(2.5 * (1 - k))).add(0, 1.2 * (1 - k) + 0.3, 0));
+                e.hurtMarked = true;
+            }
+            if (griefing()) { // クレーター（壊せない物とブロックエンティティは残す）
+                BlockPos c = BlockPos.containing(center);
+                int cr = 12;
+                for (BlockPos p : BlockPos.betweenClosed(c.offset(-cr, -cr / 2, -cr), c.offset(cr, cr, cr))) {
+                    double dx = p.getX() + 0.5 - center.x, dy = (p.getY() + 0.5 - center.y) * 1.6, dz = p.getZ() + 0.5 - center.z;
+                    if (dx * dx + dy * dy + dz * dz > cr * cr) continue;
+                    var st = level.getBlockState(p);
+                    if (st.isAir() || st.getDestroySpeed(level, p) < 0 || st.hasBlockEntity()) continue;
+                    level.setBlock(p, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 2 | 16);
+                }
             }
         }
     }

@@ -75,6 +75,22 @@ public final class TacticalPatterns {
         return ABYSS_START_R + (ABYSS_END_R - ABYSS_START_R) * Math.min(1.0, Math.max(0.0, t / ABYSS_TIME));
     }
 
+    // ------------------------------------------------------------------ COMET（仮想彗星）
+
+    /** 落ちてくる間・落ちた後の残光（Tick）、吹き飛ばす半径、中心と縁のダメージ */
+    public static final int COMET_FALL = 80, COMET_AFTER = 200;
+    /** 2026-10-07 ユーザー指定で範囲を倍（30 → 60）、威力を 5 倍（中心 800 → 4,000、縁 200 → 1,000）に */
+    public static final double COMET_R = 60.0;
+    public static final float COMET_CORE = 4000.0F, COMET_EDGE = 1000.0F;
+
+    /** 彗星の t（0〜COMET_FALL）のときの位置（狙った所からの相対）。斜め上の遠くから、だんだん速く */
+    public static Vec3 cometPos(float t, long seed) {
+        double a = new Random(seed).nextDouble() * Math.PI * 2;
+        double k = Math.min(1.0, Math.max(0.0, t / COMET_FALL));
+        double f = 1 - Math.pow(k, 1.7);
+        return new Vec3(Math.cos(a) * 160 * f, 220 * f, Math.sin(a) * 160 * f);
+    }
+
     // ------------------------------------------------------------------ IRIS
 
     public static final int IRIS_TIME = 600;

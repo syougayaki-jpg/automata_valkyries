@@ -19,8 +19,12 @@ OUT = os.path.join(os.path.dirname(__file__), '..', 'src', 'main', 'resources', 
 rng = np.random.default_rng(20261007)
 
 
-def save(arr, name):
+def save(arr, name, additive=False):
     os.makedirs(OUT, exist_ok=True)
+    if additive:
+        # 足し算の描き方（RenderType.eyes）は透明度を見ずに色をそのまま足すので、色に透明度を掛けておく（透明な所は黒）
+        arr = arr.copy()
+        arr[..., :3] *= arr[..., 3:4]
     Image.fromarray(np.clip(arr * 255, 0, 255).astype(np.uint8), 'RGBA').save(os.path.join(OUT, name))
 
 
@@ -56,7 +60,7 @@ def glow():
     a += np.exp(-d * d * 18) * 0.6
     a = np.clip(a, 0, 1)
     img = np.stack([np.ones_like(a), np.ones_like(a), np.ones_like(a), a], -1)
-    save(img, 'glow.png')
+    save(img, 'glow.png', additive=True)
 
 
 def flare():
@@ -66,7 +70,7 @@ def flare():
     cross = np.exp(-np.abs(y) * 40) * np.clip(1 - np.abs(x), 0, 1) ** 1.5 + np.exp(-np.abs(x) * 40) * np.clip(1 - np.abs(y), 0, 1) ** 1.5
     halo = np.clip(1 - d, 0, 1) ** 3 * 0.35
     a = np.clip(core + cross * 0.8 + halo, 0, 1)
-    save(np.stack([np.ones_like(a)] * 3 + [a], -1), 'flare.png')
+    save(np.stack([np.ones_like(a)] * 3 + [a], -1), 'flare.png', additive=True)
 
 
 def flame():
@@ -86,7 +90,7 @@ def flame():
         b = np.clip(heat * 1.4 - 0.85, 0, 1)
         a = np.clip(heat * 1.8, 0, 1) * np.clip(u * 3, 0, 1)
         sheet[f * fh:(f + 1) * fh] = np.stack([r, g, b, a], -1)
-    save(sheet, 'flame.png')
+    save(sheet, 'flame.png', additive=True)
 
 
 def smoke():
@@ -113,7 +117,7 @@ def streak():
     x, y = grid(16, 64)
     u = (y + 1) / 2
     a = np.exp(-x * x * 12) * u ** 1.5
-    save(np.stack([np.ones_like(a)] * 3 + [np.clip(a, 0, 1)], -1), 'streak.png')
+    save(np.stack([np.ones_like(a)] * 3 + [np.clip(a, 0, 1)], -1), 'streak.png', additive=True)
 
 
 if __name__ == '__main__':

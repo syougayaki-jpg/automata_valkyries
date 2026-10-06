@@ -81,6 +81,23 @@ public final class TacticalFx {
         }
     }
 
+    /**
+     * 演出専用の入れ物（種類ごとに別の BufferBuilder）。ゲームの共通の入れ物では、別の種類を取り出すたびに前の種類の描きかけが
+     * 締められて同じ入れ物を使い回すので、光（位置・色）と素材（位置・色・UV…）が混ざって落ちた（2026-10-07「Not filled all elements of the vertex」）
+     */
+    private static MultiBufferSource.BufferSource fxBuffers;
+
+    private static MultiBufferSource.BufferSource buffers() {
+        if (fxBuffers == null) {
+            java.util.Map<RenderType, com.mojang.blaze3d.vertex.BufferBuilder> map = new java.util.LinkedHashMap<>();
+            map.put(RenderType.debugQuads(), new com.mojang.blaze3d.vertex.BufferBuilder(1 << 18));
+            map.put(RenderType.lightning(), new com.mojang.blaze3d.vertex.BufferBuilder(1 << 18));
+            for (RenderType type : TacticalSprites.types()) map.put(type, new com.mojang.blaze3d.vertex.BufferBuilder(1 << 18));
+            fxBuffers = MultiBufferSource.immediateWithBuffers(map, new com.mojang.blaze3d.vertex.BufferBuilder(1 << 12));
+        }
+        return fxBuffers;
+    }
+
     @SubscribeEvent
     public static void onRender(RenderLevelStageEvent event) {
         if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS || ACTIVE.isEmpty()) return;
@@ -92,7 +109,7 @@ public final class TacticalFx {
         float partial = event.getPartialTick();
         Vec3 cam = event.getCamera().getPosition();
         PoseStack pose = event.getPoseStack();
-        MultiBufferSource.BufferSource buffers = mc.renderBuffers().bufferSource();
+        MultiBufferSource.BufferSource buffers = buffers();
         Iterator<Effect> it = ACTIVE.iterator();
         while (it.hasNext()) {
             Effect e = it.next();
@@ -111,6 +128,7 @@ public final class TacticalFx {
                 case TacticalFxPacket.CARPET -> carpet(m, glow, dark, e, t, fade);
                 case TacticalFxPacket.IRIS -> iris(m, glow, dark, e, t, fade);
                 case TacticalFxPacket.ABYSS -> abyss(m, glow, dark, e, t);
+                case TacticalFxPacket.COMET -> { } // TacticalComet（下の素材の段でまとめて描く）
                 default -> {
                     if (t < DESCENT) descent(m, glow, dark, e.radius, t / DESCENT, t);
                     else strike(m, glow, dark, e.radius, t - DESCENT, fade);
@@ -122,13 +140,13 @@ public final class TacticalFx {
                 case TacticalFxPacket.CARPET -> TacticalSprites.carpet(k, e.seed, e.bombs, (x, z) -> groundY(e, x, z), t, fade);
                 case TacticalFxPacket.IRIS -> TacticalSprites.iris(k, e.seed, e.radius, t, fade);
                 case TacticalFxPacket.ABYSS -> TacticalSprites.abyss(k, e.seed, t, e.duration);
+                case TacticalFxPacket.COMET -> TacticalComet.render(m, glow, dark, k, e.seed, e.radius, t, e.duration,
+                        new Vec3(cam.x - e.pos.x, cam.y - e.pos.y, cam.z - e.pos.z));
                 default -> TacticalSprites.gungnir(k, e.radius, t, fade);
             }
             pose.popPose();
         }
-        buffers.endBatch(RenderType.lightning());
-        buffers.endBatch(RenderType.debugQuads());
-        for (RenderType type : TacticalSprites.types()) buffers.endBatch(type);
+        buffers.endBatch();
     }
 
     /** 降下: 螺旋 8 本の頭が空から地面へ。半径は高さに比例（上で radius、下で 3） */
@@ -393,7 +411,7 @@ public final class TacticalFx {
     // ------------------------------------------------------------------ 形
 
     /** 4 点の面（両面） */
-    private static void quadPts(VertexConsumer c, Matrix4f m, Vec3 a, Vec3 b, Vec3 cc, Vec3 d, int[] rgba) {
+    static void quadPts(VertexConsumer c, Matrix4f m, Vec3 a, Vec3 b, Vec3 cc, Vec3 d, int[] rgba) {
         quad(c, m, new float[]{(float) a.x, (float) a.y, (float) a.z, (float) b.x, (float) b.y, (float) b.z, (float) cc.x, (float) cc.y, (float) cc.z, (float) d.x, (float) d.y, (float) d.z},
                 new int[]{rgba[0], rgba[1], rgba[2], rgba[3], rgba[0], rgba[1], rgba[2], rgba[3], rgba[0], rgba[1], rgba[2], rgba[3], rgba[0], rgba[1], rgba[2], rgba[3]});
     }
@@ -413,13 +431,13 @@ public final class TacticalFx {
     }
 
     /** 4 点の面を表と裏の両方（裏から見ても消えないよう）。xyz は 4 点分、rgba は 4 点分 */
-    private static void quad(VertexConsumer c, Matrix4f m, float[] p, int[] col) {
+    static void quad(VertexConsumer c, Matrix4f m, float[] p, int[] col) {
         for (int i = 0; i < 4; i++) c.vertex(m, p[i * 3], p[i * 3 + 1], p[i * 3 + 2]).color(col[i * 4], col[i * 4 + 1], col[i * 4 + 2], col[i * 4 + 3]).endVertex();
         for (int i = 3; i >= 0; i--) c.vertex(m, p[i * 3], p[i * 3 + 1], p[i * 3 + 2]).color(col[i * 4], col[i * 4 + 1], col[i * 4 + 2], col[i * 4 + 3]).endVertex();
     }
 
     /** 2 点の間の帯（上下に width の厚み） */
-    private static void ribbon(VertexConsumer c, Matrix4f m, double x1, double y1, double z1, double x2, double y2, double z2,
+    static void ribbon(VertexConsumer c, Matrix4f m, double x1, double y1, double z1, double x2, double y2, double z2,
                                double width, int r, int g, int b, int a) {
         if (a <= 0) return;
         float h = (float) (width / 2);
@@ -429,7 +447,7 @@ public final class TacticalFx {
     }
 
     /** 中心の柱（側面だけ） */
-    private static void cylinder(VertexConsumer c, Matrix4f m, double r, double y0, double y1, int seg, int cr, int cg, int cb, int a) {
+    static void cylinder(VertexConsumer c, Matrix4f m, double r, double y0, double y1, int seg, int cr, int cg, int cb, int a) {
         for (int i = 0; i < seg; i++) {
             double a0 = i * Math.PI * 2 / seg, a1 = (i + 1) * Math.PI * 2 / seg;
             float x0 = (float) (Math.cos(a0) * r), z0 = (float) (Math.sin(a0) * r), x1 = (float) (Math.cos(a1) * r), z1 = (float) (Math.sin(a1) * r);
@@ -439,13 +457,13 @@ public final class TacticalFx {
     }
 
     /** 中心から (cx, cz) ずれた所の輪 */
-    private static void ringAt(VertexConsumer c, Matrix4f m, double cx, double cz, double r, double y, double width, int cr, int cg, int cb, int a) {
+    static void ringAt(VertexConsumer c, Matrix4f m, double cx, double cz, double r, double y, double width, int cr, int cg, int cb, int a) {
         Matrix4f shifted = new Matrix4f(m).translate((float) cx, 0, (float) cz);
         ring(c, shifted, r, y, width, cr, cg, cb, a);
     }
 
     /** 地面の輪（高さ y の水平な帯、幅 width） */
-    private static void ring(VertexConsumer c, Matrix4f m, double r, double y, double width, int cr, int cg, int cb, int a) {
+    static void ring(VertexConsumer c, Matrix4f m, double r, double y, double width, int cr, int cg, int cb, int a) {
         if (a <= 0 || r <= 0.1) return;
         int seg = 96;
         double ri = Math.max(0, r - width / 2), ro = r + width / 2;

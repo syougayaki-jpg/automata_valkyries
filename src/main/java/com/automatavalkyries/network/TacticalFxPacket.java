@@ -10,7 +10,7 @@ import java.util.function.Supplier;
 /** サーバー → クライアント: 戦術級コードの演出を始める（kind 0 = GUNGNIR の赤黒い螺旋の光。client/TacticalFx） */
 public record TacticalFxPacket(int kind, double x, double y, double z, float radius, int duration, long seed) {
 
-    public static final int GUNGNIR = 0, CARPET = 1, IRIS = 2, ABYSS = 3;
+    public static final int GUNGNIR = 0, CARPET = 1, IRIS = 2, ABYSS = 3, COMET = 4;
 
     public TacticalFxPacket(int kind, double x, double y, double z, float radius, int duration) {
         this(kind, x, y, z, radius, duration, 0L);

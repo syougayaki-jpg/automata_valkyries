@@ -1,4 +1,7 @@
 {
+  "tactical.automata_valkyries.comet": "COMET［仮想彗星］",
+  "tactical.automata_valkyries.comet.desc": "青白い光の仮想彗星が残光を引いて空から落ち、半径 60 m を吹き飛ばす（中心 4,000 → 縁 1,000）",
+  "valkyrie.automata_valkyries.speech.tactical_comet": "承認。仮想軌道、展開——コメット、降らせます！",
   "gui.automata_valkyries.chrono.repo_sort": "整理",
   "gui.automata_valkyries.chrono.repo_filter.0": "全部",
   "gui.automata_valkyries.chrono.repo_filter.1": "素材",

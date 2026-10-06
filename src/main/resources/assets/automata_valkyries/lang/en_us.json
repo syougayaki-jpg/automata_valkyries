@@ -1,4 +1,7 @@
 {
+  "tactical.automata_valkyries.comet": "COMET [Virtual Comet]",
+  "tactical.automata_valkyries.comet.desc": "A pale blue virtual comet trails afterglow as it falls from the sky, blasting a 60 m radius (4,000 at the center down to 1,000 at the edge)",
+  "valkyrie.automata_valkyries.speech.tactical_comet": "Approved. Virtual orbit deployed—Comet, falling!",
   "gui.automata_valkyries.chrono.repo_sort": "Sort",
   "gui.automata_valkyries.chrono.repo_filter.0": "All",
   "gui.automata_valkyries.chrono.repo_filter.1": "Mat",
