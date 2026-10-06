@@ -198,7 +198,7 @@
   "tactical.automata_valkyries.carpet": "CARPET［絨毯飽和爆撃］",
   "tactical.automata_valkyries.carpet.desc": "半径 32 m へ 64 発の徹甲ナパーム弾を 5 秒かけて波状投下",
   "tactical.automata_valkyries.gungnir": "GUNGNIR［軌道衛星集束レーザー］",
-  "tactical.automata_valkyries.gungnir.desc": "直径 6 ブロックの光の柱を 5 秒照射（毎秒 150、無敵を貫通）",
+  "tactical.automata_valkyries.gungnir.desc": "世界を紅に染め、赤黒い螺旋の光が空から落ちて半径 50 m を 10 秒焼き、大地をえぐる（毎秒 300、無敵を貫通）",
   "tactical.automata_valkyries.abyss": "ABYSS［特異点重力崩壊球］",
   "tactical.automata_valkyries.abyss.desc": "半径 24 m の敵と弾を 8 秒吸い寄せて拘束し、爆縮で最大 HP の 30%%",
   "tactical.automata_valkyries.iris": "IRIS［広域ナノ防壁・野戦病院］",

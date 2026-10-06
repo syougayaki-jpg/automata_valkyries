@@ -203,41 +203,78 @@ public final class TacticalProtocols {
 
     // ------------------------------------------------------------------ GUNGNIR（軌道衛星集束レーザー）
 
+    /**
+     * 赤黒い螺旋の光が空から落ちてきて（{@link #GUNGNIR_DESCENT} Tick）、半径 {@link #GUNGNIR_RADIUS} を 5 秒焼く
+     * （2026-10-07 ユーザー指定「戦術級らしく半径 50 ブロックの赤黒い螺旋状の光で落ちてくるど派手な演出を自作して、範囲も広げて威力も倍に」。
+     * 描画は client/TacticalFx）。地形を壊す設定でも、壊すのは中心の柱（半径 5）だけ
+     */
     private static final class Gungnir extends Active {
         Gungnir(ServerLevel level, ValkyrieEntity source, Vec3 center) {
-            super(level, source, center, 100);
+            super(level, source, center, GUNGNIR_DESCENT + GUNGNIR_STRIKE);
+            var packet = new com.automatavalkyries.network.TacticalFxPacket(com.automatavalkyries.network.TacticalFxPacket.GUNGNIR,
+                    center.x, center.y, center.z, (float) GUNGNIR_RADIUS, GUNGNIR_DESCENT + GUNGNIR_STRIKE);
+            // 世界が赤く染まる（320 ブロック以内）
+            var crimson = new com.automatavalkyries.network.TwilightPacket(GUNGNIR_DESCENT + GUNGNIR_STRIKE + 20, com.automatavalkyries.network.TwilightPacket.CRIMSON);
+            for (ServerPlayer p : level.players()) {
+                if (p.distanceToSqr(center) >= 320 * 320) continue;
+                com.automatavalkyries.network.ModNetwork.CHANNEL.send(net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> p), packet);
+                com.automatavalkyries.network.ModNetwork.CHANNEL.send(net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> p), crimson);
+            }
+            level.playSound(null, BlockPos.containing(center), SoundEvents.WITHER_SPAWN, SoundSource.PLAYERS, 4.0F, 0.5F);
         }
 
         @Override
         void tick() {
-            // 光の柱（中心が白、外がネオンブルー）
-            for (int i = 0; i < 6; i++) {
-                double y = center.y + level.random.nextDouble() * 60;
-                level.sendParticles(ParticleTypes.END_ROD, center.x, y, center.z, 1, 0.3, 0, 0.3, 0);
-                double a = level.random.nextDouble() * Math.PI * 2;
-                Fx.spray(level, Fx.opt(ModParticles.GLOW.get(), 0x5AD8FF, 0.6F, 8),
-                        new Vec3(center.x + Math.cos(a) * 3, y, center.z + Math.sin(a) * 3), 1, 0, 0, 0, 0);
+            if (age < GUNGNIR_DESCENT) return; // 落ちてくる間
+            if (age == GUNGNIR_DESCENT) { // 着弾
+                level.playSound(null, BlockPos.containing(center), SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.PLAYERS, 6.0F, 0.6F);
+                level.playSound(null, BlockPos.containing(center), SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 6.0F, 0.5F);
             }
-            if (age % 10 == 0) {
-                level.playSound(null, BlockPos.containing(center), SoundEvents.BEACON_AMBIENT, SoundSource.PLAYERS, 2.0F, 1.6F);
-                var source = new net.minecraft.world.damagesource.DamageSource(
-                        level.registryAccess().registryOrThrow(net.minecraft.core.registries.Registries.DAMAGE_TYPE).getHolderOrThrow(GUNGNIR_DAMAGE), this.source, this.source);
-                for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, new AABB(center.x - 3, center.y - 3, center.z - 3, center.x + 3, center.y + 60, center.z + 3),
-                        e -> foe(this.source, e) && Math.hypot(e.getX() - center.x, e.getZ() - center.z) <= 3.0)) {
-                    e.invulnerableTime = 0;
-                    e.hurt(source, 75.0F); // 毎秒 150
-                }
-                if (griefing()) { // 主隔壁を蒸発（岩盤など壊せない物は残す）
-                    BlockPos c = BlockPos.containing(center);
-                    for (BlockPos p : BlockPos.betweenClosed(c.offset(-3, -2, -3), c.offset(3, 12, 3))) {
-                        if (Math.hypot(p.getX() + 0.5 - center.x, p.getZ() + 0.5 - center.z) > 3.0) continue;
-                        var st = level.getBlockState(p);
-                        if (!st.isAir() && st.getDestroySpeed(level, p) >= 0) level.destroyBlock(p, false, source.getEntity());
+            int st = age - GUNGNIR_DESCENT;
+            if (griefing() && st % 2 == 0) carve(st); // 螺旋の腕が大地をえぐり取る
+            if (st % 15 == 0) level.playSound(null, BlockPos.containing(center), SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 3.0F, 0.5F + level.random.nextFloat() * 0.3F);
+            if (age % 10 != 0) return;
+            level.playSound(null, BlockPos.containing(center), SoundEvents.BEACON_AMBIENT, SoundSource.PLAYERS, 4.0F, 0.8F);
+            var source = new net.minecraft.world.damagesource.DamageSource(
+                    level.registryAccess().registryOrThrow(net.minecraft.core.registries.Registries.DAMAGE_TYPE).getHolderOrThrow(GUNGNIR_DAMAGE), this.source, this.source);
+            double r = GUNGNIR_RADIUS;
+            for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, new AABB(center.x - r, center.y - 6, center.z - r, center.x + r, center.y + 80, center.z + r),
+                    e -> foe(this.source, e) && Math.hypot(e.getX() - center.x, e.getZ() - center.z) <= r)) {
+                e.invulnerableTime = 0;
+                e.hurt(source, 150.0F); // 毎秒 300（前の倍）
+            }
+        }
+
+        /**
+         * 螺旋の腕の先（{@link com.automatavalkyries.network.TacticalFxPacket#gungnirArm}）の地面を、半径 3・深さ 6 で削り取る
+         * （2026-10-07 ユーザー指定「螺旋が大地をえぐり取るように、やりすぎなくらいに」）。地形を壊す設定のときだけ。
+         * 岩盤など壊せない物と、ブロックエンティティ（チェスト・マシン）は残す。落とし物・音は出さない（重くならないよう）
+         */
+        private void carve(int strikeTicks) {
+            for (int arm = 0; arm < com.automatavalkyries.network.TacticalFxPacket.GUNGNIR_ARMS; arm++) {
+                double[] g = com.automatavalkyries.network.TacticalFxPacket.gungnirArm(arm, strikeTicks, GUNGNIR_RADIUS);
+                int cx = Mth.floor(center.x + g[0]), cz = Mth.floor(center.z + g[1]);
+                int top = level.getHeight(Heightmap.Types.WORLD_SURFACE, cx, cz);
+                for (int dx = -3; dx <= 3; dx++) {
+                    for (int dz = -3; dz <= 3; dz++) {
+                        if (dx * dx + dz * dz > 9) continue;
+                        int depth = 6 - (dx * dx + dz * dz) / 3; // 中ほど深く
+                        for (int y = top + 1; y >= top - depth; y--) {
+                            BlockPos p = new BlockPos(cx + dx, y, cz + dz);
+                            var st = level.getBlockState(p);
+                            if (st.isAir() || st.getDestroySpeed(level, p) < 0 || st.hasBlockEntity()) continue;
+                            level.setBlock(p, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 2 | 16);
+                        }
                     }
                 }
             }
         }
     }
+
+    /** GUNGNIR の範囲（半径）と、光が落ちてくる間（Tick） */
+    public static final double GUNGNIR_RADIUS = 50.0;
+    public static final int GUNGNIR_DESCENT = com.automatavalkyries.network.TacticalFxPacket.GUNGNIR_DESCENT,
+            GUNGNIR_STRIKE = com.automatavalkyries.network.TacticalFxPacket.GUNGNIR_STRIKE;
 
     // ------------------------------------------------------------------ ABYSS（特異点重力崩壊球）
 

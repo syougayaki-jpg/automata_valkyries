@@ -198,7 +198,7 @@
   "tactical.automata_valkyries.carpet": "CARPET [Saturation Bombing]",
   "tactical.automata_valkyries.carpet.desc": "Drops 64 armor-piercing napalm shells over a 32 m radius in waves for 5 s",
   "tactical.automata_valkyries.gungnir": "GUNGNIR [Orbital Focus Laser]",
-  "tactical.automata_valkyries.gungnir.desc": "Fires a 6-block-wide pillar of light for 5 s (150 per second, pierces invulnerability)",
+  "tactical.automata_valkyries.gungnir.desc": "Turns the world crimson as red-black spirals fall from the sky, burning a 50 m radius for 10 s and gouging the earth (300 per second, pierces invulnerability)",
   "tactical.automata_valkyries.abyss": "ABYSS [Singularity Collapse]",
   "tactical.automata_valkyries.abyss.desc": "Pulls in and holds enemies and shots within 24 m for 8 s, then collapses for 30%% of max HP",
   "tactical.automata_valkyries.iris": "IRIS [Nano Barrier Field Hospital]",

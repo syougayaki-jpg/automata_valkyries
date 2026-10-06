@@ -84,6 +84,12 @@ public final class ModNetwork {
                 .decoder(TacticalCyclePacket::decode)
                 .consumerMainThread(TacticalCyclePacket::handle)
                 .add();
+        // 戦術級コードの演出（2026-10-07）
+        CHANNEL.messageBuilder(TacticalFxPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(TacticalFxPacket::encode)
+                .decoder(TacticalFxPacket::decode)
+                .consumerMainThread(TacticalFxPacket::handle)
+                .add();
         // 二刀流のクリック（2026-10-06）
         CHANNEL.messageBuilder(DualWieldPacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
                 .encoder(DualWieldPacket::encode)

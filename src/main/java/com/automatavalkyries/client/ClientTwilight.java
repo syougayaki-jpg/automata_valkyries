@@ -65,6 +65,18 @@ public final class ClientTwilight {
             starry(g, w, h, k, total - left + event.getPartialTick());
             return;
         }
+        if (scheme == com.automatavalkyries.network.TwilightPacket.CRIMSON) {
+            // 紅（GUNGNIR）: 世界が赤く染まり、脈打つ。上は黒に近い深紅、縁は黒
+            float time = total - left + event.getPartialTick();
+            float pulse = 0.85F + 0.15F * Mth.sin(time * 0.35F);
+            int a1 = (int) (170 * k * pulse), a2 = (int) (95 * k * pulse), a3 = (int) (140 * k * pulse);
+            g.fillGradient(0, 0, w, h / 2, argb(a1, 0x2A0004), argb(a2, 0xC0101A));
+            g.fillGradient(0, h / 2, w, h, argb(a2, 0xC0101A), argb(a3, 0x5A0008));
+            int edge = (int) (160 * k);
+            g.fillGradient(0, 0, w, h / 6, argb(edge, 0x000000), argb(0, 0x000000));
+            g.fillGradient(0, h - h / 6, w, h, argb(0, 0x000000), argb(edge, 0x000000));
+            return;
+        }
         // 上から: 深い紫 → 茜 → 橙 → 地平の金（下ほど明るく、真ん中は薄く抜いて見通しを残す）
         int a1 = (int) (150 * k), a2 = (int) (70 * k), a3 = (int) (60 * k), a4 = (int) (120 * k);
         g.fillGradient(0, 0, w, h / 3, argb(a1, 0x3A1060), argb(a2, 0xC03A5A));
@@ -101,6 +113,13 @@ public final class ClientTwilight {
         if (scheme == com.automatavalkyries.network.TwilightPacket.FLASH) return;
         float k = intensity((float) event.getPartialTick()) * 0.75F;
         if (k <= 0.001F) return;
+        if (scheme == com.automatavalkyries.network.TwilightPacket.CRIMSON) { // 霧も深紅に
+            float kc = Math.min(1F, k * 1.3F);
+            event.setRed(Mth.lerp(kc, event.getRed(), 0.75F));
+            event.setGreen(Mth.lerp(kc, event.getGreen(), 0.02F));
+            event.setBlue(Mth.lerp(kc, event.getBlue(), 0.05F));
+            return;
+        }
         boolean stars = scheme == com.automatavalkyries.network.TwilightPacket.STARRY;
         event.setRed(Mth.lerp(k, event.getRed(), stars ? 0.3F : 1.0F));
         event.setGreen(Mth.lerp(k, event.getGreen(), stars ? 0.4F : 0.45F));
