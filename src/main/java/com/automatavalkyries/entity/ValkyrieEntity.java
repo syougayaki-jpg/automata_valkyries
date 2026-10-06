@@ -942,6 +942,12 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
 
     // ------------------------------------------------------------------ 操作
 
+    /** 担架で持ち主の頭の上に乗っているときは、頭の上に座る高さへ */
+    @Override
+    public double getMyRidingOffset() {
+        return getVehicle() instanceof Player ? 0.5 : super.getMyRidingOffset();
+    }
+
     @Override
     protected InteractionResult mobInteract(Player player, InteractionHand hand) {
         if (hand != InteractionHand.MAIN_HAND) return InteractionResult.PASS;
@@ -963,6 +969,7 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         }
         if (!owner.equals(player.getUUID())) return InteractionResult.PASS;
         if (held.getItem() instanceof com.automatavalkyries.item.TacticalRemoteItem) return InteractionResult.PASS; // 指示リモコン（アイテムの側で指示する）
+        if (held.getItem() instanceof com.automatavalkyries.item.ValkyrieStretcherItem) return InteractionResult.PASS; // 担架（アイテムの側で乗せる）
         // 好物を渡す（ルミナルキャンディ・冷却アイス。拡張仕様書 §12.1 +5%）
         boolean candy = held.is(com.automatavalkyries.registry.ModItems.LUMINAL_CANDY.get()), ice = held.is(com.automatavalkyries.registry.ModItems.COOLING_ICE.get());
         if ((candy || ice) && !isShutdown()) {
@@ -1057,6 +1064,15 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
             clientTick();
             return;
         }
+        // 担架で運ばれている: 動けるようになったら（充電・修理）自分で降りる。運ばれている間は座った姿勢
+        if (getVehicle() instanceof Player carrier) {
+            if (!com.automatavalkyries.item.ValkyrieStretcherItem.carriable(this)) {
+                setSitting(false);
+                com.automatavalkyries.item.ValkyrieStretcherItem.setDown(carrier, this);
+            } else if (!isSitting()) {
+                setSitting(true);
+            }
+        }
         // AI（戦闘・兵装の技）・手の兵装の毎 Tick の処理・ステップの間は「いま動いている兵姫」（味方へのデバフを断る。ValkyrieCombat#shieldedFromActing）
         ValkyrieEntity prev = ValkyrieCombat.setActing(this);
         try {
@@ -1080,8 +1096,8 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         if (!isShutdown()) life().tick();
         if (entityData.get(SPEECH_TICKS) > 0) entityData.set(SPEECH_TICKS, entityData.get(SPEECH_TICKS) - 1);
         if (entityData.get(EMOTE_TICKS) > 0) entityData.set(EMOTE_TICKS, entityData.get(EMOTE_TICKS) - 1);
-        // 持ち主が降りたら一緒に降りる
-        if (isPassenger() && getMode() == Mode.FOLLOW) {
+        // 持ち主が降りたら一緒に降りる（担架で持ち主の頭の上にいるときは別。ここで降りてしまい、担架で降ろせなかった。2026-10-07）
+        if (isPassenger() && getMode() == Mode.FOLLOW && !(getVehicle() instanceof Player)) {
             Player owner = getOwner();
             if (owner == null || owner.getVehicle() != getVehicle()) stopRiding();
         }
