@@ -32,7 +32,7 @@ import java.util.EnumSet;
  */
 public class ValkyriePorter extends Goal {
 
-    public static final double REACH = 64.0, OWNER_PICKUP = 8.0;
+    public static final double REACH = 64.0, OWNER_PICKUP = 8.0, SCAVENGE_RANGE = 10.0;
     /** リモコンの指示（0 = 無し、1 = 運び先へ、2 = 持ち主へ） */
     public static final int TRIP_NONE = 0, TRIP_HOME = 1, TRIP_OWNER = 2;
 
@@ -80,9 +80,14 @@ public class ValkyriePorter extends Goal {
 
     @Nullable
     private ItemEntity itemNearOwner(Player owner) {
+        return itemNearOwner(owner, OWNER_PICKUP);
+    }
+
+    @Nullable
+    private ItemEntity itemNearOwner(Player owner, double range) {
         ItemEntity best = null;
         double bestD = Double.MAX_VALUE;
-        for (ItemEntity e : v.level().getEntitiesOfClass(ItemEntity.class, new AABB(owner.blockPosition()).inflate(OWNER_PICKUP, 4, OWNER_PICKUP),
+        for (ItemEntity e : v.level().getEntitiesOfClass(ItemEntity.class, new AABB(owner.blockPosition()).inflate(range, 4, range),
                 e -> e.isAlive() && !e.hasPickUpDelay() && !v.orders.excludes(e.getItem()))) {
             double d = e.distanceToSqr(v);
             if (d < bestD) {
@@ -125,6 +130,15 @@ public class ValkyriePorter extends Goal {
             b.porterTrip = TRIP_NONE;
             if (dest == null) v.talk("porter_no_dest");
         }
+        // ロジック: スカベンジャー: 追従中も、持ち主のまわりの落ちている物を拾う（持ち主の持ち物がいっぱいでなくても）
+        if (v.getMode() == Mode.FOLLOW && owner != null && !v.getInventory().pickupFull() && !ValkyrieDaily.noPickup(v)
+                && v.getInventory().hasChip(ValkyrieUnits.ChipKind.SCAVENGER)) {
+            item = itemNearOwner(owner, SCAVENGE_RANGE);
+            if (item != null) {
+                job = 3;
+                return true;
+            }
+        }
         if (chip.isEmpty()) return false;
         int mode = ValkyrieUnits.porterMode(chip);
         if (mode == 1 && v.getMode() != Mode.FOLLOW) {
@@ -142,7 +156,7 @@ public class ValkyriePorter extends Goal {
             }
             return false;
         }
-        if (mode == 2 && v.getMode() == Mode.FOLLOW && owner != null && ownerFull(owner) && !v.getInventory().pickupFull()) {
+        if (mode == 2 && v.getMode() == Mode.FOLLOW && owner != null && ownerFull(owner) && !v.getInventory().pickupFull() && !ValkyrieDaily.noPickup(v)) {
             item = itemNearOwner(owner);
             if (item != null) {
                 job = 3;
@@ -230,7 +244,8 @@ public class ValkyriePorter extends Goal {
                     else item.setItem(rest);
                     stuck = 0;
                     Player owner = v.getOwner();
-                    item = owner != null && !v.getInventory().pickupFull() ? itemNearOwner(owner) : null;
+                    item = owner != null && !v.getInventory().pickupFull() && !ValkyrieDaily.noPickup(v)
+                            ? itemNearOwner(owner, v.getInventory().hasChip(ValkyrieUnits.ChipKind.SCAVENGER) ? SCAVENGE_RANGE : OWNER_PICKUP) : null;
                     return;
                 }
                 if (--repath <= 0) {

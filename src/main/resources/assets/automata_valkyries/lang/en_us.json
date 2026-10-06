@@ -1324,6 +1324,8 @@
   "item.automata_valkyries.chip_attack_mode": "Logic: Attack Select",
   "item.automata_valkyries.chip_turret": "Logic: Turret",
   "item.automata_valkyries.chip_porter": "Logic: Porter",
+  "item.automata_valkyries.chip_no_pickup": "Logic: Hands Off",
+  "item.automata_valkyries.chip_scavenger": "Logic: Scavenger",
   "gui.automata_valkyries.unit.valkyrie_only": "Tactical Valkyrie only (fits a slot in the loadout screen)",
   "gui.automata_valkyries.unit.frame.stats": "Armor +%s / Toughness +%s / Weight %st",
   "gui.automata_valkyries.unit.frame.vitals": "Max HP +%s / Max Shield +%s",
@@ -1392,5 +1394,7 @@
   "gui.automata_valkyries.unit.chip.porter.unset": "Destination: not set",
   "gui.automata_valkyries.unit.chip.porter.set_dest": "Destination set",
   "gui.automata_valkyries.unit.chip.porter.set_source": "Source set",
-  "gui.automata_valkyries.unit.chip.porter.not_container": "That is not a container"
+  "gui.automata_valkyries.unit.chip.porter.not_container": "That is not a container",
+  "gui.automata_valkyries.unit.chip.no_pickup": "Doesn't pick up dropped items (no cleaning or porter pickups; still puts away held items and hauls between chests)",
+  "gui.automata_valkyries.unit.chip.scavenger": "Searches for and picks up dropped items (2× cleaning range, also picks up items within 10 m of the owner while following). Can't be used with Hands Off"
 }

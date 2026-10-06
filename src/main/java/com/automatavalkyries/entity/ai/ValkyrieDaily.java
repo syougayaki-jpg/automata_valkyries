@@ -60,6 +60,11 @@ public final class ValkyrieDaily {
 
     private ValkyrieDaily() {}
 
+    /** ロジック: ノータッチを挿していて、落ちている物を拾わないか */
+    static boolean noPickup(ValkyrieEntity v) {
+        return v.getInventory().hasChip(com.automatavalkyries.item.unit.ValkyrieUnits.ChipKind.NO_PICKUP);
+    }
+
     static boolean idle(ValkyrieEntity v) {
         return !v.isShutdown() && !v.isAsleep() && v.getTarget() == null && !v.combat().retreating && !v.isPassenger();
     }
@@ -439,7 +444,7 @@ public final class ValkyrieDaily {
                 chest = findChest();
                 if (chest != null) return true;
             }
-            if (full()) return false;
+            if (full() || noPickup(v)) return false; // ロジック: ノータッチは拾わない
             item = findItem();
             return item != null;
         }
@@ -484,7 +489,7 @@ public final class ValkyrieDaily {
         @Override
         public boolean canContinueToUse() {
             return idle(v) && v.getMode() != Mode.FOLLOW && stuck < 200
-                    && ((item != null && item.isAlive() && !full()) || (chest != null && v.getInventory().hasPickup()));
+                    && ((item != null && item.isAlive() && !full() && !noPickup(v)) || (chest != null && v.getInventory().hasPickup()));
         }
 
         @Override
@@ -508,7 +513,7 @@ public final class ValkyrieDaily {
             if (item != null) {
                 if (v.distanceToSqr(item) < 1.6 * 1.6) {
                     pickUp(item);
-                    item = full() ? null : findItem();
+                    item = full() || noPickup(v) ? null : findItem();
                     if (item == null && v.getInventory().hasPickup()) chest = findChest();
                     stuck = 0;
                     return;

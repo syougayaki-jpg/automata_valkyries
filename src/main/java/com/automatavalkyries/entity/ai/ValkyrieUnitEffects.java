@@ -431,9 +431,11 @@ public final class ValkyrieUnitEffects {
         return true;
     }
 
-    /** 拾い物の範囲の倍率（サブアームで 1.5） */
+    /** 拾い物の範囲の倍率（サブアームで 1.5、スカベンジャーで 2） */
     public static float pickupScale(ValkyrieEntity v) {
-        return backpack(v) == BackpackKind.SUB_ARM ? 1.5F : 1.0F;
+        float s = backpack(v) == BackpackKind.SUB_ARM ? 1.5F : 1.0F;
+        if (inv(v).hasChip(ChipKind.SCAVENGER)) s *= 2.0F; // スカベンジャー
+        return s;
     }
 
     /** 電力の最大（ルミナス一式で 1.5 倍、増設バッテリーで +30,000） */

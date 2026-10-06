@@ -202,7 +202,11 @@ public final class ValkyrieUnits {
         /** 固定砲台: 覚えた対象を探し、通常・チャージ攻撃の最大射程に入ったら動かずに撃つ */
         TURRET("turret", 2, false),
         /** ポーター: 運搬のお手伝い（拾った物を運び先へ・チェスト間・持ち主の荷物持ち。entity/ai/ValkyriePorter） */
-        PORTER("porter", 1, false);
+        PORTER("porter", 1, false),
+        /** ノータッチ: 落ちている物を拾わない（2026-10-07 ユーザー指定「物を拾わない設定のチップ」。預かっている物の片付け・チェスト間の運搬はする） */
+        NO_PICKUP("no_pickup", 1, false),
+        /** スカベンジャー: 落ちている物を探して拾う（お掃除の範囲 2 倍・追従中も持ち主のまわりの物を拾う。2026-10-07 ユーザー指定「ノータッチの逆」）。ノータッチとは同時に挿せない */
+        SCAVENGER("scavenger", 1, false);
 
         public final String id;
         public final int tier;

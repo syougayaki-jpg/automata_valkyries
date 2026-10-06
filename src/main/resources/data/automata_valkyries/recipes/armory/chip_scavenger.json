@@ -1,0 +1,27 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 1,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_advanced"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:lens_luminal"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:capsule_spatial"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:chip_scavenger"
+  },
+  "energy": 80000,
+  "time": 300
+}

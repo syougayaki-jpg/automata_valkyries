@@ -1,0 +1,22 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 1,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_advanced"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:composite_plate"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:chip_no_pickup"
+  },
+  "energy": 80000,
+  "time": 300
+}

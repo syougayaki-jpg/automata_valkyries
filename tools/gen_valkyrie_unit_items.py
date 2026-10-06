@@ -4,7 +4,7 @@
     python tools/gen_valkyrie_unit_items.py [プレビューの出力先.png]
 
 出力（assets/automata_valkyries/ の下）:
-  textures/item/<id>.png      … 75 種
+  textures/item/<id>.png      … 77 種
   models/item/<id>.json       … item/generated
 
 絵は文字の格子で描く。8 文字の行は左半分で、右半分は左右反転して影の色に寄せる（左上から光が当たる）。
@@ -802,6 +802,28 @@ CHIP_GLYPHS = {
         '.rRRRr..',
         'rrrrrrr.',
         '.r...r..',
+    ]),
+    # ノータッチ: 灰色の落とし物に赤い「禁止」の斜線
+    'no_pickup': ({'r': 0xFF3B4E, 'g': 0x8C94A4, 'G': 0xC8CED8}, [
+        '..rrrr..',
+        '.r...rr.',
+        'r.ggrG.r',
+        'r.grgG.r',
+        'r.rggG.r',
+        '.r....r.',
+        '..rrrr..',
+        '........',
+    ]),
+    # スカベンジャー: 落とし物の上の虫眼鏡（黄・金）
+    'scavenger': ({'r': 0xFFC23A, 'R': 0xFFE08A, 'l': 0x3A4A6A, 'g': 0xC8CED8, 'G': 0xFFFFFF}, [
+        '.rrrr...',
+        'rllllr..',
+        'rlggGr..',
+        'rlgggr..',
+        'rllllr..',
+        '.rrrrRR.',
+        '......RR',
+        '.......R',
     ]),
     # ポーター: 運ぶ矢印と木箱（青緑）
     'porter': ({'r': 0x2AB8A8, 'R': 0x8CF0E0, 'w': 0xE0FFFA}, [

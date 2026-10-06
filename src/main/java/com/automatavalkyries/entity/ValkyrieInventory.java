@@ -78,7 +78,7 @@ public class ValkyrieInventory implements Container {
             if (!(stack.getItem() instanceof com.automatavalkyries.item.unit.ValkyrieUnits.ChipItem chip)) return false;
             for (int i = CHIP; i < CHIP + CHIPS; i++) {
                 if (i != slot && getItem(i).getItem() instanceof com.automatavalkyries.item.unit.ValkyrieUnits.ChipItem other
-                        && (other.kind == chip.kind || (other.kind.role && chip.kind.role))) return false; // 役割のチップは 1 つだけ
+                        && (other.kind == chip.kind || (other.kind.role && chip.kind.role) || opposite(other.kind, chip.kind))) return false; // 役割のチップは 1 つだけ
             }
             return true;
         }
@@ -111,6 +111,13 @@ public class ValkyrieInventory implements Container {
     @org.jetbrains.annotations.Nullable
     public com.automatavalkyries.item.unit.ValkyrieUnits.BackpackKind backpack() {
         return getItem(BACKPACK).getItem() instanceof com.automatavalkyries.item.unit.ValkyrieUnits.BackpackItem b ? b.kind : null;
+    }
+
+    /** 同時に挿せない組み合わせ（ノータッチとスカベンジャー） */
+    private static boolean opposite(com.automatavalkyries.item.unit.ValkyrieUnits.ChipKind a, com.automatavalkyries.item.unit.ValkyrieUnits.ChipKind b) {
+        var no = com.automatavalkyries.item.unit.ValkyrieUnits.ChipKind.NO_PICKUP;
+        var scav = com.automatavalkyries.item.unit.ValkyrieUnits.ChipKind.SCAVENGER;
+        return (a == no && b == scav) || (a == scav && b == no);
     }
 
     /** 挿しているそのロジックチップ（無ければ空） */
