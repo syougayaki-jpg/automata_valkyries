@@ -183,6 +183,7 @@ public class ValkyrieGameTests {
         var player = helper.makeMockPlayer();
         ValkyrieEntity woke = com.automatavalkyries.item.ValkyrieBodyItem.spawn(helper.getLevel(), helper.absolutePos(new net.minecraft.core.BlockPos(2, 2, 2)), 0.0F, com.automatavalkyries.entity.ValkyrieBody.S);
         helper.assertTrue(woke != null && woke.isPodSleeper() && woke.getBody() == com.automatavalkyries.entity.ValkyrieBody.S, "the body unit did not place a sleeping Type-S");
+        helper.assertTrue(woke.getHealth() >= woke.getMaxHealth(), "the body unit valkyrie was not at full health: " + woke.getHealth());
         helper.assertTrue(woke.wakeFromPod(player, com.automatavalkyries.item.ProtoCoreItem.CAPACITY) && player.getUUID().equals(woke.getOwnerUUID()), "the body unit valkyrie did not wake for the player");
         woke.releaseAndDiscard();
         helper.succeed();

@@ -65,15 +65,15 @@ public class ValkyrieBodyItem extends Item {
         return InteractionResult.CONSUME;
     }
 
-    /** 眠った（ポッドの深い休眠の）兵姫をその型で置く。wakeFromPod で起こす */
+    /** 眠った（ポッドの深い休眠の）兵姫をその型で、HP 満タンで置く。wakeFromPod で起こす */
     @Nullable
     public static ValkyrieEntity spawn(ServerLevel level, BlockPos at, float yaw, ValkyrieBody body) {
         ValkyrieEntity v = ModEntities.VALKYRIE.get().create(level);
         if (v == null) return null;
         v.moveTo(at.getX() + 0.5, at.getY(), at.getZ() + 0.5, yaw, 0.0F);
         v.setBody(body);
-        v.setHealth(v.getMaxHealth());
         v.makePodSleeper();
+        v.setHealth(v.getMaxHealth()); // 組み立てたばかりの体は無傷（ポッドの休眠は HP 5 にするので後で戻す。HP 5 のままだと撤退の HP を下回って戦わなかった。2026-10-07）
         level.addFreshEntity(v);
         return v;
     }
