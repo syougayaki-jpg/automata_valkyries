@@ -7,7 +7,7 @@ AEC 級ボス 最光速『ルクシオン』の GeckoLib モデルとテクス�
 箱・色の板・面ごとの UV の自動の詰め込みは tools/gen_chrono_gazers.py のものを使う（色を足すだけ）。
 アニメーションの json は無い（Java のモデルが骨をコードで動かす）ので、骨の名前と pivot は Java 側と一致させること:
   root > body（腰 0,20,0）> head（首 0,32,0）> tail（兜の後ろ）/ crest（動かさない）
-                          > right_arm（肩 -5.5,30,0）> blade（拳）> blade_tilt（前・下へ傾ける。動かさない）
+                          > right_arm（肩 -5.5,30,0）> blade（拳）> blade_tilt（前・下へ傾ける。動かさない）> katana_flip（刃を下へ。動かさない）
                           > left_arm（肩 5.5,30,0）
                           > thrusters（背中の上 0,28,2.5）> wing_right（-2.5,29,3）/ wing_left（2.5,29,3）（翼の開閉。傾きは *_tilt に）
                                                           > booster（戦闘機の形の主推進器 0,28,3.5。rotX で後ろへ展開）
@@ -27,6 +27,7 @@ AEC 級ボス 最光速『ルクシオン』の GeckoLib モデルとテクス�
 板は箱ごとの回転（10〜20°、左右反転）で斜めにし、軸に沿った角ばった線を減らす。動かす骨には回転を付けない。
 """
 import importlib.util
+import math
 import os
 
 _spec = importlib.util.spec_from_file_location('gen_chrono_gazers', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'gen_chrono_gazers.py'))
@@ -39,6 +40,9 @@ g.MAT.update({
     'gold': (0xE8C060, 0xFADC78, 0x966E1E, 'plain', False),
     'champ': (0xD8C890, 0xEEE2B0, 0xA89860, 'rivet', False),    # 金がかった板
     'wglow': (0xFFF4CC, 0xFFFFFF, 0xE8C060, 'glow', True),      # 白金の光（尾・刃）
+    'kblade': (0xE6E8EE, 0xFFFFFF, 0xA8ACB8, 'plain', False),   # 刀の平ら
+    'kspine': (0x1A1C24, 0x34384A, 0x0C0D12, 'plain', False),   # 刀の峰（暗い）
+    'kwrap': (0x1E2028, 0x3A3E4C, 0x101116, 'plain', False),    # 柄の巻き
 })
 
 
@@ -65,6 +69,14 @@ def luxion():
     B('body', (-0.6, 25.2, -3.4), (0.6, 26.45, -3.2), 'glow', rot=(10, 0, 0), pivot=(0, 25.8, -2.9))       # 胸の赤い光
     MB('body', (-2.9, 30.2, -1.8), (-0.3, 31.4, 1.6), 'champ', top='gold', rot=(-8, 0, 14), pivot=(-0.3, 30.2, 0))   # 斜めの襟
     B('body', (-0.8, 31.3, -0.8), (0.8, 32.3, 0.8), 'metal')                                               # 首
+    # 鋭い刃のような装甲（2026-10-08）: 尖った先は小さくなる箱を ±20〜45° 回して作る
+    B('body', (-0.42, 23.95, -3.3), (0.42, 24.95, -2.6), 'gold', rot=(0, 0, 45), pivot=(0, 24.45, -2.95))    # 竜骨の下の尖り
+    B('body', (-0.3, 29.9, -3.45), (0.3, 31.0, -2.75), 'gold', rot=(0, 45, 0), pivot=(0, 30.45, -3.1))     # 竜骨の上の刃
+    MB('body', (-3.7, 25.9, -3.0), (-1.1, 26.75, -2.35), 'gold', rot=(0, -16, -25), pivot=(-1.1, 26.5, -2.6))   # 胸当ての尖った下の縁（V 字）
+    MB('body', (-3.75, 30.9, -1.25), (-2.55, 31.5, 0.45), 'gold', rot=(0, 0, 30), pivot=(-2.9, 31.0, -0.4))   # 襟の尖った先
+    MB('body', (-2.35, 15.0, -2.5), (-1.05, 16.75, -2.05), 'wplate', top='gold', rot=(-12, 0, 45), pivot=(-1.7, 15.9, -2.25))   # 前の草摺の刃の先
+    MB('body', (-1.95, 14.55, -2.45), (-1.45, 15.3, -2.1), 'gold', rot=(-12, 0, 45), pivot=(-1.7, 14.9, -2.25))
+    MB('body', (-4.75, 15.8, -0.75), (-4.15, 17.3, 0.75), 'champ', out='gold', rot=(45, 0, 16), pivot=(-4.45, 16.55, 0))   # 横の草摺の刃の先
 
     # ---- 頭: 前へ細くなる流線形の兜、後ろへ流れる重ねた頬板、傾けた飾り（一つ目の赤いバイザー）
     m.bone('head', 'body', (0, 32, 0))
@@ -132,14 +144,48 @@ def luxion():
         A((-7.0, 22.4, -1.6), (-4.0, 23.0, 1.6), 'gold', rot=(0, 0, 8))                                                        # 金の輪
         A((-7.32, 19.4, -0.5), (-7.22, 21.8, 0.5), 'glow', rot=(0, 0, 12), pivot=(-6.3, 23.4, 0))                              # 前腕の赤い線
         A((-6.2, 16.8, -1.0), (-4.8, 18.45, 1.0), 'dark')                                                                      # 拳
+        # 鋭い刃のような装甲（2026-10-08）
+        A((-9.8, 29.6, 0.5), (-8.0, 30.15, 3.4), 'gold', rot=(0, 25, -20), pivot=(-8.0, 29.9, 1.0))                            # 肩の外の後ろへ流れる刃
+        A((-10.7, 29.7, 2.3), (-9.7, 30.05, 3.3), 'gold', rot=(0, 25, -20), pivot=(-8.0, 29.9, 1.0))
+        A((-9.5, 31.15, -0.3), (-7.8, 31.65, 2.6), 'champ', top='gold', rot=(0, 30, -25), pivot=(-7.8, 31.4, 0))              # 上の層の尖った先
+        A((-7.25, 28.6, -4.0), (-6.35, 29.5, -2.3), 'gold', rot=(0, 0, 45), pivot=(-6.8, 29.05, -3.1))                         # 前の層の前へ向いた棘
+        A((-7.0, 28.85, -4.8), (-6.6, 29.25, -3.95), 'gold', rot=(0, 0, 45), pivot=(-6.8, 29.05, -3.1))
+        A((-8.25, 28.25, -2.15), (-4.6, 28.5, 2.15), 'gold', rot=(0, 0, -15), pivot=(-4.4, 31.0, 0))                           # 肩当ての下の刃の縁
+        A((-7.48, 21.0, 0.2), (-7.22, 26.8, 1.0), 'wplate', out='gold', rot=(-20, 0, 10), pivot=(-7.3, 21.0, 0.6))            # 前腕から肘の後ろへ伸びる刃
+        A((-7.45, 26.7, 0.4), (-7.25, 27.7, 0.8), 'gold', rot=(-20, 0, 10), pivot=(-7.3, 21.0, 0.6))
+        A((-7.15, 17.95, -1.95), (-6.0, 18.65, -1.2), 'gold', rot=(0, 0, 45), pivot=(-6.58, 18.3, -1.58))                     # 尖った袖口
     m.bone('blade', 'right_arm', (-5.5, 17.8, 0))                                                          # 光の剣
-    t = m.bone('blade_tilt', 'blade', (-5.5, 17.8, 0), (-60, 0, 0))
-    B(t, (-5.85, 15.2, -0.35), (-5.15, 18.3, 0.35), 'dark')
-    B(t, (-6.6, 14.8, -1.0), (-4.4, 15.25, 1.0), 'gold', bottom='glow')
-    MB(t, (-7.0, 14.6, -0.4), (-6.4, 15.3, 0.4), 'gold', rot=(0, 0, -20), pivot=(-6.4, 15.0, 0))         # 鍔の反り
-    B(t, (-5.85, -5.2, -0.2), (-5.15, 14.8, 0.2), 'wglow')
-    B(t, (-5.62, -5.0, -0.28), (-5.38, 14.6, -0.19), 'glow')
-    B(t, (-5.7, -6.0, -0.12), (-5.3, -5.15, 0.12), 'wglow')
+    m.bone('blade_tilt', 'blade', (-5.5, 17.8, 0), (-60, 0, 0))
+    # 刃を下へ向けて持つ（2026-10-08 ユーザー指定「刀は刃を下にむけて持って」）: 刀の部品を、刀の軸のまわりに 180 度回した子の骨に置く（反りも下向きになる）
+    t = m.bone('katana_flip', 'blade_tilt', (-5.5, 17.8, 0), (0, 180, 0))
+    # ---- 電脳の刀（2026-10-08）: 細く少し反った片刃。刃（-Z 側）は白金に光り、すぐ内側に冷たい赤の線。峰（+Z 側）は暗いガンメタルに金の彫り線。
+    # 反りは 5 つの区切りを少しずつ多く回して作る（下へ行くほど峰の側へ）。柄は暗い巻きと金・白の帯、赤と白の表示灯、角ばった柄頭に光る芯
+    KX = -5.5
+    y, z, ang = 14.6, 0.0, 0.0
+    for i, (ln, da) in enumerate(((4.4, 1.5), (4.2, 2.5), (4.0, 3.5), (3.8, 4.5), (2.6, 5.5))):
+        ang += da
+        piv = dict(rot=(ang, 0, 0), pivot=(KX, y, z))
+        B(t, (KX - 0.15, y - ln, z - 0.25), (KX + 0.15, y, z + 0.4), 'kblade', **piv)                     # 刃の平ら（刃文の光る線）
+        B(t, (KX - 0.1, y - ln, z - 0.42), (KX + 0.1, y, z - 0.25), 'wglow', **piv)                        # 光る刃（片側だけ）
+        B(t, (KX - 0.13, y - ln, z + 0.4), (KX + 0.13, y, z + 0.56), 'kspine', **piv)                      # 峰（暗い・金の彫り線）
+        r = math.radians(ang)
+        y, z = y - ln * math.cos(r), z + ln * math.sin(r)
+    piv = dict(rot=(ang + 35, 0, 0), pivot=(KX, y, z))
+    B(t, (KX - 0.12, y - 1.3, z - 0.42), (KX + 0.12, y + 0.05, z + 0.25), 'wglow', **piv)                 # 切っ先（光る）
+    B(t, (KX - 0.13, y - 0.6, z + 0.2), (KX + 0.13, y + 0.05, z + 0.5), 'kspine', **piv)
+    B(t, (KX - 0.24, 14.55, -0.48), (KX + 0.24, 15.15, 0.62), 'gold')                                     # はばき
+    B(t, (KX - 1.0, 15.1, -1.0), (KX + 1.0, 15.45, 1.0), 'gold', bottom='glow', rot=(0, 45, 0), pivot=(KX, 15.3, 0))   # 角ばった鍔（金）
+    B(t, (KX - 0.8, 15.42, -0.8), (KX + 0.8, 15.75, 0.8), 'metal', top='gold', rot=(0, 20, 0), pivot=(KX, 15.6, 0))     # 重ねた鍔（ガンメタル）
+    for dx, dz in ((0.95, 0.0), (-0.95, 0.0), (0.0, 0.95), (0.0, -0.95)):                                 # 鍔の光る点
+        B(t, (KX + dx - 0.12, 15.18, dz - 0.12), (KX + dx + 0.12, 15.4, dz + 0.12), 'glow')
+    B(t, (KX - 0.36, 15.7, -0.36), (KX + 0.36, 19.3, 0.36), 'kwrap')                                     # 柄（巻き）
+    for yy in (15.75, 16.6, 18.5, 19.15):                                                                 # 金と白の帯
+        B(t, (KX - 0.4, yy, -0.4), (KX + 0.4, yy + 0.25, 0.4), 'gold' if yy in (15.75, 19.15) else 'wsmooth')
+    B(t, (KX - 0.42, 16.15, -0.2), (KX - 0.36, 16.4, 0.05), 'glow')                                       # 赤い表示灯
+    B(t, (KX - 0.42, 18.85, -0.2), (KX - 0.36, 19.05, 0.05), 'wglow')                                     # 白い表示灯
+    B(t, (KX - 0.48, 19.35, -0.48), (KX + 0.48, 19.95, 0.48), 'gold', rot=(0, 45, 0), pivot=(KX, 19.65, 0))   # 角ばった柄頭
+    B(t, (KX - 0.22, 19.9, -0.22), (KX + 0.22, 20.2, 0.22), 'glow')                                       # 柄頭の光る芯
+    B(t, (KX - 0.05, 19.9, 0.15), (KX + 0.05, 20.7, 0.85), 'kspine', rot=(-30, 0, 0), pivot=(KX, 19.95, 0.2))   # 柄頭の短いひれ
 
     # ---- 右肩の上の長い光の槍
     m.bone('cannon', 'body', (-4, 33, 2))
@@ -259,8 +305,17 @@ def luxion():
         L((-2.8, 1.5, 1.4), (-1.6, 2.7, 2.3), 'dark', back='glow', rot=(-15, 0, 0), pivot=(-2.2, 2.1, 1.4))   # 足首の噴射口
         L((-3.6, 0.0, -3.6), (-0.8, 1.3, 1.6), 'wplate', top='gold')                                        # 尖った足
         L((-3.2, 0.4, -4.6), (-1.2, 1.2, -3.55), 'champ')                                                     # つま先
+        # 鋭い刃のような装甲（2026-10-08）
+        L((-2.62, 12.0, -3.6), (-1.78, 12.84, -2.2), 'gold', rot=(0, 0, 45), pivot=(-2.2, 12.42, -2.9))        # 膝の前へ向いた棘
+        L((-2.42, 12.22, -4.35), (-1.98, 12.62, -3.5), 'gold', rot=(0, 0, 45), pivot=(-2.2, 12.42, -2.9))
+        L((-2.95, 10.55, -2.05), (-1.45, 12.05, -1.55), 'wplate', top='gold', rot=(0, 0, 45), pivot=(-2.2, 11.3, -1.8))   # 脛の尖った上端
+        L((-3.0, 2.0, -2.1), (-1.4, 3.4, -1.6), 'gold', rot=(0, 0, 45), pivot=(-2.2, 2.7, -1.85))              # 脛の鋭い下の縁
+        L((-2.6, 0.3, -5.6), (-1.8, 1.1, -4.5), 'gold', rot=(0, 45, 0), pivot=(-2.2, 0.7, -4.6))               # 尖ったつま先
+        L((-3.75, 1.4, -0.6), (-3.5, 3.0, 1.7), 'gold', rot=(-30, 0, 10), pivot=(-3.6, 2.0, 0.5))              # 足首の刃
         c = m.bone('calf_fin_' + name.split('_')[0], name, (s * 2.2, 8.0, 1.6), (25, 0, 0))
         B(c, (s * 2.35, 6.0, 1.6), (s * 2.05, 9.5, 4.3), 'wplate', out='gold')
+        B(c, (s * 2.33, 9.3, 2.4), (s * 2.07, 10.7, 4.6), 'gold', rot=(30, 0, 0), pivot=(s * 2.2, 9.4, 3.0))  # ふくらはぎの鋭い刃の先
+        B(c, (s * 2.33, 5.2, 3.0), (s * 2.07, 6.1, 4.8), 'gold', rot=(-25, 0, 0), pivot=(s * 2.2, 6.0, 3.0))
     return m
 
 
@@ -346,6 +401,36 @@ def paint_hd(base, glow, u, v, w, h, mat, face, rnd, ctx=None):
                 P(x, y, col, gl)
         return
 
+    if mat in ('kblade', 'kspine', 'kwrap'):                                  # 刀（2026-10-08）
+        for y in range(h):
+            for x in range(w):
+                if mat == 'kblade':
+                    col, gl = _mix((248, 250, 255), (196, 202, 214), (y + 0.5) / h * 0.4), False
+                    if face in ('east', 'west') and w >= 3:
+                        edge_u = 0 if face == 'west' else w - 1                   # 刃に近い側（-Z）
+                        du = abs(x - edge_u)
+                        wave = int(w * 0.5 + math.sin(y * 0.7) * w * 0.12)
+                        if du == 1:
+                            col, gl = _c(0xFF2A4A), True                          # 刃のすぐ内側の赤い線
+                        elif x == wave:
+                            col, gl = (255, 250, 230), True                       # 刃文の光る線
+                        elif du == 0:
+                            col, gl = (255, 248, 220), True
+                elif mat == 'kspine':
+                    col, gl = _mix(_c(0x2A2D38), _c(0x14161C), (y + 0.5) / h), False
+                    if face in ('east', 'west', 'south') and h >= 4 and w >= 2:
+                        if x == w // 2:
+                            col = _c(0xE8C060)                                    # 金の彫り線
+                        if y % 5 == 0:
+                            col = _c(0x4A4F60)                                    # 小さな電子の区切り
+                else:
+                    col, gl = _c(0x2A2C34), False
+                    if (x + y) % 4 == 0 or (x - y) % 4 == 0:
+                        col = _c(0xC8A048)                                        # 菱形の巻きの模様
+                    elif (x + y) % 4 == 2 and (x - y) % 4 == 2:
+                        col = _c(0x3C3F4C)
+                P(x, y, col, gl)
+        return
     # ---- 板（面取り・グラデーション・むら）
     MAT = _g.MAT
     b0, l0, d0 = (_c(MAT[mat][0]), _c(MAT[mat][1]), _c(MAT[mat][2])) if mat in MAT else (_c(0x474C59), _c(0x6A7080), _c(0x23262E))
@@ -478,6 +563,13 @@ def armor_glow(grid, glows, w, h, mat, face, ctx):
             put(w - 1, 0, RED); put(0, h - 1, RED)
 
     plate = mat in ('wplate', 'champ', 'wsmooth')
+    if mat == 'gold' and ctx['rot'] and face in sides and (bone in ('right_arm', 'left_arm', 'right_leg', 'left_leg', 'body') or bone.startswith('calf_fin')) and sx < 4.5 and sz < 4.5:
+        for x in range(w):                                                      # 尖った金の刃の光る縁（2026-10-08）
+            put(x, 0, WG_CORE if x % 3 else WG_MID)
+        if h >= 4:
+            for x in range(1, w - 1, 2):
+                put(x, h - 1, RED)
+        return
     if bone in ('right_leg', 'left_leg'):                                       # ---- 脚（いちばん光らせる）
         if mat in ('wplate', 'champ') and sy >= 5 and face in ('north', out) and h >= 12:
             vline(w // 2)                                                       # 前・外を走る光の線
@@ -523,4 +615,4 @@ def armor_glow(grid, glows, w, h, mat, face, ctx):
 _g = g
 
 if __name__ == '__main__':
-    g.write_hd(luxion(), TEX_HD, DENSITY, paint_hd)
+    g.write_hd(luxion(), TEX_HD, DENSITY, paint_hd, density_fn=lambda mat, face, bone: 2 if (mat == 'wglow' or face == 'down') else DENSITY)

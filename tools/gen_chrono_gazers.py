@@ -207,7 +207,7 @@ def write(m):
 
 
 
-def write_hd(m, tex, density, painter):
+def write_hd(m, tex, density, painter, density_fn=None):
     """細かい版（使う側が選ぶ。既存の 5 種は write のまま）: 面の 1px を density 枚の texel で描き、tex×tex に高さ順で詰める。
     painter(base, glow, u, v, w, h, mat, face, rnd, ctx) が面を塗る（base・glow は PIL の画像。ctx は骨の名前・箱の位置と大きさ・回転）"""
     base = Image.new('RGBA', (tex, tex), (0, 0, 0, 0))
@@ -219,8 +219,9 @@ def write_hd(m, tex, density, painter):
             a, c = cube[0], cube[1]
             for f in FACES:
                 dw, dh = face_dims(a, c, f)
-                w = max(1, int(math.ceil(dw * density - 1e-6)))
-                h = max(1, int(math.ceil(dh * density - 1e-6)))
+                d = density_fn(cube[2][f], f, b['name']) if density_fn else density   # 面ごとの密度（任意）
+                w = max(1, int(math.ceil(dw * d - 1e-6)))
+                h = max(1, int(math.ceil(dh * d - 1e-6)))
                 reqs.append((bi, ci, f, w, h))
     order = sorted(range(len(reqs)), key=lambda i: (-reqs[i][4], -reqs[i][3], i))
     sky = [0] * tex                                   # スカイライン（列ごとの高さ）で左下から詰める（棚より隙間が少ない）

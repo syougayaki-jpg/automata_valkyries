@@ -65,6 +65,16 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
     public static final byte EVENT_SLASH = 70, EVENT_DASH_WINDUP = 71;
     private static final int RETREAT_TICKS = 200;
     private static final Vector3f WHITE_GOLD = new Vector3f(1.0F, 0.94F, 0.72F), RED = new Vector3f(1.0F, 0.17F, 0.29F);
+    /** 光の粒の色（weapon/Fx の自作の光・星の粒。2026-10-08 ユーザー指定「光のパーティクルも豪華に」） */
+    private static final int C_WHITE = 0xFFFFFF, C_WG = 0xFFF0B8, C_GOLD = 0xE8C060, C_RED = 0xFF2A4A;
+
+    private static com.automatavalkyries.particle.FxOptions glow(int color, float size, int life) {
+        return com.automatavalkyries.weapon.Fx.opt(com.automatavalkyries.registry.ModParticles.GLOW.get(), color, size, life);
+    }
+
+    private static com.automatavalkyries.particle.FxOptions star(int color, float size, int life) {
+        return com.automatavalkyries.weapon.Fx.opt(com.automatavalkyries.registry.ModParticles.STAR.get(), color, size, life);
+    }
 
     private static final EntityDataAccessor<Boolean> PHASE2 = SynchedEntityData.defineId(LuxionEntity.class, EntityDataSerializers.BOOLEAN);
 
@@ -78,6 +88,36 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
     public int slashTick = -100, windupTick = -100;
     /** クライアント: 背の戦闘機型ブースターの展開（0 = 背に収まる、1 = 後ろへ開いて翼を広げる）。戦闘中（相手を捉えている＝aggressive）に開く */
     public float deploy, deployO;
+    /** クライアント: 第 2 形態の背の機構の豪華さ（0 → 1 へ 1.5 秒で）。光の翼・光輪・大きくなる翼とブースター（2026-10-08 ユーザー指定） */
+    public float glory, gloryO;
+    /** クライアント: 残光（瞬動・突進・速く動いた跡に残る半透明の自分の姿。2026-10-08 ユーザー指定「残光を自作して」） */
+    public final java.util.ArrayList<Afterimage> afterimages = new java.util.ArrayList<>();
+    public static final int AFTERIMAGE_LIFE = 14;
+    private double lastX = Double.NaN, lastY, lastZ;
+
+    /** 残光 1 つ（位置・体の向き・生まれた Tick） */
+    public record Afterimage(double x, double y, double z, float yaw, int born) {}
+
+    private void trackAfterimages() {
+        if (!Double.isNaN(lastX)) {
+            double dx = getX() - lastX, dy = getY() - lastY, dz = getZ() - lastZ;
+            double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            if (dist > 1.5) { // 瞬動: 通った道に並べて残す
+                int n = (int) Math.min(8, Math.ceil(dist / 1.2));
+                for (int i = 0; i < n; i++) {
+                    double t = i / (double) n;
+                    afterimages.add(new Afterimage(lastX + dx * t, lastY + dy * t, lastZ + dz * t, yBodyRot, tickCount - (n - i) / 3));
+                }
+            } else if (dist > 0.22 && tickCount % 2 == 0) { // 速く動いている間
+                afterimages.add(new Afterimage(lastX, lastY, lastZ, yBodyRotO, tickCount));
+            }
+        }
+        lastX = getX();
+        lastY = getY();
+        lastZ = getZ();
+        afterimages.removeIf(a -> tickCount - a.born() > AFTERIMAGE_LIFE);
+        while (afterimages.size() > 24) afterimages.remove(0);
+    }
 
     public LuxionEntity(EntityType<? extends Monster> type, Level level) {
         super(type, level);
@@ -199,7 +239,10 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
             }
         } else if (deathTime >= 40 && !DirectRead.isRemoved(this)) {
             if (level() instanceof ServerLevel server) {
-                server.sendParticles(new DustParticleOptions(WHITE_GOLD, 2.5F), getX(), getY(1.0), getZ(), 80, 0.6, 1.2, 0.6, 0.0);
+                Vec3 c = position().add(0, 1.2, 0);
+                com.automatavalkyries.weapon.Fx.burst(server, star(C_WG, 0.8F, 50), c, 80, 0.4);
+                com.automatavalkyries.weapon.Fx.burst(server, glow(C_WHITE, 1.0F, 30), c, 30, 0.3);
+                com.automatavalkyries.weapon.Fx.shockwave(server, position().add(0, 0.1, 0), C_GOLD, 7.0F, 24);
                 server.sendParticles(ParticleTypes.FLASH, getX(), getY(0.5), getZ(), 1, 0, 0, 0, 0);
             }
             ensureLoot();
@@ -227,6 +270,15 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
             protect.clientTick();
             deployO = deploy;
             deploy = Mth.clamp(deploy + (isAggressive() ? 0.06F : -0.04F), 0.0F, 1.0F);
+            trackAfterimages();
+            gloryO = glory;
+            glory = Mth.clamp(glory + (isPhase2() ? 1.0F / 30.0F : -0.05F), 0.0F, 1.0F);
+            if (glory > 0.5F && tickCount % 2 == 0) { // 光の翼から舞う光の粒
+                Vec3 side = Vec3.directionFromRotation(0, yBodyRot + 90.0F);
+                double s = (random.nextBoolean() ? 1 : -1) * (0.8 + random.nextDouble() * 2.2);
+                Vec3 p = position().add(side.scale(s)).add(Vec3.directionFromRotation(0, yBodyRot).scale(-0.6)).add(0, 2.2 + random.nextDouble() * 1.8, 0);
+                level().addParticle(ParticleTypes.END_ROD, p.x, p.y, p.z, 0, -0.02, 0);
+            }
             if (tickCount % 2 == 0) { // 背の光の尾のきらめき
                 Vec3 back = position().add(Vec3.directionFromRotation(0, yBodyRot).scale(-0.4)).add(0, 2.0, 0);
                 level().addParticle(ParticleTypes.END_ROD, back.x, back.y, back.z, 0, -0.01, 0);
@@ -241,7 +293,11 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
             bossEvent.setColor(BossEvent.BossBarColor.RED);
             playSound(SoundEvents.WARDEN_SONIC_CHARGE, 2.0F, 1.6F);
             if (level() instanceof ServerLevel server) {
-                server.sendParticles(new DustParticleOptions(WHITE_GOLD, 3.0F), getX(), getY(1.0), getZ(), 120, 1.5, 1.5, 1.5, 0.0);
+                Vec3 c = position().add(0, 1.4, 0);
+                com.automatavalkyries.weapon.Fx.mandala(server, position().add(0, 0.1, 0), C_GOLD, 5.0F, 40, false, true);
+                com.automatavalkyries.weapon.Fx.shockwave(server, position().add(0, 0.1, 0), C_WHITE, 8.0F, 20);
+                com.automatavalkyries.weapon.Fx.burst(server, star(C_WG, 0.7F, 40), c, 60, 0.35);
+                com.automatavalkyries.weapon.Fx.burst(server, glow(C_RED, 0.8F, 30), c, 30, 0.25);
                 for (ServerPlayer p : server.getPlayers(p -> p.distanceToSqr(this) < 64 * 64)) {
                     p.displayClientMessage(Component.translatable("message.automata_valkyries.luxion.phase2").withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD), true);
                 }
@@ -314,10 +370,15 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
             e.hurt(damageSources().mobAttack(this), damage);
             e.knockback(0.4, -look.x, -look.z);
         }
-        for (int i = -3; i <= 3; i++) { // 光の弧
-            Vec3 dir = Vec3.directionFromRotation(0, getYRot() + i * 15);
-            Vec3 p = position().add(0, 1.4, 0).add(dir.scale(2.2));
-            server.sendParticles(new DustParticleOptions(i == 0 ? RED : WHITE_GOLD, 1.6F), p.x, p.y, p.z, 2, 0.05, 0.05, 0.05, 0);
+        // 光の弧（刀の軌跡）と、白い芯・金の縁・赤い火花
+        Vec3 arcAt = position().add(0, 1.3, 0).add(look.scale(1.6));
+        com.automatavalkyries.weapon.Fx.slash(server, arcAt, C_WG, 2.6F, 8, (float) (random.nextGaussian() * 0.5));
+        com.automatavalkyries.weapon.Fx.slash(server, arcAt, C_WHITE, 1.8F, 6, 0.0F);
+        for (int i = -4; i <= 4; i++) {
+            Vec3 dir = Vec3.directionFromRotation(0, getYRot() + i * 13);
+            Vec3 p = position().add(0, 1.35, 0).add(dir.scale(2.3));
+            com.automatavalkyries.weapon.Fx.one(server, glow(i == 0 ? C_WHITE : C_WG, 0.5F, 10), p, dir.scale(0.05));
+            if (i % 2 == 0) com.automatavalkyries.weapon.Fx.one(server, star(i == 0 ? C_RED : C_GOLD, 0.35F, 14), p, dir.scale(0.12).add(0, 0.05, 0));
         }
         playSound(SoundEvents.PLAYER_ATTACK_SWEEP, 1.0F, 1.5F);
         level().broadcastEntityEvent(this, EVENT_SLASH);
@@ -329,11 +390,13 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
         Vec3 from = position().add(0, 1.2, 0);
         Vec3 dest = to.add(0, 1.2, 0);
         double len = from.distanceTo(dest);
-        for (double d = 0; d < len; d += 0.5) {
-            Vec3 p = from.add(dest.subtract(from).scale(d / len));
-            server.sendParticles(new DustParticleOptions(WHITE_GOLD, 1.2F), p.x, p.y, p.z, 1, 0.1, 0.4, 0.1, 0);
-        }
-        server.sendParticles(ParticleTypes.END_ROD, from.x, from.y, from.z, 10, 0.3, 0.6, 0.3, 0.05);
+        // 光の筋（白い芯と金のにじみ）、通り道の星、出た所と着いた所の光の輪
+        com.automatavalkyries.weapon.Fx.line(server, glow(C_WHITE, 0.45F, 12), from, dest, 0.35);
+        com.automatavalkyries.weapon.Fx.line(server, glow(C_WG, 0.9F, 16), from, dest, 0.6);
+        com.automatavalkyries.weapon.Fx.line(server, star(C_GOLD, 0.3F, 20), from, dest, 1.1);
+        com.automatavalkyries.weapon.Fx.burst(server, star(C_WG, 0.45F, 18), from, 14, 0.18);
+        com.automatavalkyries.weapon.Fx.shockwave(server, to.add(0, 0.1, 0), C_WG, 2.2F, 10);
+        com.automatavalkyries.weapon.Fx.burst(server, glow(C_WHITE, 0.6F, 10), dest, 10, 0.12);
         teleportTo(to.x, to.y, to.z);
         resetFallDistance();
         server.playSound(null, to.x, to.y, to.z, SoundEvents.ENDERMAN_TELEPORT, SoundSource.HOSTILE, 0.8F, 1.8F);
@@ -363,8 +426,9 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
             if (!level().getBlockState(net.minecraft.core.BlockPos.containing(p)).getCollisionShape(level(), net.minecraft.core.BlockPos.containing(p)).isEmpty()) break;
             for (int k = -2; k <= 2; k++) {
                 Vec3 q = p.add(side.scale(k * 0.4)).add(0, -Math.abs(k) * 0.15, 0);
-                server.sendParticles(new DustParticleOptions(k == 0 ? RED : WHITE_GOLD, 1.3F), q.x, q.y, q.z, 1, 0, 0, 0, 0);
+                com.automatavalkyries.weapon.Fx.one(server, glow(k == 0 ? C_WHITE : C_WG, k == 0 ? 0.6F : 0.4F, 10), q, dir.scale(0.08));
             }
+            if (((int) (d / 0.6)) % 3 == 0) com.automatavalkyries.weapon.Fx.one(server, star(C_GOLD, 0.35F, 16), p, Vec3.ZERO);
             for (LivingEntity e : server.getEntitiesOfClass(LivingEntity.class, new AABB(p, p).inflate(1.2), ChronoGazer::canHurt)) {
                 if (hit.add(e)) e.hurt(damageSources().mobAttack(this), WAVE);
             }
@@ -377,10 +441,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
     void dashTelegraph(Vec3 dir) {
         if (!(level() instanceof ServerLevel server)) return;
         Vec3 from = position().add(0, 0.3, 0);
-        for (double d = 0; d < DASH_LENGTH; d += 0.8) {
-            Vec3 p = from.add(dir.scale(d));
-            server.sendParticles(new DustParticleOptions(RED, 1.0F), p.x, p.y, p.z, 1, 0, 0, 0, 0);
-        }
+        com.automatavalkyries.weapon.Fx.line(server, glow(C_RED, 0.35F, 6), from, from.add(dir.scale(DASH_LENGTH)), 0.7);
     }
 
     /** 光速突進: dir へ駆け抜けて、線上の相手に当てる。ブロックに当たる所で止まる */
@@ -402,6 +463,11 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
             }
         }
         blink(end);
+        if (level() instanceof ServerLevel server) { // 駆け抜けた後の光の衝撃波
+            com.automatavalkyries.weapon.Fx.shockwave(server, end.add(0, 0.1, 0), C_WHITE, 4.0F, 14);
+            com.automatavalkyries.weapon.Fx.shockwave(server, end.add(0, 0.2, 0), C_GOLD, 6.0F, 18);
+            com.automatavalkyries.weapon.Fx.burst(server, star(C_WG, 0.5F, 22), end.add(0, 1.0, 0), 24, 0.25);
+        }
         playSound(SoundEvents.WARDEN_SONIC_BOOM, 1.0F, 1.8F);
     }
 

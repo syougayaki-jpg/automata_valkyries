@@ -40,7 +40,7 @@
       "entries": [
         {
           "type": "minecraft:item",
-          "name": "automata_valkyries:drop_chrono_scrap",
+          "name": "automata_valkyries:block_chrono_metal",
           "functions": [
             {
               "function": "minecraft:set_count",
@@ -59,15 +59,11 @@
       "entries": [
         {
           "type": "minecraft:item",
-          "name": "automata_valkyries:drop_nanomachine",
+          "name": "automata_valkyries:block_nano_mesh",
           "functions": [
             {
               "function": "minecraft:set_count",
-              "count": {
-                "type": "minecraft:uniform",
-                "min": 2,
-                "max": 4
-              }
+              "count": 8
             }
           ]
         }

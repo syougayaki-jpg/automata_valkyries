@@ -152,7 +152,7 @@ public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntity
             CoreGeoBone thrusters = bone("thrusters");
             if (thrusters != null) thrusters.setRotX(-0.2F * walk - 0.3F * windup + (lux.isPhase2() ? Mth.sin(age * 0.8F) * 0.04F : 0.0F));
             // 光の翼: 普段はゆっくり羽ばたき、歩く・構えると後ろへ流れて大きく広がる。第 2 形態はいつも大きく広げて震わせる
-            float spread = 0.25F + 0.35F * walk + 0.6F * windup + (lux.isPhase2() ? 0.4F : 0.0F)
+            float spread = 0.25F + 0.35F * walk + 0.6F * windup + 0.55F * smooth(Mth.lerp(pt, lux.gloryO, lux.glory))
                     + Mth.sin(age * (lux.isPhase2() ? 0.5F : 0.08F)) * (lux.isPhase2() ? 0.05F : 0.08F);
             float sweep = 0.15F * walk + 0.35F * windup;
             CoreGeoBone wl = bone("wing_left");
@@ -167,6 +167,16 @@ public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntity
             }
             CoreGeoBone cannon = bone("cannon");
             if (cannon != null) cannon.setRotX(-pitch * 0.5F - 0.2F * windup);
+            // 第 2 形態: 背の機構がまるごと大きく豪華に（光の翼の骨組みが大きく広がり、ブースターと推進器も一回り大きく）
+            float glory = smooth(Mth.lerp(pt, lux.gloryO, lux.glory));
+            if (glory > 0.0F) {
+                scale("wing_left", 1.0F + 0.55F * glory);
+                scale("wing_right", 1.0F + 0.55F * glory);
+                scale("booster", 1.0F + 0.3F * glory);
+                scale("thrusters", 1.0F + 0.15F * glory);
+                CoreGeoBone tailBone = bone("tail");
+                if (tailBone != null) tailBone.setScaleY(1.0F + 0.6F * glory);
+            }
             // 背の戦闘機型ブースター: 戦闘中は後ろへ倒れて開き、主翼と尾翼が広がる（突進の構えでさらに開く）
             float dep = smooth(Mth.lerp(pt, lux.deployO, lux.deploy));
             float open = Math.min(1.0F, dep + 0.3F * windup);
@@ -220,6 +230,14 @@ public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntity
         if (b == null) return;
         b.setRotX(angle * dz);
         b.setRotZ(angle * dx);
+    }
+
+    private void scale(String name, float v) {
+        CoreGeoBone b = bone(name);
+        if (b == null) return;
+        b.setScaleX(v);
+        b.setScaleY(v);
+        b.setScaleZ(v);
     }
 
     private void rotX(String name, float v) {
