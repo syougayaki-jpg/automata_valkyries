@@ -137,6 +137,9 @@ public final class Batch3T3 {
         /** オーバーロード: 炎の羽根の数・扇の左右の角度（度）・羽根の届く距離・太さ */
         public static final int OVER_FEATHERS = 9;
         public static final double OVER_SPREAD = 60.0, OVER_RANGE = 24.0, OVER_WIDTH = 2.4;
+        /** 不死鳥の再生（2026-10-07 ユーザー指定「10 分のクールタイムで再生 5」）: 飛翔のときに再生 V を {@value #REBIRTH_TICKS} Tick。持ち主ごとに 10 分に 1 回 */
+        public static final int REBIRTH_TICKS = 200, REBIRTH_COOLDOWN = 12_000;
+        private static final String REBIRTH_KEY = "automata_valkyries:phoenix_rebirth_until";
 
         public PhoenixWing(Properties p) {
             super(p, 3_000_000, 6.0F, true, 0, 0, 0, 150_000, 120);
@@ -165,6 +168,7 @@ public final class Batch3T3 {
             }
             user.addEffect(new MobEffectInstance(MobEffects.FIRE_RESISTANCE, 200, 0));
             user.addEffect(new MobEffectInstance(MobEffects.SLOW_FALLING, 100, 0));
+            rebirth(level, user);
             user.setDeltaMovement(look.scale(3.0));
             user.hurtMarked = true;
             user.resetFallDistance();
@@ -187,6 +191,22 @@ public final class Batch3T3 {
             level.playSound(null, user.blockPosition(), SoundEvents.ENDER_DRAGON_FLAP, SoundSource.PLAYERS, 1.0F, 1.4F);
             if (over) featherFan(level, user, start, look, burned);
             return n;
+        }
+
+        /** 不死鳥の再生: 10 分に 1 回、再生 V を 10 秒（兵姫が持っても同じ）。使えたら true */
+        public static boolean rebirth(ServerLevel level, LivingEntity user) {
+            var data = user.getPersistentData();
+            long now = level.getGameTime();
+            if (now < data.getLong(REBIRTH_KEY)) return false;
+            data.putLong(REBIRTH_KEY, now + REBIRTH_COOLDOWN);
+            user.addEffect(new MobEffectInstance(MobEffects.REGENERATION, REBIRTH_TICKS, 4));
+            level.sendParticles(net.minecraft.core.particles.ParticleTypes.TOTEM_OF_UNDYING, user.getX(), user.getY(1.0), user.getZ(), 30, 0.5, 0.8, 0.5, 0.3);
+            level.playSound(null, user.blockPosition(), SoundEvents.TOTEM_USE, SoundSource.PLAYERS, 0.6F, 1.4F);
+            if (user instanceof net.minecraft.world.entity.player.Player player) {
+                player.displayClientMessage(net.minecraft.network.chat.Component.translatable("message.automata_valkyries.phoenix_rebirth")
+                        .withStyle(net.minecraft.ChatFormatting.GOLD), true);
+            }
+            return true;
         }
 
         /** オーバーロード: 背に炎の羽根の扇が開き、前方 120 度へ炎の羽根 9 枚が扇状に飛ぶ */
