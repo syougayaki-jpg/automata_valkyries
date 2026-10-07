@@ -45,7 +45,7 @@ public class GeoPreview {
             Map<String, double[]> pose = pose(poses[pi]);
             for (int vi = 0; vi < views.length; vi++) {
                 render(g, pose, Math.toRadians(views[vi]), vi * cw + cw / 2, pi * ch + ch - 3 * s, s * 16);
-                g.setColor(Color.DARK_GRAY); g.drawString(poses[pi] + " / " + (int) views[vi] + "deg", vi * cw + 6, pi * ch + 14);
+                g.setColor(Color.DARK_GRAY); g.drawString(poses[pi].split("@")[0] + " / " + (int) views[vi] + "deg", vi * cw + 6, pi * ch + 14);
             }
         }
         ImageIO.write(out, "png", new File(a[2]));
@@ -108,6 +108,16 @@ public class GeoPreview {
     // ElenorModel#setCustomAnimations と同じ計算（頭の向き・キーフレームの揺れは 0）。
     // 値は {rotX, rotY, rotZ, posY}（NaN = geo.json の初期値のまま）
     static Map<String, double[]> pose(String name) {
+        if (name.contains("@")) { // 指定の姿勢: ラベル@骨:rotX:rotY:rotZ:posY;骨:...（値は GeckoLib のコードの値。空は初期値のまま）
+            Map<String, double[]> m = new HashMap<>();
+            for (String part : name.substring(name.indexOf('@') + 1).split(";")) {
+                String[] f = part.split(":", -1);
+                double[] v = {Double.NaN, Double.NaN, Double.NaN, 0};
+                for (int i = 1; i < f.length && i <= 4; i++) if (!f[i].isEmpty()) v[i - 1] = Double.parseDouble(f[i]);
+                m.put(f[0], v);
+            }
+            return m;
+        }
         double death = name.equals("death") ? 1 : 0, alive = 1 - death;
         double walk = (name.equals("walk") ? 1 : 0) * alive, limbSwing = 0, age = 0;
         double attackArc = (name.equals("spread") ? 1 : 0) * alive;

@@ -25,10 +25,16 @@ public class LuxionRenderer extends ChronoGazerRenderer<LuxionEntity> {
         super(context, "luxion", 0.6F);
     }
 
+    /** 撃破では横に倒れず、剣を突き立てて膝をつく（ChronoGazerModel のモーション） */
+    @Override
+    protected float getDeathMaxRotation(LuxionEntity lux) {
+        return 0.0F;
+    }
+
     @Override
     public void render(LuxionEntity lux, float entityYaw, float partialTick, PoseStack pose, MultiBufferSource buffers, int light) {
         super.render(lux, entityYaw, partialTick, pose, buffers, light);
-        if (lux.isInvisible() || lux.deathTime > 0) return;
+        if (lux.isInvisible() || lux.isDefeatedSynced()) return;
         afterimages(lux, partialTick, pose, buffers);
         float age = lux.tickCount + partialTick;
         float yaw = Mth.rotLerp(partialTick, lux.yBodyRotO, lux.yBodyRot);

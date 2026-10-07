@@ -83,6 +83,7 @@ public class ChronoGazerGameTests {
         lux.kill();
         helper.runAfterDelay(3, () -> {
             helper.assertTrue(lux.isAlive() && !lux.isRemoved() && lux.getHealth() == lux.getMaxHealth(), "/kill hurt or removed Luxion: " + lux.getHealth());
+            helper.assertTrue(lux.stage() == com.automatavalkyries.entity.chrono.LuxionEntity.STAGE_INTRO, "Luxion did not start its entrance: " + lux.stage()); // 降臨のモーション（2026-10-08）
             lux.hurt(helper.getLevel().damageSources().generic(), 3000.0F);
             helper.assertTrue(lux.getHealth() < 2500.0F, "a big normal hit was capped: " + lux.getHealth()); // 3,000（防具で少し減る）
             lux.hurt(helper.getLevel().damageSources().generic(), 6000.0F); // 残りを超える普通の一撃で倒れる（2026-10-08、倒れなかった不具合）
