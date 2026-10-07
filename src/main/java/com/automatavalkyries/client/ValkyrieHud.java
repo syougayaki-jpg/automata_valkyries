@@ -38,7 +38,7 @@ public final class ValkyrieHud {
     public static final String OVERLAY_ID = "valkyrie_hud";
     static final int BG = 0xB0101624, TEXT = 0xFFE0ECF8, DIM = 0xFF7A8698, BAD = 0xFFFF6A6A,
             HP_COLOR = 0xFFFF5A6E, SHIELD_COLOR = 0xFF59C8FF, POWER_COLOR = 0xFFFFD45A, TRACK = 0x30FFFFFF;
-    private static final int MAX = 4, W = 150, H = 46, GAP = 3, FACE = 36;
+    static final int MAX = 4, W = 150, H = 46, GAP = 3, FACE = 36;
 
     private ValkyrieHud() {}
 
@@ -103,7 +103,10 @@ public final class ValkyrieHud {
         v.setXRot(0.0F);
         v.xRotO = 0.0F;
         v.yHeadRot = v.yHeadRotO = 180.0F;
-        g.enableScissor(x, y, x + size, y + size);
+        // 切り取りの枠は描く向き（HUD の移動・倍率）を通らないので、自分で画面の座標へ直す
+        org.joml.Vector4f lo = g.pose().last().pose().transform(new org.joml.Vector4f(x, y, 0, 1));
+        org.joml.Vector4f hi = g.pose().last().pose().transform(new org.joml.Vector4f(x + size, y + size, 0, 1));
+        g.enableScissor(Math.round(Math.min(lo.x, hi.x)), Math.round(Math.min(lo.y, hi.y)), Math.round(Math.max(lo.x, hi.x)), Math.round(Math.max(lo.y, hi.y)));
         ValkyrieRenderer.portraitPass = true;
         try {
             InventoryScreen.renderEntityInInventory(g, x + size / 2, y + size / 2 + Math.round(HEAD_CENTER * scale), scale,
@@ -143,21 +146,40 @@ public final class ValkyrieHud {
     private static void render(ForgeGui gui, GuiGraphics g, float partialTick, int screenWidth, int screenHeight) {
         Minecraft mc = Minecraft.getInstance();
         if (!ValkyrieClientConfig.hudEnabled() || mc.options.hideGui || mc.options.renderDebug || mc.player == null) return;
+        if (mc.screen instanceof ValkyrieHudEditScreen) return; // 配置の画面が自分で描く
         List<ValkyrieEntity> list = followers(mc);
         if (list.isEmpty()) return;
-        int total = list.size() * H + (list.size() - 1) * GAP;
-        ValkyrieClientConfig.Anchor anchor = ValkyrieClientConfig.hudAnchor();
+        float scale = (float) ValkyrieClientConfig.hudScale();
+        int[] at = place(screenWidth, screenHeight, list.size(), ValkyrieClientConfig.hudAnchor(), ValkyrieClientConfig.hudX(), ValkyrieClientConfig.hudY(), scale);
+        draw(g, mc.font, list, at[0], at[1], scale, mc.player.tickCount + partialTick);
+    }
+
+    /** n 体分の高さ（倍率 1 の GUI px） */
+    static int height(int n) {
+        return Math.max(1, n) * H + (Math.max(1, n) - 1) * GAP;
+    }
+
+    /** 角・ずれ・倍率から HUD の左上（画面の GUI px）。画面の外へは出さない */
+    static int[] place(int screenWidth, int screenHeight, int n, ValkyrieClientConfig.Anchor anchor, int dx, int dy, float scale) {
+        int w = Math.round(W * scale), h = Math.round(height(n) * scale);
         boolean right = anchor == ValkyrieClientConfig.Anchor.TOP_RIGHT || anchor == ValkyrieClientConfig.Anchor.BOTTOM_RIGHT;
         boolean bottom = anchor == ValkyrieClientConfig.Anchor.BOTTOM_LEFT || anchor == ValkyrieClientConfig.Anchor.BOTTOM_RIGHT;
-        int x = right ? screenWidth - W - ValkyrieClientConfig.hudX() : ValkyrieClientConfig.hudX();
-        int y = bottom ? screenHeight - total - ValkyrieClientConfig.hudY() : ValkyrieClientConfig.hudY();
-        x = Mth.clamp(x, 0, Math.max(0, screenWidth - W));
-        y = Mth.clamp(y, 0, Math.max(0, screenHeight - total));
-        float time = mc.player.tickCount + partialTick;
+        int x = right ? screenWidth - w - dx : dx;
+        int y = bottom ? screenHeight - h - dy : dy;
+        return new int[]{Mth.clamp(x, 0, Math.max(0, screenWidth - w)), Mth.clamp(y, 0, Math.max(0, screenHeight - h))};
+    }
+
+    /** 左上 (x, y) から倍率 scale で兵姫を縦に並べて描く（2026-10-07 ユーザー指定「縮小拡大・移動・表示非表示」） */
+    static void draw(GuiGraphics g, Font font, List<ValkyrieEntity> list, int x, int y, float scale, float time) {
+        g.pose().pushPose();
+        g.pose().translate(x, y, 0);
+        g.pose().scale(scale, scale, 1.0F);
+        int yy = 0;
         for (ValkyrieEntity v : list) {
-            entry(g, mc.font, v, x, y, time);
-            y += H + GAP;
+            entry(g, font, v, 0, yy, time);
+            yy += H + GAP;
         }
+        g.pose().popPose();
     }
 
     /** 1 体分: 枠つきの顔、名前と状態、HP（太め）・シールド・電力の細いバー */
