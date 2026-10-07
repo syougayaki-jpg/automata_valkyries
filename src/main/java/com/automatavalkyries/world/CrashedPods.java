@@ -54,7 +54,7 @@ public final class CrashedPods {
             WorldGenLevel level = ctx.level();
             BlockPos origin = ctx.origin();
             BlockPos surface = level.getHeightmapPos(Heightmap.Types.WORLD_SURFACE_WG, origin);
-            return build(level, surface, ctx.random());
+            return build(level, surface, ctx.random(), false);
         }
     }
 
@@ -67,14 +67,22 @@ public final class CrashedPods {
     }
 
     /** ポッドを組み立てる（surface = 地面の上の空気）。置けたら true */
-    public static boolean build(WorldGenLevel level, BlockPos surface, RandomSource random) {
+    public static boolean build(WorldGenLevel level, BlockPos surface, RandomSource random, boolean starter) {
         if (!suitable(level, surface)) return false;
-        place(level, surface, random);
+        place(level, surface, random, starter);
         return true;
     }
 
     /** 場所を確かめずに組み立てる（テスト用。テストの世界は海のバイオーム） */
     public static void place(WorldGenLevel level, BlockPos surface, RandomSource random) {
+        place(level, surface, random, true);
+    }
+
+    /**
+     * starter = 初期地点の確定のポッド（中の兵姫は Type-V 固定）。それ以外の稀なポッドは 4 型からランダム
+     * （2026-10-07 ユーザー指定「墜落ポッドにランダムで」。SPEC_VALKYRIE_GUI_AI §6）
+     */
+    public static void place(WorldGenLevel level, BlockPos surface, RandomSource random, boolean starter) {
         Direction front = Direction.Plane.HORIZONTAL.getRandomDirection(random);
         BlockPos base = surface.below(); // 1 段埋める
         // 焦げ跡（まわり半径 5 の地面の一部）
@@ -129,6 +137,10 @@ public final class CrashedPods {
         if (v != null) {
             BlockPos at = base.above(1);
             v.moveTo(at.getX() + 0.5, at.getY(), at.getZ() + 0.5, back.toYRot(), 0.0F);
+            if (!starter) {
+                com.automatavalkyries.entity.ValkyrieBody[] bodies = com.automatavalkyries.entity.ValkyrieBody.values();
+                v.setBody(bodies[random.nextInt(bodies.length)]);
+            }
             v.makePodSleeper();
             level.addFreshEntity(v);
         }
@@ -219,7 +231,7 @@ public final class CrashedPods {
             int x = spawn.getX() + (int) (Math.cos(a) * d), z = spawn.getZ() + (int) (Math.sin(a) * d);
             level.getChunk(x >> 4, z >> 4); // 作らせる
             BlockPos surface = level.getHeightmapPos(Heightmap.Types.WORLD_SURFACE, new BlockPos(x, 0, z));
-            if (build(level, surface, random)) {
+            if (build(level, surface, random, true)) {
                 AutomataValkyries.LOGGER.info("[automata_valkyries] crashed pod placed near spawn at {}", surface);
                 return;
             }

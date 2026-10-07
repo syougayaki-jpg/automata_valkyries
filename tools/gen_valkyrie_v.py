@@ -1,7 +1,13 @@
 """
-戦術兵姫 Type-V のモデル（GeckoLib geo.json）とテクスチャ（128x128、表情ごと＋発光マスク）を生成する（2026-10-04）。
+戦術兵姫（Type-V / S / H / C）のモデル（GeckoLib geo.json）とテクスチャ（128x128、表情ごと＋発光マスク）を生成する（2026-10-04）。
 
-    python tools/gen_valkyrie_v.py
+    python tools/gen_valkyrie_v.py          … 4 型すべて
+    python tools/gen_valkyrie_v.py s h      … 指定した型だけ
+
+2026-10-07: 他の 3 型（S 近接高機動・H 重装甲防衛・C 電子戦）を足した（ユーザー指定「違うタイプのヴァルキリー実装」、
+色と髪型は DESIGN_VALKYRIE_VISUAL_DB §11.2 の仮案のまま）。骨組み・骨の名前は 4 型で共通（外装フレーム・背部ユニットの取り付けと動きの計算をそのまま使う）。
+型ごとに変えるのは色（PAL の上書き）・後ろ髪の形（V ロング / S 短いサイドテール / H 三つ編み / C ボブ）・横髪の長さ・型ごとの装甲（S 脚の後ろへ伸びるフィンと長い踵のスラスター /
+H 大きな肩と厚い脛当て / C 体のまわりを回る 4 つのビットと頭の後ろの光の輪。ビットと輪は描画側で回す）。出力は型ごとに valkyrie_type_<型>。
 
 出力（assets/automata_valkyries/ の下）:
   geo/entity/valkyrie_type_v.geo.json
@@ -24,7 +30,8 @@ import zlib
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
 ASSETS = os.path.join(ROOT, 'src', 'main', 'resources', 'assets', 'automata_valkyries')
-NAME = 'valkyrie_type_v'
+NAME = 'valkyrie_type_v'  # main() で型ごとに差し替える
+TYPE = 'v'
 TEX = 128
 K = 2  # 1px あたりのドット数（目だけは別）
 
@@ -44,6 +51,32 @@ PAL = {
     'C': 0x3BE8FF, 'c': 0x9BF5FF,
     # コアの星空（深い紺・紫の星雲・青の星雲）
     'V': 0x0A0B24, 'U': 0x34207A, 'Q': 0x14408C, 'X': 0xFF7BF0,
+}
+BASE_PAL = dict(PAL)
+# 型ごとの色（髪・瞳・スーツ・外装・発光・コアの星空）。§11.2【仮】: S 赤橙・オレンジ発光 / H 黒髪・琥珀発光 / C 藤色・紫発光
+TYPE_PAL = {
+    'v': {},
+    's': {
+        'h': 0xFFD2AC, 'H': 0xFF9A5C, 'M': 0xEE7340, 'N': 0xC9522E, 'n': 0x9E3B24, 't': 0xFFE38E, 'T': 0xFFC04A,
+        'I': 0x7A2A08, 'J': 0xD0561A, 'i': 0xFFA24A, 'p': 0x3E1404, 'G': 0xFFF6E8, 'g': 0xFFD0A0,
+        'D': 0x27232B, 'd': 0x1A161D, 'P': 0x3E3542, 'q': 0x110E13,
+        'A': 0xF7F4F0, 'a': 0xDCD5CE, 'Z': 0xA79C93, 'z': 0x776C64,
+        'C': 0xFF8A2B, 'c': 0xFFC48A, 'V': 0x1E0A08, 'U': 0x7A2A10, 'Q': 0x8C4A14, 'X': 0xFFE070,
+    },
+    'h': {
+        'h': 0x6E748C, 'H': 0x45495A, 'M': 0x313440, 'N': 0x23252E, 'n': 0x16171D, 't': 0xFFD27A, 'T': 0xFFB830,
+        'I': 0x6A4304, 'J': 0xC08A12, 'i': 0xFFC845, 'p': 0x332002, 'G': 0xFFFBEA, 'g': 0xFFE7A0,
+        'D': 0x2B2A26, 'd': 0x1D1C19, 'P': 0x45433B, 'q': 0x121210,
+        'A': 0xECE6D6, 'a': 0xD0C7B2, 'Z': 0x9C917A, 'z': 0x6C624F,
+        'C': 0xFFB830, 'c': 0xFFDC8A, 'V': 0x1A1204, 'U': 0x6B4A10, 'Q': 0x8C6A1A, 'X': 0xFFF2B0,
+    },
+    'c': {
+        'h': 0xFBF4FF, 'H': 0xE6D6FA, 'M': 0xCDB6EE, 'N': 0xA88ED2, 'n': 0x8670B0, 't': 0xF1DEFF, 'T': 0xD6ACFF,
+        'I': 0x4A1A7A, 'J': 0x8A44D0, 'i': 0xC890FF, 'p': 0x24083E, 'G': 0xFCF4FF, 'g': 0xE6C8FF,
+        'D': 0x221C38, 'd': 0x171226, 'P': 0x362C55, 'q': 0x0F0B19,
+        'A': 0xF6F4FA, 'a': 0xD9D4E6, 'Z': 0xA39BB6, 'z': 0x756C8C,
+        'C': 0xB46BFF, 'c': 0xDDB8FF, 'V': 0x120826, 'U': 0x4A1A8A, 'Q': 0x2A2A9A, 'X': 0x7BF0FF,
+    },
 }
 GLOW = set('CcigGVUQX')
 CLOSED = ('shutdown', 'blink', 'smile')  # 瞳が無い表情
@@ -153,6 +186,24 @@ def lock(x, y, w, h):
     if y in (1, 2) and x % 2 == 1:
         return 'h'
     return 'H' if x % 2 else ('M' if x % 4 == 2 else 'N')
+
+
+def braid(x, y, w, h):
+    """三つ編み（H）: 左右から交互に重なる毛束の山形"""
+    k = x if x < w / 2 else w - 1 - x
+    tone = ('H', 'M', 'N', 'M')[(y + k) % 4]
+    if x in (0, w - 1):
+        tone = {'H': 'M', 'M': 'N', 'N': 'n'}[tone]
+    return tone
+
+
+def braid_tip(x, y, w, h):
+    """三つ編みの先（房がほどけて先が発光色に染まる）"""
+    if y >= h - 3:
+        if x in (0, w - 1) and y >= h - 2:
+            return '.'
+        return 'T' if y >= h - 1 else 't'
+    return braid(x, y, w, h)
 
 
 # ---- 顔の地（口は無い）。頬の赤みは表情で
@@ -418,8 +469,8 @@ def build(expr):
         # 髪のボリューム: 頭頂・後頭部のふくらみ・横のふくらみ
         Cube([-3.1, 25.6, -2.7], [6.2, 1.4, 5.8], faces(all=HAIR_RING, down=fill('N'), north=lambda x, y, w, h: hair(x, y, w, h, ring=True) if y < h - 1 else 'N')),
         Cube([-3.0, 21.0, 2.2], [6.0, 5.0, 1.4], faces(all=hair_jagged, up=fill('H'), north=fill('N'))),
-        Cube([-3.75, 20.0, -2.25], [1.15, 6.0, 4.9], faces(all=hair_jagged, up=fill('H')), key='hair_side'),
-        Cube([2.6, 20.0, -2.25], [1.15, 6.0, 4.9], faces(all=hair_jagged, up=fill('H')), key='hair_side'),
+        Cube([-3.75, 26.0 - SIDE_H[TYPE], -2.25], [1.15, SIDE_H[TYPE], 4.9], faces(all=hair_jagged, up=fill('H')), key='hair_side'),
+        Cube([2.6, 26.0 - SIDE_H[TYPE], -2.25], [1.15, SIDE_H[TYPE], 4.9], faces(all=hair_jagged, up=fill('H')), key='hair_side'),
         # 前髪の房（とがった毛先）
         # 前髪の根元（額の上で前へ張り出す厚み）と 5 つの房（交互に前後へずらして重ねる）
         Cube([-3.0, 24.9, -3.2], [6.0, 1.5, 0.7], faces(all=HAIR_RING, down=fill('N'), north=lambda x, y, w, h: hair(x, y, w, h, ring=True, dark_bottom=False)), tex=k3([6.0, 1.5, 0.7])),
@@ -454,38 +505,43 @@ def build(expr):
             Cube([3.7 * sx - 0.2, 22.3, -0.4], [0.4, 0.4, 0.8], faces(all=fill('Z'), side=fill('c')), key='fin_low'),
         ], rotation=[-14, 0, 0]))
         lock_x = -3.65 if sx < 0 else 2.15
+        f = LOCK_SCALE[TYPE]  # 横髪の長さ（上端は同じ）
+        ln, lf, lb = round(7.6 * f, 2), round(6.2 * f, 2), round(6.4 * f, 2)
         cubes = [
-            Cube([lock_x, 17.6, -2.75], [1.5, 7.6, 1.4], faces(all=lock, up=fill('H'), down=fill('T')), key='lock', tex=k3([1.5, 7.6, 1.4])),
-            Cube([lock_x + (0.3 if sx < 0 else 0.5), 18.6, -2.95], [0.7, 6.2, 0.4], faces(all=lock, up=fill('H'), down=fill('T')), key='lock_front', tex=k3([0.7, 6.2, 0.4])),
-            Cube([lock_x + (-0.35 if sx < 0 else 1.25), 18.2, -2.4], [0.6, 6.4, 0.9], faces(all=lock, up=fill('H'), down=fill('T')), key='lock_back', tex=k3([0.6, 6.4, 0.9])),
+            Cube([lock_x, 25.2 - ln, -2.75], [1.5, ln, 1.4], faces(all=lock, up=fill('H'), down=fill('T')), key='lock', tex=k3([1.5, ln, 1.4])),
+            Cube([lock_x + (0.3 if sx < 0 else 0.5), 24.8 - lf, -2.95], [0.7, lf, 0.4], faces(all=lock, up=fill('H'), down=fill('T')), key='lock_front', tex=k3([0.7, lf, 0.4])),
+            Cube([lock_x + (-0.35 if sx < 0 else 1.25), 24.6 - lb, -2.4], [0.6, lb, 0.9], faces(all=lock, up=fill('H'), down=fill('T')), key='lock_back', tex=k3([0.6, lb, 0.9])),
         ]
         if sx < 0:  # 右の横髪に小さな髪留め
             cubes.append(Cube([lock_x - 0.05, 23.1, -3.0], [1.6, 0.45, 0.3], faces(all=fill('a'), north=lambda x, y, w, h: 'C' if x == w // 2 else 'A')))
         B.append(Bone(f'side_lock_{side}', 'head', [2.9 * sx, 25.0, -2.0], cubes))
-    B.append(Bone('ribbon', 'head', [0, 23.0, 3.7], [
-        Cube([-0.5, 22.5, 3.55], [1, 1.0, 0.6], faces(all=fill('D'), north=fill('d'), south=lambda x, y, w, h: 'C' if (x, y) == (w // 2, h // 2) else 'D')),
-        Cube([-2.3, 22.2, 3.5], [1.8, 1.6, 0.5], faces(all=ribbon, side=fill('D')), key='ribbon_loop'),
-        Cube([0.5, 22.2, 3.5], [1.8, 1.6, 0.5], faces(all=ribbon, side=fill('D')), key='ribbon_loop'),
-    ]))
-    # 後ろ髪: 広く厚く、外側に毛束を重ねて輪郭をふくらませる
-    # 後ろ髪は頭に付ける（頭の向きに追従。2026-10-04 ユーザー指定）
-    B.append(Bone('hair_upper', 'head', [0, 24.5, 2.3], [
-        Cube([-3.3, 17.5, 1.4], [6.6, 7.0, 1.9], faces(all=HAIR, up=fill('H'))),
-        Cube([-3.8, 18.0, 1.6], [1.0, 6.5, 1.5], faces(all=HAIR_FLAT, up=fill('H')), key='strand_u'),
-        Cube([2.8, 18.0, 1.6], [1.0, 6.5, 1.5], faces(all=HAIR_FLAT, up=fill('H')), key='strand_u'),
-    ]))
-    B.append(Bone('hair_mid', 'hair_upper', [0, 17.5, 2.3], [
-        Cube([-3.3, 12.5, 1.45], [6.6, 5.0, 1.8], faces(all=HAIR_FLAT, up=fill('H'))),
-        Cube([-3.9, 12.0, 1.6], [1.1, 6.0, 1.4], faces(all=hair_jagged, up=fill('H')), key='strand_m'),
-        Cube([2.8, 12.0, 1.6], [1.1, 6.0, 1.4], faces(all=hair_jagged, up=fill('H')), key='strand_m'),
-    ]))
-    B.append(Bone('hair_tip', 'hair_mid', [0, 12.5, 2.3], [
-        Cube([-3.2, 7.8, 1.5], [6.4, 4.7, 1.6], faces(all=HAIR_TIP, up=fill('H'), down=fill('T'))),
-    ]))
+    if TYPE == 'v':
+        B.append(Bone('ribbon', 'head', [0, 23.0, 3.7], [
+            Cube([-0.5, 22.5, 3.55], [1, 1.0, 0.6], faces(all=fill('D'), north=fill('d'), south=lambda x, y, w, h: 'C' if (x, y) == (w // 2, h // 2) else 'D')),
+            Cube([-2.3, 22.2, 3.5], [1.8, 1.6, 0.5], faces(all=ribbon, side=fill('D')), key='ribbon_loop'),
+            Cube([0.5, 22.2, 3.5], [1.8, 1.6, 0.5], faces(all=ribbon, side=fill('D')), key='ribbon_loop'),
+        ]))
+        # 後ろ髪: 広く厚く、外側に毛束を重ねて輪郭をふくらませる
+        # 後ろ髪は頭に付ける（頭の向きに追従。2026-10-04 ユーザー指定）
+        B.append(Bone('hair_upper', 'head', [0, 24.5, 2.3], [
+            Cube([-3.3, 17.5, 1.4], [6.6, 7.0, 1.9], faces(all=HAIR, up=fill('H'))),
+            Cube([-3.8, 18.0, 1.6], [1.0, 6.5, 1.5], faces(all=HAIR_FLAT, up=fill('H')), key='strand_u'),
+            Cube([2.8, 18.0, 1.6], [1.0, 6.5, 1.5], faces(all=HAIR_FLAT, up=fill('H')), key='strand_u'),
+        ]))
+        B.append(Bone('hair_mid', 'hair_upper', [0, 17.5, 2.3], [
+            Cube([-3.3, 12.5, 1.45], [6.6, 5.0, 1.8], faces(all=HAIR_FLAT, up=fill('H'))),
+            Cube([-3.9, 12.0, 1.6], [1.1, 6.0, 1.4], faces(all=hair_jagged, up=fill('H')), key='strand_m'),
+            Cube([2.8, 12.0, 1.6], [1.1, 6.0, 1.4], faces(all=hair_jagged, up=fill('H')), key='strand_m'),
+        ]))
+        B.append(Bone('hair_tip', 'hair_mid', [0, 12.5, 2.3], [
+            Cube([-3.2, 7.8, 1.5], [6.4, 4.7, 1.6], faces(all=HAIR_TIP, up=fill('H'), down=fill('T'))),
+        ]))
+    else:
+        B.extend(back_hair(TYPE))
     for side, sx in (('right', -1), ('left', 1)):
         ax = -4.2 if sx < 0 else 2.3   # 腕の外側の x（右）/ 内側の x（左）
         B.append(Bone(f'{side}_arm', 'body', [3.25 * sx, 20.1, 0], [
-            Cube([ax - 0.2, 19.4, -1.15], [2.3, 1.3, 2.3], faces(all=armor_panel, up=fill('A'), down=fill('z')), key='shoulder'),
+            *shoulder(ax, sx),
             Cube([ax, 16.2, -0.95], [1.9, 4.0, 1.9], faces(all=suit_shade, side=suit_line, up=fill('D'), down=fill('d')), key='upper_arm'),
             Cube([ax + 0.1, 15.9, -0.85], [1.7, 0.6, 1.7], faces(all=joint), key='elbow'),
             Cube([ax + 0.05, 12.6, -0.9], [1.8, 3.4, 1.8], faces(all=suit_shade, up=fill('D'), down=fill('d')), key='forearm'),
@@ -501,7 +557,123 @@ def build(expr):
             Cube([lx + 0.45, 6.3, -1.7], [1.6, 1.5, 0.55], faces(all=armor, north=armor_light), key='knee'),
             Cube([lx - 0.1, 0, -2.3], [2.7, 0.9, 3.5], faces(all=armor, north=lambda x, y, w, h: 'z' if y == h - 1 else 'A', up=fill('A'), down=fill('z')), key='foot'),
             Cube([lx + 0.65, 0.25, 1.2], [1.2, 0.6, 0.5], faces(all=fill('Z'), south=lambda x, y, w, h: 'C' if 0 < x < w - 1 else 'q'), key='heel'),
+            *leg_extra(lx),
         ]))
+    B.extend(type_extra(TYPE))
+    return B
+
+
+# ------------------------------------------------------------------ 型ごとの違い
+SIDE_H = {'v': 6.0, 's': 4.8, 'h': 6.0, 'c': 5.6}       # 横のふくらみの長さ
+LOCK_SCALE = {'v': 1.0, 's': 0.72, 'h': 1.0, 'c': 0.66}  # 横髪の長さ（V = 1）
+
+
+def glow_mid(x, y, w, h):
+    return 'C' if (x == w // 2 and 0 < y < h - 1) else armor(x, y, w, h)
+
+
+def shoulder(ax, sx):
+    if TYPE == 'h':  # 重装甲: 大きく張り出した肩当て（2 段）
+        return [
+            Cube([ax - 0.75, 19.1, -1.55], [3.1, 1.7, 3.1], faces(all=armor_panel, up=fill('A'), down=fill('z')), key='shoulder_h'),
+            Cube([ax - 0.6 + (0 if sx < 0 else 0.4), 18.0, -1.35], [2.4, 1.2, 2.7], faces(all=armor_line, up=fill('a'), down=fill('z')), key='shoulder_h2'),
+        ]
+    if TYPE == 's':  # 軽装: 小さな肩当て
+        return [Cube([ax - 0.05, 19.5, -1.0], [2.0, 1.0, 2.0], faces(all=armor_panel, up=fill('A'), down=fill('z')), key='shoulder_s')]
+    return [Cube([ax - 0.2, 19.4, -1.15], [2.3, 1.3, 2.3], faces(all=armor_panel, up=fill('A'), down=fill('z')), key='shoulder')]
+
+
+def leg_extra(lx):
+    if TYPE == 's':  # 脛の後ろへ長く伸びるフィンと、長い踵のスラスター（後ろへ伸びる輪郭）
+        return [
+            Cube([lx + 0.85, 2.6, 1.3], [0.8, 3.2, 2.6], faces(all=armor, side=armor_line, south=fill('Z')), key='calf_fin'),
+            Cube([lx + 0.6, 0.15, 1.6], [1.3, 0.8, 1.5], faces(all=fill('Z'), south=lambda x, y, w, h: 'C' if 0 < x < w - 1 else 'q', up=fill('a')), key='heel_long'),
+        ]
+    if TYPE == 'h':  # 厚い脛当ての外装と、太ももの装甲板
+        return [
+            Cube([lx - 0.35, 1.4, -1.6], [3.2, 4.2, 3.2], faces(all=armor_panel, north=armor_line, up=fill('a'), down=fill('Z')), key='greave_h'),
+            Cube([lx - 0.25, 7.4, -1.55], [3.0, 2.0, 1.0], faces(all=armor, north=armor_light), key='thigh_plate_h'),
+        ]
+    return []
+
+
+def back_hair(t):
+    """V 以外の後ろ髪（骨の名前は V と同じ: ribbon / hair_upper / hair_mid / hair_tip）"""
+    B = []
+    if t == 's':  # 短いサイドテール（本人の左の高い位置で結び、肩の上まで。2026-10-07 ユーザー指定「短いサイドテールに」）
+        B.append(Bone('ribbon', 'head', [4.0, 25.0, 0.9], [
+            Cube([3.5, 24.4, 0.35], [1.1, 1.2, 1.1], faces(all=fill('D'), side=lambda x, y, w, h: 'C' if (x, y) == (w // 2, h // 2) else 'D')),
+            Cube([3.75, 24.2, -0.9], [0.45, 1.5, 1.25], faces(all=ribbon, north=fill('D')), key='ribbon_loop_s'),
+            Cube([3.75, 24.2, 1.45], [0.45, 1.5, 1.25], faces(all=ribbon, south=fill('D')), key='ribbon_loop_s'),
+        ]))
+        B.append(Bone('hair_upper', 'head', [4.3, 24.6, 0.9], [
+            Cube([3.85, 21.4, 0.05], [1.9, 3.4, 1.7], faces(all=HAIR, up=fill('H'))),
+            Cube([3.7, 21.9, -0.15], [0.7, 2.7, 0.6], faces(all=HAIR_FLAT, up=fill('H')), key='tail_strand'),
+            Cube([3.7, 21.9, 1.45], [0.7, 2.7, 0.6], faces(all=HAIR_FLAT, up=fill('H')), key='tail_strand'),
+        ]))
+        B.append(Bone('hair_mid', 'hair_upper', [4.7, 21.4, 0.9], [
+            Cube([4.05, 19.4, 0.15], [1.65, 2.0, 1.5], faces(all=HAIR_FLAT, up=fill('H'))),
+        ]))
+        B.append(Bone('hair_tip', 'hair_mid', [4.8, 19.4, 0.9], [
+            Cube([4.2, 17.5, 0.25], [1.4, 1.9, 1.3], faces(all=HAIR_TIP, up=fill('H'), down=fill('T'))),
+        ]))
+    elif t == 'h':  # 肩までの後ろ髪と、腰まで届く太い三つ編み 1 本（先に琥珀の髪留め）
+        B.append(Bone('ribbon', 'head', [0, 23.0, 3.7], [
+            Cube([-0.5, 22.5, 3.55], [1, 1.0, 0.6], faces(all=fill('D'), north=fill('d'), south=lambda x, y, w, h: 'C' if (x, y) == (w // 2, h // 2) else 'D')),
+            Cube([-1.9, 22.3, 3.5], [1.4, 1.3, 0.5], faces(all=ribbon, side=fill('D')), key='ribbon_loop_h'),
+            Cube([0.5, 22.3, 3.5], [1.4, 1.3, 0.5], faces(all=ribbon, side=fill('D')), key='ribbon_loop_h'),
+        ]))
+        B.append(Bone('hair_upper', 'head', [0, 24.5, 2.3], [
+            Cube([-3.3, 19.6, 1.4], [6.6, 4.9, 1.9], faces(all=hair_jagged, up=fill('H'))),
+            Cube([-0.95, 15.6, 2.9], [1.9, 5.0, 1.7], faces(all=braid, up=fill('H')), key='braid_u'),
+        ]))
+        B.append(Bone('hair_mid', 'hair_upper', [0, 15.6, 3.7], [
+            Cube([-0.85, 10.8, 2.95], [1.7, 4.8, 1.55], faces(all=braid, up=fill('H')), key='braid_m'),
+        ]))
+        B.append(Bone('hair_tip', 'hair_mid', [0, 10.8, 3.7], [
+            Cube([-0.9, 10.2, 2.9], [1.8, 0.6, 1.7], faces(all=fill('a'), side=glow_mid, north=glow_mid, south=glow_mid), key='braid_tie'),
+            Cube([-0.7, 6.9, 3.05], [1.4, 3.4, 1.35], faces(all=braid_tip, up=fill('H'), down=fill('T')), key='braid_t'),
+        ]))
+    else:  # c: あごの高さで切りそろえたボブ（後ろ髪は短く、揺れる骨は残す）
+        B.append(Bone('ribbon', 'head', [0, 23.0, 3.4], [
+            Cube([-1.6, 22.4, 3.15], [3.2, 0.5, 0.4], faces(all=fill('a'), south=lambda x, y, w, h: 'C' if x % 3 == 1 else 'A'), key='hairband_c'),
+        ]))
+        B.append(Bone('hair_upper', 'head', [0, 24.5, 2.3], [
+            Cube([-3.4, 20.3, 1.3], [6.8, 4.6, 2.0], faces(all=hair_jagged, up=fill('H'))),
+            Cube([-3.9, 20.5, 0.4], [1.0, 4.4, 2.2], faces(all=hair_jagged, up=fill('H')), key='bob_side'),
+            Cube([2.9, 20.5, 0.4], [1.0, 4.4, 2.2], faces(all=hair_jagged, up=fill('H')), key='bob_side'),
+        ]))
+        B.append(Bone('hair_mid', 'hair_upper', [0, 20.3, 2.3], []))
+        B.append(Bone('hair_tip', 'hair_mid', [0, 20.3, 2.3], []))
+    return B
+
+
+def bit_paint(x, y, w, h):
+    if 0 < x < w - 1 and 0 < y < h - 1:
+        return 'C' if (x + y) % 2 == 0 else 'c'
+    return 'A' if y < h // 2 else 'a'
+
+
+def type_extra(t):
+    if t != 'c':
+        return []
+    # 電子戦: 体のまわりを回る 4 つのビット（bits の骨ごと描画側で回す）と、頭の後ろの光の輪（halo）
+    B = [Bone('bits', 'root', [0, 19.0, 0])]
+    for i in range(4):
+        a = math.radians(45 + 90 * i)
+        cx, cz = round(math.sin(a) * 5.6, 3), round(math.cos(a) * 5.6, 3)
+        cy = 19.0 + (0.9 if i % 2 else -0.7)
+        B.append(Bone(f'bit_{i}', 'bits', [cx, cy, cz], [
+            Cube([cx - 0.65, cy - 1.3, cz - 0.65], [1.3, 2.6, 1.3], faces(all=bit_paint, up=fill('C'), down=fill('c')), key='bit'),
+            Cube([cx - 0.3, cy - 2.1, cz - 0.3], [0.6, 0.8, 0.6], faces(all=fill('c')), key='bit_tip'),
+            Cube([cx - 0.3, cy + 1.3, cz - 0.3], [0.6, 0.5, 0.6], faces(all=fill('Z'), up=fill('C')), key='bit_cap'),
+        ], rotation=[0, 45, 0]))
+    ring = []
+    for i in range(12):
+        a = math.radians(30 * i)
+        x, y = math.sin(a) * 3.4, 25.0 + math.cos(a) * 3.4
+        ring.append(Cube([round(x - 0.35, 3), round(y - 0.35, 3), 4.3], [0.7, 0.7, 0.2], faces(all=fill('c'), south=fill('C'), north=fill('C')), key='halo_seg'))
+    B.append(Bone('halo', 'head', [0, 25.0, 4.4], ring))
     return B
 
 
@@ -633,6 +805,18 @@ EXPRESSIONS = ['normal', 'smile', 'shy', 'angry', 'sad', 'surprise', 'sleepy', '
 
 
 def main():
+    import sys
+    global NAME, TYPE
+    types = [a.lower() for a in sys.argv[1:]] or ['v', 's', 'h', 'c']
+    for t in types:
+        TYPE, NAME = t, f'valkyrie_type_{t}'
+        PAL.clear()
+        PAL.update(BASE_PAL)
+        PAL.update(TYPE_PAL[t])
+        generate()
+
+
+def generate():
     tex_dir = os.path.join(ASSETS, 'textures', 'entity')
     pos = None
     for expr in EXPRESSIONS:

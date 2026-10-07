@@ -55,7 +55,12 @@ public final class ValkyrieHud {
         if (core.is(ModWeapons.CORE_CHRONO_GENESIS.get())) return 0xFFFFC24A;
         if (core.is(ModWeapons.CORE_SINGULARITY.get())) return 0xFFC07CFF;
         if (core.is(ModWeapons.CORE_HIGH_DENSITY.get())) return 0xFF4A8CFF;
-        return 0xFF3BE8FF;
+        return switch (v.getBody()) { // 素体タイプの発光色（tools/gen_valkyrie_v.py の TYPE_PAL の C）
+            case S -> 0xFFFF8A2B;
+            case H -> 0xFFFFB830;
+            case C -> 0xFFB46BFF;
+            default -> 0xFF3BE8FF;
+        };
     }
 
     /** 角ばった枠: 細い線と、角だけ明るい短い線 */

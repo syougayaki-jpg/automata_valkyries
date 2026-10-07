@@ -149,7 +149,10 @@ public final class ValkyrieOverhead {
         float age = ValkyrieEntity.SPEECH_DURATION - left;
         float alpha = Math.min(Mth.clamp(age / 4.0F, 0.0F, 1.0F), Mth.clamp(left / 10.0F, 0.0F, 1.0F));
         if (alpha <= 0.05F) return;
-        List<FormattedCharSequence> lines = font.split(Component.translatable(ValkyrieEntity.speechKey(key)), BUBBLE_W);
+        // 型ごとの言い方（speech.<s|h|c>.<key>）があればそちら（2026-10-07 他の 3 型の性格。無ければ共通＝Type-V の言い方）
+        String typed = ValkyrieEntity.speechKey(v.getBody().name().toLowerCase(java.util.Locale.ROOT) + "." + key);
+        String full = net.minecraft.client.resources.language.I18n.exists(typed) ? typed : ValkyrieEntity.speechKey(key);
+        List<FormattedCharSequence> lines = font.split(Component.translatable(full), BUBBLE_W);
         if (lines.isEmpty()) return;
         int widest = 0;
         for (FormattedCharSequence line : lines) widest = Math.max(widest, font.width(line));

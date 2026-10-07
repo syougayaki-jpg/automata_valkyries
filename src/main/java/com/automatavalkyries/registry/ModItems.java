@@ -121,6 +121,16 @@ public class ModItems {
     /** 兵姫探知レーダー（2026-10-07 ユーザー指定）: 墜落ポッドの未起動の兵姫を探す。組み立て機で作る */
     public static final RegistryObject<Item> VALKYRIE_RADAR = ITEMS.register("valkyrie_radar", () ->
             new com.automatavalkyries.item.ValkyrieRadarItem(new Item.Properties().stacksTo(1)));
+    /** 素体ユニット（2026-10-07 ユーザー指定「組み立て機で素体を作る」）: 地面に使うとその型の兵姫が目覚める */
+    public static final RegistryObject<Item> VALKYRIE_BODY_V = valkyrieBody(com.automatavalkyries.entity.ValkyrieBody.V);
+    public static final RegistryObject<Item> VALKYRIE_BODY_S = valkyrieBody(com.automatavalkyries.entity.ValkyrieBody.S);
+    public static final RegistryObject<Item> VALKYRIE_BODY_H = valkyrieBody(com.automatavalkyries.entity.ValkyrieBody.H);
+    public static final RegistryObject<Item> VALKYRIE_BODY_C = valkyrieBody(com.automatavalkyries.entity.ValkyrieBody.C);
+
+    private static RegistryObject<Item> valkyrieBody(com.automatavalkyries.entity.ValkyrieBody body) {
+        return ITEMS.register("valkyrie_body_" + body.name().toLowerCase(java.util.Locale.ROOT), () ->
+                new com.automatavalkyries.item.ValkyrieBodyItem(body, new Item.Properties().stacksTo(1).rarity(net.minecraft.world.item.Rarity.RARE)));
+    }
     /** 退去願い（2026-10-05 ユーザー指定）: 検証用のダミーゾンビに正規の退場をしてもらう */
     public static final RegistryObject<Item> EVICTION_NOTICE = ITEMS.register("eviction_notice", () ->
             new com.automatavalkyries.item.EvictionNoticeItem(new Item.Properties().stacksTo(1)));

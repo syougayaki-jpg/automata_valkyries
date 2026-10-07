@@ -201,6 +201,8 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
     public float meleeReady, meleeReadyO, rangedReady, rangedReadyO;
     /** ステップの動き: 向き（{@code ValkyrieCombat.StepDir} の順、-1 = なし）と始めた Tick */
     public int stepDir = -1;
+    /** Type-H の着地の揺れ: 空中にいる間の一番大きな落下距離（ValkyrieTypeTraits） */
+    public float typeFall;
     public int stepStart;
     private int stepSeq, attackSeq, gestureSeq;
     /** 仕草: 種類（0 = なし）と始めた Tick（クライアント） */
@@ -574,6 +576,7 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
     /** 素体タイプを変える（HP・速度の基本値も合わせる。弾薬庫の枠を超えた物は落とす） */
     public void setBody(ValkyrieBody body) {
         entityData.set(BODY, body.ordinal());
+        com.automatavalkyries.entity.ai.ValkyrieTypeTraits.applyAttributes(this, body);
         getAttribute(Attributes.MAX_HEALTH).setBaseValue(body.maxHealth);
         getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(body.speed);
         if (DirectRead.health(this) > body.maxHealth) super.setHealth(body.maxHealth);
@@ -985,6 +988,12 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         return true;
     }
 
+    /** 名前を付けていないときの名前は素体タイプごと（「戦術兵姫 Type-S」など。2026-10-07 ユーザー指定「上にある名前を対応したタイプに」） */
+    @Override
+    protected Component getTypeName() {
+        return Component.translatable("entity.automata_valkyries.valkyrie." + getBody().name().toLowerCase(java.util.Locale.ROOT));
+    }
+
     /** 担架で持ち主の頭の上に乗っているときは、頭の上に座る高さへ */
     @Override
     public double getMyRidingOffset() {
@@ -1152,6 +1161,7 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         powerTick();
         if (!isShutdown() && !isAsleep()) combat().tick();
         else if (isUsingItem()) stopUsingItem();
+        com.automatavalkyries.entity.ai.ValkyrieTypeTraits.tick(this, !isShutdown() && !isAsleep()); // 素体タイプの能力と立ち回り
         if (tickCount % ValkyrieProtect.INTERVAL == 0) ValkyrieProtect.snapshot(this);
     }
 
@@ -1261,6 +1271,7 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         } catch (IllegalArgumentException ignored) {
             entityData.set(BODY, ValkyrieBody.V.ordinal());
         }
+        com.automatavalkyries.entity.ai.ValkyrieTypeTraits.applyAttributes(this, getBody());
         getInventory().load(tag.getList("Equipment", net.minecraft.nbt.Tag.TAG_COMPOUND));
         orders.load(tag.getCompound("Orders"));
         entityData.set(SYNC, Mth.clamp(tag.getFloat("Sync"), 0.0F, 100.0F));

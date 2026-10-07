@@ -19,7 +19,10 @@ import java.util.Map;
  */
 public class ValkyrieModel extends DefaultedEntityGeoModel<ValkyrieEntity> {
 
-    private static final String TEXTURE = "textures/entity/valkyrie_type_v";
+    /** 素体タイプごとの名前（valkyrie_type_v / s / h / c。2026-10-07 他の 3 型を追加。骨の名前は 4 型で共通） */
+    private static String typeName(ValkyrieEntity entity) {
+        return "valkyrie_type_" + entity.getBody().name().toLowerCase(java.util.Locale.ROOT);
+    }
     /** 機能停止で腰を落とす量（px。脚 12.5px を前へ投げ出して地面に座る） */
     private static final float SIT_DROP = 11.0F;
     /** 表情ごとの立体のまつ毛: {上下 px, 鼻側を下げる角度（度）, 見せるか 1/0}（tools/gen_valkyrie_v.py の LASH_POSE） */
@@ -36,6 +39,7 @@ public class ValkyrieModel extends DefaultedEntityGeoModel<ValkyrieEntity> {
         LASH_POSE.put("smile", new float[]{0F, 0F, 0});
     }
     private final Map<String, ResourceLocation> textures = new HashMap<>();
+    private final Map<String, ResourceLocation> models = new HashMap<>();
 
     public ValkyrieModel() {
         super(ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "valkyrie_type_v"), "head");
@@ -49,10 +53,16 @@ public class ValkyrieModel extends DefaultedEntityGeoModel<ValkyrieEntity> {
     }
 
     @Override
+    public ResourceLocation getModelResource(ValkyrieEntity entity) {
+        return models.computeIfAbsent(typeName(entity), n -> ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "geo/entity/" + n + ".geo.json"));
+    }
+
+    @Override
     public ResourceLocation getTextureResource(ValkyrieEntity entity) {
         String face = face(entity);
-        return textures.computeIfAbsent(face, f -> ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID,
-                TEXTURE + (f.equals("normal") ? "" : "_" + f) + ".png"));
+        String type = typeName(entity);
+        return textures.computeIfAbsent(type + "/" + face, f -> ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID,
+                "textures/entity/" + type + (face.equals("normal") ? "" : "_" + face) + ".png"));
     }
 
     @Override
@@ -299,6 +309,19 @@ public class ValkyrieModel extends DefaultedEntityGeoModel<ValkyrieEntity> {
         CoreGeoBone core = bone("core");
         core.setScaleX(pulse);
         core.setScaleY(pulse);
+
+        // ---- Type-C: 体のまわりのビットがゆっくり回り、それぞれ上下に漂う。頭の後ろの光の輪も回る（機能停止では止まって沈む）
+        CoreGeoBone bits = bone("bits");
+        if (bits != null) {
+            bits.setRotY(age * 0.04F * up);
+            bits.setPosY(-6.0F * down);
+            for (int i = 0; i < 4; i++) {
+                CoreGeoBone bit = bone("bit_" + i);
+                if (bit != null) bit.setPosY(Mth.sin(age * 0.09F + i * 1.7F) * 0.5F * up);
+            }
+        }
+        CoreGeoBone halo = bone("halo");
+        if (halo != null) halo.setRotZ(age * 0.03F * up);
     }
 
     /** q が a → b の間で 0 → 1（なめらかに） */

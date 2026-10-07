@@ -6,7 +6,7 @@ package com.automatavalkyries.entity;
  *   <li>弾薬庫の枠数は素体タイプで決める（2026-10-05 ユーザー指定。数は【仮】: V 6 / S 4 / H 8 / C 6）</li>
  *   <li>性格は素体タイプごとに固定（SPEC_VALKYRIE_GUI_AI §4【仮】: V 素直 / S 元気 / H 物静か / C 理知的）</li>
  * </ul>
- * 今モデルがあるのは V だけ。
+ * モデルは 4 型すべて（2026-10-07、tools/gen_valkyrie_v.py）。型ごとの能力と立ち回りは ai/ValkyrieTypeTraits。
  */
 public enum ValkyrieBody {
     V(40.0F, 20.0F, 0.28F, 50.0F, 6, "honest"),

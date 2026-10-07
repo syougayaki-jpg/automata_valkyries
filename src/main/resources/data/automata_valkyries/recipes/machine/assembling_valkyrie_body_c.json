@@ -1,0 +1,45 @@
+{
+  "type": "automata_valkyries:assembling",
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:core_proto"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_advanced"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:membrane_nano"
+      },
+      "count": 4
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:drop_nanomachine"
+      },
+      "count": 8
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:ingot_steel"
+      },
+      "count": 8
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:alloy_eclipse_biometal"
+      },
+      "count": 4
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:valkyrie_body_c"
+  },
+  "energy": 200000,
+  "time": 600
+}

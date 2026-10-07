@@ -456,10 +456,10 @@ public final class ValkyrieCombat {
             Vec3 h = new Vec3(dir.x, 0, dir.z);
             if (h.lengthSqr() < 1.0e-4 || !canStep(h) || !spend(Math.round(fe * ValkyrieUnitEffects.boostCostScale(v)))) return false;
             StepDir d = classify(h);
-            stepCooldown[d.ordinal()] = STEP_COOLDOWN;
+            stepCooldown[d.ordinal()] = (int) Math.round(STEP_COOLDOWN * ValkyrieTypeTraits.stepCooldownScale(v)); // Type-S は短く、H は長く
             dashBoostUntil = v.level().getGameTime() + DASH_BOOST_TICKS;
             v.playStep(d.ordinal()); // ステップの動き（モデル）
-            h = h.normalize().scale(power);
+            h = h.normalize().scale(power * ValkyrieTypeTraits.stepPowerScale(v)); // Type-S は遠く（瞬動距離特化）
             v.setDeltaMovement(h.x, up, h.z);
             v.hasImpulse = true;
             stepTicks = STEP_TICKS;

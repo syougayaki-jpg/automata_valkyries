@@ -160,6 +160,34 @@ public class ValkyrieGameTests {
         }, v);
     }
 
+    /** 素体タイプ（2026-10-07 S/H/C 追加）: 型ごとの HP・ノックバック耐性・索敵範囲が入り、保存して読み直しても型と属性が残る。素体ユニットで起こすと持ち主が付く */
+    @GameTest(template = TEMPLATE, batch = "valkyrie")
+    public static void valkyrieBodyTypesApplyTraits(GameTestHelper helper) {
+        ValkyrieEntity h = helper.spawn(ModEntities.VALKYRIE.get(), 1, 2, 1);
+        h.setBody(com.automatavalkyries.entity.ValkyrieBody.H);
+        helper.assertTrue(h.getMaxHealth() == 60.0F, "Type-H max HP is " + h.getMaxHealth());
+        helper.assertTrue(h.getAttributeBaseValue(net.minecraft.world.entity.ai.attributes.Attributes.KNOCKBACK_RESISTANCE) >= 1.0, "Type-H is not knockback immune");
+        CompoundTag saved = new CompoundTag();
+        h.saveWithoutId(saved);
+        ValkyrieEntity copy = ModEntities.VALKYRIE.get().create(helper.getLevel());
+        copy.load(saved);
+        helper.assertTrue(copy.getBody() == com.automatavalkyries.entity.ValkyrieBody.H
+                && copy.getAttributeBaseValue(net.minecraft.world.entity.ai.attributes.Attributes.KNOCKBACK_RESISTANCE) >= 1.0, "Type-H was not restored on load");
+        h.setBody(com.automatavalkyries.entity.ValkyrieBody.C);
+        helper.assertTrue(h.getAttributeBaseValue(net.minecraft.world.entity.ai.attributes.Attributes.FOLLOW_RANGE) == 40.0
+                && h.getAttributeBaseValue(net.minecraft.world.entity.ai.attributes.Attributes.KNOCKBACK_RESISTANCE) == 0.0, "Type-C attributes are wrong");
+        helper.assertTrue(com.automatavalkyries.entity.ai.ValkyrieTypeTraits.stepPowerScale(h) == 1.0, "Type-C step scale is wrong");
+        h.setBody(com.automatavalkyries.entity.ValkyrieBody.S);
+        helper.assertTrue(com.automatavalkyries.entity.ai.ValkyrieTypeTraits.stepPowerScale(h) > 1.0, "Type-S step is not longer");
+        h.releaseAndDiscard();
+        var player = helper.makeMockPlayer();
+        ValkyrieEntity woke = com.automatavalkyries.item.ValkyrieBodyItem.spawn(helper.getLevel(), helper.absolutePos(new net.minecraft.core.BlockPos(2, 2, 2)), 0.0F, com.automatavalkyries.entity.ValkyrieBody.S);
+        helper.assertTrue(woke != null && woke.isPodSleeper() && woke.getBody() == com.automatavalkyries.entity.ValkyrieBody.S, "the body unit did not place a sleeping Type-S");
+        helper.assertTrue(woke.wakeFromPod(player, com.automatavalkyries.item.ProtoCoreItem.CAPACITY) && player.getUUID().equals(woke.getOwnerUUID()), "the body unit valkyrie did not wake for the player");
+        woke.releaseAndDiscard();
+        helper.succeed();
+    }
+
     // ------------------------------------------------------------------ 段階 2: 装備・シールド・電力・作戦指示
 
     /** 兵装を 1 つ探す（両手持ちか） */
