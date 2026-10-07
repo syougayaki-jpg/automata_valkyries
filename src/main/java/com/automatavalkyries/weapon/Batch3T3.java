@@ -255,7 +255,7 @@ public final class Batch3T3 {
         public static final int OVER_STRIKES = 32, OVER_RAIN_STRIKES = 48, OVER_TICKS = 60;
 
         public StormCaller(Properties p) {
-            super(p, 3_000_000, 6.0F, true, 0, 0, 0, 250_000, 160);
+            super(p, 4_500_000, 6.0F, true, 0, 0, 0, 750_000, 160); // 1 回 250,000 → 750,000・蓄電 3,000,000 → 4,500,000（雨で最大 3,200 と T3 を超える）（2026-10-07 ユーザー指定「火力が範囲を超える兵装は消費電力で調整」）
         }
 
         @Override

@@ -19,7 +19,7 @@ import org.joml.Vector3f;
 
 /**
  * 重粒子収束砲（§7.2 weapon_heavy_particle_cannon、T2）: 両手重火器。1.5 秒チャージして離すと、極太の光線を 2 秒照射する
- * （0.2 秒ごとに 20.0 ダメージ。1 射 200,000 FE）。光線は向いた方へ 96 ブロック（元仕様に射程の値は無く、ユーザー指定で 32 の 3 倍）、太さ 1.2 で、線上の全員を貫く。
+ * （0.2 秒ごとに 20.0 ダメージ。1 射 800,000 FE）。光線は向いた方へ 96 ブロック（元仕様に射程の値は無く、ユーザー指定で 32 の 3 倍）、太さ 1.2 で、線上の全員を貫く。
  * 照射の 0.2 秒ごとの当たりは無敵時間を待たない（毎回入る）。ガリアフォートの「ダメージ 1 固定の場」を無効にする特性は、
  * ガリアフォートを実装したら、ダメージの種類 {@link WeaponDamage#PARTICLE_BEAM} で見分けてつなぐ。
  * <p>オーバーロード（{@link OverloadArts}。2026-10-05 ユーザー指定）: 「超重粒子砲」に変わる。光線の太さが 4.8（4 倍、当たりの半径 2.4）になり、
@@ -35,7 +35,8 @@ public class HeavyParticleCannonItem extends ChargedWeaponItem {
     }
 
 
-    public static final int CAPACITY = 4_000_000, PER_SHOT = 200_000, CHARGE = 30, BEAM_TICKS = 40, PULSE = 4;
+    /** 1 射の電力: 1 射で最大 1,000 と T2 を大きく超えるので 200,000 → 800,000、蓄電を 4,000,000 → 4,800,000（6 射）（2026-10-07 ユーザー指定「火力が範囲を超える兵装は消費電力で調整」） */
+    public static final int CAPACITY = 4_800_000, PER_SHOT = 800_000, CHARGE = 30, BEAM_TICKS = 40, PULSE = 4;
     public static final float DAMAGE = 100.0F, WEIGHT = 28.0F;
     public static final double RANGE = 96.0, WIDTH = 1.2;
     /** オーバーロード: 光線の太さ・光線の先の爆発の半径 */

@@ -177,7 +177,8 @@ public abstract class TacticalWeaponItem extends Item implements GeoItem {
                 Component.translatable(twoHanded ? "gui.automata_valkyries.two_handed_tag" : "gui.automata_valkyries.one_handed_tag"), String.valueOf(weight))
                 .withStyle(s -> s.withColor(TIER_COLORS[Math.max(1, Math.min(4, tier))])));
         // ② 今の性能
-        double damageMult = WeaponUpgrades.mult(stack, WeaponUpgrades.Stat.DAMAGE) * (Overload.is(stack) ? Overload.damageMult(this) : 1.0);
+        double damageMult = WeaponUpgrades.mult(stack, WeaponUpgrades.Stat.DAMAGE) * (Overload.is(stack) ? Overload.damageMult(this) : 1.0)
+                * (RulerForged.is(this) ? RulerForged.DAMAGE_MULT : 1.0); // 時空剪定の加護（タイムルーラーの素材の T3）
         double attack = attribute(stack, net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE, 1.0);
         if (attack > 1.0) {
             Component line = Component.translatable("gui.automata_valkyries.tip.attack", number(attack * damageMult));

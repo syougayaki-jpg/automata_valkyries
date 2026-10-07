@@ -227,7 +227,7 @@ public final class Batch3T2 {
         public static final double BOUNCE_RANGE = 10.0, OVER_BOUNCE_RANGE = 20.0;
 
         public RicochetRifle(Properties p) {
-            super(p, 500_000, 7.0F, true, 0, 0, 0, 20_000, 20);
+            super(p, 500_000, 7.0F, true, 0, 0, 0, 40_000, 20); // 1 射 20,000 → 40,000（6 体目は約 149 と T2 を超える）（2026-10-07 ユーザー指定「火力が範囲を超える兵装は消費電力で調整」）
         }
 
         @Override
@@ -495,7 +495,7 @@ public final class Batch3T2 {
         public static final double OVER_ROAR = 12.0, OVER_CLEAVE = 5.0;
 
         public BerserkAxe(Properties p) {
-            super(p, 500_000, 12.0F, true, 90.0, 0.9, 0, 30_000, 400);
+            super(p, 500_000, 12.0F, true, 90.0, 0.9, 0, 90_000, 400); // 激昂 30,000 → 90,000（体力 20% 以下で 180 と T2 を超える）（2026-10-07 ユーザー指定「火力が範囲を超える兵装は消費電力で調整」）
         }
 
         /** 近接ダメージの倍率（体力が満タンで 1、20% 以下で 2） */

@@ -24,7 +24,7 @@ import java.util.List;
 /**
  * 64 連装誘導式フロストミサイルランチャー『アバランチ』（T3、元仕様に無い追加の兵装。2026-10-03 ユーザー指定）: 片手持ちの大型ミサイルポッド。
  * 両手に 1 つずつ持つと 128 連装になる（右クリック 1 回で両方が同時に斉射。2026-10-03 ユーザー指定）。
- * 1 つにつき 64 発の誘導冷凍ミサイルを約 1.6 秒かけて次々に撃ち出す（1 斉射 1,500,000 FE）。
+ * 1 つにつき 64 発の誘導冷凍ミサイルを約 1.6 秒かけて次々に撃ち出す（1 斉射 4,500,000 FE）。
  * 撃つときに前方 128 ブロック（ユーザー指定で 32 の 4 倍）・左右 60 度の敵を選び、ミサイルを順に割り振る
  * （{@link FrostMissileEntity}、1 発 6 ダメージで無敵時間を無視）。当たるたびに凍傷（移動速度と跳躍力が下がる、最大 V・5 秒）が重なる。
  * 斉射のあと 5 秒の再装填。
@@ -41,7 +41,8 @@ public class AvalancheLauncherItem extends TacticalWeaponItem implements Valkyri
     }
 
 
-    public static final int CAPACITY = 15_000_000, PER_VOLLEY = 1_500_000, MISSILES = 64, PER_TICK = 2, RELOAD = 100;
+    /** 1 斉射の電力: 全弾で T3 の上限を大きく超えるので 1,500,000 → 4,500,000、蓄電を 15,000,000 → 18,000,000（4 斉射）（2026-10-07 ユーザー指定「火力が範囲を超える兵装は消費電力で調整」） */
+    public static final int CAPACITY = 18_000_000, PER_VOLLEY = 4_500_000, MISSILES = 64, PER_TICK = 2, RELOAD = 100;
     /** オーバーロード: 1 つの斉射の発数・1 Tick の発数（同じ時間で倍） */
     public static final int OVER_MISSILES = 128, OVER_PER_TICK = 4;
     public static final double RANGE = 128.0;

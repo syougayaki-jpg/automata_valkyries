@@ -32,7 +32,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 因果切断剣『タイムエリミネイター』（§7.2 weapon_time_eliminator、T3）: 両手剣。攻撃力 75.0 / 攻撃速度 1.0、1 振り（当たり）100,000 FE。
+ * 因果切断剣『タイムエリミネイター』（§7.2 weapon_time_eliminator、T3）: 両手剣。攻撃力 75.0 / 攻撃速度 1.0、1 振り（当たり）150,000 FE。
  * 当てた相手の全バフ（有益な状態異常・衝撃吸収・無敵の印）を消し、3 秒の因果停止（行動不能）を掛ける。
  * 特性はオフハンドが空のとき（両手で持ったとき）だけ。プレイヤーへの強い状態異常は設定 {@code strongEffectsOnPlayers} のときだけ。
  * 保護対象（Eprotect のボス）は無敵の印を外さず、状態の改ざんも毎 Tick 戻されるので、一撃では倒せない（設計書 §1）。
@@ -42,7 +42,8 @@ import java.util.List;
  */
 public class TimeEliminatorItem extends TacticalWeaponItem {
 
-    public static final int CAPACITY = 2_000_000, PER_HIT = 100_000, STOP_TICKS = 60;
+    /** 1 当たりの電力: 時空剪定の加護（×1.5）で T3 の上限を超えるので 100,000 → 150,000、蓄電を 2,000,000 → 3,000,000（20 回）（2026-10-07 ユーザー指定「火力が範囲を超える兵装は消費電力で調整」） */
+    public static final int CAPACITY = 3_000_000, PER_HIT = 150_000, STOP_TICKS = 60;
     public static final double DAMAGE = 400.0, DULL_DAMAGE = 50.0, SPEED = 1.0;
     public static final float WEIGHT = 15.0F;
     private static final DustParticleOptions VIOLET = new DustParticleOptions(new Vector3f(0.6F, 0.45F, 1.0F), 1.4F);
