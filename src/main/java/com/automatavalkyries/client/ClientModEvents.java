@@ -45,6 +45,10 @@ public class ClientModEvents {
     public static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerEntityRenderer(ModEntities.ELENOR.get(), ElenorRenderer::new);
         event.registerEntityRenderer(ModEntities.VALKYRIE.get(), ValkyrieRenderer::new);
+        event.registerEntityRenderer(ModEntities.CHRONO_SCOUT_DRONE.get(), c -> new ChronoGazerRenderer<>(c, "chrono_scout_drone", 0.4F));
+        event.registerEntityRenderer(ModEntities.CHRONO_SPIDER_BOT.get(), c -> new ChronoGazerRenderer<>(c, "chrono_spider_bot", 0.5F));
+        event.registerEntityRenderer(ModEntities.CHRONO_HEAVY_WALKER.get(), c -> new ChronoGazerRenderer<>(c, "chrono_heavy_walker", 1.0F));
+        event.registerEntityRenderer(ModEntities.CHRONO_BOLT.get(), ChronoBoltRenderer::new);
         event.registerEntityRenderer(ModEntities.SKY_BOSS_SKELETON.get(), net.minecraft.client.renderer.entity.SkeletonRenderer::new);
         // 最果てのエレノアはエレノアと同じ見た目（ElenorRenderer は ElenorEntity 用なので型だけ合わせる）
         event.registerEntityRenderer(ModEntities.FARTHEST_ELENOR.get(), context -> {

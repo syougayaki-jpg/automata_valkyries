@@ -83,6 +83,12 @@ public class ModItems {
             new ForgeSpawnEggItem(ModEntities.ELENOR, 0x512da8, 0xe040fb, new Item.Properties()));
     public static final RegistryObject<Item> VALKYRIE_SPAWN_EGG = ITEMS.register("valkyrie_spawn_egg", () ->
             new ForgeSpawnEggItem(ModEntities.VALKYRIE, 0xf4f6fa, 0x3be8ff, new Item.Properties()));
+    public static final RegistryObject<Item> CHRONO_SCOUT_DRONE_SPAWN_EGG = ITEMS.register("chrono_scout_drone_spawn_egg", () ->
+            new ForgeSpawnEggItem(ModEntities.CHRONO_SCOUT_DRONE, 0x23262e, 0xff2a4a, new Item.Properties()));
+    public static final RegistryObject<Item> CHRONO_SPIDER_BOT_SPAWN_EGG = ITEMS.register("chrono_spider_bot_spawn_egg", () ->
+            new ForgeSpawnEggItem(ModEntities.CHRONO_SPIDER_BOT, 0x474c59, 0xff2a4a, new Item.Properties()));
+    public static final RegistryObject<Item> CHRONO_HEAVY_WALKER_SPAWN_EGG = ITEMS.register("chrono_heavy_walker_spawn_egg", () ->
+            new ForgeSpawnEggItem(ModEntities.CHRONO_HEAVY_WALKER, 0x23262e, 0x5b2a9a, new Item.Properties()));
     public static final RegistryObject<Item> SKY_BOSS_SKELETON_SPAWN_EGG = ITEMS.register("sky_boss_skeleton_spawn_egg", () ->
             new ForgeSpawnEggItem(ModEntities.SKY_BOSS_SKELETON, 0xc1c1c1, 0x7b2cbf, new Item.Properties()));
     public static final RegistryObject<Item> FARTHEST_ELENOR_SPAWN_EGG = ITEMS.register("farthest_elenor_spawn_egg", () ->

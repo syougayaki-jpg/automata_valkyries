@@ -60,8 +60,41 @@ public class ModEntities {
                             .fireImmune()
                             .build("sky_boss_skeleton"));
 
+    // ---- クロノゲイザーの汎用機（全体仕様書 §4.1。2026-10-07 ユーザー指定「クロノゲイザーの雑魚」） ----
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.ScoutDroneEntity>> CHRONO_SCOUT_DRONE =
+            ENTITY_TYPES.register("chrono_scout_drone", () ->
+                    EntityType.Builder.of(com.automatavalkyries.entity.chrono.ScoutDroneEntity::new, MobCategory.MONSTER)
+                            .sized(0.8F, 0.6F).clientTrackingRange(10).build("chrono_scout_drone"));
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.SpiderBotEntity>> CHRONO_SPIDER_BOT =
+            ENTITY_TYPES.register("chrono_spider_bot", () ->
+                    EntityType.Builder.of(com.automatavalkyries.entity.chrono.SpiderBotEntity::new, MobCategory.MONSTER)
+                            .sized(1.0F, 0.6F).clientTrackingRange(8).build("chrono_spider_bot"));
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.HeavyWalkerEntity>> CHRONO_HEAVY_WALKER =
+            ENTITY_TYPES.register("chrono_heavy_walker", () ->
+                    EntityType.Builder.of(com.automatavalkyries.entity.chrono.HeavyWalkerEntity::new, MobCategory.MONSTER)
+                            .sized(1.6F, 2.2F).clientTrackingRange(10).build("chrono_heavy_walker"));
+    /** クロノゲイザーの弾（ドローンのレーザー弾・戦車の砲弾） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.ChronoBolt>> CHRONO_BOLT =
+            ENTITY_TYPES.register("chrono_bolt", () ->
+                    EntityType.Builder.<com.automatavalkyries.entity.chrono.ChronoBolt>of(com.automatavalkyries.entity.chrono.ChronoBolt::new, MobCategory.MISC)
+                            .sized(0.3F, 0.3F).clientTrackingRange(8).updateInterval(2).build("chrono_bolt"));
+
+    /** クロノゲイザーは夜の地上に湧く（暗い所・地面の上。2026-10-07 ユーザー指定。湧く場所と重みは forge/biome_modifier/add_chrono_gazers.json） */
+    @SubscribeEvent
+    public static void registerSpawnPlacements(net.minecraftforge.event.entity.SpawnPlacementRegisterEvent event) {
+        var ground = net.minecraft.world.entity.SpawnPlacements.Type.ON_GROUND;
+        var height = net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES;
+        var op = net.minecraftforge.event.entity.SpawnPlacementRegisterEvent.Operation.REPLACE;
+        event.register(CHRONO_SCOUT_DRONE.get(), ground, height, net.minecraft.world.entity.monster.Monster::checkMonsterSpawnRules, op);
+        event.register(CHRONO_SPIDER_BOT.get(), ground, height, net.minecraft.world.entity.monster.Monster::checkMonsterSpawnRules, op);
+        event.register(CHRONO_HEAVY_WALKER.get(), ground, height, net.minecraft.world.entity.monster.Monster::checkMonsterSpawnRules, op);
+    }
+
     @SubscribeEvent
     public static void registerAttributes(EntityAttributeCreationEvent event) {
+        event.put(CHRONO_SCOUT_DRONE.get(), com.automatavalkyries.entity.chrono.ScoutDroneEntity.createAttributes().build());
+        event.put(CHRONO_SPIDER_BOT.get(), com.automatavalkyries.entity.chrono.SpiderBotEntity.createAttributes().build());
+        event.put(CHRONO_HEAVY_WALKER.get(), com.automatavalkyries.entity.chrono.HeavyWalkerEntity.createAttributes().build());
         event.put(SKY_BOSS_SKELETON.get(), com.automatavalkyries.entity.SkyBossSkeleton.createAttributes().build());
         event.put(VALKYRIE.get(), com.automatavalkyries.entity.ValkyrieEntity.createAttributes().build());
         event.put(ELENOR.get(), ElenorEntity.createAttributes().build());
