@@ -52,6 +52,7 @@ public class ClientModEvents {
         event.registerEntityRenderer(ModEntities.CHRONO_MASK_DRONE.get(), MaskDroneRenderer::new);
         event.registerEntityRenderer(ModEntities.CHRONO_TROOPER.get(), c -> new ChronoGazerRenderer<>(c, "chrono_trooper", 0.5F));
         event.registerEntityRenderer(ModEntities.LUXION.get(), LuxionRenderer::new);
+        event.registerEntityRenderer(ModEntities.LUXION_FX.get(), LuxionFxRenderer::new);
         event.registerEntityRenderer(ModEntities.VALKYRIE_DUMMY.get(), c -> { // 戦術兵姫のダミーちゃん: Type-V の姿をそのまま使う
             var r = new software.bernie.geckolib.renderer.GeoEntityRenderer<com.automatavalkyries.entity.ValkyrieDummyEntity>(c,
                     new software.bernie.geckolib.model.DefaultedEntityGeoModel<>(net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(com.automatavalkyries.AutomataValkyries.MODID, "valkyrie_type_v")));

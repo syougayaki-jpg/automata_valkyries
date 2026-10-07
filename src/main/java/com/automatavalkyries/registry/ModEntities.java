@@ -93,6 +93,11 @@ public class ModEntities {
             ENTITY_TYPES.register("luxion", () ->
                     EntityType.Builder.of(com.automatavalkyries.entity.chrono.LuxionEntity::new, MobCategory.MONSTER)
                             .sized(0.8F, 2.4F).clientTrackingRange(12).fireImmune().build("luxion"));
+    /** ルクシオンの技の自作エフェクト（見た目だけ。光刃の波・光速突進。2026-10-08） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.LuxionFxEntity>> LUXION_FX =
+            ENTITY_TYPES.register("luxion_fx", () ->
+                    EntityType.Builder.<com.automatavalkyries.entity.chrono.LuxionFxEntity>of(com.automatavalkyries.entity.chrono.LuxionFxEntity::new, MobCategory.MISC)
+                            .sized(0.1F, 0.1F).clientTrackingRange(10).updateInterval(20).noSave().build("luxion_fx"));
     /** クロノゲイザーの弾（ドローンのレーザー弾・戦車の砲弾） */
     public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.ChronoBolt>> CHRONO_BOLT =
             ENTITY_TYPES.register("chrono_bolt", () ->

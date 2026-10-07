@@ -421,9 +421,13 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
         Vec3 side = dir.cross(new Vec3(0, 1, 0));
         side = side.lengthSqr() < 1.0e-4 ? new Vec3(1, 0, 0) : side.normalize();
         java.util.Set<LivingEntity> hit = new java.util.HashSet<>();
+        Vec3 reach = from.add(dir.scale(WAVE_RANGE));
         for (double d = 1.0; d <= WAVE_RANGE; d += 0.6) {
             Vec3 p = from.add(dir.scale(d));
-            if (!level().getBlockState(net.minecraft.core.BlockPos.containing(p)).getCollisionShape(level(), net.minecraft.core.BlockPos.containing(p)).isEmpty()) break;
+            if (!level().getBlockState(net.minecraft.core.BlockPos.containing(p)).getCollisionShape(level(), net.minecraft.core.BlockPos.containing(p)).isEmpty()) {
+                reach = p;
+                break;
+            }
             for (int k = -2; k <= 2; k++) {
                 Vec3 q = p.add(side.scale(k * 0.4)).add(0, -Math.abs(k) * 0.15, 0);
                 com.automatavalkyries.weapon.Fx.one(server, glow(k == 0 ? C_WHITE : C_WG, k == 0 ? 0.6F : 0.4F, 10), q, dir.scale(0.08));
@@ -433,6 +437,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
                 if (hit.add(e)) e.hurt(damageSources().mobAttack(this), WAVE);
             }
         }
+        LuxionFxEntity.spawn(server, LuxionFxEntity.WAVE, from.add(dir.scale(0.8)), reach, isPhase2()); // 三日月の光の刃（自作エフェクト）
         playSound(SoundEvents.TRIDENT_RIPTIDE_1, 1.0F, 1.6F);
         level().broadcastEntityEvent(this, EVENT_SLASH);
     }
@@ -461,6 +466,9 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
                     e.knockback(1.0, -dir.x, -dir.z);
                 }
             }
+        }
+        if (level() instanceof ServerLevel server) { // 駆け抜けた道の光の帯と螺旋（自作エフェクト）
+            LuxionFxEntity.spawn(server, LuxionFxEntity.DASH, start.add(0, 1.2, 0), end.add(0, 1.2, 0), isPhase2());
         }
         blink(end);
         if (level() instanceof ServerLevel server) { // 駆け抜けた後の光の衝撃波
@@ -504,6 +512,30 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
         /** 突進の構えの残り Tick と向き */
         private int windup;
         private Vec3 dashDir;
+        /** 今の相手とは別に、自分を狙っている兵姫（光刃の波・突進を向ける）と、探し直しまでの Tick */
+        private LivingEntity side;
+        private int sideCheck;
+
+        /**
+         * 索敵の範囲で、今の相手以外に自分を狙っている（攻撃してくる）戦術兵姫と、戦術兵姫のダミーちゃん。見えているものから、遠いもの（後ろから撃ってくる兵姫）を選ぶ
+         */
+        private LivingEntity pickSideAttacker(LivingEntity current) {
+            double range = lux.getAttributeValue(Attributes.FOLLOW_RANGE);
+            LivingEntity best = null;
+            double bestD = -1;
+            // 戦術兵姫のダミーちゃん（練習台）は攻撃してこないが、兵姫の身代わりとして同じに数える（2026-10-08「ダミーちゃんだとうまく反応してくれない」）
+            for (LivingEntity v : lux.level().getEntitiesOfClass(LivingEntity.class, lux.getBoundingBox().inflate(range), e -> e != current && e.isAlive()
+                    && ((e instanceof com.automatavalkyries.entity.ValkyrieEntity va && !va.isShutdown() && (va.getTarget() == lux || va.getLastHurtMob() == lux))
+                        || e instanceof com.automatavalkyries.entity.ValkyrieDummyEntity)
+                    && lux.getSensing().hasLineOfSight(e))) {
+                double d = v.distanceToSqr(lux);
+                if (d > bestD) {
+                    bestD = d;
+                    best = v;
+                }
+            }
+            return best;
+        }
 
         LuxionAttackGoal(LuxionEntity lux) {
             this.lux = lux;
@@ -576,6 +608,32 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
                 return;
             }
             if (t == null) return;
+            // 横から狙ってくる別の兵姫へ、光刃の波・光速突進を撃つ（今の相手との戦いは続ける。2026-10-08 ユーザー指定）
+            if (--sideCheck <= 0) {
+                sideCheck = 10;
+                side = pickSideAttacker(t);
+            }
+            if (side != null && !side.isAlive()) side = null;
+            if (side != null) {
+                double sd = lux.distanceTo(side);
+                boolean seesSide = lux.getSensing().hasLineOfSight(side);
+                if (seesSide && dash <= 0 && sd > 6 && sd < DASH_LENGTH && lux.random.nextFloat() < 0.5F) { // その兵姫へ駆け抜ける
+                    dash = cd(240);
+                    windup = lux.isPhase2() ? 12 : 20;
+                    dashDir = side.position().subtract(lux.position()).multiply(1, 0, 1).normalize();
+                    lux.getLookControl().setLookAt(side, 360.0F, 90.0F);
+                    lux.level().broadcastEntityEvent(lux, EVENT_DASH_WINDUP);
+                    lux.playSound(SoundEvents.BEACON_POWER_SELECT, 1.5F, 1.8F);
+                    return;
+                }
+                if (seesSide && wave <= 0 && sd > 5 && sd <= WAVE_RANGE) { // その兵姫へ光刃の波
+                    wave = cd(70);
+                    lux.getLookControl().setLookAt(side, 360.0F, 90.0F);
+                    lux.setYRot((float) (Mth.atan2(side.getZ() - lux.getZ(), side.getX() - lux.getX()) * Mth.RAD_TO_DEG) - 90.0F);
+                    lux.wave(side);
+                    return;
+                }
+            }
             lux.getLookControl().setLookAt(t, 30.0F, 30.0F);
             double dist = lux.distanceTo(t);
             boolean sees = lux.getSensing().hasLineOfSight(t);
