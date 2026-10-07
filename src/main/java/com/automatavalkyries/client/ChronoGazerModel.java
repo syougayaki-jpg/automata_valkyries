@@ -226,6 +226,8 @@ public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntity
     }
 
     private void animateLuxion(com.automatavalkyries.entity.chrono.LuxionEntity lux, float pt, float age, float walk, float limb, float pitch) {
+        boolean hovering = lux.isHovering();
+        if (hovering) walk *= 0.2F; // 空中では歩かない
         float legSwing = Mth.cos(limb * 0.7F) * 1.1F * walk;
         float aggro = smooth(Mth.lerp(pt, lux.deployO, lux.deploy));
         float glory = smooth(Mth.lerp(pt, lux.gloryO, lux.glory));
@@ -250,6 +252,13 @@ public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntity
         float spread = 0.25F + 0.35F * walk + 0.55F * glory + (lux.isPhase2() ? Mth.sin(age * 0.5F) * 0.05F
                 : Mth.sin(age * Mth.lerp(aggro, 0.08F, 0.05F)) * Mth.lerp(aggro, 0.08F, 0.14F));
         float sweep = 0.15F * walk;
+        // 空中にとどまる: 脚を垂らして少し後ろへ流し、翼を大きく広げてゆっくり上下する
+        if (hovering) {
+            p.mix(pose().arm(p.aX, p.aY, p.aZ).larm(p.lX, p.lY, p.lZ).body(-0.1F, p.bY, 0.0F).head(p.hX, p.hY, p.hZ)
+                    .legs(-0.15F, -0.4F).root(Mth.sin(age * 0.12F) * 0.8F), 1.0F);
+            spread += 0.45F + Mth.sin(age * 0.2F) * 0.08F;
+            sweep += 0.2F;
+        }
         // 突進の構え: 深く沈み、剣を後ろへ流し、翼を後ろへ
         float w = (age - lux.windupTick) / (lux.isPhase2() ? 12.0F : 20.0F);
         float windup = w >= 0.0F && w < 1.0F ? Mth.sin(Math.min(1.0F, w * 1.5F) * Mth.HALF_PI) : 0.0F;
@@ -410,7 +419,7 @@ public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntity
             if (tail != null) tail.setScaleY(1.0F + 0.6F * glory);
         }
         // 背の戦闘機型ブースター: 戦闘中は後ろへ倒れて開き、主翼と尾翼が広がる（突進の構え・変身でさらに開く。降臨・退く・撃破では畳む）
-        float open = Math.max(Math.min(1.0F, aggro + 0.3F * windup), ascend) * (1.0F - close);
+        float open = Math.max(Math.min(1.0F, aggro + 0.3F * windup), Math.max(ascend, hovering ? 1.0F : 0.0F)) * (1.0F - close);
         CoreGeoBone booster = bone("booster");
         if (booster != null) booster.setRotX(BOOSTER_PITCH * open);
         CoreGeoBone bwl = bone("booster_wing_left");

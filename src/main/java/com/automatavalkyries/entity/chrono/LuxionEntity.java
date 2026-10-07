@@ -95,6 +95,11 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
      * （2026-10-08「死亡時に演出がうまくいかない」: 立ったまま消えた）
      */
     private static final EntityDataAccessor<Boolean> DEFEATED = SynchedEntityData.defineId(LuxionEntity.class, EntityDataSerializers.BOOLEAN);
+    /** 空中にとどまって戦っている（同期。描画: 脚を垂らし、翼とブースターを開く。2026-10-08「空中の敵に、空中にとどまって攻撃」） */
+    private static final EntityDataAccessor<Boolean> HOVER = SynchedEntityData.defineId(LuxionEntity.class, EntityDataSerializers.BOOLEAN);
+    /** サーバー: 空中で向かう位置と、とどまる残り Tick（技の目標が毎 Tick 延ばす） */
+    private Vec3 hoverTarget;
+    private int hoverTicks;
     /** クライアント: 撃破の演出の経過 Tick（0 = 生きている） */
     public int defeatTicks;
 
@@ -169,6 +174,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
         entityData.define(PHASE2, false);
         entityData.define(STAGE, STAGE_NONE);
         entityData.define(DEFEATED, false);
+        entityData.define(HOVER, false);
     }
 
     public boolean isPhase2() {
@@ -176,6 +182,47 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
     }
 
     /** 今の演出の段階（{@link #STAGE_NONE} なら普段どおり） */
+    public boolean isHovering() {
+        return entityData.get(HOVER);
+    }
+
+    /** 空中の at へ向かって、そこにとどまる（数 Tick。続けるなら毎 Tick 呼ぶ） */
+    void hoverAt(Vec3 at) {
+        hoverTarget = at;
+        hoverTicks = 6;
+    }
+
+    /**
+     * 空中にとどまる: 動く前に速さを決めるので重力に負けない（noGravity は Eprotect の状態の見張りに戻されるので使わない）。
+     * 向かう位置へ、1 Tick に最大 0.6 ブロックで寄る
+     */
+    private void tickHover() {
+        boolean hover = hoverTicks > 0 && hoverTarget != null && stage() == STAGE_NONE && isAlive();
+        if (hover) {
+            hoverTicks--;
+            Vec3 d = hoverTarget.subtract(position()).scale(0.3);
+            if (d.length() > 0.6) d = d.normalize().scale(0.6);
+            setDeltaMovement(d);
+            resetFallDistance();
+            getNavigation().stop();
+        } else {
+            hoverTicks = 0;
+        }
+        if (entityData.get(HOVER) != hover) entityData.set(HOVER, hover);
+    }
+
+    /** e の足元から下の地面までの高さ（8 ブロックまで） */
+    static double heightAboveGround(Entity e) {
+        net.minecraft.core.BlockPos.MutableBlockPos p = e.blockPosition().mutable();
+        for (int i = 0; i < 8; i++) {
+            if (!e.level().getBlockState(p).getCollisionShape(e.level(), p).isEmpty()) {
+                return Math.max(0.0, e.getY() - (p.getY() + e.level().getBlockState(p).getCollisionShape(e.level(), p).max(net.minecraft.core.Direction.Axis.Y)));
+            }
+            p.move(0, -1, 0);
+        }
+        return 8.0;
+    }
+
     public boolean isDefeatedSynced() {
         return entityData.get(DEFEATED);
     }
@@ -402,6 +449,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
             if (isAlive()) startStage(STAGE_INTRO);
         }
         tickStage();
+        tickHover();
         if (!isPhase2() && ratio <= 0.5F && isAlive()) {
             entityData.set(PHASE2, true);
             startStage(STAGE_TRANSFORM); // 剣を天へ掲げて浮かび、翼と光輪を開く（1.5 秒、攻撃を受けない）
@@ -577,6 +625,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
         com.automatavalkyries.weapon.Fx.burst(server, glow(C_WHITE, 0.6F, 10), dest, 10, 0.12);
         teleportTo(to.x, to.y, to.z);
         resetFallDistance();
+        if (hoverTicks > 0) hoverTarget = to; // 空中で瞬動したら、着いた所にとどまる（元の位置へ戻らない）
         server.playSound(null, to.x, to.y, to.z, SoundEvents.ENDERMAN_TELEPORT, SoundSource.HOSTILE, 0.8F, 1.8F);
     }
 
@@ -691,6 +740,28 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
         /** 突進の構えの残り Tick と向き */
         private int windup;
         private Vec3 dashDir;
+        /** 相手が空中にいる間（と、降りてからしばらく）は空中にとどまって戦う残り Tick */
+        private int aerial;
+
+        /** 相手が空中にいれば、空中にとどまる位置を決める（技の溜め・三連閃の間はその場、それ以外は相手の横 2.2 ブロック・同じ高さ） */
+        private void tickAerial(LivingEntity t) {
+            boolean airborne = !t.onGround() && heightAboveGround(t) > 1.8;
+            if (airborne) aerial = 20; // 跳ねた・一瞬降りただけでは落ちない
+            else if (t.onGround()) aerial = Math.min(aerial - 1, 5); // 相手が地に降りたら、すぐ降りる
+            else aerial--;
+            if (aerial <= 0) return;
+            boolean hold = windup > 0 || blinkPrep > 0 || waveCharge > 0 || finalRaise > 0 || flurryLeft > 0;
+            if (hold) {
+                lux.hoverAt(lux.position());
+                return;
+            }
+            Vec3 flat = lux.position().subtract(t.position()).multiply(1, 0, 1);
+            Vec3 side = flat.lengthSqr() < 1.0e-4 ? new Vec3(1, 0, 0) : flat.normalize();
+            double hd = flat.length();
+            Vec3 spot = hd > 2.6 ? t.position().add(side.scale(2.2)) : new Vec3(lux.getX(), t.getY(), lux.getZ());
+            lux.hoverAt(spot);
+        }
+
         /** 届かない相手（高い所・低い所・道が無い）へ瞬動で詰める間隔と、詰まり具合の見張り（2026-10-08「上下差があると反応しない」） */
         private int reach, stuckCheck;
         private double lastDist = Double.MAX_VALUE;
@@ -766,7 +837,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
         /** 突進の向き: 相手が高い所にいれば斜めに駆け上がる */
         private Vec3 dashDir(LivingEntity t) {
             Vec3 d = t.position().subtract(lux.position());
-            if (d.y < 1.5) d = d.multiply(1, 0, 1); // 下へは水平に駆け抜けて落ちる（地面に刺さらない）
+            if (d.y < 1.5 && aerial <= 0) d = d.multiply(1, 0, 1); // 地上では、下へは水平に駆け抜けて落ちる（地面に刺さらない）。空中では相手へまっすぐ
             return d.normalize();
         }
 
@@ -795,6 +866,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
         public void tick() {
             LivingEntity t = lux.getTarget();
             melee--; blink--; flurry--; wave--; dash--; reach--;
+            if (t != null && t.isAlive()) tickAerial(t); // 空中の相手には空中にとどまって戦う
             // 突進の構え（動かずに予告線を出し、0 になったら駆け抜ける）
             if (windup > 0) {
                 lux.getNavigation().stop();
@@ -926,7 +998,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
                     melee = cd(22);
                     lux.slash((float) lux.getAttributeValue(Attributes.ATTACK_DAMAGE));
                 }
-            } else if (--repath <= 0) {
+            } else if (aerial <= 0 && --repath <= 0) { // 空中では歩かずに飛んで寄る（tickAerial）
                 repath = 8;
                 lux.getNavigation().moveTo(t, 1.2);
             }
