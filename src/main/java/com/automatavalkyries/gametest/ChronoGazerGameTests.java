@@ -69,6 +69,22 @@ public class ChronoGazerGameTests {
         });
     }
 
+    /** ルクシオン（AEC 級、2026-10-07）: HP 5,000、/kill では倒れない、被弾の上限は無いので大きな普通の攻撃はそのまま通る */
+    @GameTest(template = TEMPLATE, batch = "chrono_gazer", timeoutTicks = 60)
+    public static void luxionRefusesKillButTakesBigHits(GameTestHelper helper) {
+        com.automatavalkyries.entity.chrono.LuxionEntity lux = helper.spawn(ModEntities.LUXION.get(), 2, 2, 2);
+        lux.setNoAi(true);
+        helper.assertTrue(lux.getMaxHealth() == 5000.0F && lux.getHealth() == 5000.0F, "Luxion's HP is not 5000 (max health cap): " + lux.getMaxHealth());
+        lux.kill();
+        helper.runAfterDelay(3, () -> {
+            helper.assertTrue(lux.isAlive() && !lux.isRemoved() && lux.getHealth() == lux.getMaxHealth(), "/kill hurt or removed Luxion: " + lux.getHealth());
+            lux.hurt(helper.getLevel().damageSources().generic(), 3000.0F);
+            helper.assertTrue(lux.getHealth() < 2500.0F, "a big normal hit was capped: " + lux.getHealth()); // 3,000（防具で少し減る）
+            lux.getEprotect().triggerDespawn();
+            helper.succeed();
+        });
+    }
+
     /** 兵姫を見つけると狙う */
     @GameTest(template = TEMPLATE, batch = "chrono_gazer", timeoutTicks = 120)
     public static void chronoGazersTargetValkyries(GameTestHelper helper) {

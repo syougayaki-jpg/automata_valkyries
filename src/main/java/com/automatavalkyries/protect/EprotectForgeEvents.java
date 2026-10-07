@@ -137,7 +137,7 @@ public class EprotectForgeEvents {
             }
 
             float amount = event.getAmount();
-            if (!Float.isFinite(amount) || amount >= Eprotect.HUGE_DAMAGE_THRESHOLD) {
+            if (!Float.isFinite(amount) || (protect.capsDamage() && amount >= Eprotect.HUGE_DAMAGE_THRESHOLD)) {
                 event.setAmount(Eprotect.HUGE_DAMAGE_CLAMP);
             }
         } else if (isUnderProtectionScope(target)) {

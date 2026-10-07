@@ -1,0 +1,29 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    " S ",
+    "CPC",
+    "ARA"
+  ],
+  "key": {
+    "S": {
+      "item": "automata_valkyries:photon_blade_shard"
+    },
+    "C": {
+      "item": "automata_valkyries:circuit_advanced"
+    },
+    "P": {
+      "item": "automata_valkyries:crystal_luminal"
+    },
+    "A": {
+      "tag": "forge:ingots/astrite"
+    },
+    "R": {
+      "item": "automata_valkyries:drop_chrono_scrap"
+    }
+  },
+  "result": {
+    "item": "automata_valkyries:signal_luxion"
+  }
+}

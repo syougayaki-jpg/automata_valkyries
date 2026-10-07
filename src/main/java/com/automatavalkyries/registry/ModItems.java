@@ -93,6 +93,12 @@ public class ModItems {
             new ForgeSpawnEggItem(ModEntities.CHRONO_MASK_DRONE, 0xe8e4dc, 0xff2a4a, new Item.Properties()));
     public static final RegistryObject<Item> CHRONO_TROOPER_SPAWN_EGG = ITEMS.register("chrono_trooper_spawn_egg", () ->
             new ForgeSpawnEggItem(ModEntities.CHRONO_TROOPER, 0x474c59, 0xffe14a, new Item.Properties()));
+    public static final RegistryObject<Item> LUXION_SPAWN_EGG = ITEMS.register("luxion_spawn_egg", () ->
+            new ForgeSpawnEggItem(ModEntities.LUXION, 0xf4f0e4, 0xff2a4a, new Item.Properties()));
+    /** 英雄機の呼び声『ルクシオン』（AEC 級ボスの召喚。2026-10-07） */
+    public static final RegistryObject<Item> SIGNAL_LUXION = ITEMS.register("signal_luxion", () ->
+            new com.automatavalkyries.item.HeroSignalItem(new Item.Properties().stacksTo(16).rarity(Rarity.EPIC), ModEntities.LUXION, "luxion",
+                    new org.joml.Vector3f(1.0F, 0.94F, 0.72F)));
     /** フォトン剣の欠片（クロノ・トルーパーがまれに落とす。使い道はまだ無い＝素材の予定。2026-10-07） */
     public static final RegistryObject<Item> PHOTON_BLADE_SHARD = ITEMS.register("photon_blade_shard", () ->
             new Item(new Item.Properties()) {

@@ -109,6 +109,40 @@ public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntity
             if (gun != null) gun.setRotZ(spin);
             CoreGeoBone head = bone("head");
             if (head != null) head.setRotX(-pitch * 0.7F);
+        } else if (entity instanceof com.automatavalkyries.entity.chrono.LuxionEntity lux) {
+            // ルクシオン: 細い脚の速い歩き、剣を低く構え、斬ると右から左へ薙ぐ。突進の構えでは身を低く沈めて剣を後ろへ引く。光の尾がなびく
+            float legSwing = Mth.cos(limb * 0.7F) * 1.1F * walk;
+            rotX("right_leg", legSwing);
+            rotX("left_leg", -legSwing);
+            float s = (age - lux.slashTick) / 8.0F;
+            float swingArm = 0.0F, swingY = 0.0F;
+            if (s >= 0.0F && s < 1.0F) {
+                swingArm = 1.3F + 0.3F * Mth.sin(s * Mth.PI);
+                swingY = 1.1F - 2.2F * s;
+            }
+            float w = (age - lux.windupTick) / (lux.isPhase2() ? 12.0F : 20.0F);
+            float windup = w >= 0.0F && w < 1.0F ? Mth.sin(Math.min(1.0F, w * 1.5F) * Mth.HALF_PI) : 0.0F;
+            CoreGeoBone arm = bone("right_arm");
+            if (arm != null) {
+                arm.setRotX(0.5F + legSwing * 0.3F + swingArm - 1.3F * windup);
+                arm.setRotY(swingY);
+            }
+            rotX("left_arm", -legSwing * 0.8F + 0.3F * windup);
+            CoreGeoBone body = bone("body");
+            if (body != null) {
+                body.setRotX(-0.15F * walk - 0.4F * windup);
+                body.setRotY(swingY * 0.35F);
+                body.setPosY(-2.0F * windup);
+            }
+            CoreGeoBone head = bone("head");
+            if (head != null) head.setRotX(-pitch * 0.6F);
+            CoreGeoBone tail = bone("tail");
+            if (tail != null) {
+                tail.setRotX(0.3F + walk * 0.6F + Mth.sin(age * 0.15F) * 0.08F + 0.5F * windup);
+                tail.setRotZ(Mth.sin(age * 0.11F) * 0.1F);
+            }
+            CoreGeoBone thrusters = bone("thrusters");
+            if (thrusters != null) thrusters.setRotX(-0.2F * walk - 0.3F * windup + (lux.isPhase2() ? Mth.sin(age * 0.8F) * 0.04F : 0.0F));
         } else if (entity instanceof HeavyWalkerEntity walker) {
             float swing = Mth.cos(limb * 0.55F) * 0.55F * walk;
             rotX("leg_left", swing);

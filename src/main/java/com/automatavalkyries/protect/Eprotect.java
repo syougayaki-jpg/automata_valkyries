@@ -122,6 +122,22 @@ public class Eprotect {
     }
 
     /**
+     * 被弾の上限を掛けるか（既定はかける）。false にすると、即死系（/kill・被弾以外の HP 減少・消去・強制移動など）は今までどおり拒否し、
+     * 普通の被弾は桁外れの値もそのまま通す（NaN・無限大だけ置き換える）。普通に倒せるボス向け
+     * （2026-10-07 ユーザー指定、AEC 級ボス ルクシオン「即死系の守りを付ける・被弾上限は無し」）
+     */
+    private boolean damageCap = true;
+
+    public Eprotect withoutDamageCap() {
+        this.damageCap = false;
+        return this;
+    }
+
+    public boolean capsDamage() {
+        return damageCap;
+    }
+
+    /**
      * 座標として正常か（NaN / 無限大 / ワールド境界の遥か外 / 奈落を弾く）。
      * 奈落はそのワールドの最低高度 - 64（バニラの奈落ダメージが始まる高さ）より下。固定値だと (-999, -999, -999) のような
      * 「ぎりぎり有限」の飛ばし先をすり抜けるので、ワールドの高さで判定する。
@@ -387,7 +403,7 @@ public class Eprotect {
     public float sanitizeIncomingDamage(float amount) {
         lastRawIncoming = amount;
         if (!isProtectionActive()) return lastSanitizedIncoming = amount;
-        if (!Float.isFinite(amount) || amount >= HUGE_DAMAGE_THRESHOLD) {
+        if (!Float.isFinite(amount) || (damageCap && amount >= HUGE_DAMAGE_THRESHOLD)) {
             return lastSanitizedIncoming = HUGE_DAMAGE_CLAMP;
         }
         return lastSanitizedIncoming = amount;
@@ -413,6 +429,7 @@ public class Eprotect {
      */
     public float capFinalDamage(float amount, @Nullable DamageSource source) {
         if (!isProtectionActive()) return amount;
+        if (!damageCap) return Float.isFinite(amount) ? amount : HUGE_DAMAGE_CLAMP; // 上限なし（普通に倒せるボス）
         // 強化保護中でも通常攻撃は上限どおりに通す（即死系は入口で止める。EprotectForgeEvents.isLethalAttack）
         // ブラックリストの MOD からのダメージは上限を下げる（罰則）
         String penalized = source != null ? blacklistedDamageMod(source) : null;
@@ -671,7 +688,8 @@ public class Eprotect {
         }
         float loss = previous - hp;
         // ダメージ処理を通らない削りは通常攻撃ではないので、強化保護中は全部戻す
-        float allowed = isReinforcedActive() ? 0.0F : capFinalDamage(loss, null);
+        // 上限なしの個体でも、被弾を通らない削りは即死系なので全部戻す
+        float allowed = isReinforcedActive() || !damageCap ? 0.0F : capFinalDamage(loss, null);
         if (allowed >= loss - 0.001F) {
             lastValidHealth = hp;
             return false;

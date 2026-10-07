@@ -33,14 +33,14 @@ import java.util.EnumSet;
  * 矢やファイヤーボールを避けるか確かめるため、戦術兵姫を優先的に遠距離攻撃する」）。
  * <ul>
  *   <li>出したらその場から 30 ブロック上へ上がり、その高さ・位置に留まる（動かない、落ちない、ノックバックしない）</li>
- *   <li>実質の HP 10,000: バニラの最大 HP の属性は 1,024 までなので、HP 1,000 で受けるダメージを 1/10 にする（ボスバーは 10 倍で出す）。forge:bosses</li>
+ *   <li>HP 10,000（最大 HP の上限は mixin/HealthCapMixin で上げてある）。forge:bosses</li>
  *   <li>狙う順: 戦術兵姫 → プレイヤー。矢 3 連射・小さな火の玉 3 連・大きな火の玉（地形を壊さない）を順に撃つ</li>
  * </ul>
  */
 public class SkyBossSkeleton extends Skeleton {
 
-    /** 実際の最大 HP と、受けるダメージの倍率（実質 10,000） */
-    public static final float REAL_HEALTH = 1_000.0F, DAMAGE_SCALE = 0.1F;
+    /** HP 1 万（最大 HP の上限は mixin/HealthCapMixin で上げてあるので、前の「実際は 1,000 でダメージを 1/10」はやめた。2026-10-08） */
+    public static final float MAX_HEALTH = 10_000.0F;
     /** 出した所から上がる高さ・狙う距離 */
     public static final double HOVER = 30.0, RANGE = 64.0;
 
@@ -58,15 +58,10 @@ public class SkyBossSkeleton extends Skeleton {
 
     public static AttributeSupplier.Builder createAttributes() {
         return Skeleton.createAttributes()
-                .add(Attributes.MAX_HEALTH, REAL_HEALTH)
+                .add(Attributes.MAX_HEALTH, MAX_HEALTH)
                 .add(Attributes.FOLLOW_RANGE, RANGE)
                 .add(Attributes.KNOCKBACK_RESISTANCE, 1.0)
                 .add(Attributes.MOVEMENT_SPEED, 0.0);
-    }
-
-    @Override
-    public boolean hurt(net.minecraft.world.damagesource.DamageSource source, float amount) {
-        return super.hurt(source, amount * DAMAGE_SCALE);
     }
 
     @Override
@@ -107,7 +102,7 @@ public class SkyBossSkeleton extends Skeleton {
         setDeltaMovement(Vec3.ZERO);
         fallDistance = 0.0F;
         bossBar.setProgress(getHealth() / getMaxHealth());
-        bossBar.setName(getDisplayName().copy().append(String.format(" %,.0f / %,.0f", getHealth() / DAMAGE_SCALE, getMaxHealth() / DAMAGE_SCALE)));
+        bossBar.setName(getDisplayName().copy().append(String.format(" %,.0f / %,.0f", getHealth(), getMaxHealth())));
         // 戦術兵姫を優先: プレイヤーを狙っていても近くに兵姫がいれば乗り換える
         if (tickCount % 20 == 0 && !(getTarget() instanceof ValkyrieEntity)) {
             ValkyrieEntity v = level().getNearestEntity(ValkyrieEntity.class, net.minecraft.world.entity.ai.targeting.TargetingConditions.forCombat().range(RANGE).ignoreLineOfSight(),
