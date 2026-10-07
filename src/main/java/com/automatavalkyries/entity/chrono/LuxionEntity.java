@@ -56,6 +56,7 @@ import java.util.EnumSet;
  * </ul>
  * 狙いは兵姫を優先（クロノゲイザー共通）。挑む相手がいなくなると 10 秒で退く（セリフつきの正規の退場）
  */
+@net.minecraftforge.fml.common.Mod.EventBusSubscriber(modid = com.automatavalkyries.AutomataValkyries.MODID)
 public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IProviderWithSpeech {
 
     public static final float MAX_HP = 5000.0F, MELEE = 30.0F, FLURRY_HIT = 25.0F, WAVE = 30.0F, DASH = 40.0F;
@@ -157,6 +158,36 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
         super.die(source);
     }
 
+    /** 撃破の落とし物が出たか（他 MOD が落とし物のイベントを取り消す・空にすると出ない。2026-10-08「アイテム落ちないです」） */
+    private boolean lootDropped;
+
+    /**
+     * 落とし物のイベントの最後（取り消されたものも受ける）: 取り消されていたら戻し、空にされていたら撃破の演出の終わりに自分で出し直す。
+     * どちらが起きたかはログに残す
+     */
+    @net.minecraftforge.eventbus.api.SubscribeEvent(priority = net.minecraftforge.eventbus.api.EventPriority.LOWEST, receiveCanceled = true)
+    public static void onDrops(net.minecraftforge.event.entity.living.LivingDropsEvent event) {
+        if (!(event.getEntity() instanceof LuxionEntity lux)) return;
+        if (event.isCanceled()) {
+            com.automatavalkyries.AutomataValkyries.LOGGER.warn("[luxion] another mod cancelled the boss drops; restoring them ({} items)", event.getDrops().size());
+            event.setCanceled(false);
+        }
+        if (event.getDrops().isEmpty()) {
+            com.automatavalkyries.AutomataValkyries.LOGGER.warn("[luxion] the boss drops were emptied by another mod; they will be rolled again");
+        } else {
+            lux.lootDropped = true;
+        }
+    }
+
+    /** 落とし物が出ていなければ、ドロップの表をもう一度引いて出す */
+    private void ensureLoot() {
+        if (lootDropped || !(level() instanceof ServerLevel)) return;
+        lootDropped = true;
+        DamageSource source = getLastDamageSource() != null ? getLastDamageSource() : damageSources().generic();
+        dropFromLootTable(source, getLastHurtByMob() instanceof Player);
+        com.automatavalkyries.AutomataValkyries.LOGGER.info("[luxion] rolled the boss drops again after they were lost");
+    }
+
     @Override
     protected void tickDeath() {
         ++deathTime;
@@ -169,6 +200,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
                 server.sendParticles(new DustParticleOptions(WHITE_GOLD, 2.5F), getX(), getY(1.0), getZ(), 80, 0.6, 1.2, 0.6, 0.0);
                 server.sendParticles(ParticleTypes.FLASH, getX(), getY(0.5), getZ(), 1, 0, 0, 0, 0);
             }
+            ensureLoot();
             protect.finishDeath();
             remove(RemovalReason.KILLED);
         }

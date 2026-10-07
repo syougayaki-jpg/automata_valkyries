@@ -143,6 +143,22 @@ public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntity
             }
             CoreGeoBone thrusters = bone("thrusters");
             if (thrusters != null) thrusters.setRotX(-0.2F * walk - 0.3F * windup + (lux.isPhase2() ? Mth.sin(age * 0.8F) * 0.04F : 0.0F));
+            // 光の翼: 普段はゆっくり羽ばたき、歩く・構えると後ろへ流れて大きく広がる。第 2 形態はいつも大きく広げて震わせる
+            float spread = 0.25F + 0.35F * walk + 0.6F * windup + (lux.isPhase2() ? 0.4F : 0.0F)
+                    + Mth.sin(age * (lux.isPhase2() ? 0.5F : 0.08F)) * (lux.isPhase2() ? 0.05F : 0.08F);
+            float sweep = 0.15F * walk + 0.35F * windup;
+            CoreGeoBone wl = bone("wing_left");
+            if (wl != null) {
+                wl.setRotZ(-spread);
+                wl.setRotY(-sweep);
+            }
+            CoreGeoBone wr = bone("wing_right");
+            if (wr != null) {
+                wr.setRotZ(spread);
+                wr.setRotY(sweep);
+            }
+            CoreGeoBone cannon = bone("cannon");
+            if (cannon != null) cannon.setRotX(-pitch * 0.5F - 0.2F * windup);
         } else if (entity instanceof HeavyWalkerEntity walker) {
             float swing = Mth.cos(limb * 0.55F) * 0.55F * walk;
             rotX("leg_left", swing);

@@ -192,6 +192,7 @@ public class Eprotect {
      * 現在、正規のダメージ処理中であり、かつ被弾前の体力が1撃で倒せる残量（最大HPの10%）以下かどうか
      */
     public boolean isLegitimateFatalBlow() {
+        if (!damageCap) return hurtDepth > 0; // 上限なしの個体は、被弾で HP が尽きればいつでも正規の撃破（ルクシオンが倒れなかった。2026-10-08）
         float maxSingleHit = owner.getMaxHealth() * MAX_HIT_RATIO + 1.0F;
         return hurtDepth > 0 && lastValidHealth <= maxSingleHit;
     }
@@ -532,7 +533,7 @@ public class Eprotect {
             }
             // hurt() 実行中であっても、1 撃の最大ダメージ（MAX_HIT_RATIO）を超える不当な HP 0 化を弾く
             float minAllowed = fallback - (owner.getMaxHealth() * MAX_HIT_RATIO + 1.0F);
-            if (health <= 0.0F && minAllowed > 0.0F) {
+            if (health <= 0.0F && minAllowed > 0.0F && damageCap) { // 上限なしの個体は、被弾での HP 0 を通す
                 AttackLog.refused(owner, AttackOp.HEALTH_LOSS + ":fatal_in_hurt");
                 return minAllowed;
             }

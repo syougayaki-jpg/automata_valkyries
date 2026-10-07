@@ -80,8 +80,26 @@ public class ChronoGazerGameTests {
             helper.assertTrue(lux.isAlive() && !lux.isRemoved() && lux.getHealth() == lux.getMaxHealth(), "/kill hurt or removed Luxion: " + lux.getHealth());
             lux.hurt(helper.getLevel().damageSources().generic(), 3000.0F);
             helper.assertTrue(lux.getHealth() < 2500.0F, "a big normal hit was capped: " + lux.getHealth()); // 3,000（防具で少し減る）
-            lux.getEprotect().triggerDespawn();
+            lux.hurt(helper.getLevel().damageSources().generic(), 6000.0F); // 残りを超える普通の一撃で倒れる（2026-10-08、倒れなかった不具合）
+            helper.assertTrue(lux.isDeadOrDying(), "a lethal normal hit did not defeat Luxion: " + lux.getHealth());
             helper.succeed();
+        });
+    }
+
+    /** ルクシオンをプレイヤーが倒すと、ボス素材を落とす（2026-10-08「アイテム落ちないです」） */
+    @GameTest(template = TEMPLATE, batch = "chrono_gazer", timeoutTicks = 120)
+    public static void luxionDropsBossMaterials(GameTestHelper helper) {
+        com.automatavalkyries.entity.chrono.LuxionEntity lux = helper.spawn(ModEntities.LUXION.get(), 2, 2, 2);
+        lux.setNoAi(true);
+        var player = helper.makeMockPlayer();
+        player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, new net.minecraft.world.item.ItemStack(com.automatavalkyries.registry.ModWeapons.LUMINOUS_REQUIEM.get()));
+        // ルミナス・レクイエムの星の鎮魂歌と同じダメージ（2026-10-08「クリエイティブでルミナスレクイエムで倒すと落ちない」）
+        lux.hurt(com.automatavalkyries.weapon.WeaponDamage.source(player, com.automatavalkyries.weapon.WeaponDamage.ORBITAL, player, player), (float) Integer.MAX_VALUE);
+        com.automatavalkyries.weapon.Overload.overkill(lux, player);
+        helper.succeedWhen(() -> {
+            var items = helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, lux.getBoundingBox().inflate(6.0));
+            helper.assertTrue(items.stream().anyMatch(i -> i.getItem().is(com.automatavalkyries.registry.ModBossDrops.LUXION_CORE.get())),
+                    "no luxion core dropped (dead=" + lux.isDeadOrDying() + ", removed=" + lux.isRemoved() + ", items=" + items.size() + ")");
         });
     }
 
