@@ -73,6 +73,16 @@ public class ModEntities {
             ENTITY_TYPES.register("chrono_heavy_walker", () ->
                     EntityType.Builder.of(com.automatavalkyries.entity.chrono.HeavyWalkerEntity::new, MobCategory.MONSTER)
                             .sized(1.6F, 2.2F).clientTrackingRange(10).build("chrono_heavy_walker"));
+    /** 上位機: 人のお面の姿で高威力の光線を撃つ（2026-10-07） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.MaskDroneEntity>> CHRONO_MASK_DRONE =
+            ENTITY_TYPES.register("chrono_mask_drone", () ->
+                    EntityType.Builder.of(com.automatavalkyries.entity.chrono.MaskDroneEntity::new, MobCategory.MONSTER)
+                            .sized(1.0F, 1.0F).clientTrackingRange(12).build("chrono_mask_drone"));
+    /** 兵士: 腹のガトリングと黄色のフォトン剣（2026-10-07） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.TrooperEntity>> CHRONO_TROOPER =
+            ENTITY_TYPES.register("chrono_trooper", () ->
+                    EntityType.Builder.of(com.automatavalkyries.entity.chrono.TrooperEntity::new, MobCategory.MONSTER)
+                            .sized(0.7F, 2.1F).clientTrackingRange(10).build("chrono_trooper"));
     /** クロノゲイザーの弾（ドローンのレーザー弾・戦車の砲弾） */
     public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.ChronoBolt>> CHRONO_BOLT =
             ENTITY_TYPES.register("chrono_bolt", () ->
@@ -88,6 +98,8 @@ public class ModEntities {
         event.register(CHRONO_SCOUT_DRONE.get(), ground, height, net.minecraft.world.entity.monster.Monster::checkMonsterSpawnRules, op);
         event.register(CHRONO_SPIDER_BOT.get(), ground, height, net.minecraft.world.entity.monster.Monster::checkMonsterSpawnRules, op);
         event.register(CHRONO_HEAVY_WALKER.get(), ground, height, net.minecraft.world.entity.monster.Monster::checkMonsterSpawnRules, op);
+        event.register(CHRONO_MASK_DRONE.get(), ground, height, net.minecraft.world.entity.monster.Monster::checkMonsterSpawnRules, op);
+        event.register(CHRONO_TROOPER.get(), ground, height, net.minecraft.world.entity.monster.Monster::checkMonsterSpawnRules, op);
     }
 
     @SubscribeEvent
@@ -95,6 +107,8 @@ public class ModEntities {
         event.put(CHRONO_SCOUT_DRONE.get(), com.automatavalkyries.entity.chrono.ScoutDroneEntity.createAttributes().build());
         event.put(CHRONO_SPIDER_BOT.get(), com.automatavalkyries.entity.chrono.SpiderBotEntity.createAttributes().build());
         event.put(CHRONO_HEAVY_WALKER.get(), com.automatavalkyries.entity.chrono.HeavyWalkerEntity.createAttributes().build());
+        event.put(CHRONO_MASK_DRONE.get(), com.automatavalkyries.entity.chrono.MaskDroneEntity.createAttributes().build());
+        event.put(CHRONO_TROOPER.get(), com.automatavalkyries.entity.chrono.TrooperEntity.createAttributes().build());
         event.put(SKY_BOSS_SKELETON.get(), com.automatavalkyries.entity.SkyBossSkeleton.createAttributes().build());
         event.put(VALKYRIE.get(), com.automatavalkyries.entity.ValkyrieEntity.createAttributes().build());
         event.put(ELENOR.get(), ElenorEntity.createAttributes().build());

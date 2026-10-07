@@ -89,6 +89,19 @@ public class ModItems {
             new ForgeSpawnEggItem(ModEntities.CHRONO_SPIDER_BOT, 0x474c59, 0xff2a4a, new Item.Properties()));
     public static final RegistryObject<Item> CHRONO_HEAVY_WALKER_SPAWN_EGG = ITEMS.register("chrono_heavy_walker_spawn_egg", () ->
             new ForgeSpawnEggItem(ModEntities.CHRONO_HEAVY_WALKER, 0x23262e, 0x5b2a9a, new Item.Properties()));
+    public static final RegistryObject<Item> CHRONO_MASK_DRONE_SPAWN_EGG = ITEMS.register("chrono_mask_drone_spawn_egg", () ->
+            new ForgeSpawnEggItem(ModEntities.CHRONO_MASK_DRONE, 0xe8e4dc, 0xff2a4a, new Item.Properties()));
+    public static final RegistryObject<Item> CHRONO_TROOPER_SPAWN_EGG = ITEMS.register("chrono_trooper_spawn_egg", () ->
+            new ForgeSpawnEggItem(ModEntities.CHRONO_TROOPER, 0x474c59, 0xffe14a, new Item.Properties()));
+    /** フォトン剣の欠片（クロノ・トルーパーがまれに落とす。使い道はまだ無い＝素材の予定。2026-10-07） */
+    public static final RegistryObject<Item> PHOTON_BLADE_SHARD = ITEMS.register("photon_blade_shard", () ->
+            new Item(new Item.Properties()) {
+                @Override
+                public void appendHoverText(net.minecraft.world.item.ItemStack stack, @org.jetbrains.annotations.Nullable net.minecraft.world.level.Level level,
+                                            java.util.List<net.minecraft.network.chat.Component> tooltip, net.minecraft.world.item.TooltipFlag flag) {
+                    tooltip.add(net.minecraft.network.chat.Component.translatable("item.automata_valkyries.photon_blade_shard.desc").withStyle(net.minecraft.ChatFormatting.GRAY));
+                }
+            });
     public static final RegistryObject<Item> SKY_BOSS_SKELETON_SPAWN_EGG = ITEMS.register("sky_boss_skeleton_spawn_egg", () ->
             new ForgeSpawnEggItem(ModEntities.SKY_BOSS_SKELETON, 0xc1c1c1, 0x7b2cbf, new Item.Properties()));
     public static final RegistryObject<Item> FARTHEST_ELENOR_SPAWN_EGG = ITEMS.register("farthest_elenor_spawn_egg", () ->

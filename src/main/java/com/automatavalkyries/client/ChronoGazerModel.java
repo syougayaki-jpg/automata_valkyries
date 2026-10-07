@@ -66,6 +66,49 @@ public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntity
                 core.setScaleY(pulse);
                 core.setScaleZ(pulse);
             }
+        } else if (entity instanceof com.automatavalkyries.entity.chrono.MaskDroneEntity mask) {
+            // 仮面: ゆっくり首をかしげて漂う（溜めている間はぴたりと止まって相手を見据え、震える）
+            boolean busy = mask.getState() != com.automatavalkyries.entity.chrono.MaskDroneEntity.IDLE;
+            CoreGeoBone head = bone("head");
+            if (head != null) {
+                head.setRotX(-pitch);
+                head.setRotZ(busy ? Mth.sin(age * 4.0F) * 0.015F : Mth.sin(age * 0.05F) * 0.35F);
+                head.setPosY(busy ? 0.0F : Mth.sin(age * 0.09F) * 0.8F);
+            }
+            CoreGeoBone ring = bone("ring");
+            if (ring != null) ring.setRotZ(age * (busy ? 0.6F : 0.08F));
+            CoreGeoBone cables = bone("cables");
+            if (cables != null) cables.setRotX(Mth.sin(age * 0.11F) * 0.12F + walk * 0.4F);
+        } else if (entity instanceof com.automatavalkyries.entity.chrono.TrooperEntity trooper) {
+            // 兵士: 歩き・剣の横薙ぎと突き・腹のガトリング（常に露出。撃つと銃身が回る）
+            float legSwing = Mth.cos(limb * 0.6662F) * 1.0F * walk;
+            rotX("right_leg", legSwing);
+            rotX("left_leg", -legSwing);
+            rotX("left_arm", -legSwing * 0.8F);
+            float s = (age - trooper.swingTick) / 10.0F;
+            float swingArm = 0.0F, swingY = 0.0F;
+            if (s >= 0.0F && s < 1.0F) {
+                float up = Mth.sin(Math.min(1.0F, s * 2.0F) * Mth.PI);
+                if (trooper.swingThrust) swingArm = 1.5F * Mth.sin(s * Mth.PI); // まっすぐ突き出す
+                else { // 右上から左へ薙ぐ
+                    swingArm = 1.2F + 0.4F * up;
+                    swingY = 1.0F - 2.0F * s;
+                }
+            }
+            boolean firing = trooper.isFiring();
+            float ready = firing ? 0.0F : 0.5F; // 剣を前へ構える
+            CoreGeoBone arm = bone("right_arm");
+            if (arm != null) {
+                arm.setRotX(legSwing * 0.8F * (1.0F - ready) + ready * 0.6F + swingArm);
+                arm.setRotY(swingY);
+            }
+            CoreGeoBone body = bone("body");
+            if (body != null) body.setRotY(swingY * 0.3F);
+            float spin = Mth.lerp(pt, trooper.spinO, trooper.spin);
+            CoreGeoBone gun = bone("belly_gun");
+            if (gun != null) gun.setRotZ(spin);
+            CoreGeoBone head = bone("head");
+            if (head != null) head.setRotX(-pitch * 0.7F);
         } else if (entity instanceof HeavyWalkerEntity walker) {
             float swing = Mth.cos(limb * 0.55F) * 0.55F * walk;
             rotX("leg_left", swing);

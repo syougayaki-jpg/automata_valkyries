@@ -51,6 +51,24 @@ public class ChronoGazerGameTests {
         });
     }
 
+    /** 上位の 2 体（2026-10-07）: 兵士は HP 100、仮面の観測機は溜めてから光線を当てる */
+    @GameTest(template = TEMPLATE, batch = "chrono_gazer", timeoutTicks = 260)
+    public static void maskDroneBeamHitsItsTarget(GameTestHelper helper) {
+        com.automatavalkyries.entity.chrono.TrooperEntity trooper = helper.spawn(ModEntities.CHRONO_TROOPER.get(), 1, 2, 1);
+        helper.assertTrue(trooper.getMaxHealth() == 100.0F, "the trooper's max health is not 100");
+        trooper.discard();
+        com.automatavalkyries.entity.chrono.MaskDroneEntity mask = helper.spawn(ModEntities.CHRONO_MASK_DRONE.get(), 2, 4, 2);
+        net.minecraft.world.entity.animal.IronGolem golem = helper.spawn(net.minecraft.world.entity.EntityType.IRON_GOLEM, 6, 2, 6);
+        golem.setNoAi(true);
+        mask.setTarget(golem);
+        helper.succeedWhen(() -> {
+            mask.setTarget(golem);
+            helper.assertTrue(golem.getHealth() < golem.getMaxHealth(), "the mask drone's beam has not hit yet");
+            mask.discard();
+            golem.discard();
+        });
+    }
+
     /** 兵姫を見つけると狙う */
     @GameTest(template = TEMPLATE, batch = "chrono_gazer", timeoutTicks = 120)
     public static void chronoGazersTargetValkyries(GameTestHelper helper) {

@@ -1,5 +1,5 @@
 """
-クロノ・ゲイザーの雑魚 3 種（索敵ドローン・自爆クモボット・重歩行戦車）の GeckoLib モデルとテクスチャを作る（2026-10-07）。
+クロノ・ゲイザーの雑魚 5 種（索敵ドローン・自爆クモボット・重歩行戦車・仮面の観測機・クロノ・トルーパー）の GeckoLib モデルとテクスチャを作る（2026-10-07）。
 
     python tools/gen_chrono_gazers.py
 
@@ -11,6 +11,8 @@
   chrono_scout_drone  : root > body > eye / rotor_left / rotor_right / antenna
   chrono_spider_bot   : root > body > core / leg_0..leg_5（leg_0〜2 が右 -X の前→後ろ、leg_3〜5 が左 +X の前→後ろ）
   chrono_heavy_walker : root > hull > cannon、root > leg_left / leg_right
+  chrono_mask_drone   : root > head > eyes / mouth / ring / cables
+  chrono_trooper      : root > body > head / belly_gun / right_arm > blade / left_arm、root > right_leg / left_leg
 コードで回す骨そのものには初期の向きを付けない（脚の曲がりは子の骨 *_upper / *_thigh などに付ける）。
 色は敵の決まり（DESIGN_VALKYRIE_VISUAL_DB §2.4）: 暗いガンメタル・紫の差し色・冷たい赤の発光。3 種とも赤い「目」のレンズを持つ。
 座標は GeckoLib（Bedrock）の geo の座標（px）。正面は -Z、右は -X。
@@ -44,6 +46,9 @@ MAT = {
     'eye': (0x5A0A18, 0xFF8FA0, 0xFF2A4A, 'eye', True),
     'glow': (0xFF2A4A, 0xFF8FA0, 0xB01830, 'glow', True),
     'slit': (0x1A0508, 0xFF8FA0, 0xFF2A4A, 'slit', True),
+    'porcelain': (0xE8E4DC, 0xF6F3EE, 0xBFB8AC, 'crack', False),   # 仮面の観測機の白い面
+    'hole': (0x0E0F14, 0x16181E, 0x08090C, 'plain', False),
+    'yglow': (0xFFE14A, 0xFFF7B0, 0xD8B020, 'glow', True),        # フォトン剣
 }
 FACES = ('north', 'south', 'east', 'west', 'up', 'down')
 SEM = {'front': 'north', 'back': 'south', 'top': 'up', 'bottom': 'down'}
@@ -143,6 +148,10 @@ class Atlas:
                             c = 0x0C0D10
                         elif pat == 'rivet' and (x in (1, w - 2) and y in (1, h - 2)):
                             c = light
+                        elif pat == 'crack' and w >= 4 and h >= 4 and (x * 7 + y * 3 + w) % 23 == 0:
+                            c = dark                                     # 細いひび
+                        elif pat == 'crack' and w >= 6 and x == w // 3 and 1 <= y < h - 1:
+                            c = 0xD8D2C6                                 # 合わせ目
                         elif pat == 'stripe' and abs(y + 0.5 - h / 2) < max(0.6, h * 0.18):
                             c = MAT['purple'][0]
                 self.px(u + x, v + y, c)
@@ -284,8 +293,97 @@ def heavy_walker():
     return m
 
 
+# ------------------------------------------------------------------ 仮面の観測機
+def mask_drone():
+    """白い人の顔の仮面（目と口は暗い穴で、奥に赤い光の切れ目）。後ろは機械: 薄い輪の推進器と、垂れ下がる暗いケーブルの束"""
+    m = Model('chrono_mask_drone')
+    m.bone('root')
+    m.bone('head', 'root', (0, 8, 0))
+    z0, z1 = -1.5, -0.5                                                                       # 面の板（穴の周りを組む）
+    m.box('head', (-4.5, 14.0, z0 + 0.1), (4.5, 15.0, z1), 'porcelain')                        # 額の上（丸み）
+    m.box('head', (-6.0, 10.0, z0), (6.0, 14.0, z1), 'porcelain')                              # 額
+    m.box('head', (-1.5, 8.5, z0), (1.5, 10.0, z1), 'porcelain')                               # 眉間
+    m.mbox('head', (-6.0, 8.5, z0), (-4.0, 10.0, z1), 'porcelain')                            # 目の外
+    m.box('head', (-6.0, 5.5, z0), (6.0, 8.5, z1), 'porcelain')                                # 頬・鼻の高さ
+    m.box('head', (-0.6, 6.0, z0 - 0.45), (0.6, 8.6, z0), 'porcelain')                         # 鼻筋
+    m.mbox('head', (-5.5, 4.5, z0), (-2.0, 5.5, z1), 'porcelain')                             # 口の横
+    m.box('head', (-4.5, 2.0, z0), (4.5, 4.5, z1), 'porcelain')                                # 顎
+    m.mbox('head', (-5.5, 2.8, z0 + 0.05), (-4.5, 4.5, z1 - 0.05), 'porcelain')               # 顎の角
+    m.box('head', (-5.8, 2.6, z1), (5.8, 14.6, 0.5), 'hole', sides='dark', top='dark', bottom='dark', back='dark')   # 奥の暗い板（穴から見える）
+    m.box('head', (-4.5, 4.0, 0.5), (4.5, 12.0, 2.5), 'plate', back='vent', top='armor')      # 後ろの機械の箱
+    m.box('head', (-3.0, 3.0, 0.5), (3.0, 4.05, 2.0), 'metal')
+    m.bone('eyes', 'head', (0, 9.25, -0.57))
+    m.mbox('eyes', (-3.7, 8.95, -0.62), (-1.8, 9.55, -0.52), 'glow')                           # 目の奥の赤い切れ目
+    m.bone('mouth', 'head', (0, 5.0, -0.57))
+    m.box('mouth', (-1.7, 4.8, -0.62), (1.7, 5.2, -0.52), 'glow')
+    cy, cz = 8.0, 3.2
+    m.bone('ring', 'head', (0, cy, cz))                                                        # 後ろの薄い輪の推進器（+Z 向き）
+    for k in range(12):
+        seg = m.bone(f'ring_{k}', 'ring', (0, cy, cz), (0, 0, k * 30))
+        dz = 0.04 if k % 2 else 0.0
+        m.box(seg, (-1.15, cy + 3.6, cz - 0.3 - dz), (1.15, cy + 4.3, cz + 0.3 + dz), 'metal', bottom='edge')
+        if k % 3 == 0:
+            m.box(seg, (-0.3, cy + 3.75, cz + 0.3 + dz), (0.3, cy + 4.15, cz + 0.4 + dz), 'glow')   # 赤い光の点
+    m.box('ring', (-0.6, cy - 0.6, 2.45), (0.6, cy + 0.6, cz + 0.1), 'dark', back='glow')         # 輪の軸
+    m.bone('cables', 'head', (0, 4.0, 1.5))                                                     # 垂れ下がるケーブル（ベール）
+    for i, (x, z, ln) in enumerate(((-3.2, 1.0, 2.6), (-2.0, 1.7, 3.0), (-0.8, 1.1, 3.2), (0.4, 1.8, 2.9), (1.6, 1.0, 3.1), (2.8, 1.6, 2.5))):
+        m.box('cables', (x - 0.25, 4.0 - ln, z - 0.25), (x + 0.25, 4.05 + i * 0.01, z + 0.25), 'hole')
+        if i % 2 == 0:
+            m.box('cables', (x - 0.3, 4.0 - ln - 0.3, z - 0.3), (x + 0.3, 4.0 - ln, z + 0.3), 'glow')   # 先の赤い光
+    return m
+
+
+# ------------------------------------------------------------------ クロノ・トルーパー
+def trooper():
+    """人型の兵士ロボ: 赤い一つ目のバイザー、腹の扉の奥に回転式の多銃身砲、右手に黄色く光るフォトン剣"""
+    m = Model('chrono_trooper')
+    m.bone('root')
+    m.bone('body', 'root', (0, 13, 0))
+    m.box('body', (-3.5, 12.0, -2.0), (3.5, 14.2, 2.0), 'metal', front='vent')                # 腰
+    m.box('body', (-3.0, 14.0, -1.0), (3.0, 19.2, 2.0), 'dark', front='vent')                 # 腹（奥へ引っ込む。砲の入る所）
+    m.mbox('body', (-3.2, 14.0, -2.4), (-2.95, 19.2, 2.0), 'metal')                           # 腹の横の枠
+    m.box('body', (-4.0, 19.0, -2.5), (4.0, 25.0, 2.5), 'armor', front='stripe', back='vent') # 胸
+    m.box('body', (-3.0, 23.6, -2.9), (3.0, 24.6, -2.45), 'purple')                            # 胸の紫の帯
+    m.box('body', (-1.0, 24.95, -1.0), (1.0, 26.05, 1.0), 'metal')                             # 首
+    m.bone('head', 'body', (0, 26, 0))
+    m.box('head', (-2.5, 26.0, -2.5), (2.5, 31.0, 2.5), 'plate', top='armor')
+    m.box('head', (-1.9, 28.0, -2.9), (1.9, 29.1, -2.45), 'slit', sides='dark', top='dark', bottom='dark')   # 赤い一つ目のバイザー
+    m.box('head', (-2.7, 27.0, -1.5), (2.7, 28.0, 1.5), 'metal')                               # 耳の装甲
+    m.box('head', (-0.4, 30.95, -1.2), (0.4, 32.6, 2.0), 'purple')                             # 頭の上の紫のひれ
+    m.box('head', (-0.2, 32.55, 1.2), (0.2, 33.0, 1.6), 'glow')
+    m.bone('belly_gun', 'body', (0, 17, -2.5))                                                 # 回転式の多銃身砲（Z で回す）
+    # 腹の砲は常に露出（2026-10-07 ユーザー指定「腹部のガトリングは常に露出するように」。扉は無くし、銃身を前へ突き出す）
+    m.box('belly_gun', (-0.7, 16.3, -6.4), (0.7, 17.7, -0.95), 'dark', front='glow')           # 中心（同日「もっと前に突き出して」でさらに長く）
+    for k in range(6):
+        a = math.radians(k * 60 + 30)
+        bx, by = 1.05 * math.cos(a), 17 + 1.05 * math.sin(a)
+        m.box('belly_gun', (bx - 0.27, by - 0.27, -7.2 + (k % 2) * 0.02), (bx + 0.27, by + 0.27, -0.95), 'metal', front='hole')
+    m.box('belly_gun', (-1.6, 15.4, -1.2), (1.6, 18.6, -0.98), 'edge')                        # 銃身の束ね板
+    m.box('belly_gun', (-1.55, 15.45, -3.6), (1.55, 18.55, -3.3), 'edge')                     # 途中の束ね輪
+    m.box('belly_gun', (-1.6, 15.4, -6.3), (1.6, 18.6, -5.9), 'edge', front='glow')           # 銃口側の束ね輪（前に赤い光）
+    for name, s in (('right_arm', -1), ('left_arm', 1)):
+        m.bone(name, 'body', (s * 5, 24, 0))
+        m.box(name, (s * 6.6, 22.4, -2.0), (s * 3.9, 25.3, 2.0), 'armor', top='purple', out='stripe')   # 肩当て
+        m.box(name, (s * 6.0, 18.0, -1.2), (s * 4.0, 22.5, 1.2), 'metal')                        # 上腕
+        m.box(name, (s * 6.2, 13.5, -1.4), (s * 3.8, 18.05, 1.4), 'plate', out='armor')           # 前腕
+        m.box(name, (s * 5.9, 12.0, -1.2), (s * 4.1, 13.55, 1.2), 'dark')                          # 拳
+    m.bone('blade', 'right_arm', (-5.0, 12.75, 0))                                             # フォトン剣（拳から前・下へ）
+    t = m.bone('blade_tilt', 'blade', (-5.0, 12.75, 0), (-60, 0, 0))
+    m.box(t, (-5.4, 9.9, -0.4), (-4.6, 13.3, 0.4), 'dark')                                     # 柄
+    m.box(t, (-6.0, 9.5, -0.9), (-4.0, 9.95, 0.9), 'edge', bottom='glow')                      # 鍔
+    m.box(t, (-5.35, -4.5, -0.18), (-4.65, 9.5, 0.18), 'yglow')                                # 黄色く光る刃（14px）
+    m.box(t, (-5.15, -5.1, -0.1), (-4.85, -4.45, 0.1), 'yglow')
+    for name, s in (('right_leg', -1), ('left_leg', 1)):
+        m.bone(name, 'root', (s * 2, 13, 0))
+        m.box(name, (s * 3.5, 7.0, -1.6), (s * 0.4, 13.0, 1.6), 'armor', out='stripe')           # 太もも
+        m.box(name, (s * 3.3, 6.2, -2.1), (s * 0.6, 7.6, -1.4), 'purple')                         # 膝当て
+        m.box(name, (s * 3.3, 1.2, -1.4), (s * 0.6, 7.05, 1.4), 'plate', front='armor')           # 脛
+        m.box(name, (s * 3.6, 0.0, -3.0), (s * 0.3, 1.3, 1.8), 'metal', top='edge')               # 足
+    return m
+
+
 if __name__ == '__main__':
     os.makedirs(os.path.join(ASSETS, 'geo', 'entity'), exist_ok=True)
     os.makedirs(os.path.join(ASSETS, 'textures', 'entity'), exist_ok=True)
-    for fn in (scout_drone, spider_bot, heavy_walker):
+    for fn in (scout_drone, spider_bot, heavy_walker, mask_drone, trooper):
         write(fn())

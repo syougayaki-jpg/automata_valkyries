@@ -32,6 +32,8 @@ public class ChronoBolt extends ThrowableProjectile {
 
     private float damage = 6.0F;
     private float blastRadius = 0.0F;
+    /** 無敵時間を貫く（クロノ・トルーパーのガトリング: 小さな弾を連射しても当たるたびに通す） */
+    private boolean pierce;
 
     public ChronoBolt(EntityType<? extends ChronoBolt> type, Level level) {
         super(type, level);
@@ -39,13 +41,24 @@ public class ChronoBolt extends ThrowableProjectile {
 
     /** 撃つ（shooter の目の高さから、target の胸へ speed で） */
     public static ChronoBolt fire(LivingEntity shooter, LivingEntity target, float damage, float blastRadius, float speed, float inaccuracy) {
+        return fire(shooter, target, damage, blastRadius, speed, inaccuracy, false);
+    }
+
+    /** pierce = 当たるたびに無敵時間を消して通す（連射の弾） */
+    public static ChronoBolt fire(LivingEntity shooter, LivingEntity target, float damage, float blastRadius, float speed, float inaccuracy, boolean pierce) {
+        Vec3 eye = shooter.getEyePosition().add(shooter.getLookAngle().scale(0.6));
+        return fire(shooter, eye.subtract(0, 0.1, 0), target, damage, blastRadius, speed, inaccuracy, pierce);
+    }
+
+    /** from = 弾の出る所（クロノ・トルーパーは腹の銃口から） */
+    public static ChronoBolt fire(LivingEntity shooter, Vec3 from, LivingEntity target, float damage, float blastRadius, float speed, float inaccuracy, boolean pierce) {
         ChronoBolt bolt = new ChronoBolt(ModEntities.CHRONO_BOLT.get(), shooter.level());
         bolt.setOwner(shooter);
         bolt.damage = damage;
         bolt.blastRadius = blastRadius;
+        bolt.pierce = pierce;
         bolt.entityData.set(SHELL, blastRadius > 0.0F);
-        Vec3 from = shooter.getEyePosition().add(shooter.getLookAngle().scale(0.6));
-        bolt.setPos(from.x, from.y - 0.1, from.z);
+        bolt.setPos(from.x, from.y, from.z);
         Vec3 to = target.position().add(0, target.getBbHeight() * 0.55, 0);
         Vec3 d = to.subtract(bolt.position());
         bolt.shoot(d.x, d.y, d.z, speed, inaccuracy);
@@ -88,6 +101,7 @@ public class ChronoBolt extends ThrowableProjectile {
         if (level().isClientSide) return;
         Entity e = hit.getEntity();
         if (blastRadius <= 0.0F && ChronoGazer.canHurt(e)) {
+            if (pierce) e.invulnerableTime = 0;
             e.hurt(damageSources().mobProjectile(this, getOwner() instanceof LivingEntity l ? l : null), damage);
         }
     }

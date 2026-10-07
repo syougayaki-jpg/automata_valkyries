@@ -19,6 +19,18 @@
       "weight": 3,
       "minCount": 1,
       "maxCount": 1
+    },
+    {
+      "type": "automata_valkyries:chrono_mask_drone",
+      "weight": 2,
+      "minCount": 1,
+      "maxCount": 1
+    },
+    {
+      "type": "automata_valkyries:chrono_trooper",
+      "weight": 4,
+      "minCount": 1,
+      "maxCount": 2
     }
   ]
 }
