@@ -1130,6 +1130,7 @@
   "item.automata_valkyries.privilege_aegis.tooltip.2": "Right Click: Bond soul (UUID) to JVM Agent protection (persists if stripped)",
   "item.automata_valkyries.privilege_aegis.tooltip.3": "Sneak Right Click: Release privileged protection",
   "item.automata_valkyries.privilege_aegis.tooltip.4": "Refuses Unsafe tampering, getHealth spoofing, removal, void banish, and instant death at the outermost layer",
+  "tooltip.automata_valkyries.agent_unstable": "⚠ May behave unreliably without the Java agents",
   "message.automata_valkyries.privilege_aegis.bound": "Soul (UUID) bonded to Java Agent privileged immunity (LifeGuard & JVM Protected)",
   "message.automata_valkyries.privilege_aegis.bound_actionbar": "Privilege Aegis: Bonded (Outermost JVM Guard Active)",
   "message.automata_valkyries.privilege_aegis.unbound": "Privileged Java Agent immunity released",
