@@ -389,7 +389,15 @@ dependencies {
     def libsDir = project.file('libs')
     if (libsDir.exists()) {
         libsDir.eachFileMatch(groovy.io.FileType.FILES, ~/.*\.jar$/) { modJar ->
-            runtimeOnly fg.deobf(files(modJar))
+            // fg.deobf(files(...)) はローカルの jar をデオブフしない（SRG 名のまま読まれ、Pig2 の Mixin が Entity のフィールドを見つけられず落ちた。2026-10-07）。
+            // 名前-版.jar を flatDir の座標（libs:名前:版）にしてデオブフさせる。版の区切りが無い名前はそのまま読む
+            def base = modJar.name - ~/\.jar$/
+            def dash = base.lastIndexOf('-')
+            if (dash > 0 && dash < base.length() - 1) {
+                runtimeOnly fg.deobf("libs:${base.substring(0, dash)}:${base.substring(dash + 1)}")
+            } else {
+                runtimeOnly fg.deobf(files(modJar))
+            }
         }
     }
 
