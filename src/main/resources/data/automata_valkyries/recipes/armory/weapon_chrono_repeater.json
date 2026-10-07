@@ -4,6 +4,12 @@
   "ingredients": [
     {
       "ingredient": {
+        "item": "automata_valkyries:boss_drop_distortion_gen"
+      },
+      "count": 1
+    },
+    {
+      "ingredient": {
         "item": "automata_valkyries:boss_drop_time_needle"
       }
     },

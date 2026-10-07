@@ -1144,6 +1144,7 @@
   "item.automata_valkyries.privilege_aegis.tooltip.3": "Sneak Right Click: Release privileged protection",
   "item.automata_valkyries.privilege_aegis.tooltip.4": "Refuses Unsafe tampering, getHealth spoofing, removal, void banish, and instant death at the outermost layer",
   "tooltip.automata_valkyries.agent_unstable": "⚠ May behave unreliably without the Java agents",
+  "tooltip.automata_valkyries.ruler_forged": "Ruler-forged: +%s%% damage dealt (T3 made with Time Ruler materials)",
   "message.automata_valkyries.privilege_aegis.bound": "Soul (UUID) bonded to Java Agent privileged immunity (LifeGuard & JVM Protected)",
   "message.automata_valkyries.privilege_aegis.bound_actionbar": "Privilege Aegis: Bonded (Outermost JVM Guard Active)",
   "message.automata_valkyries.privilege_aegis.unbound": "Privileged Java Agent immunity released",

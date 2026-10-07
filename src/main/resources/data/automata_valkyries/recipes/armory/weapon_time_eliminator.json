@@ -4,6 +4,12 @@
   "ingredients": [
     {
       "ingredient": {
+        "item": "automata_valkyries:boss_drop_ftl_accel"
+      },
+      "count": 1
+    },
+    {
+      "ingredient": {
         "item": "automata_valkyries:boss_drop_time_needle"
       },
       "count": 2

@@ -4,12 +4,13 @@
   "ingredients": [
     {
       "ingredient": {
-        "item": "automata_valkyries:boss_drop_luxion_core"
-      }
+        "item": "automata_valkyries:orb_luminal"
+      },
+      "count": 1
     },
     {
       "ingredient": {
-        "item": "automata_valkyries:boss_drop_ftl_accel"
+        "item": "automata_valkyries:drive_tachyon"
       },
       "count": 2
     },

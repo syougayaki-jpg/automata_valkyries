@@ -4,8 +4,9 @@
   "ingredients": [
     {
       "ingredient": {
-        "item": "automata_valkyries:boss_drop_purified_zero"
-      }
+        "item": "automata_valkyries:boss_drop_necro_colony"
+      },
+      "count": 1
     },
     {
       "ingredient": {

@@ -4,8 +4,9 @@
   "ingredients": [
     {
       "ingredient": {
-        "item": "automata_valkyries:boss_drop_necro_colony"
-      }
+        "item": "automata_valkyries:block_nano_mesh"
+      },
+      "count": 2
     },
     {
       "ingredient": {

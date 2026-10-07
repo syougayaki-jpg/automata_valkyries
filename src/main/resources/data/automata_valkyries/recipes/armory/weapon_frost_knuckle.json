@@ -10,8 +10,9 @@
     },
     {
       "ingredient": {
-        "item": "automata_valkyries:orb_chronos"
-      }
+        "item": "automata_valkyries:block_chrono_metal"
+      },
+      "count": 2
     },
     {
       "ingredient": {

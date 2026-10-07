@@ -4,6 +4,12 @@
   "ingredients": [
     {
       "ingredient": {
+        "item": "automata_valkyries:boss_drop_necro_colony"
+      },
+      "count": 1
+    },
+    {
+      "ingredient": {
         "item": "automata_valkyries:weapon_necrosis_needle"
       }
     },

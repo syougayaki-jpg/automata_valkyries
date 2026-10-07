@@ -138,14 +138,14 @@ public class MachineGameTests {
         });
     }
 
-    /** 組み立て機: 6 種の材料からプロトコア */
+    /** 組み立て機: アストライト金属・高等回路・封入ウランセル・ルミナルクリスタル・金線・複合合金板からプロトコア（2026-10-07 ユーザー指定） */
     @GameTest(template = TEMPLATE, timeoutTicks = 800)
     public static void assemblerBuildsProtoCore(GameTestHelper helper) {
         MachineBlockEntity assembler = place(helper, new BlockPos(1, 2, 1), MachineKind.ASSEMBLER);
         powered(assembler);
-        Item[] items = {ModItems.COMPOSITE_PLATE.get(), ModItems.WIRE_GOLD.get(), ModItems.ALLOY_LUMINAL_STERLING.get(),
-                ModItems.CRYSTAL_LUMINAL.get(), ModItems.CIRCUIT_QUANTUM_TAC.get(), ModItems.URANIUM_CELL.get()};
-        int[] counts = {2, 4, 2, 4, 1, 1};
+        Item[] items = {ModItems.INGOT_ASTRITE.get(), ModItems.CIRCUIT_ADVANCED.get(), ModItems.URANIUM_CELL.get(),
+                ModItems.CRYSTAL_LUMINAL.get(), ModItems.WIRE_GOLD.get(), ModItems.COMPOSITE_PLATE.get()};
+        int[] counts = {4, 2, 1, 4, 4, 2};
         for (int i = 0; i < items.length; i++) assembler.items().setStackInSlot(i, new ItemStack(items[i], counts[i]));
         helper.succeedWhen(() -> {
             ItemStack out = assembler.items().getStackInSlot(assembler.kind().outputSlot());

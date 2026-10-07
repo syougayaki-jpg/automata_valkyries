@@ -4,6 +4,12 @@
   "ingredients": [
     {
       "ingredient": {
+        "item": "automata_valkyries:boss_drop_memento_wings"
+      },
+      "count": 1
+    },
+    {
+      "ingredient": {
         "item": "automata_valkyries:boss_drop_ruler_heart"
       }
     },

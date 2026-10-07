@@ -1144,6 +1144,7 @@
   "item.automata_valkyries.privilege_aegis.tooltip.3": "スニーク右クリック: 特権保護を解除",
   "item.automata_valkyries.privilege_aegis.tooltip.4": "Unsafe改ざん・getHealth偽装・強制消去・虚無追放・即死を最外郭で拒否",
   "tooltip.automata_valkyries.agent_unstable": "⚠ Java エージェント無しでは不安定に動くことがあります",
+  "tooltip.automata_valkyries.ruler_forged": "時空剪定の加護: 与えるダメージ +%s%%（タイムルーラーの素材で作った T3）",
   "message.automata_valkyries.privilege_aegis.bound": "魂（UUID）にJavaエージェントの不可侵特権が刻印されました (LifeGuard & JVM Protected)",
   "message.automata_valkyries.privilege_aegis.bound_actionbar": "特権守護の核: 刻印完了（最外郭JVM保護中）",
   "message.automata_valkyries.privilege_aegis.unbound": "Javaエージェントの不可侵特権を解除しました",
