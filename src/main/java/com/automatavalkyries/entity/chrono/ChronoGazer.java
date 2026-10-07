@@ -30,6 +30,8 @@ public interface ChronoGazer {
         mob.targetSelector.addGoal(1, new HurtByTargetGoal((net.minecraft.world.entity.PathfinderMob) mob).setAlertOthers());
         mob.targetSelector.addGoal(2, new NearestAttackableTargetGoal<>(mob, ValkyrieEntity.class, 10, true, false,
                 v -> v instanceof ValkyrieEntity valkyrie && !valkyrie.isShutdown()));
+        // 戦術兵姫のダミーちゃん（練習台）も兵姫と同じに狙う（2026-10-08）
+        mob.targetSelector.addGoal(2, new NearestAttackableTargetGoal<>(mob, com.automatavalkyries.entity.ValkyrieDummyEntity.class, true));
         mob.targetSelector.addGoal(3, new NearestAttackableTargetGoal<>(mob, Player.class, true));
     }
 

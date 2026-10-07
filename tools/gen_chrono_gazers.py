@@ -66,7 +66,8 @@ class Model:
         self.by[name] = b
         return name
 
-    def box(self, bone, a, c, mat, **faces):
+    def box(self, bone, a, c, mat, rot=None, pivot=None, **faces):
+        """rot があれば箱ごとの回転（度、Bedrock の向き）。pivot を省くと箱の中心で回す"""
         x0, x1 = sorted((a[0], c[0]))
         y0, y1 = sorted((a[1], c[1]))
         z0, z1 = sorted((a[2], c[2]))
@@ -79,12 +80,17 @@ class Model:
                 fm['east'] = fm['west'] = m
                 continue
             fm[SEM.get(k, k)] = m
-        self.by[bone]['cubes'].append(((x0, y0, z0), (x1, y1, z1), fm))
+        cube = ((x0, y0, z0), (x1, y1, z1), fm)
+        if rot:
+            cube += (list(rot), list(pivot) if pivot else [(x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2])
+        self.by[bone]['cubes'].append(cube)
 
-    def mbox(self, bone, a, c, mat, mirror_bone=None, **faces):
-        """左右対称（-x 側を渡す。mirror_bone があれば +x 側はその骨へ）"""
-        self.box(bone, a, c, mat, **faces)
-        self.box(mirror_bone or bone, (-a[0], a[1], a[2]), (-c[0], c[1], c[2]), mat, **faces)
+    def mbox(self, bone, a, c, mat, mirror_bone=None, rot=None, pivot=None, **faces):
+        """左右対称（-x 側を渡す。mirror_bone があれば +x 側はその骨へ）。rot・pivot も左右反転する"""
+        self.box(bone, a, c, mat, rot=rot, pivot=pivot, **faces)
+        mrot = (rot[0], -rot[1], -rot[2]) if rot else None
+        mpiv = (-pivot[0], pivot[1], pivot[2]) if pivot else None
+        self.box(mirror_bone or bone, (-a[0], a[1], a[2]), (-c[0], c[1], c[2]), mat, rot=mrot, pivot=mpiv, **faces)
 
 
 # ------------------------------------------------------------------ 塗り・詰め込み
@@ -174,14 +180,19 @@ def write(m):
             o['rotation'] = b['rotation']
         if b['cubes']:
             cubes = []
-            for a, c, fm in b['cubes']:
+            for cube in b['cubes']:
+                a, c, fm = cube[:3]
                 uv = {}
                 for f in FACES:
                     dw, dh = face_dims(a, c, f)
                     w, h = max(1, int(math.ceil(dw - 1e-6))), max(1, int(math.ceil(dh - 1e-6)))
                     uu, vv = atlas.paint(fm[f], w, h)
                     uv[f] = {'uv': [uu, vv], 'uv_size': [w, h]}
-                cubes.append({'origin': [round(v, 3) for v in a], 'size': [round(c[i] - a[i], 3) for i in range(3)], 'uv': uv})
+                co = {'origin': [round(v, 3) for v in a], 'size': [round(c[i] - a[i], 3) for i in range(3)], 'uv': uv}
+                if len(cube) > 3:
+                    co['pivot'] = [round(v, 3) for v in cube[4]]
+                    co['rotation'] = cube[3]
+                cubes.append(co)
             o['cubes'] = cubes
         out.append(o)
     geo = {'format_version': '1.12.0', 'minecraft:geometry': [{
@@ -194,6 +205,76 @@ def write(m):
     atlas.glow.save(os.path.join(ASSETS, 'textures', 'entity', m.ident + '_glowmask.png'))
     print(f'{m.ident}: {len(m.bones)} bones, texture used to y={atlas.y + atlas.row}')
 
+
+
+def write_hd(m, tex, density, painter):
+    """細かい版（使う側が選ぶ。既存の 5 種は write のまま）: 面の 1px を density 枚の texel で描き、tex×tex に高さ順で詰める。
+    painter(base, glow, u, v, w, h, mat, face, rnd, ctx) が面を塗る（base・glow は PIL の画像。ctx は骨の名前・箱の位置と大きさ・回転）"""
+    base = Image.new('RGBA', (tex, tex), (0, 0, 0, 0))
+    glow = Image.new('RGBA', (tex, tex), (0, 0, 0, 0))
+    rnd = random.Random(sum(map(ord, m.ident)))
+    reqs = []
+    for bi, b in enumerate(m.bones):
+        for ci, cube in enumerate(b['cubes']):
+            a, c = cube[0], cube[1]
+            for f in FACES:
+                dw, dh = face_dims(a, c, f)
+                w = max(1, int(math.ceil(dw * density - 1e-6)))
+                h = max(1, int(math.ceil(dh * density - 1e-6)))
+                reqs.append((bi, ci, f, w, h))
+    order = sorted(range(len(reqs)), key=lambda i: (-reqs[i][4], -reqs[i][3], i))
+    sky = [0] * tex                                   # スカイライン（列ごとの高さ）で左下から詰める（棚より隙間が少ない）
+    place = {}
+    for i in order:
+        bi, ci, f, w, h = reqs[i]
+        best = None
+        for x in range(0, tex - w + 1):
+            yy = max(sky[x:x + w])
+            if yy + h <= tex and (best is None or yy < best[1]):
+                best = (x, yy)
+        if best is None:
+            raise RuntimeError('texture full')
+        x, yy = best
+        for k in range(x, x + w):
+            sky[k] = yy + h
+        place[(bi, ci, f)] = (x, yy, w, h)
+    y, row = max(sky), 0
+    for (bi, ci, f), (u, v, w, h) in place.items():
+        cube = m.bones[bi]['cubes'][ci]
+        ctx = {'bone': m.bones[bi]['name'], 'origin': cube[0], 'size': tuple(cube[1][i] - cube[0][i] for i in range(3)),
+               'rot': cube[3] if len(cube) > 3 else None}
+        painter(base, glow, u, v, w, h, cube[2][f], f, rnd, ctx)
+    out = []
+    for bi, b in enumerate(m.bones):
+        o = {'name': b['name'], 'pivot': [round(p, 3) for p in b['pivot']]}
+        if b['parent']:
+            o['parent'] = b['parent']
+        if b['rotation']:
+            o['rotation'] = b['rotation']
+        if b['cubes']:
+            cubes = []
+            for ci, cube in enumerate(b['cubes']):
+                a, c = cube[0], cube[1]
+                uv = {}
+                for f in FACES:
+                    u, v, w, h = place[(bi, ci, f)]
+                    uv[f] = {'uv': [u, v], 'uv_size': [w, h]}
+                co = {'origin': [round(t, 3) for t in a], 'size': [round(c[i] - a[i], 3) for i in range(3)], 'uv': uv}
+                if len(cube) > 3:
+                    co['pivot'] = [round(t, 3) for t in cube[4]]
+                    co['rotation'] = cube[3]
+                cubes.append(co)
+            o['cubes'] = cubes
+        out.append(o)
+    geo = {'format_version': '1.12.0', 'minecraft:geometry': [{
+        'description': {'identifier': f'geometry.{m.ident}', 'texture_width': tex, 'texture_height': tex,
+                        'visible_bounds_width': 4, 'visible_bounds_height': 4, 'visible_bounds_offset': [0, 1.5, 0]},
+        'bones': out}]}
+    with open(os.path.join(ASSETS, 'geo', 'entity', m.ident + '.geo.json'), 'w', encoding='utf-8', newline='\n') as f:
+        json.dump(geo, f, indent=1)
+    base.save(os.path.join(ASSETS, 'textures', 'entity', m.ident + '.png'))
+    glow.save(os.path.join(ASSETS, 'textures', 'entity', m.ident + '_glowmask.png'))
+    print(f'{m.ident}: {len(m.bones)} bones, {tex}x{tex} at {density} texels/px, used to y={y + row}')
 
 # ------------------------------------------------------------------ 索敵ドローン
 def scout_drone():

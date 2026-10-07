@@ -18,6 +18,14 @@ import software.bernie.geckolib.model.DefaultedEntityGeoModel;
  */
 public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntityGeoModel<T> {
 
+    /**
+     * ルクシオンの背のブースターの展開の角度（ラジアン。GeckoLib の向きなので geo の X・Y の回転とは符号が逆）:
+     * 本体は後ろへ 85 度倒れて真後ろを向き（geo の rotX +85。3 つに分かれた噴射口が後ろから正三角形に見える）、主翼は 80 度、尾翼は 40 度外へ開く（左は負、右は正）
+     */
+    static final float BOOSTER_PITCH = -1.484F, BOOSTER_WING = -1.396F, BOOSTER_FIN = -0.698F;
+    /** 3 つに分かれるときに開く角度（ラジアン）: 正四面体（底面の外接円の半径 / 高さ = 1/√2 → 約 35.3 度） */
+    static final float BOOSTER_SPLIT = 0.6155F;
+
     public ChronoGazerModel(String name) {
         super(ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, name), false);
     }
@@ -159,6 +167,24 @@ public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntity
             }
             CoreGeoBone cannon = bone("cannon");
             if (cannon != null) cannon.setRotX(-pitch * 0.5F - 0.2F * windup);
+            // 背の戦闘機型ブースター: 戦闘中は後ろへ倒れて開き、主翼と尾翼が広がる（突進の構えでさらに開く）
+            float dep = smooth(Mth.lerp(pt, lux.deployO, lux.deploy));
+            float open = Math.min(1.0F, dep + 0.3F * windup);
+            CoreGeoBone booster = bone("booster");
+            if (booster != null) booster.setRotX(BOOSTER_PITCH * open);
+            CoreGeoBone bwl = bone("booster_wing_left");
+            if (bwl != null) bwl.setRotZ(BOOSTER_WING * open);
+            CoreGeoBone bwr = bone("booster_wing_right");
+            if (bwr != null) bwr.setRotZ(-BOOSTER_WING * open);
+            CoreGeoBone bfl = bone("booster_fin_left");
+            if (bfl != null) bfl.setRotZ(BOOSTER_FIN * open);
+            CoreGeoBone bfr = bone("booster_fin_right");
+            if (bfr != null) bfr.setRotZ(-BOOSTER_FIN * open);
+            // 3 つに分かれ、機首の先（根本）を 1 点に集めたまま噴射口の側を外へ開く（正四面体: 後ろから見て噴射口が上・左下・右下の正三角形）。開き始めてから少し遅れて分かれる
+            float split = smooth((open - 0.35F) / 0.65F) * BOOSTER_SPLIT;
+            pod("booster_pod_top", 0.0F, 1.0F, split);
+            pod("booster_pod_left", 0.866F, -0.5F, split);
+            pod("booster_pod_right", -0.866F, -0.5F, split);
         } else if (entity instanceof HeavyWalkerEntity walker) {
             float swing = Mth.cos(limb * 0.55F) * 0.55F * walk;
             rotX("leg_left", swing);
@@ -178,6 +204,22 @@ public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntity
                 cannon.setPosZ(2.0F * recoil);
             }
         }
+    }
+
+    private static float smooth(float t) {
+        t = Mth.clamp(t, 0.0F, 1.0F);
+        return t * t * (3.0F - 2.0F * t);
+    }
+
+    /**
+     * ブースターの部品を、機首の先（骨のピボット）を中心に angle だけ傾ける。GeckoLib の回転の向きの取り方で、噴射口の側は (dx, dz) と逆へ動き、
+     * 3 つの部品が途中で交差して反対側へ開く（後ろから見て上 2・下 1 の三角）。この見た目のままにする（2026-10-08 ユーザー指定「修正しなくていい」）
+     */
+    private void pod(String name, float dx, float dz, float angle) {
+        CoreGeoBone b = bone(name);
+        if (b == null) return;
+        b.setRotX(angle * dz);
+        b.setRotZ(angle * dx);
     }
 
     private void rotX(String name, float v) {

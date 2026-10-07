@@ -76,6 +76,8 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
     private int noChallengerTicks;
     /** クライアント: 最後に斬った・突進を構えた Tick（描画用） */
     public int slashTick = -100, windupTick = -100;
+    /** クライアント: 背の戦闘機型ブースターの展開（0 = 背に収まる、1 = 後ろへ開いて翼を広げる）。戦闘中（相手を捉えている＝aggressive）に開く */
+    public float deploy, deployO;
 
     public LuxionEntity(EntityType<? extends Monster> type, Level level) {
         super(type, level);
@@ -223,6 +225,8 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
         super.baseTick();
         if (level().isClientSide) {
             protect.clientTick();
+            deployO = deploy;
+            deploy = Mth.clamp(deploy + (isAggressive() ? 0.06F : -0.04F), 0.0F, 1.0F);
             if (tickCount % 2 == 0) { // 背の光の尾のきらめき
                 Vec3 back = position().add(Vec3.directionFromRotation(0, yBodyRot).scale(-0.4)).add(0, 2.0, 0);
                 level().addParticle(ParticleTypes.END_ROD, back.x, back.y, back.z, 0, -0.01, 0);
@@ -453,6 +457,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
 
         @Override
         public void start() {
+            lux.setAggressive(true); // 背のブースターを展開（描画）
             melee = 10;
             blink = 40;
             flurry = 120;
@@ -462,6 +467,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
 
         @Override
         public void stop() {
+            lux.setAggressive(false);
             flurryLeft = 0;
             windup = 0;
             lux.getNavigation().stop();

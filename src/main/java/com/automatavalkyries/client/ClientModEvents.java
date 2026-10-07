@@ -51,7 +51,13 @@ public class ClientModEvents {
         event.registerEntityRenderer(ModEntities.CHRONO_BOLT.get(), ChronoBoltRenderer::new);
         event.registerEntityRenderer(ModEntities.CHRONO_MASK_DRONE.get(), MaskDroneRenderer::new);
         event.registerEntityRenderer(ModEntities.CHRONO_TROOPER.get(), c -> new ChronoGazerRenderer<>(c, "chrono_trooper", 0.5F));
-        event.registerEntityRenderer(ModEntities.LUXION.get(), c -> new ChronoGazerRenderer<>(c, "luxion", 0.6F));
+        event.registerEntityRenderer(ModEntities.LUXION.get(), LuxionRenderer::new);
+        event.registerEntityRenderer(ModEntities.VALKYRIE_DUMMY.get(), c -> { // 戦術兵姫のダミーちゃん: Type-V の姿をそのまま使う
+            var r = new software.bernie.geckolib.renderer.GeoEntityRenderer<com.automatavalkyries.entity.ValkyrieDummyEntity>(c,
+                    new software.bernie.geckolib.model.DefaultedEntityGeoModel<>(net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(com.automatavalkyries.AutomataValkyries.MODID, "valkyrie_type_v")));
+            r.addRenderLayer(new software.bernie.geckolib.renderer.layer.AutoGlowingGeoLayer<>(r));
+            return r;
+        });
         event.registerEntityRenderer(ModEntities.SKY_BOSS_SKELETON.get(), net.minecraft.client.renderer.entity.SkeletonRenderer::new);
         // 最果てのエレノアはエレノアと同じ見た目（ElenorRenderer は ElenorEntity 用なので型だけ合わせる）
         event.registerEntityRenderer(ModEntities.FARTHEST_ELENOR.get(), context -> {

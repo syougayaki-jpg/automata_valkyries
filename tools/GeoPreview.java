@@ -51,6 +51,15 @@ public class GeoPreview {
         ImageIO.write(out, "png", new File(a[2]));
     }
 
+    /** v をピボット p のまわりに回す（X → Y → Z の順に掛ける = GeckoLib の Z・Y・X の行列の積） */
+    static void rotateAround(double[] v, double[] p, double rx, double ry, double rz) {
+        double x = v[0] - p[0], y = v[1] - p[1], z = v[2] - p[2], t;
+        t = y * Math.cos(rx) - z * Math.sin(rx); z = y * Math.sin(rx) + z * Math.cos(rx); y = t;
+        t = x * Math.cos(ry) + z * Math.sin(ry); z = -x * Math.sin(ry) + z * Math.cos(ry); x = t;
+        t = x * Math.cos(rz) - y * Math.sin(rz); y = x * Math.sin(rz) + y * Math.cos(rz); x = t;
+        v[0] = x + p[0]; v[1] = y + p[1]; v[2] = z + p[2];
+    }
+
     static double[] arr(JsonObject o, String k, double def) {
         if (!o.has(k)) return new double[]{def, def, def};
         JsonArray j = o.getAsJsonArray(k); return new double[]{j.get(0).getAsDouble(), j.get(1).getAsDouble(), j.get(2).getAsDouble()};
@@ -65,6 +74,13 @@ public class GeoPreview {
                  tlb = {ox - inf, oy + sy + inf, oz - inf}, trb = {ox - inf, oy + sy + inf, oz + sz + inf},
                  tlf = {ox + sx + inf, oy + sy + inf, oz - inf}, trf = {ox + sx + inf, oy + sy + inf, oz + sz + inf},
                  blf = {ox + sx + inf, oy - inf, oz - inf}, brf = {ox + sx + inf, oy - inf, oz + sz + inf};
+        if (c.has("rotation")) { // 箱ごとの回転（Bedrock の cube rotation。骨と同じ向きの取り方で、ピボットのまわりに Z・Y・X の順で掛ける）
+            double[] r = arr(c, "rotation", 0), cp = c.has("pivot") ? arr(c, "pivot", 0)
+                    : new double[]{origin[0] + size[0] / 2, origin[1] + size[1] / 2, origin[2] + size[2] / 2};
+            double[] pv = {-cp[0] / 16, cp[1] / 16, cp[2] / 16};
+            double rx = Math.toRadians(-r[0]), ry = Math.toRadians(-r[1]), rz = Math.toRadians(r[2]);
+            for (double[] v : new double[][]{blb, brb, tlb, trb, tlf, trf, blf, brf}) rotateAround(v, pv, rx, ry, rz);
+        }
         if (c.get("uv").isJsonObject()) { // 面ごとの UV（uv / uv_size）
             JsonObject f = c.getAsJsonObject("uv");
             double[][][] verts = {{trb, tlb, blb, brb}, {tlf, trf, brf, blf}, {tlb, tlf, blf, blb}, {trf, trb, brb, brf}, {trb, trf, tlf, tlb}, {blb, blf, brf, brb}};

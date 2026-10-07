@@ -29,6 +29,11 @@ public class ChronoGazerGameTests {
         helper.assertTrue(drone.getMaxHealth() == 40.0F && spider.getMaxHealth() == 30.0F && walker.getMaxHealth() == 200.0F, "unexpected max health");
         helper.assertTrue(walker.getAttributeValue(Attributes.KNOCKBACK_RESISTANCE) >= 0.8, "the walker is not knockback resistant");
         helper.assertTrue(drone.isNoGravity(), "the drone does not fly");
+        // 戦術兵姫のダミーちゃん（2026-10-08）: どれだけ当たっても倒れない（別のテストにすると、テストの並びがずれて隣のテストが落ちたのでここで確かめる）
+        com.automatavalkyries.entity.ValkyrieDummyEntity dummy = helper.spawn(ModEntities.VALKYRIE_DUMMY.get(), 3, 2, 3);
+        dummy.hurt(helper.getLevel().damageSources().generic(), 99999.0F);
+        helper.assertTrue(dummy.isAlive() && dummy.getHealth() == dummy.getMaxHealth(), "the valkyrie dummy lost health: " + dummy.getHealth());
+        dummy.evict();
         drone.discard();
         spider.discard();
         walker.discard();
@@ -109,6 +114,7 @@ public class ChronoGazerGameTests {
         ValkyrieEntity v = helper.spawn(ModEntities.VALKYRIE.get(), 1, 2, 1);
         v.setNoAi(true);
         HeavyWalkerEntity walker = helper.spawn(ModEntities.CHRONO_HEAVY_WALKER.get(), 6, 2, 6);
+        walker.getAttribute(Attributes.FOLLOW_RANGE).setBaseValue(10.0); // 隣のテストの場所まで見ない（砲撃で他のテストを壊していた）
         helper.succeedWhen(() -> {
             helper.assertTrue(walker.getTarget() == v, "the walker has not targeted the valkyrie");
             walker.discard();

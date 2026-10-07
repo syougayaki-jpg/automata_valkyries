@@ -83,6 +83,11 @@ public class ModEntities {
             ENTITY_TYPES.register("chrono_trooper", () ->
                     EntityType.Builder.of(com.automatavalkyries.entity.chrono.TrooperEntity::new, MobCategory.MONSTER)
                             .sized(0.7F, 2.1F).clientTrackingRange(10).build("chrono_trooper"));
+    /** 戦術兵姫のダミーちゃん（敵に狙わせる身代わりの練習台。2026-10-08） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.ValkyrieDummyEntity>> VALKYRIE_DUMMY =
+            ENTITY_TYPES.register("valkyrie_dummy", () ->
+                    EntityType.Builder.of(com.automatavalkyries.entity.ValkyrieDummyEntity::new, MobCategory.MISC)
+                            .sized(0.6F, 1.7F).clientTrackingRange(10).build("valkyrie_dummy"));
     /** AEC 級英雄機「最光速【ルクシオン】」（全体仕様書 §4.1。2026-10-07） */
     public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.LuxionEntity>> LUXION =
             ENTITY_TYPES.register("luxion", () ->
@@ -115,6 +120,7 @@ public class ModEntities {
         event.put(CHRONO_MASK_DRONE.get(), com.automatavalkyries.entity.chrono.MaskDroneEntity.createAttributes().build());
         event.put(CHRONO_TROOPER.get(), com.automatavalkyries.entity.chrono.TrooperEntity.createAttributes().build());
         event.put(LUXION.get(), com.automatavalkyries.entity.chrono.LuxionEntity.createAttributes().build());
+        event.put(VALKYRIE_DUMMY.get(), com.automatavalkyries.entity.ValkyrieDummyEntity.createAttributes().build());
         event.put(SKY_BOSS_SKELETON.get(), com.automatavalkyries.entity.SkyBossSkeleton.createAttributes().build());
         event.put(VALKYRIE.get(), com.automatavalkyries.entity.ValkyrieEntity.createAttributes().build());
         event.put(ELENOR.get(), ElenorEntity.createAttributes().build());

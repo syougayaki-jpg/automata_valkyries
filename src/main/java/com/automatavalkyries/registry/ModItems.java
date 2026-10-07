@@ -93,6 +93,8 @@ public class ModItems {
             new ForgeSpawnEggItem(ModEntities.CHRONO_MASK_DRONE, 0xe8e4dc, 0xff2a4a, new Item.Properties()));
     public static final RegistryObject<Item> CHRONO_TROOPER_SPAWN_EGG = ITEMS.register("chrono_trooper_spawn_egg", () ->
             new ForgeSpawnEggItem(ModEntities.CHRONO_TROOPER, 0x474c59, 0xffe14a, new Item.Properties()));
+    public static final RegistryObject<Item> VALKYRIE_DUMMY_SPAWN_EGG = ITEMS.register("valkyrie_dummy_spawn_egg", () ->
+            new ForgeSpawnEggItem(ModEntities.VALKYRIE_DUMMY, 0xb8bcc4, 0x3be8ff, new Item.Properties()));
     public static final RegistryObject<Item> LUXION_SPAWN_EGG = ITEMS.register("luxion_spawn_egg", () ->
             new ForgeSpawnEggItem(ModEntities.LUXION, 0xf4f0e4, 0xff2a4a, new Item.Properties()));
     /** 英雄機の呼び声『ルクシオン』（AEC 級ボスの召喚。2026-10-07） */
