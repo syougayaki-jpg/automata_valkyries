@@ -127,6 +127,26 @@ public final class EprotectConfig {
             .comment("死亡・攻撃の直前にこの回数以上変わった名前だけを候補にする")
             .defineInRange("flagDictionary.watch.minEvents", 2, 1, 1000);
 
+    // ---- 守る側の Java エージェントを、起動の引数（-javaagent）を付けずに設定で読み込む（2026-10-09 ユーザー指定） ----
+    // MOD の jar に入っているエージェントを <ゲームのフォルダ>/automata_valkyries/agents/ へ取り出し、起動の途中で別のプロセスから
+    // このゲームへ付ける（同じプロセスから自分へは付けられない）。起動の引数で付けてあれば何もしない。変えたらゲームを起動し直す
+
+    public static final ForgeConfigSpec.BooleanValue AGENT_OBSERVER = BUILDER
+            .comment("観察用エージェント（他のエージェントの書き換えの記録・能力の地図・このMOD のクラスの改ざん防止）を設定で読み込む")
+            .define("agents.observer.enabled", false);
+
+    public static final ForgeConfigSpec.BooleanValue AGENT_OBSERVER_GUARD = BUILDER
+            .comment("観察用エージェントの改ざん防止（このMOD のクラスを他のエージェントが書き換えたら戻す）。false は noguard と同じ")
+            .define("agents.observer.integrityGuard", true);
+
+    public static final ForgeConfigSpec.BooleanValue AGENT_LIFEGUARD = BUILDER
+            .comment("LifeGuard（保護対象の生死の getter を、他のエージェントの偽装より外側で実際の値に直す）を設定で読み込む")
+            .define("agents.lifeGuard.enabled", false);
+
+    public static final ForgeConfigSpec.BooleanValue AGENT_VALKYRIE_PROTECT = BUILDER
+            .comment("オートマタヴァルキリー protect（戦術兵姫の消去・即死の入口をバイトコードの段階で守る）を設定で読み込む")
+            .define("agents.valkyrieProtect.enabled", false);
+
     public static final ForgeConfigSpec SPEC = BUILDER.build();
 
     private EprotectConfig() {}

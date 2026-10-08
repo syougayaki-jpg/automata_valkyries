@@ -31,6 +31,20 @@
 - hooks をブートストラップに置くのは、vanilla のクラス（どのクラスローダーからも見える必要がある）から呼ぶため。hooks は JDK 以外に依存しない
 - MOD 側はエージェントが有ると確かめてから hooks に触る（無い環境で参照すると読み込みに失敗する）
 
+### 2.1 起動の引数なしで、設定で読み込む（2026-10-09 ユーザー指定）
+
+- 守る側の 3 つ（観察者・LifeGuard・オートマタヴァルキリー protect）は、`-javaagent` を付けなくても、設定（`automata_valkyries-common.toml` の
+  `agents.observer.enabled`・`agents.observer.integrityGuard`・`agents.lifeGuard.enabled`・`agents.valkyrieProtect.enabled`。既定はどれも false）で読み込める。
+  変えたらゲームを起動し直す。
+- しくみ（`protect/AgentSelfAttach`）: MOD の jar の `META-INF/automata_valkyries/agents/` に入れてあるエージェントの jar と呼び出し先の jar を
+  `<ゲームのフォルダ>/automata_valkyries/agents/` へ取り出し（呼び出し先は Boot-Class-Path に同じフォルダの名前で書いてあるので同じ所へ）、
+  同じ Java で別のプロセス（`agentcommon.Attacher`）を起こしてこのゲームへ付ける（`agentmain`）。Java は同じプロセスから自分へ付けるのを既定で禁じているため。
+  MOD の初期化（共通の準備）で、接続（`LifeGuardLink.install` 等）より前に行う。起動の引数で付けてあれば何もしない。
+- 開発環境（runClient 等）は jar ではなくクラスのフォルダから動くので、`build/libs` のエージェントを使う（先に `./gradlew build`）。
+- 付けられなかったとき（Java に `jdk.attach` が無い等）は警告を出し、起動の引数で付ける方法を案内する。後から付くので、起動の引数で付けたときより
+  「最初に読み込まれたクラス」の書き換えは遅れる（既に読み込まれたクラスは再変換で包む）。
+- Eprotect+ とフラグ辞書のエージェントは CODEX の担当なので、この仕組みには入れていない（同じやり方で足せる）。
+
 ## 3. 共通部品（`src/agentcommon`）
 
 守る側の 3 つの jar に同梱する（JDK だけ）。

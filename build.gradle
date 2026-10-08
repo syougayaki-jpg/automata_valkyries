@@ -90,6 +90,9 @@ def lifeguardJarFile = defensiveAgentJar('lifeguardJar', 'lifeguard', sourceSets
         'com.automatavalkyries.lifeguard.LifeGuardAgent', 'Builds the LifeGuard Java agent', true, 'lifeguardHooksJar', 'lifeguard-hooks')
 def valkyrieProtectJarFile = defensiveAgentJar('valkyrieProtectJar', 'valkyrie-protect', sourceSets.valkyrieprotect,
         'com.automatavalkyries.valkyrieprotect.ValkyrieProtectAgent', 'Builds the Automata Valkyrie Protect Java agent', true, 'valkyrieProtectHooksJar', 'valkyrie-protect-hooks')
+// MOD の jar に入れて、設定で（起動の引数なしに）読み込めるようにするエージェント（jar の名前の "<mod_id>-" の後ろ。protect/AgentSelfAttach。2026-10-09）。
+// CODEX は自分の担当の所で bundledAgents += [...] と tasks.named('jar') { mustRunAfter ... } を足す（docs/HANDOFF_AGENT_CONFIG_FOR_CODEX.md）
+ext.bundledAgents = ['observer', 'lifeguard', 'lifeguard-hooks', 'valkyrie-protect', 'valkyrie-protect-hooks']
 def eprotectPlusJarFile = layout.buildDirectory.file("libs/${mod_id}-eprotect-plus.jar")
 tasks.register('eprotectPlusJar', Jar) {
     group = 'build'
@@ -612,6 +615,16 @@ tasks.named('processResources', ProcessResources).configure {
 
 // Example for how to get properties into the manifest for reading at runtime.
 tasks.named('jar', Jar).configure {
+    // 守る側のエージェント（と呼び出し先）を MOD の jar に入れる。設定 agents.*.enabled で、起動の引数なしに読み込む（protect/AgentSelfAttach。2026-10-09）。
+    // タスクとして繋ぐと MixinGradle が jar ごとに足す addMixinsTo* の間で輪になるので、できたファイルを読むだけにし、順番だけ決める
+    // （build / assemble はエージェントの jar も作る。開発環境では build/libs から直接読む）
+    def agentFiles = project.ext.bundledAgents.collect {
+        layout.buildDirectory.file("libs/${mod_id}-${it}.jar").get().asFile
+    }
+    mustRunAfter 'observerJar', 'lifeguardJar', 'lifeguardHooksJar', 'valkyrieProtectJar', 'valkyrieProtectHooksJar'
+    from(agentFiles) {
+        into 'META-INF/automata_valkyries/agents'
+    }
     manifest {
         attributes([
                 'Specification-Title'     : mod_id,

@@ -8,6 +8,8 @@ Minecraft **1.20.1** / **Forge 47.4.x** / **Java 17** の MOD「Automata Valkyri
 2. **[`docs/HANDOFF_ANTIGRAVITY_TO_CODEX.md`](docs/HANDOFF_ANTIGRAVITY_TO_CODEX.md)** — 前任の Antigravity からの引継書（担当のコードの地図・課題・検証コマンド）
 3. **[`docs/HANDOFF_CODEX_GENERALIZATION.md`](docs/HANDOFF_CODEX_GENERALIZATION.md)** — 最優先の課題（特化対策の準汎用化）の詳細
 4. **[`docs/SPEC_JAVA_AGENTS_DEFENSIVE.md`](docs/SPEC_JAVA_AGENTS_DEFENSIVE.md)** — Claude が持つ守る側の Java エージェントの地図（境界を知るため）
+5. **[`docs/HANDOFF_AGENT_CONFIG_FOR_CODEX.md`](docs/HANDOFF_AGENT_CONFIG_FOR_CODEX.md)** — Java エージェントを起動の引数なしで（設定で）読み込むしくみ（2026-10-09）。
+   Eprotect+ とフラグ辞書のエージェントも、自分の担当のファイル（`protect/plus/BundledAgents.java` と `build.gradle` の自分のブロック）だけで足せる
 
 ## 担当の分け方
 

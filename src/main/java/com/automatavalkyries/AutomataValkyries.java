@@ -85,6 +85,7 @@ public class AutomataValkyries {
             LOGGER.warn("[eprotect] Mod-specific countermeasures are OFF (genericOnly); only the generic layer protects entities");
         }
         event.enqueueWork(ModNetwork::register);
+        com.automatavalkyries.protect.AgentSelfAttach.attachConfigured(); // 設定で有効な守る側のエージェントを付ける（接続より前に）
         com.automatavalkyries.protect.LifeGuardLink.install();
         com.automatavalkyries.protect.valkyrie.ValkyrieAgentLink.install();
         com.automatavalkyries.protect.flag.FlagDictionary.ensureAgentProtection();

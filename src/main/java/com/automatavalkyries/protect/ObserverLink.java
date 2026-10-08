@@ -72,6 +72,12 @@ public final class ObserverLink {
         return bridge;
     }
 
+    /** 設定でエージェントを後から付けたとき、前に見つからなかった結果を忘れる（{@link AgentSelfAttach}） */
+    static synchronized void reset() {
+        looked = false;
+        bridge = null;
+    }
+
     public static boolean active() {
         Object value = call("active");
         return Boolean.TRUE.equals(value);
