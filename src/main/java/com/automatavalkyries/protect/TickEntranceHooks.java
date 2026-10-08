@@ -164,7 +164,7 @@ public final class TickEntranceHooks {
     private static List<String> targetNames(AnnotationNode annotation, MethodNode method) {
         List<String> names = new ArrayList<>();
         if (annotation.desc.endsWith("/Overwrite;")) {
-            names.add(method.name);
+            names.add(McNames.official(method.name)); // 配布環境では上書きの処理名が SRG 名になる
             return names;
         }
         Object raw = value(annotation, "method");
@@ -176,7 +176,7 @@ public final class TickEntranceHooks {
         return names;
     }
 
-    /** "Lnet/minecraft/world/entity/Entity;tick()V" / "tick()V" / "tick" → "tick" */
+    /** "Lnet/minecraft/world/entity/Entity;tick()V" / "tick()V" / "tick" → "tick"（配布環境の SRG 名は公式名に直す） */
     private static String simpleName(String reference) {
         String name = reference;
         int paren = name.indexOf('(');
@@ -185,7 +185,7 @@ public final class TickEntranceHooks {
         if (semicolon >= 0) name = name.substring(semicolon + 1);
         int dot = name.lastIndexOf('.');
         if (dot >= 0) name = name.substring(dot + 1);
-        return name;
+        return McNames.official(name);
     }
 
     private static Object value(AnnotationNode annotation, String key) {

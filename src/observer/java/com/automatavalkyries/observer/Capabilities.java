@@ -9,17 +9,18 @@ import java.util.Set;
  * 能力の地図: 読み込まれたクラスが「何をできる作りか」を、定数プール（参照しているメソッド・フィールドと文字列定数）だけから割り出す。
  * 実際にしたことではなく、できること（即死 MOD の手口の下地）。互換 Mixin・フラグ辞書・ブラックリストの判断の手がかり用。
  * <p>
- * Minecraft の名前は開発環境の名前（公式名）で見る。配布環境（SRG 名）では Minecraft 側の規則は当たらない
- * （JDK 側の規則は当たる）。
+ * Minecraft の名前は開発環境の名前（公式名）で見る。配布環境で他 MOD のクラスが参照する名前は SRG 名（f_146795_ 等）なので、
+ * {@link McNames} の表で公式名に直してから比べる（2026-10-08。それまでは配布環境では Minecraft 側の規則が当たらず、
+ * 名前の文字列は「SRG のフィールド名なら何でも」と粗く見ていた。表が無いときだけその粗い見方に戻る）。
  * </p>
  */
 final class Capabilities {
 
     /** 読む価値があるかを、クラスファイルのバイト列だけで先に見る（変換の呼び出しの中なので軽く） */
-    private static final byte[][] NEEDLES = ascii(
+    private static final byte[][] NEEDLES = ascii(withSrg(
             "misc/Unsafe", "java/lang/instrument/Instrumentation", "com/sun/tools/attach", "halt", "exit", "loadLibrary",
             "removalReason", "levelCallback", "EntityTickList", "PersistentEntitySectionManager", "EntityLookup",
-            "EntitySectionStorage", "TransientEntitySectionManager", "reflect/Field", "VarHandle", "objectFieldOffset", "findSetter", "getDeclaredField", "findGetter");
+            "EntitySectionStorage", "TransientEntitySectionManager", "reflect/Field", "VarHandle", "objectFieldOffset", "findSetter", "getDeclaredField", "findGetter"));
 
     /** 読まないクラス（JDK・Minecraft・Forge・よく同梱されるライブラリ・このMOD 自身） */
     private static final String[] SKIPPED = {
@@ -86,7 +87,8 @@ final class Capabilities {
             int dot = ref.lastIndexOf('.');
             if (dot < 0) continue;
             String owner = ref.substring(0, dot);
-            String name = ref.substring(dot + 1);
+            String name = McNames.official(ref.substring(dot + 1));
+            ref = owner + "." + name;
             if (UNSAFE_OWNERS.contains(owner) && (name.startsWith("put") || name.startsWith("compareAnd")
                     || name.equals("copyMemory") || name.equals("setMemory"))) unsafeWrite = true;
             if (owner.equals("java/lang/instrument/Instrumentation")
@@ -105,15 +107,15 @@ final class Capabilities {
         if (summary.strings.contains("jdk.attach.allowAttachSelf")) attach = true;
         boolean namesWorldInternals = false;
         for (String s : summary.strings) {
-            if (WORLD_INTERNAL_NAMES.contains(s) || isSrgField(s)) {
+            if (WORLD_INTERNAL_NAMES.contains(McNames.official(s)) || (!McNames.loaded() && isSrgField(s))) {
                 namesWorldInternals = true;
                 break;
             }
         }
         boolean namesEntityState = false;
         for (String s : summary.strings) {
-            // 公式名か、配布環境の SRG のフィールド名（f_数字_）。後者はどのクラスのフィールドかまでは分からない
-            if (ENTITY_STATE_NAMES.contains(s) || isSrgField(s)) {
+            // 公式名か、表で公式名に直した配布環境の名前。表が無ければ SRG のフィールド名（f_数字_）なら何でも（どのクラスのかまでは分からない）
+            if (ENTITY_STATE_NAMES.contains(McNames.official(s)) || (!McNames.loaded() && isSrgField(s))) {
                 namesEntityState = true;
                 break;
             }
@@ -136,6 +138,13 @@ final class Capabilities {
         if (s.length() < 4 || !s.startsWith("f_") || s.charAt(s.length() - 1) != '_') return false;
         for (int i = 2; i < s.length() - 1; i++) if (!Character.isDigit(s.charAt(i))) return false;
         return true;
+    }
+
+    /** 手がかりの文字列に、Minecraft の名前なら配布環境の名前（SRG 名）も足す */
+    private static String[] withSrg(String... values) {
+        List<String> out = new ArrayList<>(List.of(values));
+        for (String v : values) out.addAll(McNames.srgOf(v));
+        return out.toArray(new String[0]);
     }
 
     private static byte[][] ascii(String... values) {
