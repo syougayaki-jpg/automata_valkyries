@@ -786,6 +786,8 @@
   "entity.automata_valkyries.necrosis_needle": "Necrosis Needle",
   "death.attack.automata_valkyries.armor_piercing": "%1$s was shot through by an armor-piercing round",
   "death.attack.automata_valkyries.armor_piercing.player": "%1$s was shot through by an armor-piercing round from %2$s",
+  "death.attack.automata_valkyries.luxion_accelerator": "%1$s was kicked through by Luxion Accelerator",
+  "death.attack.automata_valkyries.luxion_accelerator.player": "%1$s was kicked through by %2$s's Luxion Accelerator",
   "gui.automata_valkyries.dropped_by": "Dropped by: %s",
   "boss.automata_valkyries.luxion": "AEC Hero Unit [Lightspeed / Luxion]",
   "boss.automata_valkyries.galliafort": "AEC Hero Unit [Bulwark / Galliafort]",

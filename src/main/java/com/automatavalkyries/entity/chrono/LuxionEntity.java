@@ -60,8 +60,15 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
 
     public static final float MAX_HP = 10000.0F, MELEE = 30.0F, FLURRY_HIT = 25.0F, WAVE = 30.0F, DASH = 40.0F;
     /** ルクシオンアクセラレータ: 蹴りが当たった相手へ、着弾の爆風（半径 {@link #ACCEL_BLAST_RADIUS}）。数値は【仮】 */
-    public static final float ACCEL_KICK = 90.0F, ACCEL_BLAST = 40.0F;
+    public static final float ACCEL_KICK = 120.0F, ACCEL_BLAST = 40.0F;
     static final double ACCEL_BLAST_RADIUS = 5.0, ACCEL_HEIGHT = 14.0, ACCEL_SPEED = 2.4;
+    /**
+     * ルクシオンアクセラレータのダメージの種類: 防御貫通（防具・防護のエンチャント・盾を通る。兵姫のフォートレスフレームの物理 50% カットも
+     * 防具を通るダメージには掛からない。2026-10-09 ユーザー指定「フォートレスフレーム強いので大技を防御貫通に」）
+     */
+    public static final net.minecraft.resources.ResourceKey<net.minecraft.world.damagesource.DamageType> ACCEL_DAMAGE =
+            net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.DAMAGE_TYPE,
+                    net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(com.automatavalkyries.AutomataValkyries.MODID, "luxion_accelerator"));
     /** 放つ所の相手からの水平の距離（これより近ければ跳び退いて離れる） */
     static final double ACCEL_RANGE = 18.0;
     /** 飛び上がる・狙う（最後の {@link #ACCEL_LOCK} Tick は狙いを固定して避けられるように）・蹴りの最長・着地の Tick */
@@ -843,7 +850,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
             reached = p;
             for (LivingEntity e : level().getEntitiesOfClass(LivingEntity.class, box.inflate(0.8), ChronoGazer::canHurt)) {
                 if (hit.add(e)) {
-                    e.hurt(damageSources().mobAttack(this), damageFor(e, ACCEL_KICK));
+                    e.hurt(accelDamage(), damageFor(e, ACCEL_KICK));
                     e.knockback(2.5, -dir.x, -dir.z);
                     e.setDeltaMovement(e.getDeltaMovement().add(0, 0.6, 0));
                     if (level() instanceof ServerLevel server) {
@@ -869,7 +876,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
         if (!(level() instanceof ServerLevel server)) return;
         for (LivingEntity e : server.getEntitiesOfClass(LivingEntity.class, new AABB(at, at).inflate(ACCEL_BLAST_RADIUS), ChronoGazer::canHurt)) {
             if (hit.contains(e) || e.distanceToSqr(at) > ACCEL_BLAST_RADIUS * ACCEL_BLAST_RADIUS) continue;
-            e.hurt(damageSources().mobAttack(this), damageFor(e, ACCEL_BLAST));
+            e.hurt(accelDamage(), damageFor(e, ACCEL_BLAST));
             Vec3 away = e.position().subtract(at).multiply(1, 0, 1);
             if (away.lengthSqr() > 1.0e-4) e.knockback(1.5, -away.x, -away.z);
         }
@@ -886,6 +893,11 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
         playSound(SoundEvents.GENERIC_EXPLODE, 2.5F, 1.3F);
         playSound(SoundEvents.WARDEN_SONIC_BOOM, 2.0F, 1.4F);
         level().broadcastEntityEvent(this, EVENT_ACCEL_IMPACT);
+    }
+
+    /** 防御貫通のダメージ（ルクシオンが与えた扱い） */
+    private DamageSource accelDamage() {
+        return new DamageSource(level().registryAccess().registryOrThrow(net.minecraft.core.registries.Registries.DAMAGE_TYPE).getHolderOrThrow(ACCEL_DAMAGE), this, this);
     }
 
     void setAccelPitch(float pitch) {

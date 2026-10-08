@@ -786,6 +786,8 @@
   "entity.automata_valkyries.necrosis_needle": "ネクロシスの針",
   "death.attack.automata_valkyries.armor_piercing": "%1$s は徹甲弾に撃ち抜かれた",
   "death.attack.automata_valkyries.armor_piercing.player": "%1$s は %2$s の徹甲弾に撃ち抜かれた",
+  "death.attack.automata_valkyries.luxion_accelerator": "%1$s はルクシオンアクセラレータに蹴り穿たれた",
+  "death.attack.automata_valkyries.luxion_accelerator.player": "%1$s は %2$s のルクシオンアクセラレータに蹴り穿たれた",
   "gui.automata_valkyries.dropped_by": "ドロップ: %s",
   "boss.automata_valkyries.luxion": "AEC級英雄機【最光速 / ルクシオン】",
   "boss.automata_valkyries.galliafort": "AEC級英雄機【重護屋 / ガリアフォート】",
