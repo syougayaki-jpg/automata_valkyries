@@ -20,7 +20,6 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.BossEvent;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.EntitySelector;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
@@ -83,7 +82,6 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
     public static final int INTRO_TICKS = 40, TRANSFORM_TICKS = 30, RETREAT_OUT_TICKS = 30;
     /** 大きな被弾（のけぞる。見た目だけ） */
     private static final float BIG_HIT = 15.0F;
-    private static final int RETREAT_TICKS = 200;
     private static final Vector3f WHITE_GOLD = new Vector3f(1.0F, 0.94F, 0.72F), RED = new Vector3f(1.0F, 0.17F, 0.29F);
     /** 光の粒の色（weapon/Fx の自作の光・星の粒。2026-10-08 ユーザー指定「光のパーティクルも豪華に」） */
     private static final int C_WHITE = 0xFFFFFF, C_WG = 0xFFF0B8, C_GOLD = 0xE8C060, C_RED = 0xFF2A4A;
@@ -111,12 +109,12 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
     /** クライアント: 撃破の演出の経過 Tick（0 = 生きている） */
     public int defeatTicks;
 
-    private final Eprotect protect = new Eprotect(this).withoutDamageCap();
+    private final Eprotect protect = new Eprotect(this, com.automatavalkyries.protect.EprotectProfile.UNCAPPED);
+    /** 挑む相手（64 ブロック以内）がいなくなって 10 秒で退く */
+    private final com.automatavalkyries.entity.BossRetreatWatch retreatWatch = new com.automatavalkyries.entity.BossRetreatWatch(64.0, 200);
     private final ServerBossEvent bossEvent = new ServerBossEvent(Component.translatable("entity.automata_valkyries.luxion"),
             BossEvent.BossBarColor.YELLOW, BossEvent.BossBarOverlay.NOTCHED_10);
     private final AnimatableInstanceCache geoCache = GeckoLibUtil.createInstanceCache(this);
-    private boolean engaged;
-    private int noChallengerTicks;
     /** クライアント: 最後に斬った・突進を構えた Tick（描画用） */
     public int slashTick = -100, windupTick = -100;
     /** クライアント: 最後の技のモーション（合図の番号）と始まった Tick、大きな被弾の Tick、今の演出の段階が始まった Tick */
@@ -348,15 +346,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
             setHealth(0.0F);
             return;
         }
-        if (!protect.canDie()) { // 被弾を通らない die() の直接呼び出しは即死攻撃として断る
-            boolean malicious = protect.noteRefusedDeath();
-            float current = DirectRead.health(this);
-            setHealth(!malicious && Float.isFinite(current) && current > 0.0F ? current : getMaxHealth());
-            deathTime = 0;
-            com.automatavalkyries.protect.KillModCounters.counterAll(this);
-            return;
-        }
-        protect.markDefeated();
+        if (protect.interceptDie()) return; // 被弾を通らない die() の直接呼び出しは即死攻撃として断る
         entityData.set(DEFEATED, true);
         super.die(source);
     }
@@ -466,7 +456,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
             return;
         }
         protect.tick();
-        float ratio = Mth.clamp(DirectRead.health(this) / getMaxHealth(), 0.0F, 1.0F);
+        float ratio = protect.healthRatio();
         // 撃破されたら HP の値に関わらずボスバーを 0 に（即死 MOD で HP が残ったまま倒れると減らず、ボスバーの砕ける演出が始まらなかった。2026-10-08）
         bossEvent.setProgress(entityData.get(DEFEATED) || deathTime > 0 ? 0.0F : ratio);
         if (!introDone) { // 降臨（光の柱から降りてくる）
@@ -552,19 +542,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
     }
 
     private void tickRetreat() {
-        if (getTarget() instanceof Player) engaged = true;
-        if (!engaged || tickCount % 20 != 0) return;
-        boolean challenger = level().getNearestPlayer(getX(), getY(), getZ(), 64.0,
-                EntitySelector.NO_CREATIVE_OR_SPECTATOR.and(EntitySelector.LIVING_ENTITY_STILL_ALIVE)) != null;
-        if (challenger) {
-            noChallengerTicks = 0;
-            return;
-        }
-        noChallengerTicks += 20;
-        if (noChallengerTicks >= RETREAT_TICKS && stage() == STAGE_NONE) {
-            startStage(STAGE_RETREAT); // 剣を納め、翼で身を包んでから退く
-            playSound(SoundEvents.BEACON_DEACTIVATE, 1.5F, 1.4F);
-        }
+        if (retreatWatch.tick(this) && stage() == STAGE_NONE) beginRetreat(); // 降臨・変身の途中では退かない
     }
 
     /** 撤退の号令: 挑む相手がいなくなったときと同じく、剣を納め、翼で身を包んでから退く */

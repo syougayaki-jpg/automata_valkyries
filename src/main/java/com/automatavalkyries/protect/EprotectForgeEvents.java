@@ -137,8 +137,8 @@ public class EprotectForgeEvents {
             }
 
             float amount = event.getAmount();
-            if (!Float.isFinite(amount) || (protect.capsDamage() && amount >= Eprotect.HUGE_DAMAGE_THRESHOLD)) {
-                event.setAmount(Eprotect.HUGE_DAMAGE_CLAMP);
+            if (protect.profile().isHugeDamage(amount)) {
+                event.setAmount(protect.profile().hugeDamageClamp());
             }
         } else if (isUnderProtectionScope(target)) {
             // 拡張保護範囲（同乗者・乗り物・強化結界オーラ範囲）

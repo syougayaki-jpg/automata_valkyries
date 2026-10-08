@@ -51,7 +51,9 @@
 
 | 役割 | クラス |
 |---|---|
-| 個体ごとの保護コントローラー | `protect/Eprotect` |
+| 個体ごとの保護コントローラー（窓口） | `protect/Eprotect`。中身の部品: 被弾の上限 `DamageLimiter`・Tick 停止対策 `TickStallGuard`・チャンクロック `ForcedChunk`（どれもパッケージ内だけ） |
+| 個体ごとの数値（被弾の上限の掛け方） | `protect/EprotectProfile`（既定 `DEFAULT`、上限なし `UNCAPPED`） |
+| ボスの「挑む相手がいないと退く」見張り・撤退の号令 | `entity/BossRetreatWatch`・`entity/RetreatableBoss` |
 | 全保護対象の周期処理（サーバー Tick の最後） | `protect/EprotectManager` |
 | 保護対象の目印 | `protect/IEprotected`（退場のセリフは `IProviderWithSpeech`） |
 | 実際の値を読む | `protect/DirectRead` |
@@ -82,7 +84,9 @@
 
 ### 3.2 被弾の上限
 
-`Eprotect.capFinalDamage`（`LivingDamageEvent` の LOWEST で最後に適用）。
+`Eprotect.capFinalDamage`（`LivingDamageEvent` の LOWEST で最後に適用。中身は `DamageLimiter`）。下の数値は既定（`EprotectProfile.DEFAULT`）で、
+個体ごとに `new Eprotect(this, EprotectProfile.DEFAULT.withMaxHitRatio(...))` のように変えられる（2026-10-08）。上限なし（`UNCAPPED`、ルクシオン）は
+即死系は今までどおり拒否し、普通の被弾は桁外れの値もそのまま通す。
 
 - NaN・無限大・1000 以上の単発は 100 に置き換える。
 - HP から引くのは **200 Tick（10 秒）の窓の中で合計で最大 HP の 10% まで**。無敵時間を消して `hurt()` を連打されても、1 Tick で倒されない。
@@ -288,8 +292,9 @@ vanilla の移動（エンダーパール・/tp・ポータル・リスポーン
 
 ## 7. 他の MOD への移植手順
 
-1. **保護対象**: エンティティに `IEprotected` を実装し、`Eprotect` を 1 つ持たせる。`tick()` から `getEprotect().tick()` を呼ぶ。
-   ワールドへの追加・削除で `onAddedToWorld` / `onRemovedFromWorld` を呼ぶ。退場のセリフが要るなら `IProviderWithSpeech`。
+1. **保護対象**: エンティティに `IEprotected` を実装し、`Eprotect` を 1 つ持たせる。つなぐ所の一覧は `Eprotect` のクラスの説明にある
+   （`onAddedToWorld` / `onRemovedFromWorld`、`baseTick` から `tick()`、`remove` で `shouldBlockRemoval`、`die` で `interceptDie()`、撃破演出の最後に `finishDeath()`）。
+   退場のセリフが要るなら `IProviderWithSpeech`。ボスなら `BossRetreatWatch`（挑む相手がいないと退く）と `RetreatableBoss`（撤退の号令）も。手本はルクシオン・エレノア
 2. **Mixin**: `mixin/` の入口の拒否（`EprotectEntityMixin`・`EprotectDamageMixin`・`EprotectSectionCallbackMixin`・`EprotectSynchedDataMixin`）と Accessor 群
    （`EntityAccessor`・`LivingEntityAccessor`・`ServerLevelTickListAccessor`・`EntityManagerAccessor`・`EntityLookupAccessor`・`EntityTickListAccessor`・`ChunkMapAccessor`・`TrackedEntityAccessor`）を持っていく。
    `OffThreadPositionMixin` は別スレッドでの座標設定で固まるのを防ぐので一緒に持っていく。

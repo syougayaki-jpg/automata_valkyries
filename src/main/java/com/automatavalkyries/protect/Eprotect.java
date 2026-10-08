@@ -2,21 +2,15 @@ package com.automatavalkyries.protect;
 
 import com.automatavalkyries.AutomataValkyries;
 import com.automatavalkyries.config.EprotectConfig;
-import com.automatavalkyries.mixin.ChunkMapAccessor;
 import com.automatavalkyries.mixin.EntityAccessor;
 import com.automatavalkyries.mixin.EntityManagerAccessor;
-import com.automatavalkyries.mixin.EntityTickListAccessor;
 import com.automatavalkyries.mixin.LivingEntityAccessor;
 import com.automatavalkyries.mixin.ServerLevelTickListAccessor;
-import com.automatavalkyries.mixin.TrackedEntityAccessor;
 import com.automatavalkyries.protect.attack.AttackLog;
 import com.automatavalkyries.protect.attack.AttackOp;
 import com.automatavalkyries.protect.attack.CallerAttribution;
 import com.automatavalkyries.protect.attack.ModBlacklist;
-import net.minecraft.core.SectionPos;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
@@ -28,14 +22,10 @@ import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.attributes.DefaultAttributes;
-import net.minecraft.world.level.ChunkPos;
-import net.minecraft.world.level.entity.EntityTickList;
 import net.minecraft.world.level.entity.Visibility;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.common.world.ForgeChunkManager;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
@@ -45,18 +35,27 @@ import java.util.Locale;
  *
  * <ul>
  *   <li>不正な消去（KILLED / DISCARDED）の拒否判定</li>
- *   <li>異常ダメージのサニタイズと 1 撃あたりの上限</li>
+ *   <li>異常ダメージのサニタイズと被弾の上限（{@link DamageLimiter}、数値は個体ごとの {@link EprotectProfile}）</li>
  *   <li>HP 異常・死亡フラグ・消去フラグの自己修復</li>
- *   <li>Tick 対象から外された場合の復帰（Tick 停止対策）</li>
- *   <li>現在いるチャンクの強制ロード</li>
+ *   <li>Tick 対象から外された場合の復帰と、止められた Tick の代行（{@link TickStallGuard}）</li>
+ *   <li>現在いるチャンクの強制ロード（{@link ForcedChunk}）</li>
  *   <li>正規退場（{@link #triggerDespawn()}）</li>
  * </ul>
  *
- * 所有エンティティは {@link IEprotected}（セリフが要るなら {@link IProviderWithSpeech}）を実装し、以下を委譲すること:
- * {@code onAddedToWorld} / {@code onRemovedFromWorld} / {@code baseTick}（サーバー側）/
- * {@code remove}（{@link #shouldBlockRemoval} で拒否）/ {@code die}（{@link #canDie} で拒否、許可時は {@link #markDefeated}）。
+ * 所有エンティティは {@link IEprotected}（セリフが要るなら {@link IProviderWithSpeech}、撤退の号令で退かせるなら
+ * {@code entity/RetreatableBoss}）を実装し、以下を委譲すること（ルクシオン・エレノアが手本）:
+ * <ul>
+ *   <li>{@code onAddedToWorld} / {@code onRemovedFromWorld} → 同名のメソッド</li>
+ *   <li>{@code baseTick}（サーバー側）→ {@link #tick()}、クライアント側 → {@link #clientTick()}</li>
+ *   <li>{@code remove} → {@link #shouldBlockRemoval} が true なら何もしない</li>
+ *   <li>{@code die}（サーバー側）→ {@link #interceptDie()} が true なら何もしない（断った）</li>
+ *   <li>撃破演出（{@code tickDeath}）の最後 → {@link #finishDeath()} の後に {@code remove(KILLED)}</li>
+ *   <li>挑む相手がいなくなったら退く → {@code entity/BossRetreatWatch} が true を返したら {@link #triggerDespawn()}（演出つきなら演出の最後に）</li>
+ * </ul>
  */
 public class Eprotect {
+
+    // 以下の数値は既定（{@link EprotectProfile#DEFAULT}）。個体ごとの値は {@link #profile()} を見る
 
     /** これ以上（または NaN / 無限大）の単発ダメージは異常値とみなす */
     public static final float HUGE_DAMAGE_THRESHOLD = 1000.0F;
@@ -65,14 +64,12 @@ public class Eprotect {
     /** 実際に HP から引かれる 1 撃のダメージ上限（最大 HP に対する割合） */
     public static final float MAX_HIT_RATIO = 0.10F;
     /**
-     * 被弾量を数える時間窓（Tick）。この間に HP から引かれるのは合計で 1 撃の上限（{@link #MAX_HIT_RATIO}）まで。
+     * 被弾量を数える時間窓（Tick）。この間に HP から引かれるのは合計で 1 撃の上限（{@link EprotectProfile#maxHitRatio}）まで。
      * 無敵時間を消して hurt() を連打すると、1 撃ごとの上限だけでは 1 Tick のうちに正規撃破まで削られる
      */
     public static final int DAMAGE_WINDOW_TICKS = 200;
     /** ブラックリストの MOD からのダメージの上限（罰則。{@link #MAX_HIT_RATIO} の代わりに使う） */
     public static final float BLACKLIST_HIT_RATIO = 0.01F;
-    /** 本体の Tick がこの Tick 数より長く止まっていたら Tick 停止とみなす */
-    private static final long TICK_STALL_THRESHOLD = 3;
 
     private final LivingEntity owner;
     /** 正規退場中（消去を許可する） */
@@ -92,49 +89,41 @@ public class Eprotect {
     private float pendingDamage = -1.0F;
     /** 前の Tick の死亡演出のカウンタ（{@link #tick} で進んだかを見る） */
     private int deathTimeSeen = -1;
-    /** 被弾量の時間窓の開始時刻と、その窓で既に引いた量 */
-    private long damageWindowStart = -DAMAGE_WINDOW_TICKS;
-    private float damageInWindow = 0.0F;
     /** 入口の判定を通った次元移動の最中か */
     private boolean dimensionChangeApproved = false;
-    /** 最後に本体の Tick が走ったサーバーの Tick 数（Tick 停止の検出用） */
-    private long lastTickServerTick = Long.MIN_VALUE;
-    /** ワールドの Tick ごと止められている（時間停止など）ので、本体の Tick を代わりに回している最中か */
-    private boolean drivingFrozenTick = false;
-    /** 代わりに回している本体の Tick の実行中か（その中からの再入を防ぐ） */
-    private boolean insideDrivenTick = false;
-    /** {@link #tick()} が走った回数（代わりに回した Tick の中身まで届いたかを見分ける） */
-    private int ownTickRuns = 0;
-    /** この Tick 停止で、入口で止められていることを報告済みか */
-    private boolean tickBlockReported = false;
-
     /** 最後に確認した正常な座標（入り直しの際、壊された座標を戻す先） */
     @Nullable
     private Vec3 lastSafePos;
 
-    @Nullable
-    private ServerLevel forcedLevel;
-    @Nullable
-    private ChunkPos forcedChunk;
+    /** 個体ごとの数値（被弾の上限の掛け方） */
+    private EprotectProfile profile;
+    private final DamageLimiter damage = new DamageLimiter(this);
+    private final TickStallGuard tickGuard;
+    private final ForcedChunk forcedChunk;
 
     public Eprotect(LivingEntity owner) {
-        this.owner = owner;
+        this(owner, EprotectProfile.DEFAULT);
     }
 
-    /**
-     * 被弾の上限を掛けるか（既定はかける）。false にすると、即死系（/kill・被弾以外の HP 減少・消去・強制移動など）は今までどおり拒否し、
-     * 普通の被弾は桁外れの値もそのまま通す（NaN・無限大だけ置き換える）。普通に倒せるボス向け
-     * （2026-10-07 ユーザー指定、AEC 級ボス ルクシオン「即死系の守りを付ける・被弾上限は無し」）
-     */
-    private boolean damageCap = true;
+    public Eprotect(LivingEntity owner, EprotectProfile profile) {
+        this.owner = owner;
+        this.profile = profile;
+        this.tickGuard = new TickStallGuard(this);
+        this.forcedChunk = new ForcedChunk(owner);
+    }
 
+    /** 被弾の上限を掛けない（{@link EprotectProfile#UNCAPPED}）。普通に倒せるボス向け */
     public Eprotect withoutDamageCap() {
-        this.damageCap = false;
+        this.profile = profile.withoutDamageCap();
         return this;
     }
 
+    public EprotectProfile profile() {
+        return profile;
+    }
+
     public boolean capsDamage() {
-        return damageCap;
+        return profile.capDamage();
     }
 
     /**
@@ -192,8 +181,8 @@ public class Eprotect {
      * 現在、正規のダメージ処理中であり、かつ被弾前の体力が1撃で倒せる残量（最大HPの10%）以下かどうか
      */
     public boolean isLegitimateFatalBlow() {
-        if (!damageCap) return hurtDepth > 0; // 上限なしの個体は、被弾で HP が尽きればいつでも正規の撃破（ルクシオンが倒れなかった。2026-10-08）
-        float maxSingleHit = owner.getMaxHealth() * MAX_HIT_RATIO + 1.0F;
+        if (!profile.capDamage()) return hurtDepth > 0; // 上限なしの個体は、被弾で HP が尽きればいつでも正規の撃破（ルクシオンが倒れなかった。2026-10-08）
+        float maxSingleHit = owner.getMaxHealth() * profile.maxHitRatio() + 1.0F;
         return hurtDepth > 0 && lastValidHealth <= maxSingleHit;
     }
 
@@ -202,7 +191,7 @@ public class Eprotect {
      * 時間停止（No-Sugar のストップウォッチ等）はワールドの Tick ごと止めるのでゲーム時刻も止まり、
      * ゲーム時刻で測ると被弾・修復の時間窓が明けず、Tick 停止も検出できない。
      */
-    private long serverClock() {
+    long serverClock() {
         return owner.level().getServer() != null ? owner.level().getServer().getTickCount() : owner.level().getGameTime();
     }
 
@@ -216,7 +205,7 @@ public class Eprotect {
     public void onAddedToWorld() {
         if (!(owner.level() instanceof ServerLevel)) return;
         EprotectManager.getInstance().register(this);
-        lastTickServerTick = serverClock(); // 追加直後に Tick 停止されても検出できるよう、ここを起点にする
+        tickGuard.markTicked(); // 追加直後に Tick 停止されても検出できるよう、ここを起点にする
         rememberHealthyState(); // 最初の Tick より前に飛ばされても戻す先があるように
     }
 
@@ -227,13 +216,13 @@ public class Eprotect {
         if (isGuardingRemoval() && isIllegalRemoval(owner, reason)) return;
         // 次元移動: 移動先で同じ UUID の個体が改めて登録されるので、元の次元の記録は消す（残すと元の次元で復元されて複製になる）
         if (reason == Entity.RemovalReason.CHANGED_DIMENSION) registry().forget(owner.getUUID());
-        releaseForcedChunk();
+        forcedChunk.release();
         EprotectManager.getInstance().unregister(this);
     }
 
     /** 毎 Tick（サーバー側）に実行する自己修復 */
     public void tick() {
-        ownTickRuns++;
+        tickGuard.countOwnTick();
         // 撃破後の演出（tickDeath）は vanilla では isDeadOrDying() が真のときだけ進む。他 MOD が getHealth / isDeadOrDying を書き換えて
         // 「生きている」と答えさせると演出が進まず、撃破したのに消えなかった（2026-10-05、エレノア）。この Tick に進んでいなければ代わりに進める
         if (!owner.level().isClientSide && isDying() && owner.deathTime == deathTimeSeen) {
@@ -246,12 +235,12 @@ public class Eprotect {
         // onRemovedFromWorld はチャンクの可視性低下（トラッキング終了）でも呼ばれるが、
         // 再トラッキング時に onAddedToWorld は呼ばれないため、ここで登録を維持する
         EprotectManager.getInstance().register(this);
-        lastTickServerTick = serverClock();
+        tickGuard.markTicked();
         repair();
         if (isProtectionActive()) {
             rememberHealthyState();
             recordToRegistryIfDue();
-            updateForcedChunk();
+            forcedChunk.update();
         }
     }
 
@@ -335,7 +324,6 @@ public class Eprotect {
         if (owner.level() instanceof ServerLevel) registry().forget(owner.getUUID());
     }
 
-    /** die() の直接呼び出し（即死攻撃）を拒否したことを記録する（所有エンティティの die() と Mixin から呼ぶ） */
     /**
      * ブラックリストの MOD に攻撃されたときの強化保護を始める（既に強化保護中なら何もしない）。強化保護の開始は Eprotect+ のバイトコード点検
      * （全クラスの再変換）を伴うので、攻撃のたびに呼ぶとサーバーが数十秒遅れた（2026-10-05、ブラックリストの MOD の即死を毎 Tick 何十回も断ったとき）。
@@ -376,6 +364,31 @@ public class Eprotect {
         return isLegitimateFatalBlow() && !(DirectRead.health(owner) > 0.0F);
     }
 
+    /**
+     * 所有エンティティの die() の入口（サーバー側）。被弾を通らない die() の直接呼び出し（即死攻撃）なら断って HP を戻し、true を返す
+     * （呼び出し側はそのまま return）。凶悪技術（ブラックリストの MOD・強化保護中）なら HP は最大へ。正規の撃破なら撃破を記録して false
+     * （呼び出し側は super.die へ進む）
+     */
+    public boolean interceptDie() {
+        if (!canDie()) {
+            boolean malicious = noteRefusedDeath();
+            float current = DirectRead.health(owner);
+            owner.setHealth(!malicious && Float.isFinite(current) && current > 0.0F ? current : owner.getMaxHealth());
+            owner.deathTime = 0;
+            KillModCounters.counterAll(owner);
+            return true;
+        }
+        markDefeated();
+        return false;
+    }
+
+    /** ボスバー等に出す HP の割合（0〜1）。他 MOD に書き換えられうる getHealth ではなく実際の値で出す */
+    public float healthRatio() {
+        float max = owner.getMaxHealth();
+        float ratio = max > 0.0F ? DirectRead.health(owner) / max : 0.0F;
+        return Float.isFinite(ratio) ? Math.max(0.0F, Math.min(1.0F, ratio)) : 0.0F;
+    }
+
     public void markDefeated() {
         this.defeated = true;
         if (owner.level() instanceof ServerLevel) registry().markDefeated(owner.getUUID());
@@ -400,80 +413,26 @@ public class Eprotect {
 
     // ---- ダメージ ------------------------------------------------------------
 
-    /** hurt() の入口: NaN / 無限大 / 桁外れの値を {@link #HUGE_DAMAGE_CLAMP} に置き換える */
+    /** hurt() の入口: NaN / 無限大 / 桁外れの値を置き換える（{@link EprotectProfile#isHugeDamage}） */
     public float sanitizeIncomingDamage(float amount) {
-        lastRawIncoming = amount;
-        if (!isProtectionActive()) return lastSanitizedIncoming = amount;
-        if (!Float.isFinite(amount) || (damageCap && amount >= HUGE_DAMAGE_THRESHOLD)) {
-            return lastSanitizedIncoming = HUGE_DAMAGE_CLAMP;
-        }
-        return lastSanitizedIncoming = amount;
+        return damage.sanitize(amount, isProtectionActive());
     }
 
-    /** 直前の被弾の、置き換える前と後の値（DPS チェックで本来の火力を測るため。2026-10-06） */
-    private float lastRawIncoming = Float.NaN, lastSanitizedIncoming = Float.NaN;
-
     /**
-     * 直前の被弾で桁外れの値を {@link #HUGE_DAMAGE_CLAMP} に置き換えていたら、amount（置き換えた値から防具などで減った後）を本来の大きさへ戻す。
+     * 直前の被弾で桁外れの値を置き換えていたら、amount（置き換えた値から防具などで減った後）を本来の大きさへ戻す。
      * 置き換えていなければそのまま（検証用のダミーの DPS チェック用。保護の判定には使わない）
      */
     public float unclampedDamage(float amount) {
-        if (Float.isFinite(lastRawIncoming) && lastSanitizedIncoming > 0.0F && lastRawIncoming > lastSanitizedIncoming) {
-            return amount * (lastRawIncoming / lastSanitizedIncoming);
-        }
-        return amount;
+        return damage.unclamped(amount);
     }
 
     /**
-     * HP に反映される直前: {@link #DAMAGE_WINDOW_TICKS} の間に引く量を、合計で最大 HP の {@link #MAX_HIT_RATIO} までに制限する。
-     * 窓は最初の被弾から数え始める（上限いっぱいの 1 撃を受けたら、次に削られるのは窓が明けてから）
+     * HP に反映される直前: 時間窓（{@link EprotectProfile#damageWindowTicks}）の間に引く量を、合計で最大 HP の
+     * {@link EprotectProfile#maxHitRatio} までに制限する。ブラックリストの MOD からは {@link EprotectProfile#blacklistHitRatio} まで
      */
     public float capFinalDamage(float amount, @Nullable DamageSource source) {
         if (!isProtectionActive()) return amount;
-        if (!damageCap) return Float.isFinite(amount) ? amount : HUGE_DAMAGE_CLAMP; // 上限なし（普通に倒せるボス）
-        // 強化保護中でも通常攻撃は上限どおりに通す（即死系は入口で止める。EprotectForgeEvents.isLethalAttack）
-        // ブラックリストの MOD からのダメージは上限を下げる（罰則）
-        String penalized = source != null ? blacklistedDamageMod(source) : null;
-        float ratio = penalized != null ? BLACKLIST_HIT_RATIO : MAX_HIT_RATIO;
-        if (penalized != null) AttackLog.blocked(owner, AttackOp.DAMAGE_PENALTY, penalized);
-        float cap = Math.max(1.0F, owner.getMaxHealth() * ratio);
-        if (!Float.isFinite(amount)) amount = cap;
-        long now = serverClock();
-        if (now - damageWindowStart >= DAMAGE_WINDOW_TICKS) {
-            damageWindowStart = now;
-            damageInWindow = 0.0F;
-        }
-        float allowed = Math.max(0.0F, Math.min(amount, cap - damageInWindow));
-        damageInWindow += allowed;
-        return allowed;
-    }
-
-    /**
-     * ダメージの出どころがブラックリストの MOD ならその ID（攻撃者の持つアイテム → 直接・間接の攻撃元の種類 → ダメージの種類 →
-     * 呼び出し経路の順に見る）。ブラックリストが空なら何もしない
-     */
-    @Nullable
-    private String blacklistedDamageMod(DamageSource source) {
-        if (!ModBlacklist.isActive()) return null;
-        List<String> candidates = new ArrayList<>();
-        if (source.getEntity() instanceof LivingEntity attacker && !attacker.getMainHandItem().isEmpty()) {
-            ResourceLocation item = BuiltInRegistries.ITEM.getKey(attacker.getMainHandItem().getItem());
-            if (item != null) candidates.add(item.getNamespace());
-        }
-        if (source.getDirectEntity() != null) candidates.add(BuiltInRegistries.ENTITY_TYPE.getKey(source.getDirectEntity().getType()).getNamespace());
-        if (source.getEntity() != null) candidates.add(BuiltInRegistries.ENTITY_TYPE.getKey(source.getEntity().getType()).getNamespace());
-        source.typeHolder().unwrapKey().ifPresent(key -> candidates.add(key.location().getNamespace()));
-        // このMOD のダメージ（兵装の種類・持っている兵装）は罰則にしない。呼び出し経路には、全員の hurt / setHealth を包む他 MOD の Mixin
-        // （Witherzilla 等）が必ず挟まるので、経路で探すとそれがブラックリストに載っているだけで自分の兵装まで 1% にされていた（2026-10-05）
-        if (candidates.contains(AutomataValkyries.MODID)) return null;
-        for (String mod : candidates) {
-            if (ModBlacklist.contains(mod)) return mod;
-        }
-        // 経路で探すのは、出どころの手がかりが何も無い（vanilla の種類だけ・攻撃者もいない）ときだけ
-        boolean anyClue = candidates.stream().anyMatch(m -> !"minecraft".equals(m));
-        if (anyClue) return null;
-        String caller = CallerAttribution.foreignClassMod(owner);
-        return ModBlacklist.contains(caller) ? caller : null;
+        return damage.cap(amount, source);
     }
 
     /**
@@ -492,8 +451,7 @@ public class Eprotect {
 
     /** 被弾量の時間窓を数え直す（GameTest や、演出として正規に続けて大ダメージを与えたい場合に使う） */
     public void resetDamageWindow() {
-        damageWindowStart = -DAMAGE_WINDOW_TICKS;
-        damageInWindow = 0.0F;
+        damage.reset();
     }
 
     /** setHealth() の入口: 正規の被弾以外での HP 0 化と、NaN / 無限大を拒否する */
@@ -531,9 +489,9 @@ public class Eprotect {
                     health = corrected;
                 }
             }
-            // hurt() 実行中であっても、1 撃の最大ダメージ（MAX_HIT_RATIO）を超える不当な HP 0 化を弾く
-            float minAllowed = fallback - (owner.getMaxHealth() * MAX_HIT_RATIO + 1.0F);
-            if (health <= 0.0F && minAllowed > 0.0F && damageCap) { // 上限なしの個体は、被弾での HP 0 を通す
+            // hurt() 実行中であっても、1 撃の最大ダメージ（EprotectProfile#maxHitRatio）を超える不当な HP 0 化を弾く
+            float minAllowed = fallback - (owner.getMaxHealth() * profile.maxHitRatio() + 1.0F);
+            if (health <= 0.0F && minAllowed > 0.0F && profile.capDamage()) { // 上限なしの個体は、被弾での HP 0 を通す
                 AttackLog.refused(owner, AttackOp.HEALTH_LOSS + ":fatal_in_hurt");
                 return minAllowed;
             }
@@ -574,7 +532,7 @@ public class Eprotect {
         if (isDying()) {
             // 撃破演出中は HP・死亡フラグは正規の状態なので触らず、演出を最後まで走らせることだけ守る
             clearIllegalRemovalFlag();
-            restoreTickingIfStopped();
+            tickGuard.restoreIfStopped();
             return;
         }
         if (!isProtectionActive()) return;
@@ -606,7 +564,7 @@ public class Eprotect {
         // 他 MOD 固有の状態と取り違えて、直書きの修復をその MOD の攻撃として記録しないため）
         if (ForeignStateCleaner.clean(owner)) anomalies++;
         noteSpoofedRead();
-        if (restoreTickingIfStopped()) anomalies++;
+        if (tickGuard.restoreIfStopped()) anomalies++;
         resyncViewersIfPending();
 
         if (anomalies > 0) noteAnomalies(anomalies);
@@ -624,7 +582,7 @@ public class Eprotect {
     /**
      * 最大 HP（MAX_HEALTH 属性）の改ざんを戻す。基礎値は種類の既定値へ戻し、他 MOD の補正（名前がこの MOD の ID で始まらないもの）は外す。
      * 下げられると HP がそこまで切り詰められて 1 撃で倒せる残量になり、桁外れに上げられると 1 撃の上限（最大 HP の
-     * {@link #MAX_HIT_RATIO}）が意味をなさず戦闘が成り立たない。どちらも他 MOD の属性上限の解除や /attribute で起こる。
+     * {@link EprotectProfile#maxHitRatio}）が意味をなさず戦闘が成り立たない。どちらも他 MOD の属性上限の解除や /attribute で起こる。
      */
     private boolean restoreMaxHealth() {
         AttributeInstance attribute = owner.getAttribute(Attributes.MAX_HEALTH);
@@ -676,7 +634,7 @@ public class Eprotect {
 
     /**
      * ダメージ処理（hurt）を通らずに減った HP（同期データの直書き・getter の書き換え越しの削り等。Fantasy Ending の catchSetTrueHealth）を、
-     * 普通の被弾と同じ上限（{@link #capFinalDamage}: 時間窓の中で最大 HP の {@link #MAX_HIT_RATIO} まで）に掛け、超えた分を戻す。
+     * 普通の被弾と同じ上限（{@link #capFinalDamage}: 時間窓の中で最大 HP の {@link EprotectProfile#maxHitRatio} まで）に掛け、超えた分を戻す。
      * 強化保護中（ブラックリストの MOD に攻撃された直後）は上限が 0 なので全部戻る。これまでは HP 0 にならない削りは素通りだった（2026-10-03）
      *
      * @return 戻したか
@@ -690,7 +648,7 @@ public class Eprotect {
         float loss = previous - hp;
         // ダメージ処理を通らない削りは通常攻撃ではないので、強化保護中は全部戻す
         // 上限なしの個体でも、被弾を通らない削りは即死系なので全部戻す
-        float allowed = isReinforcedActive() || !damageCap ? 0.0F : capFinalDamage(loss, null);
+        float allowed = isReinforcedActive() || !profile.capDamage() ? 0.0F : capFinalDamage(loss, null);
         if (allowed >= loss - 0.001F) {
             lastValidHealth = hp;
             return false;
@@ -823,7 +781,7 @@ public class Eprotect {
     public void retireReplaced() {
         despawning = true; // 保護を解く（セリフ・効果音は出さない）
         if (owner instanceof IEprotected protectedOwner) protectedOwner.onRetired();
-        releaseForcedChunk();
+        forcedChunk.release();
         EprotectManager.getInstance().unregister(this);
         ((EntityAccessor) owner).automata_valkyries$setRemovalReason(Entity.RemovalReason.DISCARDED);
     }
@@ -900,133 +858,6 @@ public class Eprotect {
         return false;
     }
 
-    /**
-     * Tick 停止対策: ワールドには正しく載っているのに本体の Tick が止まっていれば、
-     * <ul>
-     *   <li>Tick 対象一覧から外されている → 一覧へ入れ直す（修復として数える）</li>
-     *   <li>一覧には載っている → ワールドの Tick ごと止められている（時間停止など）か、他 MOD が反復から読み飛ばしている。
-     *       入れ直しても効かないので、止まっている間は毎 Tick ここから本体の Tick を代わりに回す（修復には数えない。
-     *       数えると時間停止が続くだけで退避してしまう）</li>
-     * </ul>
-     * {@link #tick()} が走らない状態なので、マネージャーの周期処理（サーバー Tick の最後）から呼ばれる。
-     *
-     * @return 一覧へ入れ直したとき true
-     */
-    private boolean restoreTickingIfStopped() {
-        // isRemoved() は他 MOD の ASM に呼び出し箇所ごと偽装されうるので、フィールドを直接読む
-        if (!(owner.level() instanceof ServerLevel level) || ((EntityAccessor) owner).automata_valkyries$getRemovalReason() != null) return false;
-        if (insideDrivenTick) return false;
-        if (!isSafePosition(owner, owner.getX(), owner.getY(), owner.getZ())) return false;
-        if (lastTickServerTick == Long.MIN_VALUE) return false; // まだワールドに追加されていない
-        long stalled = serverClock() - lastTickServerTick;
-        if (stalled == 0) {
-            // このサーバー Tick のうちに本体の Tick が自然に走った（止められていない）
-            if (drivingFrozenTick) {
-                drivingFrozenTick = false;
-                tickBlockReported = false;
-                AutomataValkyries.LOGGER.info("[eprotect] {} is ticking on its own again", owner);
-            }
-            return false;
-        }
-        if (!drivingFrozenTick && stalled <= TICK_STALL_THRESHOLD) return false;
-        if (!level.isPositionEntityTicking(owner.blockPosition())) return false; // チャンク側の都合で止まっているだけ
-
-        EntityTickList tickList = ((ServerLevelTickListAccessor) level).automata_valkyries$getEntityTickList();
-        if (!((EntityTickListAccessor) tickList).automata_valkyries$getActive().containsKey(owner.getId())) {
-            drivingFrozenTick = false;
-            tickList.add(owner);
-            lastTickServerTick = serverClock(); // 復帰の Tick が走るまで連続で戻さない
-            AutomataValkyries.LOGGER.warn("[eprotect] Restored ticking of {}", owner);
-            AttackLog.repaired(owner, "ticking");
-            return true;
-        }
-
-        if (!drivingFrozenTick) {
-            drivingFrozenTick = true;
-            AutomataValkyries.LOGGER.warn("[eprotect] {} is in the tick list but is not being ticked (time stop?); ticking it directly", owner);
-            AttackLog.repaired(owner, "frozen_tick");
-        }
-        driveTick(level);
-        return false;
-    }
-
-    /** 本体の Tick をワールドの代わりに 1 回回す（騎乗中は乗り物が回すので触らない） */
-    /** 包みの入口を飛ばして回したことを記録したか（記録は 1 個体 1 回） */
-    private boolean entranceBypassNoted;
-
-    private void driveTick(ServerLevel level) {
-        Entity vehicle = owner.getVehicle();
-        if (vehicle != null && !vehicle.isRemoved() && vehicle.hasPassenger(owner)) return;
-        int ticksBefore = owner.tickCount;
-        int runsBefore = ownTickRuns;
-        insideDrivenTick = true;
-        try {
-            level.guardEntityTick(level::tickNonPassenger, owner);
-            if (owner.tickCount == ticksBefore && !owner.isRemoved()) {
-                // 包み（guardEntityTick）の入口で他 MOD に止められた（EndingLibrary の時間停止の LevelMixin.guardEntityTick 等）。
-                // 包みを飛ばして中身を直接回す
-                level.tickNonPassenger(owner);
-                if (owner.tickCount != ticksBefore && !entranceBypassNoted) {
-                    entranceBypassNoted = true;
-                    AttackLog.repaired(owner, "frozen_tick:entrance_bypassed");
-                }
-            }
-        } finally {
-            insideDrivenTick = false;
-        }
-        // 代わりに回しても進まない＝その入口で他 MOD に打ち切られている。打ち切れる処理を候補として 1 度だけ報告する
-        // （tickCount は tickNonPassenger の先頭で進む。進んだのに tick() まで届かなければ、エンティティのクラスの tick で止められている）
-        if (!tickBlockReported) {
-            TickEntranceHooks.Stage stage = owner.tickCount == ticksBefore ? TickEntranceHooks.Stage.ENTRANCE
-                    : owner instanceof IEprotected && ownTickRuns == runsBefore ? TickEntranceHooks.Stage.ENTITY_TICK : null;
-            if (stage != null) {
-                tickBlockReported = true;
-                TickEntranceHooks.report(owner, stage);
-            }
-        }
-        sendTrackedChanges(level);
-        lastTickServerTick = serverClock() - 1; // 次のサーバー Tick で自然に走ったかを見分けられるよう、自分で回した分は数えない
-    }
-
-    /**
-     * 代わりに回した Tick の移動・状態の変化をクライアントへ送る（ChunkMap.tick の 1 体ぶん）。
-     * 送るのは本来ワールドの Tick（ServerChunkCache.tick → ChunkMap.tick）の役目なので、ワールドの Tick ごと止められていると
-     * サーバーでは動いているのにクライアントでは止まって見える。
-     */
-    private void sendTrackedChanges(ServerLevel level) {
-        Object tracked = ((ChunkMapAccessor) level.getChunkSource().chunkMap).automata_valkyries$getEntityMap().get(owner.getId());
-        if (!(tracked instanceof TrackedEntityAccessor entry)) return;
-        SectionPos section = SectionPos.of(owner);
-        if (!section.equals(entry.automata_valkyries$getLastSectionPos())) {
-            entry.automata_valkyries$updatePlayers(level.players());
-            entry.automata_valkyries$setLastSectionPos(section);
-        }
-        entry.automata_valkyries$getServerEntity().sendChanges();
-    }
-
-    // ---- チャンクロック ------------------------------------------------------
-
-    private void updateForcedChunk() {
-        if (!(owner.level() instanceof ServerLevel level)) return;
-        if (!level.getServer().isRunning()) return; // 終了処理中にチャンクを同期ロードすると固まる
-        if (!isSafePosition(owner, owner.getX(), owner.getY(), owner.getZ())) return; // 壊れた座標のチャンクを強制ロードしない
-        ChunkPos current = owner.chunkPosition();
-        if (level == forcedLevel && current.equals(forcedChunk)) return;
-
-        releaseForcedChunk();
-        ForgeChunkManager.forceChunk(level, AutomataValkyries.MODID, owner, current.x, current.z, true, true);
-        forcedLevel = level;
-        forcedChunk = current;
-    }
-
-    private void releaseForcedChunk() {
-        if (forcedLevel != null && forcedChunk != null) {
-            ForgeChunkManager.forceChunk(forcedLevel, AutomataValkyries.MODID, owner, forcedChunk.x, forcedChunk.z, false, true);
-        }
-        forcedLevel = null;
-        forcedChunk = null;
-    }
-
     // ---- 正規退場 ------------------------------------------------------------
 
     /** プレイヤー全滅時などの安全退場処理。セリフと効果音を出してから消去する */
@@ -1035,7 +866,7 @@ public class Eprotect {
         despawning = true;
         registry().forget(owner.getUUID());
 
-        releaseForcedChunk();
+        forcedChunk.release();
 
         if (owner instanceof IProviderWithSpeech speechProvider) {
             Component speech = speechProvider.getDefeatSpeech();

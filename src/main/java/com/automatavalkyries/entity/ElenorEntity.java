@@ -11,7 +11,6 @@ import net.minecraft.world.BossEvent;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.damagesource.DamageSource;
-import net.minecraft.world.entity.EntitySelector;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
@@ -45,11 +44,6 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
 
     private boolean terminusEnabled = false;
 
-    /** この範囲に戦えるプレイヤーがいなくなったら「全滅」とみなす */
-    private static final double ENGAGE_RANGE = 48.0D;
-    /** 全滅判定から撤収までの猶予（Tick） */
-    private static final int DESPAWN_DELAY = 200;
-    private static final int CHECK_INTERVAL = 20;
     /** 正規撃破から消滅までの Tick 数（モデル側の座り込み演出もこれに合わせる） */
     public static final int DEATH_TICKS = 30;
 
@@ -58,9 +52,8 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
     private final ServerBossEvent bossEvent =
             new ServerBossEvent(Component.translatable("entity.automata_valkyries.elenor"), BossEvent.BossBarColor.PURPLE,
                     BossEvent.BossBarOverlay.NOTCHED_10);
-    /** プレイヤーと交戦したか */
-    private boolean engaged = false;
-    private int noPlayerTicks = 0;
+    /** 挑む相手（48 ブロック以内）がいなくなって 10 秒で撤収する */
+    private final BossRetreatWatch retreatWatch = new BossRetreatWatch(48.0D, 200);
 
     private static final RawAnimation IDLE = RawAnimation.begin().thenLoop("animation.elenor.idle");
     /** スカートをふわっと広げる（サーバーから triggerAnim で再生） */
@@ -130,7 +123,7 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
             protect.tick(); // 撃破後の演出が進まないときの代行もここ（Eprotect#tick）
             tickRetreat();
             // 実際の HP で出す（他 MOD のエージェントが getHealth を書き換えて最大 HP を返すと、削れていても満タンに見えていた。2026-10-05）
-            bossEvent.setProgress(Math.max(0.0F, Math.min(1.0F, com.automatavalkyries.protect.DirectRead.health(this) / this.getMaxHealth())));
+            bossEvent.setProgress(protect.healthRatio());
         } else {
             protect.clientTick();
         }
@@ -190,17 +183,8 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
 
     @Override
     public void die(DamageSource source) {
-        // hurt() を経ない die() の直接呼び出し（即死攻撃）は無視し、健全なHPへの復帰と特権カウンターを適用
-        if (!protect.canDie()) {
-            boolean malicious = protect.noteRefusedDeath(); // 凶悪技術なら罰則で HP を最大へ
-            float current = com.automatavalkyries.protect.DirectRead.health(this);
-            float fallback = !malicious && Float.isFinite(current) && current > 0.0F ? current : this.getMaxHealth();
-            this.setHealth(fallback);
-            this.deathTime = 0;
-            com.automatavalkyries.protect.KillModCounters.counterAll(this);
-            return;
-        }
-        protect.markDefeated();
+        // hurt() を経ない die() の直接呼び出し（即死攻撃）は断り、健全な HP へ戻す（凶悪技術なら罰則で HP を最大へ）
+        if (protect.interceptDie()) return;
         super.die(source);
     }
 
@@ -251,19 +235,7 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
 
     private void tickRetreat() {
         if (trialBoss) return; // 回想のトライアルのボスは、トライアルの側が退かせる（クリエイティブで試しても自分で消えない）
-        if (this.getTarget() instanceof Player) engaged = true;
-        if (!engaged || this.tickCount % CHECK_INTERVAL != 0) return;
-
-        boolean anyChallenger = this.level().getNearestPlayer(this.getX(), this.getY(), this.getZ(), ENGAGE_RANGE,
-                EntitySelector.NO_CREATIVE_OR_SPECTATOR.and(EntitySelector.LIVING_ENTITY_STILL_ALIVE)) != null;
-        if (anyChallenger) {
-            noPlayerTicks = 0;
-            return;
-        }
-        noPlayerTicks += CHECK_INTERVAL;
-        if (noPlayerTicks >= DESPAWN_DELAY) {
-            protect.triggerDespawn();
-        }
+        if (retreatWatch.tick(this)) protect.triggerDespawn();
     }
 
     // ---- 終焉権能 (ITerminusBearer) ----------------------------------------
