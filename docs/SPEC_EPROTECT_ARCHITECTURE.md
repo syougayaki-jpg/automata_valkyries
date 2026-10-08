@@ -8,8 +8,8 @@
 ## 0. 範囲
 
 - **書くもの**: 保護対象（ボス・兵姫）を、他 MOD の即死・消去・凍結から守る仕組みと、その観察・記録・テスト。
-- **書かないもの**: 即死側（抹殺の棒・真抹殺・終焉の魔杖、Eprotect+ Java エージェントの抹殺・迂回の処理）。これは Antigravity 側の担当で、
-  `src/eprotectplus/`・`protect/plus/`・`annihilate/`・`TrueKillStickItem` 等にある。本書では「保護の外側に別の層がある」ことだけ触れる。
+- **書かないもの**: 即死側（抹殺の棒・真抹殺・終焉の魔杖、Eprotect+ Java エージェントの抹殺・迂回の処理）。これは CODEX（旧 Antigravity）側の担当で、
+  `src/eprotectplus/`・`protect/plus/`・`annihilate/`・`TrueKillStickItem` 等にある（引継書: [`docs/HANDOFF_ANTIGRAVITY_TO_CODEX.md`](HANDOFF_ANTIGRAVITY_TO_CODEX.md)）。本書では「保護の外側に別の層がある」ことだけ触れる。
 
 ## 1. 設計の原則
 
