@@ -122,4 +122,33 @@ public class ChronoGazerGameTests {
             v.releaseAndDiscard();
         });
     }
+
+    /** ルクシオンのプレイヤーへのダメージは最大 HP 20 を超えた分だけ比例して上がる。モブにはそのまま（2026-10-08） */
+    @GameTest(template = TEMPLATE, batch = "luxion_scaling")
+    public static void luxionDamageScalesWithPlayerMaxHealth(GameTestHelper helper) {
+        net.minecraft.world.entity.player.Player player = helper.makeMockPlayer();
+        float base = com.automatavalkyries.entity.chrono.LuxionEntity.scaledFor(player, 30.0F);
+        helper.assertTrue(base == 30.0F, "damage changed for a 20 HP player: " + base);
+        player.getAttribute(Attributes.MAX_HEALTH).setBaseValue(200.0);
+        float big = com.automatavalkyries.entity.chrono.LuxionEntity.scaledFor(player, 30.0F);
+        helper.assertTrue(Math.abs(big - 300.0F) < 0.01F, "damage not scaled for a 200 HP player: " + big);
+        net.minecraft.world.entity.monster.Zombie zombie = helper.spawn(net.minecraft.world.entity.EntityType.ZOMBIE, 1, 2, 1);
+        helper.assertTrue(com.automatavalkyries.entity.chrono.LuxionEntity.scaledFor(zombie, 30.0F) == 30.0F, "damage to a mob was scaled");
+        zombie.discard();
+        player.discard();
+        helper.succeed();
+    }
+
+    /** 撤退の号令: ルクシオンが退く演出を始め、終わると消える。2 度目は効かない（2026-10-08） */
+    @GameTest(template = TEMPLATE, batch = "luxion_retreat", timeoutTicks = 200)
+    public static void retreatOrderMakesLuxionRetreat(GameTestHelper helper) {
+        com.automatavalkyries.entity.chrono.LuxionEntity lux = helper.spawn(ModEntities.LUXION.get(), 2, 2, 2);
+        lux.setNoAi(true);
+        helper.runAfterDelay(com.automatavalkyries.entity.chrono.LuxionEntity.INTRO_TICKS + 5, () -> {
+            helper.assertTrue(lux.beginRetreat(), "Luxion refused the retreat order");
+            helper.assertTrue(lux.stage() == com.automatavalkyries.entity.chrono.LuxionEntity.STAGE_RETREAT, "Luxion did not start its retreat: " + lux.stage());
+            helper.assertFalse(lux.beginRetreat(), "a second retreat order restarted the retreat");
+            helper.succeedWhen(() -> helper.assertTrue(lux.isRemoved(), "Luxion has not left yet"));
+        });
+    }
 }

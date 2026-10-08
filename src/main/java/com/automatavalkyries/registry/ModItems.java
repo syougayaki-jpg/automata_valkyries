@@ -161,6 +161,9 @@ public class ModItems {
     /** 退去願い（2026-10-05 ユーザー指定）: 検証用のダミーゾンビに正規の退場をしてもらう */
     public static final RegistryObject<Item> EVICTION_NOTICE = ITEMS.register("eviction_notice", () ->
             new com.automatavalkyries.item.EvictionNoticeItem(new Item.Properties().stacksTo(1)));
+    /** 撤退の号令: ボスに退く演出をさせる（クリエイティブ専用・レシピ無し。2026-10-08） */
+    public static final RegistryObject<Item> RETREAT_ORDER = ITEMS.register("retreat_order", () ->
+            new com.automatavalkyries.item.RetreatOrderItem(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC)));
     public static final RegistryObject<Item> WARD_CHARM = ITEMS.register("ward_charm", () ->
             new com.automatavalkyries.item.WardCharmItem(com.automatavalkyries.item.WardCharmItem.defaultProperties()));
     /** 無敵の護符（2026-10-04 ユーザー指定）: ダメージをすべて無効にし HP を最大に保つ（中身は protect/InvincibleCharm） */

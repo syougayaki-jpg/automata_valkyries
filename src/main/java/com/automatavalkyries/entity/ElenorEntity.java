@@ -41,7 +41,7 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 
 /** サンプルボス「エレノア」。eprotect による保護対象、終焉の権能（ITerminusBearer）を搭載可能 */
-public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, GeoEntity, ITerminusBearer {
+public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, GeoEntity, ITerminusBearer, RetreatableBoss {
 
     private boolean terminusEnabled = false;
 
@@ -151,6 +151,14 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
     /** 正規の退場（セリフと効果音を出して消える）。回想のトライアルの失敗で使う（{@code trial/TrialManager}） */
     public void retreat() {
         protect.triggerDespawn();
+    }
+
+    /** 撤退の号令: 正規の退場（セリフと効果音） */
+    @Override
+    public boolean beginRetreat() {
+        if (!isAlive() || protect.isDespawning()) return false;
+        retreat();
+        return true;
     }
 
     // ---- ボスバー --------------------------------------------------------------

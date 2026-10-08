@@ -57,10 +57,12 @@ import java.util.EnumSet;
  * 狙いは兵姫を優先（クロノゲイザー共通）。挑む相手がいなくなると 10 秒で退く（セリフつきの正規の退場）
  */
 @net.minecraftforge.fml.common.Mod.EventBusSubscriber(modid = com.automatavalkyries.AutomataValkyries.MODID)
-public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IProviderWithSpeech {
+public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IProviderWithSpeech, com.automatavalkyries.entity.RetreatableBoss {
 
     public static final float MAX_HP = 5000.0F, MELEE = 30.0F, FLURRY_HIT = 25.0F, WAVE = 30.0F, DASH = 40.0F;
     public static final double WAVE_RANGE = 24.0, DASH_LENGTH = 20.0;
+    /** ダメージを上げ始めるプレイヤーの最大 HP（{@link #scaledFor}） */
+    public static final float PLAYER_BASE_HP = 20.0F;
     /**
      * 体の大きさ（モデルの倍率。身長 5 ブロック、2026-10-08 ユーザー指定）。描画（client/LuxionRenderer）と、技の届く範囲・光の出る高さはこれに合わせる。
      * MELEE_REACH = 斬撃の届く距離、BESIDE = 相手のそばへ移るときの間合い
@@ -565,6 +567,15 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
         }
     }
 
+    /** 撤退の号令: 挑む相手がいなくなったときと同じく、剣を納め、翼で身を包んでから退く */
+    @Override
+    public boolean beginRetreat() {
+        if (!isAlive() || defeatedNow() || stage() == STAGE_RETREAT || protect.isDespawning()) return false;
+        startStage(STAGE_RETREAT);
+        playSound(SoundEvents.BEACON_DEACTIVATE, 1.5F, 1.4F);
+        return true;
+    }
+
     @Override
     public void startSeenByPlayer(ServerPlayer player) {
         super.startSeenByPlayer(player);
@@ -613,6 +624,16 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
     /** 斬撃の型（袈裟 → 逆袈裟 → 横一文字の順。2026-10-08） */
     private static final byte[] COMBO = {EVENT_SLASH, EVENT_SLASH_RISING, EVENT_SLASH_FLAT};
 
+    /**
+     * プレイヤーへのダメージは最大 HP に応じて上げる: 最大 HP 20 を基準に、それを超えた分だけ比例して大きくする（最大 HP 200 なら 10 倍）。
+     * HP を大きく盛ったプレイヤーにも同じ割合で効かせるため（2026-10-08 ユーザー指定。比例の決め方は【仮】）。兵姫・モブはそのまま
+     */
+    public static float scaledFor(LivingEntity target, float damage) {
+        if (!(target instanceof Player player)) return damage;
+        float maxHp = player.getMaxHealth();
+        return Float.isFinite(maxHp) ? damage * Math.max(1.0F, maxHp / PLAYER_BASE_HP) : damage;
+    }
+
     /** 光の剣で斬る（型は順番に回す） */
     void slash(float damage) {
         slash(damage, COMBO[combo++ % COMBO.length]);
@@ -625,7 +646,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
         for (LivingEntity e : server.getEntitiesOfClass(LivingEntity.class, getBoundingBox().inflate(MELEE_REACH, STEP_HEIGHT, MELEE_REACH), ChronoGazer::canHurt)) {
             Vec3 to = e.position().subtract(position()).multiply(1, 0, 1);
             if (to.length() > MELEE_REACH + 0.3 + e.getBbWidth() * 0.5 || (to.lengthSqr() > 0.25 && to.normalize().dot(look) < 0.3)) continue;
-            e.hurt(damageSources().mobAttack(this), damage);
+            e.hurt(damageSources().mobAttack(this), scaledFor(e, damage));
             e.knockback(0.4, -look.x, -look.z);
         }
         // 光の弧（刀の軌跡）と、白い芯・金の縁・赤い火花
@@ -693,7 +714,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
             }
             if (((int) (d / 0.6)) % 3 == 0) com.automatavalkyries.weapon.Fx.one(server, star(C_GOLD, 0.35F, 16), p, Vec3.ZERO);
             for (LivingEntity e : server.getEntitiesOfClass(LivingEntity.class, new AABB(p, p).inflate(1.2), ChronoGazer::canHurt)) {
-                if (hit.add(e)) e.hurt(damageSources().mobAttack(this), WAVE);
+                if (hit.add(e)) e.hurt(damageSources().mobAttack(this), scaledFor(e, WAVE));
             }
         }
         LuxionFxEntity.spawn(server, LuxionFxEntity.WAVE, from.add(dir.scale(0.8)), reach, isPhase2()); // 三日月の光の刃（自作エフェクト）
@@ -721,7 +742,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
             end = p;
             for (LivingEntity e : level().getEntitiesOfClass(LivingEntity.class, box.inflate(0.6), ChronoGazer::canHurt)) {
                 if (hit.add(e)) {
-                    e.hurt(damageSources().mobAttack(this), DASH);
+                    e.hurt(damageSources().mobAttack(this), scaledFor(e, DASH));
                     e.knockback(1.0, -dir.x, -dir.z);
                 }
             }
