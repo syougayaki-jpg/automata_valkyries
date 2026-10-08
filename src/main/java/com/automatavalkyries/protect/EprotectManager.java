@@ -243,6 +243,7 @@ public class EprotectManager {
 
     @SubscribeEvent
     public void onServerStarted(ServerStartedEvent event) {
+        GameTestCleanup.resetAtStart(event.getServer());
         EprotectWatchdogAgent.getInstance().start(event.getServer());
         com.automatavalkyries.protect.flag.FlagWatchAgent.getInstance().start(event.getServer());
         ObserverLink.logStatus();

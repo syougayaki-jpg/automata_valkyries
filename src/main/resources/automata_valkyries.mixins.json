@@ -18,6 +18,7 @@
     "EprotectDamageMixin",
     "EprotectEntityMixin",
     "EprotectSynchedDataMixin",
+    "GameTestCleanupMixin",
     "PlayerWardMixin",
     "PlayerWardEntityMixin",
     "PlayerWardLivingMixin",

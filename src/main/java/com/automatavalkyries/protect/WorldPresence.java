@@ -58,19 +58,25 @@ public final class WorldPresence {
 
         EntityManagerAccessor<Entity> manager = manager(level);
         if (!manager.automata_valkyries$getKnownUuids().contains(entity.getUUID())) issues.add(Issue.MISSING_UUID);
-        var lookup = manager.automata_valkyries$getVisibleEntityStorage();
-        if (lookup.getEntity(entity.getUUID()) != entity || lookup.getEntity(entity.getId()) != entity) {
-            issues.add(Issue.MISSING_LOOKUP);
-        }
         EntitySection<Entity> section = manager.automata_valkyries$getSectionStorage()
                 .getSection(SectionPos.asLong(entity.blockPosition()));
         if (section == null || section.getEntities().noneMatch(e -> e == entity)) issues.add(Issue.MISSING_SECTION);
+        // 検索表と追跡に載るのは、区画が見える（TRACKED 以上）ようになってから（PersistentEntitySectionManager#addEntity）。
+        // 読み込まれたばかりで区画がまだ見えないチャンクでは載っていないのが正常なので見ない（GameTest の新しい試験場で
+        // 出したボスが毎 Tick 入り直させられ、修復が続いて退避していた。2026-10-08）
+        boolean accessible = section == null || section.getStatus().isAccessible();
+        if (accessible) {
+            var lookup = manager.automata_valkyries$getVisibleEntityStorage();
+            if (lookup.getEntity(entity.getUUID()) != entity || lookup.getEntity(entity.getId()) != entity) {
+                issues.add(Issue.MISSING_LOOKUP);
+            }
+            if (!((ChunkMapAccessor) level.getChunkSource().chunkMap).automata_valkyries$getEntityMap().containsKey(entity.getId())) {
+                issues.add(Issue.MISSING_TRACKER);
+            }
+        }
         if (level.isPositionEntityTicking(entity.blockPosition())
                 && !((ServerLevelTickListAccessor) level).automata_valkyries$getEntityTickList().contains(entity)) {
             issues.add(Issue.MISSING_TICK_LIST);
-        }
-        if (!((ChunkMapAccessor) level.getChunkSource().chunkMap).automata_valkyries$getEntityMap().containsKey(entity.getId())) {
-            issues.add(Issue.MISSING_TRACKER);
         }
         return issues;
     }

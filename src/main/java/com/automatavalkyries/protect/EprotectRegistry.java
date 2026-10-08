@@ -132,6 +132,16 @@ public final class EprotectRegistry {
         if (entries.remove(uuid) != null) markDirty();
     }
 
+    /** 記録を全部消す（GameTest のサーバーの起動時だけ。{@link GameTestCleanup}）。消した数を返す */
+    public int clear() {
+        int n = entries.size();
+        if (n > 0) {
+            entries.clear();
+            markDirty();
+        }
+        return n;
+    }
+
     private void markDirty() {
         primary.setDirty();
         backup.setDirty();

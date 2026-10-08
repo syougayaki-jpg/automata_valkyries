@@ -786,6 +786,15 @@ public class Eprotect {
         ((EntityAccessor) owner).automata_valkyries$setRemovalReason(Entity.RemovalReason.DISCARDED);
     }
 
+    /** GameTest の後片付けの直前に保護を外す（セリフ・効果音は出さない。消すのは GameTest の側。{@link GameTestCleanup}） */
+    public void releaseForCleanup() {
+        if (despawning || owner.level().isClientSide) return;
+        despawning = true;
+        registry().forget(owner.getUUID());
+        forcedChunk.release();
+        EprotectManager.getInstance().unregister(this);
+    }
+
     // ---- 退避（修復が追いつかないとき） --------------------------------------
 
     private long anomalyWindowStart = Long.MIN_VALUE;

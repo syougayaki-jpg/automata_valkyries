@@ -222,6 +222,7 @@ public final class ValkyrieProtect {
         // 他 MOD のエージェントは起動の途中で変換器を足すので、ワールドの開始時にもう一度いちばん外側へ並べ直す
         ValkyrieAgentLink.ensureLast();
         if (ValkyrieAgentLink.isInstalled()) AutomataValkyries.LOGGER.info("[valkyrie-protect] {}", ValkyrieAgentLink.status());
+        com.automatavalkyries.protect.GameTestCleanup.resetValkyrieBackups(event.getServer()); // 別ファイルから読み直す前に
         ValkyrieBackups backups = ValkyrieBackups.get(event.getServer());
         for (Map.Entry<UUID, ValkyrieBackups.Entry> file : ValkyrieBackupFiles.readAll(event.getServer()).entrySet()) {
             ValkyrieBackups.Entry saved = backups.get(file.getKey());
