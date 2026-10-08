@@ -112,6 +112,9 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
     private final Eprotect protect = new Eprotect(this, com.automatavalkyries.protect.EprotectProfile.UNCAPPED);
     /** 挑む相手（64 ブロック以内）がいなくなって 10 秒で退く */
     private final com.automatavalkyries.entity.BossRetreatWatch retreatWatch = new com.automatavalkyries.entity.BossRetreatWatch(64.0, 200);
+    /** 回想のトライアルのボス（{@code trial/TrialManager}）: 自分では退かず、保存もしない。攻撃は {@link #trialAttack} 倍 */
+    private boolean trialBoss;
+    private float trialAttack = 1.0F;
     private final ServerBossEvent bossEvent = new ServerBossEvent(Component.translatable("entity.automata_valkyries.luxion"),
             BossEvent.BossBarColor.YELLOW, BossEvent.BossBarOverlay.NOTCHED_10);
     private final AnimatableInstanceCache geoCache = GeckoLibUtil.createInstanceCache(this);
@@ -542,6 +545,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
     }
 
     private void tickRetreat() {
+        if (trialBoss) return; // 回想のトライアルのボスは、トライアルの側が退かせる（クリエイティブで試しても自分で消えない）
         if (retreatWatch.tick(this) && stage() == STAGE_NONE) beginRetreat(); // 降臨・変身の途中では退かない
     }
 
@@ -569,6 +573,24 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
     @Override
     public void onRetired() {
         bossEvent.removeAllPlayers();
+    }
+
+    /** 回想のトライアルのボスにする（自分では退かず、保存もしない。攻撃は attack 倍） */
+    public void setTrialBoss(float attack) {
+        this.trialBoss = true;
+        this.trialAttack = attack;
+    }
+
+    @Override
+    public boolean shouldBeSaved() {
+        return !trialBoss && super.shouldBeSaved();
+    }
+
+    /** 名前を付けたらボスバーの名前も（回想のトライアルの「回想の ○○」） */
+    @Override
+    public void setCustomName(@org.jetbrains.annotations.Nullable Component name) {
+        super.setCustomName(name);
+        bossEvent.setName(getDisplayName());
     }
 
     @Override
@@ -612,6 +634,11 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
         return Float.isFinite(maxHp) ? damage * Math.max(1.0F, maxHp / PLAYER_BASE_HP) : damage;
     }
 
+    /** 技のダメージ: プレイヤーには最大 HP に応じて上げ（{@link #scaledFor}）、回想のトライアルではさらに倍率を掛ける */
+    float damageFor(LivingEntity target, float damage) {
+        return scaledFor(target, damage * trialAttack);
+    }
+
     /** 光の剣で斬る（型は順番に回す） */
     void slash(float damage) {
         slash(damage, COMBO[combo++ % COMBO.length]);
@@ -624,7 +651,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
         for (LivingEntity e : server.getEntitiesOfClass(LivingEntity.class, getBoundingBox().inflate(MELEE_REACH, STEP_HEIGHT, MELEE_REACH), ChronoGazer::canHurt)) {
             Vec3 to = e.position().subtract(position()).multiply(1, 0, 1);
             if (to.length() > MELEE_REACH + 0.3 + e.getBbWidth() * 0.5 || (to.lengthSqr() > 0.25 && to.normalize().dot(look) < 0.3)) continue;
-            e.hurt(damageSources().mobAttack(this), scaledFor(e, damage));
+            e.hurt(damageSources().mobAttack(this), damageFor(e, damage));
             e.knockback(0.4, -look.x, -look.z);
         }
         // 光の弧（刀の軌跡）と、白い芯・金の縁・赤い火花
@@ -692,7 +719,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
             }
             if (((int) (d / 0.6)) % 3 == 0) com.automatavalkyries.weapon.Fx.one(server, star(C_GOLD, 0.35F, 16), p, Vec3.ZERO);
             for (LivingEntity e : server.getEntitiesOfClass(LivingEntity.class, new AABB(p, p).inflate(1.2), ChronoGazer::canHurt)) {
-                if (hit.add(e)) e.hurt(damageSources().mobAttack(this), scaledFor(e, WAVE));
+                if (hit.add(e)) e.hurt(damageSources().mobAttack(this), damageFor(e, WAVE));
             }
         }
         LuxionFxEntity.spawn(server, LuxionFxEntity.WAVE, from.add(dir.scale(0.8)), reach, isPhase2()); // 三日月の光の刃（自作エフェクト）
@@ -720,7 +747,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
             end = p;
             for (LivingEntity e : level().getEntitiesOfClass(LivingEntity.class, box.inflate(0.6), ChronoGazer::canHurt)) {
                 if (hit.add(e)) {
-                    e.hurt(damageSources().mobAttack(this), scaledFor(e, DASH));
+                    e.hurt(damageSources().mobAttack(this), damageFor(e, DASH));
                     e.knockback(1.0, -dir.x, -dir.z);
                 }
             }

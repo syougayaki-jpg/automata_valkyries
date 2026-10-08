@@ -338,7 +338,7 @@ public class TrialGameTests {
     }
 
     /**
-     * トライアルを通しで: 回想の空間へ移り、3 秒後にボスが出て、クリエイティブでもボスが勝手に退かず（エレノアの自分での退場は 10 秒）・
+     * トライアルを通しで: 回想の空間へ移り、3 秒後にボスが出て、クリエイティブでもボスが勝手に退かず（ボスの自分での退場は 10 秒）・
      * すぐ失敗しない（2026-10-04 修正: 出した直後のボスが世界の一覧に無く「消えた」扱いで失敗していた）。あきらめると元の場所へ戻る
      */
     @GameTest(template = TEMPLATE, batch = "trial_run", timeoutTicks = 800)
@@ -353,6 +353,9 @@ public class TrialGameTests {
             var boss = TrialManager.boss(player);
             helper.assertTrue(TrialManager.inTrial(player), "trial ended early");
             helper.assertTrue(boss != null && boss.isAlive() && !boss.isRemoved(), "boss is missing or left");
+            // 光速の残影は本物のルクシオン（2026-10-09）。回想のボスは保存しない
+            helper.assertTrue(boss instanceof com.automatavalkyries.entity.chrono.LuxionEntity, "the Luxion trial did not spawn Luxion: " + boss);
+            helper.assertFalse(boss.shouldBeSaved(), "the trial boss would be saved");
             TrialManager.abandon(player);
         });
         helper.runAfterDelay(fightCheck + TrialManager.AFTER_FAIL + 10, () -> {

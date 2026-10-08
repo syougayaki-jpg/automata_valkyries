@@ -212,8 +212,9 @@ public final class TrialManager {
     public static void buildArena(ServerLevel level, BlockPos c) {
         int r = ARENA_RADIUS;
         for (Entity e : level.getEntities((Entity) null, new AABB(c).inflate(r + 8, 32, r + 8), e -> !(e instanceof Player))) {
-            if (e instanceof ElenorEntity elenor) elenor.retreat(); // 保護されたボスは正規の退場で
-            else e.discard();
+            // 保護されたボスは保護を外してから（前の挑戦の残り。セリフは出さない）
+            if (e instanceof com.automatavalkyries.protect.IEprotected p && p.getEprotect() != null) p.getEprotect().releaseForCleanup();
+            e.discard();
         }
         BlockState floor = Blocks.SMOOTH_QUARTZ.defaultBlockState(), ring = Blocks.CHISELED_QUARTZ_BLOCK.defaultBlockState(),
                 light = Blocks.SEA_LANTERN.defaultBlockState(), edge = Blocks.QUARTZ_PILLAR.defaultBlockState(), wall = Blocks.BARRIER.defaultBlockState();
@@ -232,17 +233,32 @@ public final class TrialManager {
         }
     }
 
-    /** ボスを出す（今は検証用ボスのエレノアが代わり。本ボスができたら trial.id() で出し分ける） */
+    /**
+     * ボスを出す。できているボスは本物（光速の残影 → ルクシオン。2026-10-09）、まだのボスは検証用ボスのエレノアが代わり。
+     * どれも自分では退かず保存もしない「回想のトライアルのボス」にして、攻撃力に倍率を掛ける
+     */
     static @Nullable LivingEntity spawnBoss(ServerLevel level, ServerPlayer player, Session session) {
-        ElenorEntity boss = ModEntities.ELENOR.get().create(level);
+        net.minecraft.world.entity.Mob boss = switch (session.trial.id()) {
+            case "luxion" -> {
+                com.automatavalkyries.entity.chrono.LuxionEntity luxion = ModEntities.LUXION.get().create(level);
+                if (luxion != null) luxion.setTrialBoss(session.trial.bossAttack()); // 技のダメージは属性ではなく技ごとの値なので倍率で
+                yield luxion;
+            }
+            default -> {
+                ElenorEntity elenor = ModEntities.ELENOR.get().create(level);
+                if (elenor != null) {
+                    AttributeInstance attack = elenor.getAttribute(Attributes.ATTACK_DAMAGE);
+                    if (attack != null) attack.setBaseValue(attack.getBaseValue() * session.trial.bossAttack());
+                    elenor.setTrialBoss(true);
+                }
+                yield elenor;
+            }
+        };
         if (boss == null) return null;
         Vec3 at = session.center.add(0, 0, 10);
         boss.moveTo(at.x, at.y, at.z, 180F, 0F);
-        AttributeInstance attack = boss.getAttribute(Attributes.ATTACK_DAMAGE);
-        if (attack != null) attack.setBaseValue(attack.getBaseValue() * session.trial.bossAttack());
         boss.setCustomName(Component.translatable("trial.automata_valkyries.boss_name", session.trial.bossName()));
         boss.setPersistenceRequired();
-        boss.setTrialBoss(true);
         boss.setTarget(player);
         level.addFreshEntity(boss);
         return boss;
@@ -358,7 +374,7 @@ public final class TrialManager {
         LivingEntity boss = s.bossEntity;
         if (boss == null || boss.isRemoved()) return;
         if (boss instanceof ElenorEntity elenor) elenor.retreat();
-        else boss.discard();
+        else if (!(boss instanceof com.automatavalkyries.entity.RetreatableBoss retreating) || !retreating.beginRetreat()) boss.discard(); // ルクシオンは剣を納めて光に溶ける
     }
 
     /** 元の場所へ戻す（戻り先が無ければ、元の世界の初期スポーン） */
