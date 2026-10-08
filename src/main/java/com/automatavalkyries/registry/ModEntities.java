@@ -92,7 +92,7 @@ public class ModEntities {
     public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.LuxionEntity>> LUXION =
             ENTITY_TYPES.register("luxion", () ->
                     EntityType.Builder.of(com.automatavalkyries.entity.chrono.LuxionEntity::new, MobCategory.MONSTER)
-                            .sized(0.8F, 2.4F).clientTrackingRange(12).fireImmune().build("luxion"));
+                            .sized(1.4F, 4.8F).clientTrackingRange(12).fireImmune().build("luxion")); // 身長 5 ブロック（2026-10-08 ユーザー指定）
     /** ルクシオンの技の自作エフェクト（見た目だけ。光刃の波・光速突進。2026-10-08） */
     public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.LuxionFxEntity>> LUXION_FX =
             ENTITY_TYPES.register("luxion_fx", () ->

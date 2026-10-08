@@ -22,7 +22,7 @@ public class LuxionRenderer extends ChronoGazerRenderer<LuxionEntity> {
     private static final int COLS = 16, ROWS = 6;
 
     public LuxionRenderer(EntityRendererProvider.Context context) {
-        super(context, "luxion", 0.6F);
+        super(context, "luxion", 0.6F * LuxionEntity.SIZE);
     }
 
     /** 撃破では横に倒れず、剣を突き立てて膝をつく（ChronoGazerModel のモーション） */
@@ -33,6 +33,14 @@ public class LuxionRenderer extends ChronoGazerRenderer<LuxionEntity> {
 
     @Override
     public void render(LuxionEntity lux, float entityYaw, float partialTick, PoseStack pose, MultiBufferSource buffers, int light) {
+        // 身長 5 ブロック（モデル・光・残光をまとめて {@link LuxionEntity#SIZE} 倍に。2026-10-08 ユーザー指定）
+        pose.pushPose();
+        pose.scale(LuxionEntity.SIZE, LuxionEntity.SIZE, LuxionEntity.SIZE);
+        renderScaled(lux, entityYaw, partialTick, pose, buffers, light);
+        pose.popPose();
+    }
+
+    private void renderScaled(LuxionEntity lux, float entityYaw, float partialTick, PoseStack pose, MultiBufferSource buffers, int light) {
         super.render(lux, entityYaw, partialTick, pose, buffers, light);
         if (lux.isInvisible() || lux.isDefeatedSynced()) return;
         afterimages(lux, partialTick, pose, buffers);
@@ -79,7 +87,8 @@ public class LuxionRenderer extends ChronoGazerRenderer<LuxionEntity> {
                 float alpha = 0.45F * (1.0F - age) * (1.0F - age);
                 lux.yBodyRotO = lux.yBodyRot = a.yaw();
                 pose.pushPose();
-                pose.translate(a.x() - at.x, a.y() - at.y, a.z() - at.z);
+                float k = 1.0F / LuxionEntity.SIZE; // 大きくした中なので、ずれも縮めて置く
+                pose.translate((a.x() - at.x) * k, (a.y() - at.y) * k, (a.z() - at.z) * k);
                 VertexConsumer vc = buffers.getBuffer(type);
                 actuallyRender(pose, lux, model, type, buffers, vc, true, partialTick, 0xF000F0,
                         net.minecraft.client.renderer.texture.OverlayTexture.NO_OVERLAY, 1.0F, p2 ? 0.75F : 0.95F, p2 ? 0.6F : 0.8F, alpha);

@@ -61,6 +61,12 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
 
     public static final float MAX_HP = 5000.0F, MELEE = 30.0F, FLURRY_HIT = 25.0F, WAVE = 30.0F, DASH = 40.0F;
     public static final double WAVE_RANGE = 24.0, DASH_LENGTH = 20.0;
+    /**
+     * 体の大きさ（モデルの倍率。身長 5 ブロック、2026-10-08 ユーザー指定）。描画（client/LuxionRenderer）と、技の届く範囲・光の出る高さはこれに合わせる。
+     * MELEE_REACH = 斬撃の届く距離、BESIDE = 相手のそばへ移るときの間合い
+     */
+    public static final float SIZE = 2.0F;
+    static final double MELEE_REACH = 5.0, BESIDE = 3.0, STEP_HEIGHT = 3.5;
     /** 動きの合図（描画: 斬る腕の振り・突進の構え） */
     public static final byte EVENT_SLASH = 70, EVENT_DASH_WINDUP = 71;
     /**
@@ -154,7 +160,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
     public LuxionEntity(EntityType<? extends Monster> type, Level level) {
         super(type, level);
         this.xpReward = 300;
-        setMaxUpStep(1.5F);
+        setMaxUpStep(2.0F);
     }
 
     public static AttributeSupplier.Builder createAttributes() {
@@ -376,7 +382,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
         }
         if (!level().isClientSide && stage() != STAGE_NONE) startStage(STAGE_NONE);
         if (!level().isClientSide && deathTime >= 16 && deathTime % 2 == 0 && level() instanceof ServerLevel server) { // 剣を突き立てて膝をついたまま、光になって崩れていく
-            com.automatavalkyries.weapon.Fx.burst(server, glow(C_WG, 0.5F, 24), position().add(0, 0.4 + random.nextDouble() * 1.6, 0), 6, 0.06);
+            com.automatavalkyries.weapon.Fx.burst(server, glow(C_WG, 0.5F, 24), position().add(0, (0.4 + random.nextDouble() * 1.6) * SIZE, 0), 6, 0.06);
             com.automatavalkyries.weapon.Fx.one(server, star(C_GOLD, 0.35F, 30), position().add(random.nextGaussian() * 0.4, 0.3 + random.nextDouble() * 1.8, random.nextGaussian() * 0.4), new Vec3(0, 0.08, 0));
         }
         if (level().isClientSide) {
@@ -385,7 +391,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
             }
         } else if (deathTime >= 40 && !DirectRead.isRemoved(this)) {
             if (level() instanceof ServerLevel server) {
-                Vec3 c = position().add(0, 1.2, 0);
+                Vec3 c = position().add(0, 1.2 * SIZE, 0);
                 com.automatavalkyries.weapon.Fx.burst(server, star(C_WG, 0.8F, 50), c, 80, 0.4);
                 com.automatavalkyries.weapon.Fx.burst(server, glow(C_WHITE, 1.0F, 30), c, 30, 0.3);
                 com.automatavalkyries.weapon.Fx.shockwave(server, position().add(0, 0.1, 0), C_GOLD, 7.0F, 24);
@@ -431,12 +437,12 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
             glory = Mth.clamp(glory + (isPhase2() ? 1.0F / 30.0F : -0.05F), 0.0F, 1.0F);
             if (glory > 0.5F && tickCount % 2 == 0) { // 光の翼から舞う光の粒
                 Vec3 side = Vec3.directionFromRotation(0, yBodyRot + 90.0F);
-                double s = (random.nextBoolean() ? 1 : -1) * (0.8 + random.nextDouble() * 2.2);
-                Vec3 p = position().add(side.scale(s)).add(Vec3.directionFromRotation(0, yBodyRot).scale(-0.6)).add(0, 2.2 + random.nextDouble() * 1.8, 0);
+                double s = (random.nextBoolean() ? 1 : -1) * (0.8 + random.nextDouble() * 2.2) * SIZE;
+                Vec3 p = position().add(side.scale(s)).add(Vec3.directionFromRotation(0, yBodyRot).scale(-0.6 * SIZE)).add(0, (2.2 + random.nextDouble() * 1.8) * SIZE, 0);
                 level().addParticle(ParticleTypes.END_ROD, p.x, p.y, p.z, 0, -0.02, 0);
             }
             if (tickCount % 2 == 0) { // 背の光の尾のきらめき
-                Vec3 back = position().add(Vec3.directionFromRotation(0, yBodyRot).scale(-0.4)).add(0, 2.0, 0);
+                Vec3 back = position().add(Vec3.directionFromRotation(0, yBodyRot).scale(-0.4 * SIZE)).add(0, 2.0 * SIZE, 0);
                 level().addParticle(ParticleTypes.END_ROD, back.x, back.y, back.z, 0, -0.01, 0);
             }
             return;
@@ -456,7 +462,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
             bossEvent.setColor(BossEvent.BossBarColor.RED);
             playSound(SoundEvents.WARDEN_SONIC_CHARGE, 2.0F, 1.6F);
             if (level() instanceof ServerLevel server) {
-                Vec3 c = position().add(0, 1.4, 0);
+                Vec3 c = position().add(0, 1.4 * SIZE, 0);
                 com.automatavalkyries.weapon.Fx.mandala(server, position().add(0, 0.1, 0), C_GOLD, 5.0F, 40, false, true);
                 com.automatavalkyries.weapon.Fx.shockwave(server, position().add(0, 0.1, 0), C_WHITE, 8.0F, 20);
                 com.automatavalkyries.weapon.Fx.burst(server, star(C_WG, 0.7F, 40), c, 60, 0.35);
@@ -475,7 +481,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
         if (stage == STAGE_NONE || !(level() instanceof ServerLevel server)) return;
         int t = stageTicks++;
         getNavigation().stop();
-        Vec3 c = position().add(0, 1.2, 0);
+        Vec3 c = position().add(0, 1.2 * SIZE, 0);
         if (stage == STAGE_INTRO) {
             if (t == 0) { // 天から降りる光の柱
                 com.automatavalkyries.weapon.Fx.line(server, glow(C_WHITE, 1.2F, 20), position().add(0, 24, 0), position(), 0.5);
@@ -495,7 +501,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
             if (t >= INTRO_TICKS) startStage(STAGE_NONE);
         } else if (stage == STAGE_TRANSFORM) {
             setDeltaMovement(0, t < 14 ? 0.08 : 0.0, 0); // ふわりと浮かぶ（毎 Tick 動く前に速さを決めるので重力に負けない。noGravity は Eprotect の状態の見張りに戻される）
-            if (t % 3 == 0) com.automatavalkyries.weapon.Fx.line(server, glow(C_WG, 0.5F, 10), c.add(0, 1.2, 0), c.add(0, 8, 0), 0.6); // 掲げた剣から天への光
+            if (t % 3 == 0) com.automatavalkyries.weapon.Fx.line(server, glow(C_WG, 0.5F, 10), c.add(0, 1.2 * SIZE, 0), c.add(0, 10, 0), 0.6); // 掲げた剣から天への光
             if (t == 18) { // 翼と光輪が開く
                 com.automatavalkyries.weapon.Fx.burst(server, star(C_WG, 0.8F, 40), c.add(0, 0.8, 0), 50, 0.4);
                 com.automatavalkyries.weapon.Fx.mandala(server, c.add(0, 1.0, 0), C_RED, 3.0F, 30, true, false);
@@ -506,7 +512,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
         } else if (stage == STAGE_RETREAT) {
             setDeltaMovement(0, t >= 18 ? 0.03 : 0.0, 0);
             if (t >= 14) { // 光に溶ける
-                com.automatavalkyries.weapon.Fx.burst(server, glow(C_WG, 0.6F, 22), position().add(0, 0.3 + random.nextDouble() * 2.0, 0), 4 + t / 4, 0.12);
+                com.automatavalkyries.weapon.Fx.burst(server, glow(C_WG, 0.6F, 22), position().add(0, (0.3 + random.nextDouble() * 2.0) * SIZE, 0), 4 + t / 4, 0.12);
                 com.automatavalkyries.weapon.Fx.one(server, star(C_GOLD, 0.4F, 30), c.add(random.nextGaussian() * 0.6, random.nextGaussian() * 0.6, random.nextGaussian() * 0.6), new Vec3(0, 0.1, 0));
             }
             if (t == 8) playSound(SoundEvents.ARMOR_EQUIP_NETHERITE, 1.0F, 1.4F); // 剣を納める
@@ -590,19 +596,19 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
     void slash(float damage, byte motion) {
         if (!(level() instanceof ServerLevel server)) return;
         Vec3 look = Vec3.directionFromRotation(0, getYRot());
-        for (LivingEntity e : server.getEntitiesOfClass(LivingEntity.class, getBoundingBox().inflate(3.0, 2.5, 3.0), ChronoGazer::canHurt)) {
+        for (LivingEntity e : server.getEntitiesOfClass(LivingEntity.class, getBoundingBox().inflate(MELEE_REACH, STEP_HEIGHT, MELEE_REACH), ChronoGazer::canHurt)) {
             Vec3 to = e.position().subtract(position()).multiply(1, 0, 1);
-            if (to.length() > 3.3 + e.getBbWidth() * 0.5 || (to.lengthSqr() > 0.25 && to.normalize().dot(look) < 0.3)) continue;
+            if (to.length() > MELEE_REACH + 0.3 + e.getBbWidth() * 0.5 || (to.lengthSqr() > 0.25 && to.normalize().dot(look) < 0.3)) continue;
             e.hurt(damageSources().mobAttack(this), damage);
             e.knockback(0.4, -look.x, -look.z);
         }
         // 光の弧（刀の軌跡）と、白い芯・金の縁・赤い火花
-        Vec3 arcAt = position().add(0, 1.3, 0).add(look.scale(1.6));
-        com.automatavalkyries.weapon.Fx.slash(server, arcAt, C_WG, 2.6F, 8, (float) (random.nextGaussian() * 0.5));
-        com.automatavalkyries.weapon.Fx.slash(server, arcAt, C_WHITE, 1.8F, 6, 0.0F);
+        Vec3 arcAt = position().add(0, 1.3 * SIZE, 0).add(look.scale(1.6 * SIZE));
+        com.automatavalkyries.weapon.Fx.slash(server, arcAt, C_WG, 2.6F * SIZE, 8, (float) (random.nextGaussian() * 0.5));
+        com.automatavalkyries.weapon.Fx.slash(server, arcAt, C_WHITE, 1.8F * SIZE, 6, 0.0F);
         for (int i = -4; i <= 4; i++) {
             Vec3 dir = Vec3.directionFromRotation(0, getYRot() + i * 13);
-            Vec3 p = position().add(0, 1.35, 0).add(dir.scale(2.3));
+            Vec3 p = position().add(0, 1.35 * SIZE, 0).add(dir.scale(2.3 * SIZE));
             com.automatavalkyries.weapon.Fx.one(server, glow(i == 0 ? C_WHITE : C_WG, 0.5F, 10), p, dir.scale(0.05));
             if (i % 2 == 0) com.automatavalkyries.weapon.Fx.one(server, star(i == 0 ? C_RED : C_GOLD, 0.35F, 14), p, dir.scale(0.12).add(0, 0.05, 0));
         }
@@ -613,15 +619,15 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
     /** 光速瞬動: to へ一瞬で移り、通った道に光の筋（残像）を残す */
     void blink(Vec3 to) {
         if (!(level() instanceof ServerLevel server)) return;
-        Vec3 from = position().add(0, 1.2, 0);
-        Vec3 dest = to.add(0, 1.2, 0);
+        Vec3 from = position().add(0, 1.2 * SIZE, 0);
+        Vec3 dest = to.add(0, 1.2 * SIZE, 0);
         double len = from.distanceTo(dest);
         // 光の筋（白い芯と金のにじみ）、通り道の星、出た所と着いた所の光の輪
         com.automatavalkyries.weapon.Fx.line(server, glow(C_WHITE, 0.45F, 12), from, dest, 0.35);
         com.automatavalkyries.weapon.Fx.line(server, glow(C_WG, 0.9F, 16), from, dest, 0.6);
         com.automatavalkyries.weapon.Fx.line(server, star(C_GOLD, 0.3F, 20), from, dest, 1.1);
         com.automatavalkyries.weapon.Fx.burst(server, star(C_WG, 0.45F, 18), from, 14, 0.18);
-        com.automatavalkyries.weapon.Fx.shockwave(server, to.add(0, 0.1, 0), C_WG, 2.2F, 10);
+        com.automatavalkyries.weapon.Fx.shockwave(server, to.add(0, 0.1, 0), C_WG, 2.2F * SIZE, 10);
         com.automatavalkyries.weapon.Fx.burst(server, glow(C_WHITE, 0.6F, 10), dest, 10, 0.12);
         teleportTo(to.x, to.y, to.z);
         resetFallDistance();
@@ -643,7 +649,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
     /** 光刃の波: 相手へまっすぐ飛ぶ光の刃（射程 {@link #WAVE_RANGE}・貫通） */
     void wave(LivingEntity t) {
         if (!(level() instanceof ServerLevel server)) return;
-        Vec3 from = position().add(0, 1.3, 0);
+        Vec3 from = position().add(0, 1.3 * SIZE, 0);
         Vec3 dir = t.position().add(0, t.getBbHeight() * 0.5, 0).subtract(from).normalize();
         Vec3 side = dir.cross(new Vec3(0, 1, 0));
         side = side.lengthSqr() < 1.0e-4 ? new Vec3(1, 0, 0) : side.normalize();
@@ -695,13 +701,13 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
             }
         }
         if (level() instanceof ServerLevel server) { // 駆け抜けた道の光の帯と螺旋（自作エフェクト）
-            LuxionFxEntity.spawn(server, LuxionFxEntity.DASH, start.add(0, 1.2, 0), end.add(0, 1.2, 0), isPhase2());
+            LuxionFxEntity.spawn(server, LuxionFxEntity.DASH, start.add(0, 1.2 * SIZE, 0), end.add(0, 1.2 * SIZE, 0), isPhase2());
         }
         blink(end);
         if (level() instanceof ServerLevel server) { // 駆け抜けた後の光の衝撃波
             com.automatavalkyries.weapon.Fx.shockwave(server, end.add(0, 0.1, 0), C_WHITE, 4.0F, 14);
             com.automatavalkyries.weapon.Fx.shockwave(server, end.add(0, 0.2, 0), C_GOLD, 6.0F, 18);
-            com.automatavalkyries.weapon.Fx.burst(server, star(C_WG, 0.5F, 22), end.add(0, 1.0, 0), 24, 0.25);
+            com.automatavalkyries.weapon.Fx.burst(server, star(C_WG, 0.5F, 22), end.add(0, 1.0 * SIZE, 0), 24, 0.25);
         }
         playSound(SoundEvents.WARDEN_SONIC_BOOM, 1.0F, 1.8F);
         level().broadcastEntityEvent(this, EVENT_DASH_END); // 滑って止まる
@@ -742,8 +748,31 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
         private Vec3 dashDir;
         /** 相手が空中にいる間（と、降りてからしばらく）は空中にとどまって戦う残り Tick */
         private int aerial;
+        /**
+         * 逃げる相手の見張り（2026-10-08「相手が自分より速く動いて距離を置くとき、光速突進で詰める」）: 相手の 1 Tick 前の位置と速さ、
+         * 自分より速く離れていった Tick 数、追う突進の間隔、今の突進が追う突進か（放つ瞬間に相手の行く先へ向け直す）
+         */
+        private Vec3 lastTargetPos;
+        private Vec3 targetVel = Vec3.ZERO;
+        private int fleeing, chase;
+        private boolean chaseDash;
+        /** 自分の足の速さの目安（ブロック / Tick。移動速度 0.34 で約 0.2） */
+        private double ownSpeed() {
+            return lux.getAttributeValue(Attributes.MOVEMENT_SPEED) * 0.6;
+        }
 
-        /** 相手が空中にいれば、空中にとどまる位置を決める（技の溜め・三連閃の間はその場、それ以外は相手の横 2.2 ブロック・同じ高さ） */
+        /** 相手の動きを見て、自分より速く離れていく Tick を数える */
+        private void watchFlight(LivingEntity t) {
+            Vec3 pos = t.position();
+            targetVel = lastTargetPos == null || pos.distanceToSqr(lastTargetPos) > 16.0 ? Vec3.ZERO : pos.subtract(lastTargetPos); // 瞬間移動は数えない
+            lastTargetPos = pos;
+            Vec3 away = pos.subtract(lux.position()).multiply(1, 0, 1);
+            Vec3 flat = targetVel.multiply(1, 0, 1);
+            boolean fleeingNow = away.lengthSqr() > 1.0e-4 && flat.length() > ownSpeed() && flat.dot(away.normalize()) > ownSpeed() * 0.7;
+            fleeing = fleeingNow ? fleeing + 1 : Math.max(0, fleeing - 2);
+        }
+
+        /** 相手が空中にいれば、空中にとどまる位置を決める（技の溜め・三連閃の間はその場、それ以外は相手の横 {@link #BESIDE} ブロック・同じ高さ） */
         private void tickAerial(LivingEntity t) {
             boolean airborne = !t.onGround() && heightAboveGround(t) > 1.8;
             if (airborne) aerial = 20; // 跳ねた・一瞬降りただけでは落ちない
@@ -758,7 +787,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
             Vec3 flat = lux.position().subtract(t.position()).multiply(1, 0, 1);
             Vec3 side = flat.lengthSqr() < 1.0e-4 ? new Vec3(1, 0, 0) : flat.normalize();
             double hd = flat.length();
-            Vec3 spot = hd > 2.6 ? t.position().add(side.scale(2.2)) : new Vec3(lux.getX(), t.getY(), lux.getZ());
+            Vec3 spot = hd > BESIDE + 0.5 ? t.position().add(side.scale(BESIDE)) : new Vec3(lux.getX(), t.getY(), lux.getZ());
             lux.hoverAt(spot);
         }
 
@@ -826,6 +855,9 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
             flurryLeft = 0;
             windup = 0;
             blinkPrep = finalRaise = waveCharge = 0;
+            chaseDash = false;
+            lastTargetPos = null;
+            fleeing = 0;
             lux.getNavigation().stop();
         }
 
@@ -836,7 +868,11 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
 
         /** 突進の向き: 相手が高い所にいれば斜めに駆け上がる */
         private Vec3 dashDir(LivingEntity t) {
-            Vec3 d = t.position().subtract(lux.position());
+            return dashDir(t.position());
+        }
+
+        private Vec3 dashDir(Vec3 to) {
+            Vec3 d = to.subtract(lux.position());
             if (d.y < 1.5 && aerial <= 0) d = d.multiply(1, 0, 1); // 地上では、下へは水平に駆け抜けて落ちる（地面に刺さらない）。空中では相手へまっすぐ
             return d.normalize();
         }
@@ -865,13 +901,18 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
         @Override
         public void tick() {
             LivingEntity t = lux.getTarget();
-            melee--; blink--; flurry--; wave--; dash--; reach--;
+            melee--; blink--; flurry--; wave--; dash--; reach--; chase--;
+            if (t != null && t.isAlive()) watchFlight(t);
             if (t != null && t.isAlive()) tickAerial(t); // 空中の相手には空中にとどまって戦う
             // 突進の構え（動かずに予告線を出し、0 になったら駆け抜ける）
             if (windup > 0) {
                 lux.getNavigation().stop();
                 if (windup % 4 == 0) lux.dashTelegraph(dashDir);
-                if (--windup == 0) lux.dash(dashDir);
+                if (--windup == 0) {
+                    if (chaseDash && t != null && t.isAlive()) dashDir = dashDir(t.position().add(targetVel.scale(4))); // 逃げる相手の行く先へ向け直す
+                    chaseDash = false;
+                    lux.dash(dashDir);
+                }
                 return;
             }
             // 瞬動の前の反り（消える前に身を反らせる）
@@ -907,7 +948,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
                 if (--flurryGap <= 0) {
                     flurryLeft--;
                     flurryGap = lux.isPhase2() ? 6 : 8;
-                    lux.blink(lux.spotAround(t, lux.random.nextDouble() * Math.PI * 2, 1.8));
+                    lux.blink(lux.spotAround(t, lux.random.nextDouble() * Math.PI * 2, BESIDE));
                     face(t);
                     if (flurryLeft == 0) { // 最後の一太刀
                         finalRaise = 6;
@@ -920,6 +961,20 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
                 return;
             }
             if (t == null) return;
+            // 自分より速く離れていく相手には、短い構えの光速突進で一気に詰める（行く先を読んで放つ）
+            double away = lux.distanceTo(t);
+            if (fleeing >= 6 && chase <= 0 && away > 7 && away < DASH_LENGTH * 2 && lux.getSensing().hasLineOfSight(t)) {
+                chase = cd(80);
+                fleeing = 0;
+                windup = lux.isPhase2() ? 6 : 8;
+                chaseDash = true;
+                dashDir = dashDir(t.position().add(targetVel.scale(4 + windup)));
+                face(t);
+                lux.getNavigation().stop();
+                lux.level().broadcastEntityEvent(lux, EVENT_DASH_WINDUP);
+                lux.playSound(SoundEvents.BEACON_POWER_SELECT, 1.5F, 2.0F);
+                return;
+            }
             // 横から狙ってくる別の兵姫へ、光刃の波・光速突進を撃つ（今の相手との戦いは続ける。2026-10-08 ユーザー指定）
             if (--sideCheck <= 0) {
                 sideCheck = 10;
@@ -951,13 +1006,13 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
             // 歩いて近づけない（高い・低い所にいる、道が無い、近づけていない）なら、瞬動でそばへ詰める
             if (--stuckCheck <= 0) {
                 stuckCheck = 20;
-                boolean noProgress = dist > 3.2 && dist > lastDist - 0.5;
-                boolean noPath = dist > 3.2 && (lux.getNavigation().isDone() || lux.getNavigation().getPath() == null
+                boolean noProgress = dist > MELEE_REACH && dist > lastDist - 0.5;
+                boolean noPath = dist > MELEE_REACH && (lux.getNavigation().isDone() || lux.getNavigation().getPath() == null
                         || !lux.getNavigation().getPath().canReach());
                 lastDist = dist;
-                if (reach <= 0 && dist < 40 && (noPath || noProgress || Math.abs(dy) > 2.5) && (dist > 3.2 || Math.abs(dy) > 2.5)) {
+                if (reach <= 0 && dist < 40 && (noPath || noProgress || Math.abs(dy) > STEP_HEIGHT) && (dist > MELEE_REACH || Math.abs(dy) > STEP_HEIGHT)) {
                     reach = cd(30);
-                    blinkTo = lux.spotAround(t, Mth.atan2(lux.getZ() - t.getZ(), lux.getX() - t.getX()), 1.8);
+                    blinkTo = lux.spotAround(t, Mth.atan2(lux.getZ() - t.getZ(), lux.getX() - t.getX()), BESIDE);
                     blinkPrep = lux.isPhase2() ? 3 : 4;
                     lux.getNavigation().stop();
                     lux.level().broadcastEntityEvent(lux, EVENT_BLINK_PREP);
@@ -978,7 +1033,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
                 lux.playSound(SoundEvents.BEACON_POWER_SELECT, 1.5F, 1.8F);
                 return;
             }
-            if (wave <= 0 && sees && (dist > 8 || (dist > 4 && Math.abs(dy) > 2.5))) { // 光刃の波（上下に離れた相手にも）
+            if (wave <= 0 && sees && (dist > 9 || (dist > MELEE_REACH && Math.abs(dy) > STEP_HEIGHT))) { // 光刃の波（上下に離れた相手にも）
                 wave = cd(70);
                 chargeWave(t);
                 return;
@@ -986,13 +1041,13 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
             if (blink <= 0 && dist > 4 && dist < 24) { // 光速瞬動で背後へ（身を反らせてから消える）
                 blink = cd(80);
                 double behind = Mth.atan2(t.getZ() - lux.getZ(), t.getX() - lux.getX());
-                blinkTo = lux.spotAround(t, behind, 1.8);
+                blinkTo = lux.spotAround(t, behind, BESIDE);
                 blinkPrep = lux.isPhase2() ? 3 : 4;
                 lux.getNavigation().stop();
                 lux.level().broadcastEntityEvent(lux, EVENT_BLINK_PREP);
                 return;
             }
-            if (dist <= 3.2 && Math.abs(dy) <= 2.5) {
+            if (dist <= MELEE_REACH && Math.abs(dy) <= STEP_HEIGHT) {
                 lux.getNavigation().stop();
                 if (melee <= 0) {
                     melee = cd(22);
