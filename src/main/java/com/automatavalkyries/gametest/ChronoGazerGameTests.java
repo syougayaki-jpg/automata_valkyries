@@ -74,19 +74,19 @@ public class ChronoGazerGameTests {
         });
     }
 
-    /** ルクシオン（AEC 級、2026-10-07）: HP 5,000、/kill では倒れない、被弾の上限は無いので大きな普通の攻撃はそのまま通る */
+    /** ルクシオン（AEC 級、2026-10-07）: HP 10,000（2026-10-09 に倍に）、/kill では倒れない、被弾の上限は無いので大きな普通の攻撃はそのまま通る */
     @GameTest(template = TEMPLATE, batch = "chrono_gazer", timeoutTicks = 60)
     public static void luxionRefusesKillButTakesBigHits(GameTestHelper helper) {
         com.automatavalkyries.entity.chrono.LuxionEntity lux = helper.spawn(ModEntities.LUXION.get(), 2, 2, 2);
         lux.setNoAi(true);
-        helper.assertTrue(lux.getMaxHealth() == 5000.0F && lux.getHealth() == 5000.0F, "Luxion's HP is not 5000 (max health cap): " + lux.getMaxHealth());
+        helper.assertTrue(lux.getMaxHealth() == 10000.0F && lux.getHealth() == 10000.0F, "Luxion's HP is not 10000 (max health cap): " + lux.getMaxHealth());
         lux.kill();
         helper.runAfterDelay(3, () -> {
             helper.assertTrue(lux.isAlive() && !lux.isRemoved() && lux.getHealth() == lux.getMaxHealth(), "/kill hurt or removed Luxion: " + lux.getHealth());
             helper.assertTrue(lux.stage() == com.automatavalkyries.entity.chrono.LuxionEntity.STAGE_INTRO, "Luxion did not start its entrance: " + lux.stage()); // 降臨のモーション（2026-10-08）
             lux.hurt(helper.getLevel().damageSources().generic(), 3000.0F);
-            helper.assertTrue(lux.getHealth() < 2500.0F, "a big normal hit was capped: " + lux.getHealth()); // 3,000（防具で少し減る）
-            lux.hurt(helper.getLevel().damageSources().generic(), 6000.0F); // 残りを超える普通の一撃で倒れる（2026-10-08、倒れなかった不具合）
+            helper.assertTrue(lux.getHealth() < 7500.0F, "a big normal hit was capped: " + lux.getHealth()); // 3,000（防具で少し減る）
+            lux.hurt(helper.getLevel().damageSources().generic(), 12000.0F); // 残りを超える普通の一撃で倒れる（2026-10-08、倒れなかった不具合）
             helper.assertTrue(lux.isDeadOrDying(), "a lethal normal hit did not defeat Luxion: " + lux.getHealth());
             helper.succeed();
         });

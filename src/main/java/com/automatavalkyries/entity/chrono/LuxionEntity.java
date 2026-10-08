@@ -44,22 +44,31 @@ import java.util.EnumSet;
 
 /**
  * クロノゲイザーの AEC 級英雄機「最光速【ルクシオン】」（全体仕様書 §4.1、2026-10-07 ユーザー指定で 1 体目に作る）。
- * 細身の白金の機械の騎士。HP {@value #MAX_HP}（「少し硬め」。最大 HP の上限は mixin/HealthCapMixin で 1,024 から上げてある）。即死系の守り（Eprotect）は付けるが、被弾の上限は無し（普通の攻撃で倒せる）。
+ * 細身の白金の機械の騎士。HP {@value #MAX_HP}（「少し硬め」→ 2026-10-09 に 5,000 から倍に。最大 HP の上限は mixin/HealthCapMixin で 1,024 から上げてある）。即死系の守り（Eprotect）は付けるが、被弾の上限は無し（普通の攻撃で倒せる）。
  * 技（数値は【仮】。HP 50% で第 2 形態: 間隔が短くなり、光速三連閃が 5 連に）:
  * <ul>
  *   <li>斬撃: 光の剣（攻撃力 {@value #MELEE}）</li>
  *   <li>光速瞬動: 相手の背後・横へ一瞬で移り、斬る（残像の光の筋が残る）</li>
  *   <li>光速三連閃: 相手のまわりを瞬動しながら 3 連（第 2 形態 5 連）で斬る（1 回 {@value #FLURRY_HIT}）</li>
  *   <li>光刃の波: 離れた相手へ、まっすぐ飛ぶ光の刃（{@value #WAVE} ・貫通・射程 {@value #WAVE_RANGE}）</li>
- *   <li>光速突進: 1 秒の予告線のあと、20 ブロックを一直線に駆け抜ける（線上に {@value #DASH}）</li>
+ *   <li>光速突進: 1 秒の予告線のあと、20 ブロックを一直線に駆け抜ける（線上に {@value #DASH}）。第 2 形態は駆け抜けた後に折り返してもう一度（2 回）</li>
  * </ul>
  * 狙いは兵姫を優先（クロノゲイザー共通）。挑む相手がいなくなると 10 秒で退く（セリフつきの正規の退場）
  */
 @net.minecraftforge.fml.common.Mod.EventBusSubscriber(modid = com.automatavalkyries.AutomataValkyries.MODID)
 public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IProviderWithSpeech, com.automatavalkyries.entity.RetreatableBoss {
 
-    public static final float MAX_HP = 5000.0F, MELEE = 30.0F, FLURRY_HIT = 25.0F, WAVE = 30.0F, DASH = 40.0F;
+    public static final float MAX_HP = 10000.0F, MELEE = 30.0F, FLURRY_HIT = 25.0F, WAVE = 30.0F, DASH = 40.0F;
+    /** ルクシオンアクセラレータ: 蹴りが当たった相手へ、着弾の爆風（半径 {@link #ACCEL_BLAST_RADIUS}）。数値は【仮】 */
+    public static final float ACCEL_KICK = 90.0F, ACCEL_BLAST = 40.0F;
+    static final double ACCEL_BLAST_RADIUS = 5.0, ACCEL_HEIGHT = 14.0, ACCEL_SPEED = 2.4;
+    /** 放つ所の相手からの水平の距離（これより近ければ跳び退いて離れる） */
+    static final double ACCEL_RANGE = 18.0;
+    /** 飛び上がる・狙う（最後の {@link #ACCEL_LOCK} Tick は狙いを固定して避けられるように）・蹴りの最長・着地の Tick */
+    static final int ACCEL_LEAP_TICKS = 20, ACCEL_AIM_TICKS = 32, ACCEL_LOCK = 14, ACCEL_KICK_MAX = 24, ACCEL_LAND_TICKS = 14;
     public static final double WAVE_RANGE = 24.0, DASH_LENGTH = 20.0;
+    /** 第 2 形態の 2 回目の光速突進の構え（Tick） */
+    static final int DASH_AGAIN_WINDUP = 8;
     /** ダメージを上げ始めるプレイヤーの最大 HP（{@link #scaledFor}） */
     public static final float PLAYER_BASE_HP = 20.0F;
     /**
@@ -77,11 +86,16 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
     public static final byte EVENT_SLASH_RISING = 72, EVENT_SLASH_FLAT = 73, EVENT_SLASH_DOWN = 74,
             EVENT_BLINK_PREP = 75, EVENT_BLINK_ARRIVE = 76, EVENT_FLURRY_RAISE = 77,
             EVENT_WAVE_CHARGE = 78, EVENT_WAVE_RELEASE = 79, EVENT_DASH_END = 80, EVENT_BIG_HURT = 81;
+    /** 三連閃を始めた（締めの振り下ろしまで刀を両手で持つ。2026-10-09 ユーザー指定「三連撃は両手で刀を振るって」） */
+    public static final byte EVENT_TWO_HAND = 82;
+    /**
+     * 大技ルクシオンアクセラレータ（第 2 形態で解禁。2026-10-09 ユーザー指定）の合図: 大きく飛び上がる・頂点で狙いを定める（予測線と加速の光のレール）・
+     * 蹴り穿つ（ライダーキック）・着弾
+     */
+    public static final byte EVENT_ACCEL_LEAP = 83, EVENT_ACCEL_AIM = 84, EVENT_ACCEL_KICK = 85, EVENT_ACCEL_IMPACT = 86;
     /** 演出の段階（同期）: 降臨（光の柱から膝をついて降り、立って剣を払い翼を開く）・第 2 形態への変身（剣を天へ掲げて浮かぶ。この間は攻撃を受けない）・退く（剣を納め、翼で身を包んで光に溶ける） */
     public static final byte STAGE_NONE = 0, STAGE_INTRO = 1, STAGE_TRANSFORM = 2, STAGE_RETREAT = 3;
     public static final int INTRO_TICKS = 40, TRANSFORM_TICKS = 30, RETREAT_OUT_TICKS = 30;
-    /** 大きな被弾（のけぞる。見た目だけ） */
-    private static final float BIG_HIT = 15.0F;
     private static final Vector3f WHITE_GOLD = new Vector3f(1.0F, 0.94F, 0.72F), RED = new Vector3f(1.0F, 0.17F, 0.29F);
     /** 光の粒の色（weapon/Fx の自作の光・星の粒。2026-10-08 ユーザー指定「光のパーティクルも豪華に」） */
     private static final int C_WHITE = 0xFFFFFF, C_WG = 0xFFF0B8, C_GOLD = 0xE8C060, C_RED = 0xFF2A4A;
@@ -103,6 +117,8 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
     private static final EntityDataAccessor<Boolean> DEFEATED = SynchedEntityData.defineId(LuxionEntity.class, EntityDataSerializers.BOOLEAN);
     /** 空中にとどまって戦っている（同期。描画: 脚を垂らし、翼とブースターを開く。2026-10-08「空中の敵に、空中にとどまって攻撃」） */
     private static final EntityDataAccessor<Boolean> HOVER = SynchedEntityData.defineId(LuxionEntity.class, EntityDataSerializers.BOOLEAN);
+    /** ルクシオンアクセラレータの蹴りの向きの、水平から下への傾き（ラジアン。体ごと傾けて描く） */
+    private static final EntityDataAccessor<Float> ACCEL_PITCH = SynchedEntityData.defineId(LuxionEntity.class, EntityDataSerializers.FLOAT);
     /** サーバー: 空中で向かう位置と、とどまる残り Tick（技の目標が毎 Tick 延ばす） */
     private Vec3 hoverTarget;
     private int hoverTicks;
@@ -114,6 +130,8 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
     private final com.automatavalkyries.entity.BossRetreatWatch retreatWatch = new com.automatavalkyries.entity.BossRetreatWatch(64.0, 200);
     /** 回想のトライアルのボス（{@code trial/TrialManager}）: 自分では退かず、保存もしない。攻撃は {@link #trialAttack} 倍 */
     private boolean trialBoss;
+    /** 退く時が来た（降臨・変身の演出が終わったら退く） */
+    private boolean retreatPending;
     private float trialAttack = 1.0F;
     private final ServerBossEvent bossEvent = new ServerBossEvent(Component.translatable("entity.automata_valkyries.luxion"),
             BossEvent.BossBarColor.YELLOW, BossEvent.BossBarOverlay.NOTCHED_10);
@@ -123,6 +141,8 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
     /** クライアント: 最後の技のモーション（合図の番号）と始まった Tick、大きな被弾の Tick、今の演出の段階が始まった Tick */
     public byte action;
     public int actionTick = -100, bigHurtTick = -100, stageStart;
+    /** クライアント: 三連閃を始めた Tick（両手持ちの始まり） */
+    public int twoHandTick = -1000;
     /** サーバー: 今の演出の段階の経過 Tick、降臨を済ませたか（読み込んだものは済ませた扱い）、斬撃の型の順番 */
     private int stageTicks;
     private boolean introDone;
@@ -134,6 +154,14 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
     /** クライアント: 残光（瞬動・突進・速く動いた跡に残る半透明の自分の姿。2026-10-08 ユーザー指定「残光を自作して」） */
     public final java.util.ArrayList<Afterimage> afterimages = new java.util.ArrayList<>();
     public static final int AFTERIMAGE_LIFE = 14;
+    /**
+     * クライアント: モデルが決めた今の姿勢（光のマント・ブースターの光・光の翼を体に合わせて描くため。
+     * {@code ChronoGazerModel#animateLuxion} が毎フレーム書き、{@code LuxionRenderer} が読む。2026-10-09）。
+     * 全体の上下（px）、胴の回転、背の推進器の傾き（ラジアン）、光の翼の開き・後ろへの流れ、畳み（0〜1）、突進の構え（0〜1）、ブースターの開き（0〜1）、
+     * 技の勢いで強まるブースターの噴射とマントのはためき（0〜）
+     */
+    public float animRootY, animBodyX, animBodyY, animBodyZ, animThrustersX, animSpread, animSweep, animClose, animWindup, animBurst, animFlare, animOpen;
+    public boolean animHover;
     private double lastX = Double.NaN, lastY, lastZ;
 
     /** 残光 1 つ（位置・体の向き・生まれた Tick） */
@@ -184,6 +212,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
         entityData.define(STAGE, STAGE_NONE);
         entityData.define(DEFEATED, false);
         entityData.define(HOVER, false);
+        entityData.define(ACCEL_PITCH, 0.0F);
     }
 
     public boolean isPhase2() {
@@ -282,7 +311,6 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
         if (stage() == STAGE_TRANSFORM && !source.is(net.minecraft.tags.DamageTypeTags.BYPASSES_INVULNERABILITY)) return false; // 変身の間は受けない
         if (defeatedNow()) return false; // 撃破の演出の間は受けない（のけぞり・押し戻しも無し）
         boolean hurt = super.hurt(source, amount);
-        if (hurt && amount >= BIG_HIT && !level().isClientSide) level().broadcastEntityEvent(this, EVENT_BIG_HURT);
         return hurt;
     }
 
@@ -546,7 +574,8 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
 
     private void tickRetreat() {
         if (trialBoss) return; // 回想のトライアルのボスは、トライアルの側が退かせる（クリエイティブで試しても自分で消えない）
-        if (retreatWatch.tick(this) && stage() == STAGE_NONE) beginRetreat(); // 降臨・変身の途中では退かない
+        if (retreatWatch.tick(this)) retreatPending = true; // 挑む相手が全員倒れた瞬間を覚えておく（生き返ってからも退く）
+        if (retreatPending && stage() == STAGE_NONE) beginRetreat(); // 降臨・変身の途中では退かない
     }
 
     /** 撤退の号令: 挑む相手がいなくなったときと同じく、剣を納め、翼で身を包んでから退く */
@@ -612,6 +641,11 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
     public void handleEntityEvent(byte id) {
         if (id == EVENT_DASH_WINDUP) windupTick = tickCount;
         else if (id == EVENT_BIG_HURT) bigHurtTick = tickCount;
+        else if (id == EVENT_TWO_HAND) twoHandTick = tickCount;
+        else if (id >= EVENT_ACCEL_LEAP && id <= EVENT_ACCEL_IMPACT) {
+            action = id;
+            actionTick = tickCount;
+        }
         else if (id >= EVENT_SLASH && id <= EVENT_DASH_END) {
             action = id;
             actionTick = tickCount;
@@ -765,6 +799,99 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
         level().broadcastEntityEvent(this, EVENT_DASH_END); // 滑って止まる
     }
 
+    // ---- 大技ルクシオンアクセラレータ（2026-10-09 ユーザー指定） ----
+
+    /** 蹴りの向きの水平から下への傾き（ラジアン。描画で体ごと傾ける） */
+    public float accelPitch() {
+        return entityData.get(ACCEL_PITCH);
+    }
+
+    /** 予測線: 今の位置から狙う所へ赤い光の線（狙いを固定したら金も重ねる） */
+    void accelTelegraph(Vec3 to, boolean locked) {
+        if (!(level() instanceof ServerLevel server)) return;
+        Vec3 from = position().add(0, 0.8 * SIZE, 0);
+        com.automatavalkyries.weapon.Fx.line(server, glow(C_RED, locked ? 0.5F : 0.35F, 6), from, to, 0.6);
+        if (locked) com.automatavalkyries.weapon.Fx.line(server, glow(C_GOLD, 0.3F, 6), from, to, 1.2);
+        com.automatavalkyries.weapon.Fx.mandala(server, to.add(0, 0.1, 0), C_RED, 2.5F, 6, false, true); // 着弾の印
+    }
+
+    /** 加速の光のレールを展開する（見た目。{@link LuxionFxEntity#RAIL}） */
+    void accelRail(Vec3 to) {
+        if (!(level() instanceof ServerLevel server)) return;
+        LuxionFxEntity.spawn(server, LuxionFxEntity.RAIL, position().add(0, 0.8 * SIZE, 0), to, true);
+        playSound(SoundEvents.BEACON_ACTIVATE, 2.0F, 1.8F);
+    }
+
+    /**
+     * 蹴りの 1 Tick: from から to へ進み、道の相手を蹴り穿つ（1 体 1 回）。ブロックに当たる所で止まる。
+     * @return 止まったら（ブロックに当たった・行き先に着いた）その場所、まだ進むなら null
+     */
+    @org.jetbrains.annotations.Nullable
+    Vec3 accelStep(Vec3 from, Vec3 to, java.util.Set<LivingEntity> hit, boolean last) {
+        Vec3 d = to.subtract(from);
+        double len = d.length();
+        Vec3 dir = len < 1.0e-4 ? Vec3.ZERO : d.scale(1.0 / len);
+        Vec3 reached = from;
+        boolean blocked = false;
+        for (double s = 0.4; s <= len + 1.0e-4; s += 0.4) {
+            Vec3 p = from.add(dir.scale(Math.min(s, len)));
+            AABB box = getDimensions(getPose()).makeBoundingBox(p);
+            if (!level().noCollision(this, box)) {
+                blocked = true;
+                break;
+            }
+            reached = p;
+            for (LivingEntity e : level().getEntitiesOfClass(LivingEntity.class, box.inflate(0.8), ChronoGazer::canHurt)) {
+                if (hit.add(e)) {
+                    e.hurt(damageSources().mobAttack(this), damageFor(e, ACCEL_KICK));
+                    e.knockback(2.5, -dir.x, -dir.z);
+                    e.setDeltaMovement(e.getDeltaMovement().add(0, 0.6, 0));
+                    if (level() instanceof ServerLevel server) {
+                        com.automatavalkyries.weapon.Fx.burst(server, star(C_WHITE, 0.7F, 20), e.position().add(0, e.getBbHeight() * 0.5, 0), 30, 0.45);
+                        server.sendParticles(ParticleTypes.FLASH, e.getX(), e.getY(0.5), e.getZ(), 1, 0, 0, 0, 0);
+                    }
+                    playSound(SoundEvents.ANVIL_LAND, 1.2F, 1.6F);
+                }
+            }
+        }
+        setPos(reached.x, reached.y, reached.z);
+        setDeltaMovement(Vec3.ZERO);
+        resetFallDistance();
+        if (level() instanceof ServerLevel server) { // 蹴り足の先から散る光
+            com.automatavalkyries.weapon.Fx.burst(server, glow(C_WG, 0.6F, 14), reached.add(0, 0.6 * SIZE, 0), 8, 0.2);
+            com.automatavalkyries.weapon.Fx.burst(server, glow(C_RED, 0.5F, 12), reached.add(0, 0.6 * SIZE, 0), 4, 0.15);
+        }
+        return blocked || last || len < ACCEL_SPEED - 1.0e-3 ? reached : null;
+    }
+
+    /** 着弾: 光の爆風（蹴りが当たっていない近くの相手へ）と、幾重もの衝撃波・光の陣 */
+    void accelImpact(Vec3 at, Vec3 start, java.util.Set<LivingEntity> hit) {
+        if (!(level() instanceof ServerLevel server)) return;
+        for (LivingEntity e : server.getEntitiesOfClass(LivingEntity.class, new AABB(at, at).inflate(ACCEL_BLAST_RADIUS), ChronoGazer::canHurt)) {
+            if (hit.contains(e) || e.distanceToSqr(at) > ACCEL_BLAST_RADIUS * ACCEL_BLAST_RADIUS) continue;
+            e.hurt(damageSources().mobAttack(this), damageFor(e, ACCEL_BLAST));
+            Vec3 away = e.position().subtract(at).multiply(1, 0, 1);
+            if (away.lengthSqr() > 1.0e-4) e.knockback(1.5, -away.x, -away.z);
+        }
+        Vec3 ground = at.add(0, 0.1, 0);
+        com.automatavalkyries.weapon.Fx.shockwave(server, ground, C_WHITE, 6.0F, 14);
+        com.automatavalkyries.weapon.Fx.shockwave(server, ground, C_GOLD, 9.0F, 20);
+        com.automatavalkyries.weapon.Fx.shockwave(server, ground.add(0, 0.1, 0), C_RED, 12.0F, 26);
+        com.automatavalkyries.weapon.Fx.mandala(server, ground, C_GOLD, 6.0F, 40, false, true);
+        com.automatavalkyries.weapon.Fx.burst(server, star(C_WG, 0.9F, 40), at.add(0, 1.0, 0), 90, 0.6);
+        com.automatavalkyries.weapon.Fx.burst(server, glow(C_RED, 0.8F, 30), at.add(0, 1.0, 0), 40, 0.4);
+        com.automatavalkyries.weapon.Fx.line(server, glow(C_WHITE, 1.2F, 24), at, at.add(0, 18, 0), 0.6); // 天への光の柱
+        server.sendParticles(ParticleTypes.FLASH, at.x, at.y + 1.0, at.z, 2, 0.3, 0.3, 0.3, 0);
+        LuxionFxEntity.spawn(server, LuxionFxEntity.DASH, start, at.add(0, 0.6 * SIZE, 0), true); // 蹴り抜けた道の残光
+        playSound(SoundEvents.GENERIC_EXPLODE, 2.5F, 1.3F);
+        playSound(SoundEvents.WARDEN_SONIC_BOOM, 2.0F, 1.4F);
+        level().broadcastEntityEvent(this, EVENT_ACCEL_IMPACT);
+    }
+
+    void setAccelPitch(float pitch) {
+        entityData.set(ACCEL_PITCH, pitch);
+    }
+
     @Override
     protected SoundEvent getAmbientSound() {
         return SoundEvents.BEACON_AMBIENT;
@@ -798,6 +925,16 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
         /** 突進の構えの残り Tick と向き */
         private int windup;
         private Vec3 dashDir;
+        /** 第 2 形態の光速突進は 2 回（2026-10-09 ユーザー指定）: 駆け抜けた後に折り返してもう一度駆ける残り回数と、その相手 */
+        private int dashAgain;
+        private LivingEntity dashTarget;
+        /**
+         * ルクシオンアクセラレータ（第 2 形態）: 間隔、段階（0 = 無し、1 = 飛び上がる、2 = 狙う、3 = 蹴る、4 = 着地）、段階の経過 Tick、
+         * 頂点、狙う所、蹴り始めの所、蹴った相手
+         */
+        private int accel = 100, accelStage, accelT;
+        private Vec3 accelApex, accelTo, accelFrom;
+        private final java.util.Set<LivingEntity> accelHit = new java.util.HashSet<>();
         /** 相手が空中にいる間（と、降りてからしばらく）は空中にとどまって戦う残り Tick */
         private int aerial;
         /**
@@ -888,7 +1025,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
 
         @Override
         public boolean canContinueToUse() {
-            return canUse() || windup > 0 || flurryLeft > 0 || finalRaise > 0 || blinkPrep > 0 || waveCharge > 0;
+            return canUse() || windup > 0 || flurryLeft > 0 || finalRaise > 0 || blinkPrep > 0 || waveCharge > 0 || accelStage > 0;
         }
 
         @Override
@@ -906,6 +1043,10 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
             lux.setAggressive(false);
             flurryLeft = 0;
             windup = 0;
+            accelStage = 0;
+            lux.setAccelPitch(0.0F);
+            dashAgain = 0;
+            dashTarget = null;
             blinkPrep = finalRaise = waveCharge = 0;
             chaseDash = false;
             lastTargetPos = null;
@@ -916,6 +1057,84 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
         @Override
         public boolean requiresUpdateEveryTick() {
             return true;
+        }
+
+        /**
+         * ルクシオンアクセラレータの 1 Tick: 大きく飛び上がり（身を沈めてから跳ぶ）→ 頂点でブースターを全開にして狙う（予測線。相手の行く先を読み、
+         * 最後の {@link #ACCEL_LOCK} Tick は固定して加速の光のレールを展開）→ レールに沿って蹴り穿つ（ライダーキック）→ 着弾の爆風 → 着地
+         */
+        private void tickAccel(@org.jetbrains.annotations.Nullable LivingEntity t) {
+            accelT++;
+            lux.getNavigation().stop();
+            lux.resetFallDistance();
+            switch (accelStage) {
+                case 1 -> { // 飛び上がる（最初の 4 Tick は身を沈める）
+                    if (accelT > 4) {
+                        Vec3 d = accelApex.subtract(lux.position()).scale(0.3);
+                        if (d.length() > 2.2) d = d.normalize().scale(2.2);
+                        lux.setDeltaMovement(d);
+                        if (accelT == 5) {
+                            lux.playSound(SoundEvents.FIREWORK_ROCKET_LAUNCH, 2.0F, 0.8F);
+                            if (lux.level() instanceof ServerLevel server) com.automatavalkyries.weapon.Fx.shockwave(server, lux.position().add(0, 0.1, 0), C_GOLD, 5.0F, 14);
+                        }
+                    } else {
+                        lux.setDeltaMovement(Vec3.ZERO);
+                    }
+                    if (t != null && t.isAlive()) face(t);
+                    if (accelT >= ACCEL_LEAP_TICKS) {
+                        accelStage = 2;
+                        accelT = 0;
+                        accelTo = t != null ? t.position() : lux.position().add(0, -ACCEL_HEIGHT, 0);
+                        lux.level().broadcastEntityEvent(lux, EVENT_ACCEL_AIM);
+                        lux.playSound(SoundEvents.BEACON_POWER_SELECT, 2.0F, 0.6F);
+                    }
+                }
+                case 2 -> { // 頂点で狙う
+                    Vec3 d = accelApex.subtract(lux.position()).scale(0.3);
+                    lux.setDeltaMovement(d.length() > 0.6 ? d.normalize().scale(0.6) : d);
+                    boolean locked = accelT > ACCEL_AIM_TICKS - ACCEL_LOCK;
+                    if (!locked && t != null && t.isAlive()) {
+                        int lead = ACCEL_AIM_TICKS - accelT + 4;
+                        accelTo = t.position().add(targetVel.multiply(1, 0, 1).scale(lead)); // 行く先を読む
+                        face(t);
+                    }
+                    if (accelT == ACCEL_AIM_TICKS - ACCEL_LOCK + 1) lux.accelRail(accelTo); // 狙いを固定してレールを展開
+                    if (accelT % 2 == 0) lux.accelTelegraph(accelTo, locked);
+                    if (accelT >= ACCEL_AIM_TICKS) {
+                        accelStage = 3;
+                        accelT = 0;
+                        accelFrom = lux.position().add(0, 0.8 * SIZE, 0);
+                        Vec3 v = accelTo.subtract(lux.position());
+                        double flat = Math.sqrt(v.x * v.x + v.z * v.z);
+                        lux.setAccelPitch((float) Math.atan2(-v.y, Math.max(0.01, flat)));
+                        float yaw = (float) (Mth.atan2(v.z, v.x) * Mth.RAD_TO_DEG) - 90.0F;
+                        lux.setYRot(yaw);
+                        lux.setYBodyRot(yaw);
+                        lux.level().broadcastEntityEvent(lux, EVENT_ACCEL_KICK);
+                        lux.playSound(SoundEvents.TRIDENT_RIPTIDE_3, 2.0F, 1.2F);
+                    }
+                }
+                case 3 -> { // 蹴り穿つ
+                    Vec3 here = lux.position();
+                    Vec3 left = accelTo.subtract(here);
+                    boolean last = accelT >= ACCEL_KICK_MAX || left.length() <= ACCEL_SPEED;
+                    Vec3 next = left.length() <= ACCEL_SPEED ? accelTo : here.add(left.normalize().scale(ACCEL_SPEED));
+                    Vec3 stop = lux.accelStep(here, next, accelHit, last);
+                    if (stop != null) {
+                        lux.accelImpact(stop, accelFrom, accelHit);
+                        lux.setAccelPitch(0.0F);
+                        accelStage = 4;
+                        accelT = 0;
+                    }
+                }
+                default -> { // 着地して身を起こす
+                    lux.setDeltaMovement(new Vec3(0, lux.getDeltaMovement().y, 0));
+                    if (accelT >= ACCEL_LAND_TICKS) {
+                        accelStage = 0;
+                        accelT = 0;
+                    }
+                }
+            }
         }
 
         /** 突進の向き: 相手が高い所にいれば斜めに駆け上がる */
@@ -953,8 +1172,12 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
         @Override
         public void tick() {
             LivingEntity t = lux.getTarget();
-            melee--; blink--; flurry--; wave--; dash--; reach--; chase--;
+            melee--; blink--; flurry--; wave--; dash--; reach--; chase--; accel--;
             if (t != null && t.isAlive()) watchFlight(t);
+            if (accelStage > 0) { // 大技の最中は他のことをしない（相手の動きの見張りだけ続ける）
+                tickAccel(t);
+                return;
+            }
             if (t != null && t.isAlive()) tickAerial(t); // 空中の相手には空中にとどまって戦う
             // 突進の構え（動かずに予告線を出し、0 になったら駆け抜ける）
             if (windup > 0) {
@@ -964,6 +1187,17 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
                     if (chaseDash && t != null && t.isAlive()) dashDir = dashDir(t.position().add(targetVel.scale(4))); // 逃げる相手の行く先へ向け直す
                     chaseDash = false;
                     lux.dash(dashDir);
+                    if (dashAgain > 0 && dashTarget != null && dashTarget.isAlive() && lux.isPhase2()) { // 折り返してもう一度（構えは短く）
+                        dashAgain--;
+                        windup = DASH_AGAIN_WINDUP;
+                        chaseDash = dashTarget == t; // 今の相手なら、放つ瞬間に行く先へ向け直す
+                        dashDir = dashDir(dashTarget);
+                        face(dashTarget);
+                        lux.level().broadcastEntityEvent(lux, EVENT_DASH_WINDUP);
+                        lux.playSound(SoundEvents.BEACON_POWER_SELECT, 1.5F, 2.1F);
+                    } else {
+                        dashAgain = 0;
+                    }
                 }
                 return;
             }
@@ -1021,6 +1255,8 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
                 windup = lux.isPhase2() ? 6 : 8;
                 chaseDash = true;
                 dashDir = dashDir(t.position().add(targetVel.scale(4 + windup)));
+                dashTarget = t;
+                dashAgain = lux.isPhase2() ? 1 : 0;
                 face(t);
                 lux.getNavigation().stop();
                 lux.level().broadcastEntityEvent(lux, EVENT_DASH_WINDUP);
@@ -1040,6 +1276,8 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
                     dash = cd(240);
                     windup = lux.isPhase2() ? 12 : 20;
                     dashDir = dashDir(side);
+                    dashTarget = side;
+                    dashAgain = lux.isPhase2() ? 1 : 0;
                     lux.getLookControl().setLookAt(side, 360.0F, 90.0F);
                     lux.level().broadcastEntityEvent(lux, EVENT_DASH_WINDUP);
                     lux.playSound(SoundEvents.BEACON_POWER_SELECT, 1.5F, 1.8F);
@@ -1071,16 +1309,42 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
                     return;
                 }
             }
+            // 大技ルクシオンアクセラレータ（第 2 形態）。近くにいても出し（2026-10-09 ユーザー指定）、HP が減るほど出やすい:
+            // 間隔は HP 50% で 18 秒 → 0% で 6 秒、出せる間は毎 Tick 5% → 50% の見込みで出す
+            float low = Mth.clamp(1.0F - DirectRead.health(lux) / lux.getMaxHealth() / 0.5F, 0.0F, 1.0F);
+            if (lux.isPhase2() && accel <= 0 && dist < 28 && sees && lux.onGround() && lux.random.nextFloat() < 0.05F + 0.45F * low) {
+                accel = (int) Mth.lerp(low, 360.0F, 120.0F);
+                accelStage = 1;
+                accelT = 0;
+                accelHit.clear();
+                lux.hoverTicks = 0; // 空中にとどまる動きをやめる
+                // 遠くから放つ（2026-10-09 ユーザー指定「もうちょっと猶予あるように遠くから」）: 相手から水平に ACCEL_RANGE 以上離れた所の上空へ跳び退く
+                Vec3 retreat = lux.position().subtract(t.position()).multiply(1, 0, 1);
+                retreat = retreat.lengthSqr() < 1.0e-4 ? Vec3.directionFromRotation(0, lux.getYRot() + 180.0F) : retreat.normalize();
+                double standOff = Math.max(ACCEL_RANGE, Math.sqrt(lux.distanceToSqr(t.getX(), lux.getY(), t.getZ())));
+                accelApex = new Vec3(t.getX(), lux.getY(), t.getZ()).add(retreat.scale(standOff)).add(0, ACCEL_HEIGHT, 0);
+                face(t);
+                lux.getNavigation().stop();
+                lux.level().broadcastEntityEvent(lux, EVENT_ACCEL_LEAP);
+                lux.playSound(SoundEvents.WARDEN_SONIC_CHARGE, 2.0F, 1.6F);
+                for (net.minecraft.server.level.ServerPlayer p : ((ServerLevel) lux.level()).getPlayers(p -> p.distanceToSqr(lux) < 64 * 64)) {
+                    p.displayClientMessage(Component.translatable("message.automata_valkyries.luxion.accelerator").withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD), true);
+                }
+                return;
+            }
             if (flurry <= 0 && dist < 16 && sees) { // 光速三連閃（第 2 形態は 5 連）
                 flurry = cd(200);
                 flurryLeft = lux.isPhase2() ? 5 : 3;
                 flurryGap = 0;
+                lux.level().broadcastEntityEvent(lux, EVENT_TWO_HAND); // 締めまで両手で持つ
                 return;
             }
             if (dash <= 0 && dist > 6 && dist < DASH_LENGTH && sees) { // 光速突進（構え 1 秒、第 2 形態 0.6 秒）
                 dash = cd(240);
                 windup = lux.isPhase2() ? 12 : 20;
                 dashDir = dashDir(t);
+                dashTarget = t;
+                dashAgain = lux.isPhase2() ? 1 : 0;
                 lux.level().broadcastEntityEvent(lux, EVENT_DASH_WINDUP);
                 lux.playSound(SoundEvents.BEACON_POWER_SELECT, 1.5F, 1.8F);
                 return;

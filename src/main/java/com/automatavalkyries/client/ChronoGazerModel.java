@@ -142,9 +142,12 @@ public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntity
 
     // ---- ルクシオンのモーション（2026-10-08 ユーザー指定「全部作って」） ----
 
-    /** 骨の姿勢（ラジアン・ピクセル）。a = 右腕（剣）、l = 左腕、b = 胴、r = 全体の上下、h = 頭、脚は前へ振るのが正 */
+    /**
+     * 骨の姿勢（ラジアン・ピクセル）。a = 右腕（剣）、l = 左腕、b = 胴、r = 全体の上下、h = 頭。
+     * 脚は股関節から足先への向き（前へ振るのが正）と、まっすぐからの縮み bend（px。膝を曲げる量。{@link #legIk} で太ももと膝に分ける）
+     */
     private static final class Pose {
-        float aX, aY, aZ, lX, lY, lZ, bX, bY, bZ, rY, hX, hY, hZ, legR, legL;
+        float aX, aY, aZ, lX, lY, lZ, bX, bY, bZ, rY, hX, hY, hZ, legR, legL, bendR, bendL;
 
         Pose arm(float x, float y, float z) { aX = x; aY = y; aZ = z; return this; }
         Pose larm(float x, float y, float z) { lX = x; lY = y; lZ = z; return this; }
@@ -152,6 +155,7 @@ public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntity
         Pose root(float y) { rY = y; return this; }
         Pose head(float x, float y, float z) { hX = x; hY = y; hZ = z; return this; }
         Pose legs(float r, float l) { legR = r; legL = l; return this; }
+        Pose bends(float r, float l) { bendR = r; bendL = l; return this; }
 
         Pose copy() {
             Pose p = new Pose();
@@ -168,6 +172,7 @@ public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntity
             rY = Mth.lerp(w, rY, o.rY);
             hX = Mth.lerp(w, hX, o.hX); hY = Mth.lerp(w, hY, o.hY); hZ = Mth.lerp(w, hZ, o.hZ);
             legR = Mth.lerp(w, legR, o.legR); legL = Mth.lerp(w, legL, o.legL);
+            bendR = Mth.lerp(w, bendR, o.bendR); bendL = Mth.lerp(w, bendL, o.bendL);
             return this;
         }
 
@@ -180,19 +185,20 @@ public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntity
         return new Pose();
     }
 
-    /** 膝をつく（右脚を立て、左膝を地に。剣は前の地面へ突き立てる） */
-    private static final Pose KNEEL = pose().root(-12.0F).legs(1.1F, -1.2F).body(-0.45F, 0.0F, 0.0F).head(-0.3F, 0.0F, 0.0F)
+    /** 膝をつく（右脚を立てて足を前へ、左膝を地に。剣は前の地面へ突き立てる） */
+    private static final Pose KNEEL = pose().root(-12.0F).legs(1.14F, -1.09F).bends(0.8F, 3.0F).body(-0.45F, 0.0F, 0.0F).head(-0.3F, 0.0F, 0.0F)
             .arm(0.75F, 0.0F, 0.05F).larm(0.35F, 0.0F, -0.15F);
     /** 撃破: 剣を地に突き立てて両手で柄を握り、膝をついてうなだれる */
-    private static final Pose DEFEAT = pose().root(-12.0F).legs(1.1F, -1.2F).body(-0.5F, 0.15F, 0.0F).head(-0.45F, 0.0F, 0.1F)
+    private static final Pose DEFEAT = pose().root(-12.0F).legs(1.14F, -1.09F).bends(0.8F, 3.0F).body(-0.5F, 0.15F, 0.0F).head(-0.45F, 0.0F, 0.1F)
             .arm(0.8F, -0.15F, 0.0F).larm(0.8F, 0.2F, 0.35F);
-    // 斬撃の型（始め → 終わり）。踏み込み（右脚を前へ）と胴のひねりつき
-    private static final Pose KESA_A = pose().arm(2.6F, 0.3F, 0.6F).body(0.1F, 0.45F, 0.0F).legs(0.2F, -0.1F).root(-0.5F).larm(0.3F, 0.0F, -0.3F);
-    private static final Pose KESA_B = pose().arm(0.5F, -0.9F, -0.5F).body(-0.3F, -0.45F, 0.0F).legs(0.6F, -0.45F).root(-1.8F).larm(0.1F, 0.0F, -0.6F).head(0.2F, 0.3F, 0.0F);
-    private static final Pose RISING_A = pose().arm(0.4F, -0.9F, -0.6F).body(-0.2F, -0.45F, 0.0F).legs(0.3F, -0.2F).root(-1.5F).larm(0.2F, 0.0F, -0.4F);
-    private static final Pose RISING_B = pose().arm(2.4F, 0.4F, 0.6F).body(0.05F, 0.45F, 0.0F).legs(0.6F, -0.45F).root(-0.8F).larm(0.0F, 0.0F, -0.7F).head(-0.1F, -0.3F, 0.0F);
-    private static final Pose FLAT_A = pose().arm(1.5F, 1.2F, 0.2F).body(-0.05F, 0.6F, 0.0F).legs(0.2F, -0.2F).root(-1.5F).larm(0.4F, 0.0F, -0.3F).head(0.0F, -0.5F, 0.0F);
-    private static final Pose FLAT_B = pose().arm(1.5F, -1.3F, 0.2F).body(-0.2F, -0.6F, 0.0F).legs(0.65F, -0.5F).root(-2.2F).larm(0.2F, 0.0F, -0.8F).head(0.1F, 0.5F, 0.0F);
+    // 斬撃の型（始め → 終わり）。全身で振る（2026-10-09 ユーザー指定）: 振りかぶりで胴を大きくひねって腰を引き、振り抜きで右脚を深く踏み込んで
+    // 腰を落とし（膝は脚の縮みから自動で曲がる）、胴を逆へひねって傾け、左腕は振りと逆へ引いて釣り合いを取り、頭は相手へ残す
+    private static final Pose KESA_A = pose().arm(2.6F, 0.3F, 0.6F).body(0.15F, 0.6F, 0.08F).legs(0.25F, -0.15F).root(-0.8F).larm(0.5F, 0.0F, -0.4F).head(-0.1F, -0.4F, 0.0F);
+    private static final Pose KESA_B = pose().arm(0.5F, -0.9F, -0.5F).body(-0.4F, -0.65F, -0.12F).legs(0.75F, -0.55F).root(-2.6F).larm(-0.3F, 0.0F, -0.8F).head(0.25F, 0.45F, 0.0F);
+    private static final Pose RISING_A = pose().arm(0.4F, -0.9F, -0.6F).body(-0.3F, -0.6F, -0.1F).legs(0.35F, -0.3F).root(-2.2F).larm(0.3F, 0.0F, -0.5F).head(0.15F, 0.4F, 0.0F);
+    private static final Pose RISING_B = pose().arm(2.4F, 0.4F, 0.6F).body(0.15F, 0.65F, 0.1F).legs(0.7F, -0.5F).root(-0.6F).larm(-0.2F, 0.0F, -0.9F).head(-0.2F, -0.45F, 0.0F);
+    private static final Pose FLAT_A = pose().arm(1.5F, 1.2F, 0.2F).body(-0.1F, 0.8F, 0.05F).legs(0.25F, -0.25F).root(-2.0F).larm(0.6F, 0.0F, -0.4F).head(0.0F, -0.6F, 0.0F);
+    private static final Pose FLAT_B = pose().arm(1.5F, -1.3F, 0.2F).body(-0.25F, -0.85F, -0.08F).legs(0.8F, -0.6F).root(-2.8F).larm(-0.2F, 0.0F, -1.0F).head(0.1F, 0.65F, 0.0F);
     /** 三連閃の締め: 頭上へ振りかぶる → 唐竹に振り下ろす */
     private static final Pose RAISE = pose().arm(3.0F, 0.0F, 0.05F).larm(2.7F, 0.0F, 0.3F).body(0.25F, 0.0F, 0.0F).head(0.25F, 0.0F, 0.0F).legs(0.15F, -0.1F).root(0.5F);
     private static final Pose DOWN = pose().arm(0.35F, 0.0F, 0.0F).larm(0.4F, 0.0F, 0.3F).body(-0.55F, 0.0F, 0.0F).head(0.35F, 0.0F, 0.0F).legs(0.8F, -0.6F).root(-3.5F);
@@ -210,6 +216,18 @@ public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntity
     /** 退く: 剣を左腰の鞘へ納める */
     private static final Pose SHEATHE = pose().arm(0.7F, -1.0F, -0.6F).larm(0.6F, 0.5F, 0.2F).body(-0.05F, -0.25F, 0.0F).head(-0.15F, 0.2F, 0.0F);
     private static final Pose SHEATHED = pose().arm(0.2F, -0.6F, -0.3F).larm(0.3F, 0.4F, 0.2F).head(-0.3F, 0.0F, 0.0F);
+    // 大技ルクシオンアクセラレータ（2026-10-09 ユーザー指定）: 深く沈む → 両腕を広げて跳び上がる → 頂点で身を丸めて左手で狙いを指す →
+    // ライダーキック（右脚をまっすぐ蹴り出し、左脚は深くたたみ、両腕は後ろへ流す。体ごと蹴りの向きへ傾けるのはレンダラー）→ 着弾して低く着地
+    private static final Pose ACCEL_CROUCH = pose().arm(-0.7F, 0.2F, 0.5F).larm(-0.7F, -0.2F, -0.5F).body(0.45F, 0.0F, 0.0F).head(-0.3F, 0.0F, 0.0F)
+            .legs(0.35F, 0.3F).root(-6.0F);
+    private static final Pose ACCEL_RISE = pose().arm(-0.4F, 0.3F, 0.9F).larm(-0.4F, -0.3F, -0.9F).body(-0.25F, 0.0F, 0.0F).head(0.2F, 0.0F, 0.0F)
+            .legs(-0.1F, -0.25F).bends(1.5F, 3.5F);
+    private static final Pose ACCEL_AIM = pose().arm(-0.5F, 0.4F, 0.7F).larm(1.2F, -0.3F, -0.15F).body(-0.35F, 0.25F, 0.0F).head(0.35F, -0.2F, 0.0F)
+            .legs(0.9F, 0.7F).bends(8.0F, 9.0F);
+    private static final Pose ACCEL_KICK = pose().arm(-1.0F, 0.2F, 0.6F).larm(-0.6F, -0.3F, -0.9F).body(-0.3F, 0.3F, 0.0F).head(0.4F, -0.25F, 0.0F)
+            .legs(1.55F, 0.85F).bends(0.0F, 10.0F);
+    private static final Pose ACCEL_LAND = pose().arm(0.3F, 0.6F, 1.2F).larm(0.2F, 0.0F, -1.2F).body(0.4F, -0.2F, 0.0F).head(-0.2F, 0.0F, 0.0F)
+            .legs(0.55F, -0.45F).root(-7.0F);
 
     /** 始め a に t の 2 Tick で入り、3 Tick で b へ振り、hold まで留めて len で戻る（斬撃の形） */
     private static void strike(Pose p, Pose a, Pose b, float t, float len, float hold) {
@@ -238,6 +256,11 @@ public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntity
         }
         boolean hovering = lux.isHovering();
         if (hovering) walk *= 0.2F; // 空中では歩かない
+        // ルクシオンアクセラレータで宙にいる間（跳び上がってから着弾まで）
+        float at = age - lux.actionTick;
+        boolean accelAir = at >= 0.0F && at < 80.0F && ((lux.action == com.automatavalkyries.entity.chrono.LuxionEntity.EVENT_ACCEL_LEAP && at >= 4.0F)
+                || lux.action == com.automatavalkyries.entity.chrono.LuxionEntity.EVENT_ACCEL_AIM || lux.action == com.automatavalkyries.entity.chrono.LuxionEntity.EVENT_ACCEL_KICK);
+        if (accelAir) walk = 0.0F;
         float legSwing = Mth.cos(limb * 0.7F) * 1.1F * walk;
         float aggro = smooth(Mth.lerp(pt, lux.deployO, lux.deploy));
         float glory = smooth(Mth.lerp(pt, lux.gloryO, lux.glory));
@@ -275,30 +298,69 @@ public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntity
         p.mix(DASH_CROUCH, windup);
         spread += 0.6F * windup;
         sweep += 0.8F * windup;
-        // 技の動き
+        // 技の動き。burst = ブースターの噴射の強まり、flare = 光のマントのはためき（全身で動く。2026-10-09 ユーザー指定「ブースターからの光やマントも含めて全身使う」）
+        float burst = 0.9F * windup, flare = 0.7F * windup, pull = 0.0F;
         float t = age - lux.actionTick;
         switch (lux.action) {
-            case com.automatavalkyries.entity.chrono.LuxionEntity.EVENT_SLASH -> strike(p, KESA_A, KESA_B, t, 10.0F, 5.0F);
-            case com.automatavalkyries.entity.chrono.LuxionEntity.EVENT_SLASH_RISING -> strike(p, RISING_A, RISING_B, t, 10.0F, 5.0F);
-            case com.automatavalkyries.entity.chrono.LuxionEntity.EVENT_SLASH_FLAT -> strike(p, FLAT_A, FLAT_B, t, 10.0F, 5.0F);
-            case com.automatavalkyries.entity.chrono.LuxionEntity.EVENT_SLASH_DOWN -> strike(p, RAISE, DOWN, t, 16.0F, 9.0F);
-            case com.automatavalkyries.entity.chrono.LuxionEntity.EVENT_FLURRY_RAISE -> p.mix(RAISE, envelope(t, 4.0F, 10.0F, 14.0F));
-            case com.automatavalkyries.entity.chrono.LuxionEntity.EVENT_BLINK_PREP -> p.mix(BLINK_LEAN, envelope(t, 3.0F, 6.0F, 9.0F));
+            case com.automatavalkyries.entity.chrono.LuxionEntity.EVENT_SLASH -> {
+                strike(p, KESA_A, KESA_B, t, 10.0F, 5.0F);
+                float e = envelope(t, 2.0F, 5.0F, 10.0F);
+                flare += 0.55F * e;
+                burst += 0.35F * e;
+            }
+            case com.automatavalkyries.entity.chrono.LuxionEntity.EVENT_SLASH_RISING -> {
+                strike(p, RISING_A, RISING_B, t, 10.0F, 5.0F);
+                float e = envelope(t, 2.0F, 5.0F, 10.0F);
+                flare += 0.55F * e;
+                burst += 0.35F * e;
+            }
+            case com.automatavalkyries.entity.chrono.LuxionEntity.EVENT_SLASH_FLAT -> {
+                strike(p, FLAT_A, FLAT_B, t, 10.0F, 5.0F);
+                float e = envelope(t, 2.0F, 5.0F, 10.0F);
+                flare += 0.65F * e;
+                burst += 0.35F * e;
+            }
+            case com.automatavalkyries.entity.chrono.LuxionEntity.EVENT_SLASH_DOWN -> {
+                strike(p, RAISE, DOWN, t, 16.0F, 9.0F);
+                float e = envelope(t - 4.0F, 1.0F, 5.0F, 12.0F);
+                flare += 0.8F * e;
+                burst += 0.6F * e;
+            }
+            case com.automatavalkyries.entity.chrono.LuxionEntity.EVENT_FLURRY_RAISE -> {
+                float e = envelope(t, 4.0F, 10.0F, 14.0F);
+                p.mix(RAISE, e);
+                burst += 0.5F * e; // 振りかぶって浮き上がる
+                spread += 0.25F * e;
+            }
+            case com.automatavalkyries.entity.chrono.LuxionEntity.EVENT_BLINK_PREP -> {
+                float e = envelope(t, 3.0F, 6.0F, 9.0F);
+                p.mix(BLINK_LEAN, e);
+                burst += 0.8F * e;
+                flare += 0.4F * e;
+            }
             case com.automatavalkyries.entity.chrono.LuxionEntity.EVENT_BLINK_ARRIVE -> {
                 p.mix(IAI, envelope(t, 0.5F, 6.0F, 14.0F));
                 spread += 0.3F * envelope(t, 0.5F, 4.0F, 12.0F);
+                float e = envelope(t, 0.5F, 3.0F, 12.0F);
+                flare += 0.9F * e; // 現れた勢いでマントが広がる
+                burst += 1.0F * e;
             }
             case com.automatavalkyries.entity.chrono.LuxionEntity.EVENT_WAVE_CHARGE -> {
                 float e = envelope(t, 6.0F, 10.0F, 14.0F);
                 p.mix(WAVE_PULL, e);
                 sweep += 0.3F * e;
                 spread += 0.2F * e;
+                burst += 0.4F * e;
+                flare += 0.3F * e;
             }
             case com.automatavalkyries.entity.chrono.LuxionEntity.EVENT_WAVE_RELEASE -> {
                 if (t >= 0.0F && t < 22.0F) {
                     Pose target = Pose.between(WAVE_PULL, WAVE_SWING, smooth(t / 4.0F));
                     p.mix(target, t < 14.0F ? 1.0F : 1.0F - smooth((t - 14.0F) / 8.0F)); // 振り抜いて残心
                     spread += 0.35F * envelope(t, 2.0F, 8.0F, 18.0F);
+                    float e = envelope(t, 1.0F, 6.0F, 18.0F);
+                    flare += 0.9F * e;
+                    burst += 0.7F * e;
                 }
             }
             case com.automatavalkyries.entity.chrono.LuxionEntity.EVENT_DASH_END -> {
@@ -306,29 +368,59 @@ public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntity
                 p.mix(SLIDE_STOP, e);
                 p.bZ += Mth.sin(age * 2.2F) * 0.04F * e; // 滑る揺れ
                 sweep += 0.6F * e;
+                flare += 1.0F * e; // 止まった勢いでマントが前へあおられる
+                burst += 1.2F * e; // 逆噴射で止まる
+            }
+            case com.automatavalkyries.entity.chrono.LuxionEntity.EVENT_ACCEL_LEAP -> { // 深く沈んでから、両腕を広げて跳び上がる
+                if (t < 4.0F) {
+                    p.mix(ACCEL_CROUCH, smooth(t / 2.0F));
+                    burst += 0.6F * smooth(t / 4.0F);
+                } else {
+                    p.mix(Pose.between(ACCEL_CROUCH, ACCEL_RISE, smooth((t - 4.0F) / 4.0F)), 1.0F);
+                    burst += 2.0F;
+                    flare += 0.8F;
+                    pull = 0.8F;
+                }
+                spread += 0.5F;
+            }
+            case com.automatavalkyries.entity.chrono.LuxionEntity.EVENT_ACCEL_AIM -> { // 頂点でブースターを全開にして、身を丸めて左手で狙いを指す
+                p.mix(Pose.between(ACCEL_RISE, ACCEL_AIM, smooth(t / 6.0F)), 1.0F);
+                burst += 1.6F + 0.4F * Mth.sin(age * 0.9F);
+                flare += 0.6F;
+                spread += 0.8F;
+            }
+            case com.automatavalkyries.entity.chrono.LuxionEntity.EVENT_ACCEL_KICK -> { // ライダーキック
+                p.mix(Pose.between(ACCEL_AIM, ACCEL_KICK, smooth(t / 2.0F)), 1.0F);
+                burst += 2.2F;
+                flare += 1.6F;
+                pull = 1.0F; // マントは後ろへ流れる
+                spread += 0.6F;
+                sweep += 0.8F;
+            }
+            case com.automatavalkyries.entity.chrono.LuxionEntity.EVENT_ACCEL_IMPACT -> { // 着弾して低く着地し、身を起こす
+                float e = envelope(t, 0.5F, 6.0F, 16.0F);
+                p.mix(ACCEL_LAND, e);
+                burst += 1.0F * e;
+                flare += 1.0F * e;
             }
             default -> {
             }
         }
-        // 大きな被弾: 上体をのけぞらせる（見た目だけ）
-        float hb = age - lux.bigHurtTick;
-        if (hb >= 0.0F && hb < 10.0F) {
-            float b = hb < 2.0F ? smooth(hb / 2.0F) : 1.0F - smooth((hb - 2.0F) / 8.0F);
-            p.bX += 0.45F * b;
-            p.hX += 0.35F * b;
-            p.aX -= 0.3F * b;
-            p.lZ -= 0.4F * b;
-            p.rY -= 0.5F * b;
-        }
+        // 全身で振る: 胴のひねりに合わせて傾き、勢いのある技では腰を落とす。頭は少し遅れて正面へ残る
+        p.bZ -= p.bY * 0.12F;
+        p.rY -= 0.6F * Math.min(1.0F, flare);
+        p.hY -= p.bY * 0.25F;
+        // 被弾ののけぞりは無し（2026-10-09 ユーザー指定「食らいモーションを消して」。赤くなるのはそのまま）
         // 演出の段階
-        float fold = 0.0F, close = 0.0F, ascend = 0.0F;
+        float fold = 0.0F, close = 0.0F, ascend = 0.0F, kneel = 0.0F;
         float st = age - lux.stageStart;
         switch (lux.stage()) {
             case com.automatavalkyries.entity.chrono.LuxionEntity.STAGE_INTRO -> {
                 // 光の柱から膝をついて降り（5 Tick）、立ち上がり（18〜28）、剣を払い（24〜40）、翼を開く（26〜40）
                 Pose k = KNEEL.copy();
                 if (st < 5.0F) k.rY += 48.0F * (1.0F - st / 5.0F) * (1.0F - st / 5.0F);
-                p.mix(k, st < 18.0F ? 1.0F : 1.0F - smooth((st - 18.0F) / 10.0F));
+                kneel = st < 18.0F ? 1.0F : 1.0F - smooth((st - 18.0F) / 10.0F);
+                p.mix(k, kneel);
                 float sw = envelope(st - 24.0F, 2.0F, 10.0F, 16.0F);
                 float k2 = smooth((st - 26.0F) / 6.0F);
                 p.mix(pose().arm(1.5F, Mth.lerp(k2, 1.2F, -1.3F), 0.2F).body(-0.1F, Mth.lerp(k2, 0.5F, -0.5F), 0.0F)
@@ -343,6 +435,7 @@ public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntity
                 if (st > 10.0F && st < 20.0F) a.bZ += Mth.sin(age * 3.0F) * 0.03F; // 力がみなぎって震える
                 p.mix(a, ascend);
                 spread += 0.6F * smooth((st - 8.0F) / 12.0F) * ascend;
+                burst += 0.9F * ascend; // 浮かび上がる噴射
             }
             case com.automatavalkyries.entity.chrono.LuxionEntity.STAGE_RETREAT -> {
                 // 剣を納め（0〜14）、翼で身を包み（8〜22）、光に溶けて少し浮かぶ
@@ -364,6 +457,7 @@ public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntity
             Pose d = DEFEAT.copy();
             d.bZ += Mth.sin(age * 1.7F) * 0.02F * Math.min(1.0F, dt / 40.0F);
             p.mix(d, dw);
+            kneel = Math.max(kneel, dw);
             spread = Mth.lerp(dw, spread, -0.05F);
             sweep = Mth.lerp(dw, sweep, 0.25F);
             close = Math.max(close, dw);
@@ -373,10 +467,59 @@ public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntity
             sweep = Mth.lerp(fold, sweep, -0.2F);
         }
 
+        if (hovering) burst += 0.35F; // 空中にとどまる噴射
+        // 三連閃は両手持ち（2026-10-09 ユーザー指定「三連撃は両手で刀を振るって」）: 始めてから締めの振り下ろしを振り抜くまで、左手も柄を握る
+        float twoHand = 0.0F;
+        float th = age - lux.twoHandTick;
+        if (th >= 0.0F && th < 100.0F && lux.stage() == com.automatavalkyries.entity.chrono.LuxionEntity.STAGE_NONE) {
+            twoHand = smooth(th / 3.0F) * (1.0F - smooth((th - 90.0F) / 10.0F));
+            if (lux.action == com.automatavalkyries.entity.chrono.LuxionEntity.EVENT_SLASH_DOWN && lux.actionTick >= lux.twoHandTick) {
+                twoHand *= 1.0F - smooth((t - 12.0F) / 6.0F); // 締めを振り抜いたら片手に戻す
+            }
+            twoHand *= 1.0F - kneel;
+        }
+        if (twoHand > 0.0F) grip(p, twoHand);
+
+        // 立ち姿: 足を肩幅より広く開き、つま先を少し外へ（2026-10-09 ユーザー指定「足を広げて少し外股に」）。戦闘の構えではさらに広く。
+        // 歩く・膝をつく・空中では弱める（右脚は +X 側。rotZ が正で足先が外、rotY が負でつま先が外）
+        boolean airborne = hovering || accelAir;
+        float stance = (1.0F - kneel) * (hovering ? 0.4F : accelAir ? 0.0F : 1.0F);
+        float legOut = (STANCE_SPREAD + 0.06F * aggro) * stance * (1.0F - 0.5F * walk);
+        float toeOut = STANCE_TOE_OUT * stance * (1.0F - 0.6F * walk);
+        // 膝（2026-10-09 ユーザー指定「基本的な動作に膝の関節の動き」「攻撃時に足を地面につけて」）: 両足を地面に着ける。
+        // 脚を前後へ振るほど足が下まで届かなくなるので、届く方の低い足に合わせて腰を落とし（最大 6px）、足が地面にちょうど着くよう膝を曲げる。
+        // 歩くと前へ出す脚だけ持ち上げる。空中では軽く曲げて垂らす。膝をつく型は型どおり
+        float ground = 1.0F - kneel;
+        float bendR = hovering && !accelAir ? 1.8F : 0.0F, bendL = hovering && !accelAir ? 2.4F : 0.0F;
+        if (!airborne) {
+            float hip = LEG + p.rY;                                             // 腰の高さ（px）
+            float out = Mth.cos(legOut);
+            float cosR = Math.max(0.2F, Mth.cos(p.legR) * out), cosL = Math.max(0.2F, Mth.cos(p.legL) * out);
+            float crouch = 1.5F * aggro + 1.2F * Math.max(0.0F, p.legR);           // 構え・踏み込みでは少し沈んで両膝を曲げる
+            float plant = Math.max(hip - 7.0F, Math.min(hip, LEG * Math.min(cosR, cosL)) - crouch);
+            p.rY += (plant - hip) * ground;                                     // 届かなければ腰を落とす
+            float lift = Mth.sin(limb * 0.7F) * 4.5F * walk;
+            bendR = LEG - Math.min(LEG, plant / cosR) + Math.max(0.0F, -lift);
+            bendL = LEG - Math.min(LEG, plant / cosL) + Math.max(0.0F, lift);
+        }
+        float[] ikR = legIk(p.legR, p.bendR + bendR * ground);
+        float[] ikL = legIk(p.legL, p.bendL + bendL * ground);
         CoreGeoBone root = bone("root");
         if (root != null) root.setPosY(p.rY);
-        rotX("right_leg", p.legR);
-        rotX("left_leg", p.legL);
+        CoreGeoBone rleg = bone("right_leg");
+        if (rleg != null) {
+            rleg.setRotX(ikR[0]);
+            rleg.setRotZ(legOut);
+            rleg.setRotY(-toeOut);
+        }
+        rotX("right_shin", -ikR[1]);
+        CoreGeoBone lleg = bone("left_leg");
+        if (lleg != null) {
+            lleg.setRotX(ikL[0]);
+            lleg.setRotZ(-legOut);
+            lleg.setRotY(toeOut);
+        }
+        rotX("left_shin", -ikL[1]);
         CoreGeoBone arm = bone("right_arm");
         if (arm != null) {
             arm.setRotX(p.aX);
@@ -404,10 +547,11 @@ public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntity
         CoreGeoBone tail = bone("tail");
         if (tail != null) {
             tail.setRotX(0.3F + walk * 0.6F + Mth.sin(age * 0.15F) * 0.08F + 0.5F * windup + 0.4F * ascend);
-            tail.setRotZ(Mth.sin(age * 0.11F) * 0.1F);
+            tail.setRotZ(Mth.sin(age * 0.11F) * 0.1F - p.bY * 0.35F); // 胴のひねりに遅れてなびく
         }
+        float thrustersX = -0.2F * walk - 0.3F * windup - 0.15F * Math.min(1.0F, burst) + (lux.isPhase2() ? Mth.sin(age * 0.8F) * 0.04F : 0.0F);
         CoreGeoBone thrusters = bone("thrusters");
-        if (thrusters != null) thrusters.setRotX(-0.2F * walk - 0.3F * windup + (lux.isPhase2() ? Mth.sin(age * 0.8F) * 0.04F : 0.0F));
+        if (thrusters != null) thrusters.setRotX(thrustersX);
         CoreGeoBone wl = bone("wing_left");
         if (wl != null) {
             wl.setRotZ(-spread);
@@ -429,7 +573,7 @@ public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntity
             if (tail != null) tail.setScaleY(1.0F + 0.6F * glory);
         }
         // 背の戦闘機型ブースター: 戦闘中は後ろへ倒れて開き、主翼と尾翼が広がる（突進の構え・変身でさらに開く。降臨・退く・撃破では畳む）
-        float open = Math.max(Math.min(1.0F, aggro + 0.3F * windup), Math.max(ascend, hovering ? 1.0F : 0.0F)) * (1.0F - close);
+        float open = Math.max(Math.min(1.0F, aggro + 0.3F * windup), Math.max(ascend, hovering || accelAir ? 1.0F : 0.0F)) * (1.0F - close);
         CoreGeoBone booster = bone("booster");
         if (booster != null) booster.setRotX(BOOSTER_PITCH * open);
         CoreGeoBone bwl = bone("booster_wing_left");
@@ -445,7 +589,69 @@ public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntity
         pod("booster_pod_top", 0.0F, 1.0F, split);
         pod("booster_pod_left", 0.866F, -0.5F, split);
         pod("booster_pod_right", -0.866F, -0.5F, split);
+        // 光のマント・ブースターの光・光の翼を体に合わせて描くために、今の姿勢を渡す（LuxionRenderer）
+        if (!LuxionRenderer.portrait) {
+            lux.animRootY = p.rY;
+            lux.animBodyX = p.bX;
+            lux.animBodyY = p.bY;
+            lux.animBodyZ = p.bZ;
+            lux.animThrustersX = thrustersX;
+            lux.animSpread = spread;
+            lux.animSweep = sweep;
+            lux.animClose = close;
+            lux.animWindup = Math.max(windup, pull);
+            lux.animBurst = burst;
+            lux.animFlare = flare;
+            lux.animOpen = open;
+            lux.animHover = hovering;
+        }
     }
+
+    /** 脚の長さ（px）: 股関節から膝（太もも）、膝から足の裏（脛と足）、合わせて */
+    private static final float THIGH = 7.5F, SHIN = 12.5F, LEG = THIGH + SHIN;
+
+    /**
+     * 2 本の骨の脚: 股関節から足先への向き angle（前へ振るのが正）と、まっすぐからの縮み bend（px）から、太ももの傾きと膝の曲げを出す（膝は前へ出る）。
+     * 足先の場所は 1 本の骨だったときと同じなので、今までの型の足の置き場所はそのまま
+     *
+     * @return {太ももの rotX, 膝の曲げ（正。脛の rotX はこの負）}
+     */
+    private static float[] legIk(float angle, float bend) {
+        float d = Mth.clamp(LEG - bend, 8.0F, LEG);
+        float knee = Mth.PI - (float) Math.acos(Mth.clamp((THIGH * THIGH + SHIN * SHIN - d * d) / (2.0F * THIGH * SHIN), -1.0F, 1.0F));
+        float hip = (float) Math.acos(Mth.clamp((THIGH * THIGH + d * d - SHIN * SHIN) / (2.0F * THIGH * d), -1.0F, 1.0F));
+        return new float[]{angle + hip, knee};
+    }
+
+    /** 肩（胴の中の px。GeckoLib は geo の X を反転するので右肩が +X）と、拳までの長さ・両手で柄を握る所までの前への距離 */
+    private static final float SHOULDER_X = 5.5F, SHOULDER_Y = 30.0F, ARM = 12.2F, GRIP_REACH = 10.9F;
+
+    /**
+     * 両手持ち: 右腕の振りの向きのまま、両肩の真ん中の前（柄）に両手を集める。w で今の姿勢から寄せる。
+     * 腕の向き（Z・Y・X の順に回した下向き）から柄の場所を出し、両腕をそこへ向ける（ねじりは無し）
+     */
+    private static void grip(Pose p, float w) {
+        float sx = Mth.sin(p.aX), cx = Mth.cos(p.aX), sy = Mth.sin(p.aY), cy = Mth.cos(p.aY), sz = Mth.sin(p.aZ), cz = Mth.cos(p.aZ);
+        float dx0 = -sx * sy, dy0 = -cx, dz = -sx * cy;
+        float dx = dx0 * cz - dy0 * sz, dy = dx0 * sz + dy0 * cz;
+        float gx = dx * GRIP_REACH, gy = SHOULDER_Y + dy * GRIP_REACH, gz = dz * GRIP_REACH;
+        float[] r = aim(gx - SHOULDER_X, gy - SHOULDER_Y, gz);
+        float[] l = aim(gx + SHOULDER_X, gy - SHOULDER_Y, gz);
+        p.aX = Mth.lerp(w, p.aX, r[0]); p.aY = Mth.lerp(w, p.aY, r[1]); p.aZ = Mth.lerp(w, p.aZ, 0.0F);
+        p.lX = Mth.lerp(w, p.lX, l[0]); p.lY = Mth.lerp(w, p.lY, l[1]); p.lZ = Mth.lerp(w, p.lZ, 0.0F);
+    }
+
+    /** 下向きの腕を (x, y, z) へ向ける rotX・rotY */
+    private static float[] aim(float x, float y, float z) {
+        float len = Mth.sqrt(x * x + y * y + z * z);
+        if (len < 1.0E-4F) return new float[]{0.0F, 0.0F};
+        float ax = (float) Math.acos(Mth.clamp(-y / len, -1.0F, 1.0F));
+        float ay = Math.abs(Mth.sin(ax)) < 1.0E-3F ? 0.0F : (float) Mth.atan2(-x, -z);
+        return new float[]{ax, ay};
+    }
+
+    /** 立ち姿の脚の開き・つま先の外向き（ラジアン） */
+    private static final float STANCE_SPREAD = 0.11F, STANCE_TOE_OUT = 0.24F;
 
     private static float smooth(float t) {
         t = Mth.clamp(t, 0.0F, 1.0F);

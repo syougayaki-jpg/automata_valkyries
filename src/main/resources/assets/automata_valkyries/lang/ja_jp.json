@@ -900,6 +900,7 @@
   "message.automata_valkyries.luxion.incoming": "光が集まっていく……英雄機が来る",
   "message.automata_valkyries.luxion.arrive": "最光速『ルクシオン』、降臨",
   "message.automata_valkyries.luxion.phase2": "ルクシオンの光が加速する――！",
+  "message.automata_valkyries.luxion.accelerator": "ルクシオンアクセラレータ！",
   "entity.automata_valkyries.luxion.defeat_speech": "……光は、まだ届かない、か",
   "death.attack.automata_valkyries.arc": "%1$s は雷に打たれた",
   "death.attack.automata_valkyries.arc.player": "%1$s は %2$s の攻撃で雷に打たれた",

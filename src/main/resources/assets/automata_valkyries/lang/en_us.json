@@ -900,6 +900,7 @@
   "message.automata_valkyries.luxion.incoming": "The light is gathering... a hero unit is coming",
   "message.automata_valkyries.luxion.arrive": "Luxion, the Lightspeed, descends",
   "message.automata_valkyries.luxion.phase2": "Luxion's light is accelerating—!",
+  "message.automata_valkyries.luxion.accelerator": "Luxion Accelerator!",
   "entity.automata_valkyries.luxion.defeat_speech": "...So my light still cannot reach.",
   "death.attack.automata_valkyries.arc": "%1$s was struck down by an electric arc",
   "death.attack.automata_valkyries.arc.player": "%1$s was struck down by an electric arc from %2$s",

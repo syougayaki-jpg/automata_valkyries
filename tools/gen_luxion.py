@@ -17,7 +17,8 @@ AEC 級ボス 最光速『ルクシオン』の GeckoLib モデルとテクス�
                                                                   > booster_wing_left（左ポッド）/ booster_wing_right（右ポッド）（主翼。rotZ で広げる）
                                                                   > booster_fin_left / booster_fin_right（上ポッド）（尾翼。rotZ で起こす）
                           > cannon（右肩の上の光の槍 -4,33,2。rotX で上下）
-       > right_leg（-2.2,20,0）/ left_leg（2.2,20,0）
+       > right_leg（股関節 -2.2,20,0。太もも）> right_shin（膝 -2.2,12.5,0。膝の装甲から下）> calf_fin_right
+       > left_leg（2.2,20,0）> left_shin（2.2,12.5,0）> calf_fin_left（2026-10-09 に膝を分けた。Java 側は 2 本の骨の脚の解き方で動かす）
 動かす骨には初期の向きを付けない（傾きは子の骨 blade_tilt・fin_*・calf_fin_* に付ける）。
 見た目: 細身の機械の騎士。クロノ・ゲイザーのガンメタルに白金の装甲（白 0xF4F0E4・金の縁 0xE8C060）、
 冷たい赤の一つ目のバイザー・関節・刃の縁、兜の後ろから流れる白金の光の尾（発光）、背中とふくらはぎの後退したひれ。
@@ -44,6 +45,10 @@ g.MAT.update({
     'kspine': (0x1A1C24, 0x34384A, 0x0C0D12, 'plain', False),   # 刀の峰（暗い）
     'kwrap': (0x1E2028, 0x3A3E4C, 0x101116, 'plain', False),    # 柄の巻き
 })
+
+
+# 膝の高さ（太ももの芯の下端。この上が太もも 7.5、下が脛と足 12.5）
+KNEE_Y = 12.5
 
 
 def luxion():
@@ -288,10 +293,13 @@ def luxion():
     # ---- 脚: 斜めの太もも・膝・脛の板、足首の噴射口
     for name, s in (('right_leg', -1), ('left_leg', 1)):
         m.bone(name, 'root', (s * 2.2, 20, 0))
+        shin = name.replace('_leg', '_shin')
+        m.bone(shin, name, (s * 2.2, KNEE_Y, 0))                                                            # 膝から下（2026-10-09）
         def L(a, c, mat, rot=None, pivot=None, **f):
             r = (rot[0], s * -rot[1], s * -rot[2]) if rot else None
             p = (s * -pivot[0], pivot[1], pivot[2]) if pivot else None
-            B(name, (s * -a[0], a[1], a[2]), (s * -c[0], c[1], c[2]), mat, rot=r, pivot=p, **f)
+            bone = name if min(a[1], c[1]) >= KNEE_Y - 0.1 else shin                                         # 膝より上は太もも、膝の装甲から下は脛
+            B(bone, (s * -a[0], a[1], a[2]), (s * -c[0], c[1], c[2]), mat, rot=r, pivot=p, **f)
         L((-3.4, 12.5, -1.3), (-1.0, 20.2, 1.3), 'metal')                                                   # 太ももの芯
         L((-3.7, 13.6, -1.75), (-0.7, 19.0, -1.25), 'wplate', top='gold', rot=(-10, 0, 0), pivot=(-2.2, 19.0, -1.5))   # 太ももの前（下が前へ）
         L((-3.85, 14.0, -1.2), (-3.35, 18.6, 1.2), 'champ', rot=(0, 0, 10), pivot=(-3.35, 18.6, 0))           # 太ももの横
@@ -312,7 +320,7 @@ def luxion():
         L((-3.0, 2.0, -2.1), (-1.4, 3.4, -1.6), 'gold', rot=(0, 0, 45), pivot=(-2.2, 2.7, -1.85))              # 脛の鋭い下の縁
         L((-2.6, 0.3, -5.6), (-1.8, 1.1, -4.5), 'gold', rot=(0, 45, 0), pivot=(-2.2, 0.7, -4.6))               # 尖ったつま先
         L((-3.75, 1.4, -0.6), (-3.5, 3.0, 1.7), 'gold', rot=(-30, 0, 10), pivot=(-3.6, 2.0, 0.5))              # 足首の刃
-        c = m.bone('calf_fin_' + name.split('_')[0], name, (s * 2.2, 8.0, 1.6), (25, 0, 0))
+        c = m.bone('calf_fin_' + name.split('_')[0], shin, (s * 2.2, 8.0, 1.6), (25, 0, 0))
         B(c, (s * 2.35, 6.0, 1.6), (s * 2.05, 9.5, 4.3), 'wplate', out='gold')
         B(c, (s * 2.33, 9.3, 2.4), (s * 2.07, 10.7, 4.6), 'gold', rot=(30, 0, 0), pivot=(s * 2.2, 9.4, 3.0))  # ふくらはぎの鋭い刃の先
         B(c, (s * 2.33, 5.2, 3.0), (s * 2.07, 6.1, 4.8), 'gold', rot=(-25, 0, 0), pivot=(s * 2.2, 6.0, 3.0))
@@ -563,14 +571,14 @@ def armor_glow(grid, glows, w, h, mat, face, ctx):
             put(w - 1, 0, RED); put(0, h - 1, RED)
 
     plate = mat in ('wplate', 'champ', 'wsmooth')
-    if mat == 'gold' and ctx['rot'] and face in sides and (bone in ('right_arm', 'left_arm', 'right_leg', 'left_leg', 'body') or bone.startswith('calf_fin')) and sx < 4.5 and sz < 4.5:
+    if mat == 'gold' and ctx['rot'] and face in sides and (bone in ('right_arm', 'left_arm', 'right_leg', 'left_leg', 'right_shin', 'left_shin', 'body') or bone.startswith('calf_fin')) and sx < 4.5 and sz < 4.5:
         for x in range(w):                                                      # 尖った金の刃の光る縁（2026-10-08）
             put(x, 0, WG_CORE if x % 3 else WG_MID)
         if h >= 4:
             for x in range(1, w - 1, 2):
                 put(x, h - 1, RED)
         return
-    if bone in ('right_leg', 'left_leg'):                                       # ---- 脚（いちばん光らせる）
+    if bone in ('right_leg', 'left_leg', 'right_shin', 'left_shin'):            # ---- 脚（いちばん光らせる）
         if mat in ('wplate', 'champ') and sy >= 5 and face in ('north', out) and h >= 12:
             vline(w // 2)                                                       # 前・外を走る光の線
             if face == 'north' and sy >= 7.5 and w >= 5:

@@ -14,7 +14,13 @@ import org.joml.Matrix4f;
  * ルクシオンのレンダラー: 背の推進器から出る光を、カーテンのように垂らし、マントのように大きく広げて描く
  * （2026-10-08 ユーザー指定「スラスターから出る光の演出をカーテン状におろし、さらに大きくマントのように広げて」）。
  * 上は翼の付け根から翼の先へ弧に並び、下は地面近くまで垂れて左右へ大きく開き、後ろへ反る。波打ちながら揺れ、
- * 動くと後ろへなびく。上が明るく下へ消える半透明の光（外の広い層と内の明るい層の 2 重）。第 2 形態は明るく、縁が赤みを帯びる
+ * 動くと後ろへなびく。上が明るく下へ消える半透明の光（外の広い層と内の明るい層の 2 重）。第 2 形態は明るく、縁が赤みを帯びる。
+ * <p>
+ * 光のマント・ブースターの光・光の翼・光輪は、モデルの今の姿勢（腰の上下・胴のひねりと傾き・背の推進器の傾き。{@code LuxionEntity#animBodyX} 等）に
+ * 付けて描く（2026-10-09 ユーザー指定「ブースターからの光やマントも含めて全身使う」。それまでは体の向きだけで、胴をひねっても沈んでも動かなかった）。
+ * マントは技の勢いではためき（斬ると裾が広がって跳ね上がる、突進の構えで後ろへ引かれる、止まると前へあおられる）、胴のひねりに遅れて振れ、
+ * 空中ではふわりと浮き、退くときは体を包む。ブースターは技の勢いで噴射が長く太くなる
+ * </p>
  */
 public class LuxionRenderer extends ChronoGazerRenderer<LuxionEntity> {
 
@@ -39,6 +45,15 @@ public class LuxionRenderer extends ChronoGazerRenderer<LuxionEntity> {
         // 身長 5 ブロック（モデル・光・残光をまとめて {@link LuxionEntity#SIZE} 倍に。2026-10-08 ユーザー指定）
         pose.pushPose();
         pose.scale(LuxionEntity.SIZE, LuxionEntity.SIZE, LuxionEntity.SIZE);
+        // ルクシオンアクセラレータの蹴り: 体ごと蹴りの向きへ傾ける（腰を中心に。前へ蹴り出した右脚が相手を向く）
+        float kick = lux.accelPitch();
+        if (kick != 0.0F && !portrait) {
+            float yaw = Mth.rotLerp(partialTick, lux.yBodyRotO, lux.yBodyRot) * Mth.DEG_TO_RAD;
+            float fx = -Mth.sin(yaw), fz = Mth.cos(yaw); // 向いている向き
+            pose.translate(0.0F, 20.0F / 16.0F, 0.0F);
+            pose.mulPose(new org.joml.Quaternionf().rotationAxis(kick, fz, 0.0F, -fx)); // 上 × 前 の軸で、前が下を向く
+            pose.translate(0.0F, -20.0F / 16.0F, 0.0F);
+        }
         renderScaled(lux, entityYaw, partialTick, pose, buffers, light);
         pose.popPose();
     }
@@ -59,16 +74,17 @@ public class LuxionRenderer extends ChronoGazerRenderer<LuxionEntity> {
         pose.mulPose(com.mojang.math.Axis.YP.rotationDegrees(180.0F - yaw)); // モデルと同じ向き（正面 = -Z、背中 = +Z）
         VertexConsumer vc = buffers.getBuffer(RenderType.lightning());
         Matrix4f m = pose.last().pose();
+        Matrix4f back = backFrame(lux);
+        Motion mo = new Motion(lux.animSpread, lux.animSweep, lux.animClose, lux.animWindup, lux.animFlare, lux.animHover ? 1.0F : 0.0F, lux.animBodyY);
         // 外の広い層（淡い）と内の層（明るい）
-        curtain(vc, m, age, speed, p2, 1.0F + 0.55F * glory, 0.0F, p2 ? 120 : 90, glory);
-        curtain(vc, m, age, speed, p2, 0.7F + 0.35F * glory, 0.06F, p2 ? 170 : 130, glory);
+        curtain(vc, m, back, mo, age, speed, p2, 1.0F + 0.55F * glory, 0.0F, p2 ? 120 : 90, glory);
+        curtain(vc, m, back, mo, age, speed, p2, 0.7F + 0.35F * glory, 0.06F, p2 ? 170 : 130, glory);
         if (glory > 0.01F) {
-            curtain(vc, m, age + 40.0F, speed, true, 1.9F * glory, -0.04F, 70, glory); // 一番外の大きな層
-            lightWings(vc, m, age, glory, speed);
-            halo(vc, m, age, glory);
+            curtain(vc, m, back, mo, age + 40.0F, speed, true, 1.9F * glory, -0.04F, 70, glory); // 一番外の大きな層
+            lightWings(vc, m, back, age, glory, speed);
+            halo(vc, m, back, age, glory);
         }
-        float dep = Mth.lerp(partialTick, lux.deployO, lux.deploy);
-        if (dep > 0.01F) boosterLight(vc, m, age, dep, speed, p2, glory);
+        if (lux.animOpen > 0.01F) boosterLight(vc, m, back, age, lux.animOpen, lux.animBurst, speed, p2, glory);
         pose.popPose();
     }
 
@@ -103,6 +119,35 @@ public class LuxionRenderer extends ChronoGazerRenderer<LuxionEntity> {
         }
     }
 
+    /** マントの動きに使う、モデルの今の姿勢（翼の開き・流れ、畳み、突進の構え、技のはためき、空中、胴のひねり） */
+    private record Motion(float spread, float sweep, float close, float windup, float flare, float hover, float twist) {}
+
+    /**
+     * 背（推進器）の座標の枠: モデルと同じ順で、全体の上下 → 腰（0,20,0）を中心に胴の回転（Z・Y・X の順。GeckoLib と同じ）→
+     * 背の推進器（0,28,2.5）を中心に傾き。ブロック単位（GeckoLib は geo の X を反転するが、どの中心も X = 0 なので同じ）
+     */
+    private static Matrix4f backFrame(LuxionEntity lux) {
+        Matrix4f f = new Matrix4f();
+        f.translate(0.0F, lux.animRootY / 16.0F, 0.0F);
+        f.translate(0.0F, 20.0F / 16.0F, 0.0F);
+        f.rotateZ(lux.animBodyZ).rotateY(lux.animBodyY).rotateX(lux.animBodyX);
+        f.translate(0.0F, -20.0F / 16.0F, 0.0F);
+        f.translate(0.0F, 28.0F / 16.0F, 2.5F / 16.0F);
+        f.rotateX(lux.animThrustersX);
+        f.translate(0.0F, -28.0F / 16.0F, -2.5F / 16.0F);
+        return f;
+    }
+
+    private static Vec3 at(Matrix4f f, Vec3 v) {
+        org.joml.Vector3f r = f.transformPosition(new org.joml.Vector3f((float) v.x, (float) v.y, (float) v.z));
+        return new Vec3(r.x, r.y, r.z);
+    }
+
+    private static Vec3 dir(Matrix4f f, Vec3 v) {
+        org.joml.Vector3f r = f.transformDirection(new org.joml.Vector3f((float) v.x, (float) v.y, (float) v.z));
+        return new Vec3(r.x, r.y, r.z);
+    }
+
     /** 3 つの噴射口の、たたんだときの出口（geo の px）と、ポッドが開く向き（ブースターの中の向き） */
     private static final float[][] NOZZLES = {{0.0F, 13.64F, 9.09F, 0.0F, 1.0F}, {1.633F, 13.64F, 6.26F, 0.866F, -0.5F}, {-1.633F, 13.64F, 6.26F, -0.866F, -0.5F}};
     /** ブースターの付け根・ポッドの根本（geo の px） */
@@ -111,10 +156,9 @@ public class LuxionRenderer extends ChronoGazerRenderer<LuxionEntity> {
     /**
      * ブースターから出る光（2026-10-08 ユーザー指定「スラスター消してブースターから光が出るように」）: 戦闘で開いたブースターの 3 つの噴射口から、
      * 白い芯と金のにじみの光の噴射が後ろへ伸びる。モデルと同じ計算（ChronoGazerModel: 後ろへ 85 度倒れ、ポッドが根本を中心に 35.3 度開く）で口の位置と向きを出す。
-     * 動くと長く、第 2 形態は赤みを帯びる
+     * 動くと長く、技の勢い（burst）で長く太く明るく、第 2 形態は赤みを帯びる。口の位置と向きは背の枠（胴・推進器の動き）に付ける
      */
-    private static void boosterLight(VertexConsumer vc, Matrix4f m, float age, float dep, float speed, boolean p2, float glory) {
-        float open = smoothstep(dep);
+    private static void boosterLight(VertexConsumer vc, Matrix4f m, Matrix4f back, float age, float open, float burst, float speed, boolean p2, float glory) {
         if (open < 0.2F) return;
         float split = smoothstep((open - 0.35F) / 0.65F) * 0.6155F;
         float pitch = 1.484F * open;
@@ -127,13 +171,15 @@ public class LuxionRenderer extends ChronoGazerRenderer<LuxionEntity> {
             Vec3 exit = pitchBack(splay(new Vec3(n[0], n[1], n[2]).subtract(POD_APEX), swing, split).add(POD_APEX).subtract(BOOSTER_PIVOT), pitch).add(BOOSTER_PIVOT);
             Vec3 dir = pitchBack(splay(radial.scale(0.17).add(0, -0.985, 0), swing, split), pitch).normalize();
             // geo の px → ブロック（GeckoLib は geo の X を反転して描く）
-            Vec3 at = new Vec3(-exit.x / 16.0, exit.y / 16.0, exit.z / 16.0);
-            Vec3 d = new Vec3(-dir.x, dir.y, dir.z);
-            float len = (1.1F + 0.25F * Mth.sin(age * 1.1F + i * 2.1F) + speed * 1.0F) * k * (1.0F + 1.2F * glory);
-            int a = (int) (220 * k);
+            Vec3 at = at(back, new Vec3(-exit.x / 16.0, exit.y / 16.0, exit.z / 16.0));
+            Vec3 d = dir(back, new Vec3(-dir.x, dir.y, dir.z)).normalize();
+            float b0 = Math.min(burst, 2.0F);
+            float len = (1.1F + 0.25F * Mth.sin(age * (1.1F + 0.6F * b0) + i * 2.1F) + speed * 1.0F) * k * (1.0F + 1.2F * glory) * (1.0F + 0.9F * b0);
+            float wide = 1.0F + 0.35F * b0;
+            int a = (int) (Math.min(255.0F, 220 * k * (1.0F + 0.15F * b0)));
             int g = p2 ? 200 : 240, b = p2 ? 160 : 210;
-            jet(vc, m, at, d, len, 0.16F * (1.0F + 0.6F * glory), 255, g, b, a);              // 白い芯
-            jet(vc, m, at, d, len * 1.35F, 0.32F * (1.0F + 0.8F * glory), 255, p2 ? 120 : 190, p2 ? 80 : 110, a / 2); // 金のにじみ
+            jet(vc, m, at, d, len, 0.16F * (1.0F + 0.6F * glory) * wide, 255, g, b, a);              // 白い芯
+            jet(vc, m, at, d, len * 1.35F, 0.32F * (1.0F + 0.8F * glory) * wide, 255, p2 ? 120 : 190, p2 ? 80 : 110, a / 2); // 金のにじみ
             if (glory > 0.01F) jet(vc, m, at, d, len * 1.8F, 0.6F * glory, 255, 80, 90, (int) (a * 0.35F * glory)); // 第 2 形態: 外の赤いにじみ
         }
     }
@@ -174,16 +220,16 @@ public class LuxionRenderer extends ChronoGazerRenderer<LuxionEntity> {
      * 第 2 形態の光の翼: 肩の後ろの付け根から、長い光の羽根 8 枚ずつが扇に開いて大きく伸びる（上外へ高く、下外へ長く）。
      * ゆっくり羽ばたき、動くと後ろへ流れる。白金の芯で、外側の羽根ほど縁が赤い
      */
-    private static void lightWings(VertexConsumer vc, Matrix4f m, float age, float glory, float speed) {
+    private static void lightWings(VertexConsumer vc, Matrix4f m, Matrix4f back, float age, float glory, float speed) {
         int feathers = 8;
         float flap = Mth.sin(age * 0.08F) * 0.12F;
         for (int side = -1; side <= 1; side += 2) {
-            Vec3 root = new Vec3(side * 0.35F, 2.05F, 0.32F);
+            Vec3 root = at(back, new Vec3(side * 0.35F, 2.05F, 0.32F)); // 背の枠に付ける
             for (int k = 0; k < feathers; k++) {
                 float f = k / (float) (feathers - 1);                       // 0（一番上）〜 1（一番下）
                 float ang = Mth.lerp(f, 1.15F, -0.55F) + flap * (1.0F - f * 0.5F); // 水平から上へ（ラジアン）
                 float len = (2.4F + 1.4F * Mth.sin(f * Mth.PI)) * glory;      // 真ん中の羽根ほど長い
-                Vec3 dir = new Vec3(side * Math.cos(ang), Math.sin(ang), 0.35F + speed * 0.6F + f * 0.2F).normalize();
+                Vec3 dir = dir(back, new Vec3(side * Math.cos(ang), Math.sin(ang), 0.35F + speed * 0.6F + f * 0.2F)).normalize();
                 Vec3 tip = root.add(dir.scale(len));
                 Vec3 mid = root.add(dir.scale(len * 0.45F));
                 Vec3 widthDir = dir.cross(new Vec3(0, 0, 1)).normalize().scale(0.13F * (1.0F + 0.3F * f));
@@ -199,8 +245,8 @@ public class LuxionRenderer extends ChronoGazerRenderer<LuxionEntity> {
     }
 
     /** 第 2 形態の背の光輪: 背の上に立つ、ゆっくり回る光の輪と、逆に回る 8 本の光の棘 */
-    private static void halo(VertexConsumer vc, Matrix4f m, float age, float glory) {
-        Vec3 c = new Vec3(0, 2.5F, 0.62F);
+    private static void halo(VertexConsumer vc, Matrix4f m, Matrix4f back, float age, float glory) {
+        Vec3 c = at(back, new Vec3(0, 2.5F, 0.62F)); // 背の枠に付ける（輪の向きは体の向きのまま）
         float r = 0.95F * glory, w = 0.06F;
         int segs = 40, a = (int) (200 * glory);
         float spin = age * 0.02F;
@@ -220,24 +266,35 @@ public class LuxionRenderer extends ChronoGazerRenderer<LuxionEntity> {
         }
     }
 
-    /** 1 枚のカーテン（scale = 広さ、back = 後ろへのずらし、alpha = 上端の明るさ） */
-    private static void curtain(VertexConsumer vc, Matrix4f m, float age, float speed, boolean p2, float scale, float back, int alpha, float glory) {
+    /**
+     * 1 枚のカーテン（scale = 広さ、back = 後ろへのずらし、alpha = 上端の明るさ）。上端は背の枠（frame）に付けて胴・推進器と一緒に動き、
+     * その下は上端から垂れる（下ほど体の動きに遅れる）。翼の開きで幅、技の勢いで裾が広がって跳ね上がり、突進の構え・翼の流れで後ろへ引かれ、
+     * 胴のひねりと逆へ振れ、空中では浮き、畳み（退く・降臨・撃破）で細く体を包む。裾は地面より下へ行かない
+     */
+    private static void curtain(VertexConsumer vc, Matrix4f m, Matrix4f frame, Motion mo, float age, float speed, boolean p2, float scale, float back, int alpha, float glory) {
         Vec3[][] grid = new Vec3[COLS + 1][ROWS + 1];
+        float flare = Math.min(mo.flare(), 1.6F);
+        float width = (0.85F + 0.3F * Mth.clamp(mo.spread(), 0.0F, 1.5F)) * (1.0F - 0.45F * mo.close());
+        float flutter = 1.0F + 1.5F * flare + 0.8F * mo.hover();
         for (int i = 0; i <= COLS; i++) {
             float u = i / (float) COLS * 2.0F - 1.0F;            // -1（左）〜 1（右）
             float au = Math.abs(u);
-            // 上端: 翼の付け根（背の中央、高さ 1.85）から翼の先（左右 1.4、高さ 2.35）への弧
-            Vec3 top = new Vec3(u * 1.4F * scale, 1.85F + au * au * 0.5F, 0.22F + back + au * 0.1F);
+            // 上端: 翼の付け根（背の中央、高さ 1.85）から翼の先（左右 1.4、高さ 2.35）への弧。背の枠に付ける
+            Vec3 topLocal = new Vec3(u * 1.4F * scale * width, 1.85F + au * au * 0.5F, 0.22F + back + au * 0.1F);
+            Vec3 top = at(frame, topLocal);
             for (int j = 0; j <= ROWS; j++) {
                 float t = j / (float) ROWS;                      // 0（上）〜 1（下）
-                float wave = Mth.sin(age * 0.12F + u * 3.0F + t * 2.5F) * 0.12F * t;
+                float t2 = t * t;
+                float wave = Mth.sin(age * (0.12F + 0.1F * flare) + u * 3.0F + t * 2.5F) * 0.12F * t * flutter;
                 float sway = Mth.sin(age * 0.07F + u * 1.7F) * 0.08F * t;
-                // 下へ行くほど左右へ大きく開き（マント）、後ろへ反り、動くと後ろへなびく
-                float x = u * (1.4F + 1.3F * t * t) * scale + sway;
-                // 第 2 形態: 裾が地面に広がって後ろへ長く引きずる
-                float y = Mth.lerp(t, (float) top.y, 0.05F + au * 0.15F) + speed * 0.5F * t * t;
-                float z = (float) top.z + (0.55F + 0.35F * au) * t * t * scale + wave + speed * 1.4F * t * t + glory * 1.6F * t * t * t;
-                grid[i][j] = new Vec3(x, y, z);
+                // 下へ行くほど左右へ大きく開き（マント）、技の勢いでさらに広がり、畳むと細く。胴のひねりと逆へ遅れて振れる
+                float dx = u * 1.3F * t2 * scale * (1.0F + 0.45F * flare) * (1.0F - 0.7F * mo.close()) + sway - mo.twist() * 0.7F * t2;
+                // 地面近くまで垂れる。動く・技の勢い・空中で裾が浮く
+                float dy = t * ((0.05F + au * 0.15F) - (float) topLocal.y) + speed * 0.5F * t2 + flare * 0.6F * t2 + mo.hover() * 0.7F * t2;
+                // 後ろへ反り、動くと後ろへなびく。第 2 形態は裾を後ろへ長く引きずる。突進の構え・翼の流れで後ろへ引かれ、畳むと端が前へ回って体を包む
+                float dz = (0.55F + 0.35F * au) * t2 * scale + wave + speed * 1.4F * t2 + glory * 1.6F * t2 * t
+                        + (Math.max(0.0F, mo.sweep()) * 0.5F + mo.windup() * 1.2F + flare * 0.3F) * t2 - mo.close() * 0.9F * au * t2;
+                grid[i][j] = new Vec3(top.x + dx, Math.max(0.02, top.y + dy), top.z + dz);
             }
         }
         for (int i = 0; i < COLS; i++) {
@@ -245,8 +302,8 @@ public class LuxionRenderer extends ChronoGazerRenderer<LuxionEntity> {
             int r = 255, g = p2 ? (int) (236 - 120 * edge) : 236, b = p2 ? (int) (180 - 110 * edge) : 180;
             for (int j = 0; j < ROWS; j++) {
                 float t0 = j / (float) ROWS, t1 = (j + 1) / (float) ROWS;
-                // 上が明るく、下へ消える。帯ごとに少しちらつく
-                float flicker = 0.85F + 0.15F * Mth.sin(i * 1.7F + j);
+                // 上が明るく、下へ消える。帯ごとに少しちらつく。はためくと少し明るく
+                float flicker = (0.85F + 0.15F * Mth.sin(i * 1.7F + j)) * (1.0F + 0.2F * flare);
                 int a0 = (int) (alpha * (1.0F - t0) * (1.0F - t0) * flicker), a1 = (int) (alpha * (1.0F - t1) * (1.0F - t1) * flicker);
                 quad(vc, m, grid[i][j], grid[i + 1][j], grid[i + 1][j + 1], grid[i][j + 1], r, g, b, a0, a0, a1, a1);
             }

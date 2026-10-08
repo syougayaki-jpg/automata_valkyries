@@ -15,13 +15,14 @@ import org.joml.Vector3f;
 /**
  * ルクシオンの技の自作エフェクト（見た目だけ。当たりは技の側で済ませてある。2026-10-08 ユーザー指定「光速突進や光刃の波も自作エフェクトで豪華に」）。
  * 位置が始まりで、{@link #END} が終わり。種類ごとに {@code client/LuxionFxRenderer} が描く:
- * 光刃の波 = 三日月の光の刃が始まりから終わりへ飛び、跡に光の帯、光速突進 = 道に光の帯と巻き付く螺旋の光が走って細く消える。
- * 保存しない。{@link #LIFE} Tick で消える
+ * 光刃の波 = 三日月の光の刃が始まりから終わりへ飛び、跡に光の帯、光速突進 = 道に光の帯と巻き付く螺旋の光が走って細く消える、
+ * 加速の光のレール（ルクシオンアクセラレータ）= 始まりから終わりへ 2 本の光のレールと加速の光の輪が次々に展開し、蹴り抜けるまで残る。
+ * 保存しない。{@link #life()} Tick で消える
  */
 public class LuxionFxEntity extends Entity {
 
-    public static final int WAVE = 0, DASH = 1;
-    public static final int LIFE = 18;
+    public static final int WAVE = 0, DASH = 1, RAIL = 2;
+    public static final int LIFE = 18, RAIL_LIFE = 40;
 
     private static final EntityDataAccessor<Integer> KIND = SynchedEntityData.defineId(LuxionFxEntity.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Vector3f> END = SynchedEntityData.defineId(LuxionFxEntity.class, EntityDataSerializers.VECTOR3);
@@ -40,6 +41,11 @@ public class LuxionFxEntity extends Entity {
         fx.entityData.set(END, new Vector3f((float) to.x, (float) to.y, (float) to.z));
         fx.entityData.set(RED, red);
         level.addFreshEntity(fx);
+    }
+
+    /** 消えるまでの Tick（レールは蹴り抜けるまで残す） */
+    public int life() {
+        return kind() == RAIL ? RAIL_LIFE : LIFE;
     }
 
     public int kind() {
@@ -65,7 +71,7 @@ public class LuxionFxEntity extends Entity {
     @Override
     public void tick() {
         super.tick();
-        if (!level().isClientSide && tickCount >= LIFE) discard();
+        if (!level().isClientSide && tickCount >= life()) discard();
     }
 
     @Override

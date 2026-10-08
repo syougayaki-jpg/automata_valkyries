@@ -31,7 +31,7 @@ public class LuxionFxRenderer extends EntityRenderer<LuxionFxEntity> {
     @Override
     public void render(LuxionFxEntity fx, float yaw, float partialTick, PoseStack pose, MultiBufferSource buffers, int light) {
         float age = fx.tickCount + partialTick;
-        float life = age / LuxionFxEntity.LIFE;
+        float life = age / fx.life();
         if (life >= 1.0F) return;
         Vec3 origin = fx.getPosition(partialTick);
         Vec3 end = fx.end().subtract(origin);
@@ -40,6 +40,7 @@ public class LuxionFxRenderer extends EntityRenderer<LuxionFxEntity> {
         Matrix4f m = pose.last().pose();
         boolean red = fx.red();
         if (fx.kind() == LuxionFxEntity.WAVE) wave(vc, m, end, cam, age, life, red);
+        else if (fx.kind() == LuxionFxEntity.RAIL) rail(vc, m, end, cam, age, life);
         else dash(vc, m, end, cam, age, life, red);
     }
 
@@ -95,6 +96,49 @@ public class LuxionFxRenderer extends EntityRenderer<LuxionFxEntity> {
                 Vec3 p = dir.scale(t * len).add(u.scale(Math.cos(ang) * radius)).add(v.scale(Math.sin(ang) * radius));
                 if (prev != null) ribbon(vc, m, prev, p, cam, 0.1F * fade, 255, h == 0 ? 236 : 120, h == 0 ? 180 : 110, (int) (200 * fade));
                 prev = p;
+            }
+        }
+    }
+
+    /**
+     * 加速の光のレール（ルクシオンアクセラレータ）: 始まりから終わりへ 8 Tick で、左右 2 本の光のレールが伸び、2 ブロックおきに加速の光の輪（レールに垂直、
+     * 回りながら脈打つ。赤と金を交互に）が次々に開く。真ん中に予測の赤い線。最後に細く薄れる
+     */
+    private static void rail(VertexConsumer vc, Matrix4f m, Vec3 end, Vec3 cam, float age, float life) {
+        double len = end.length();
+        if (len < 0.1) return;
+        Vec3 dir = end.scale(1 / len);
+        Vec3 up = Math.abs(dir.y) > 0.95 ? new Vec3(1, 0, 0) : new Vec3(0, 1, 0);
+        Vec3 u = dir.cross(up).normalize(), v = dir.cross(u).normalize();
+        float grow = Mth.clamp(age / 8.0F, 0.0F, 1.0F);
+        float fade = life < 0.75F ? 1.0F : 1.0F - (life - 0.75F) / 0.25F;
+        Vec3 head = end.scale(grow);
+        // 2 本のレール（白金の芯と金のにじみ）と真ん中の予測の赤い線
+        for (int side = -1; side <= 1; side += 2) {
+            Vec3 off = u.scale(side * 0.9);
+            ribbon(vc, m, off, head.add(off), cam, 0.35F * fade, 255, 220, 140, (int) (120 * fade));
+            ribbon(vc, m, off, head.add(off), cam, 0.1F, 255, 250, 235, (int) (230 * fade));
+        }
+        ribbon(vc, m, Vec3.ZERO, head, cam, 0.08F, 255, 60, 80, (int) (220 * fade));
+        // 加速の光の輪
+        int rings = (int) (len / 2.0);
+        for (int i = 1; i <= rings; i++) {
+            float at = i / (float) (rings + 1);
+            float open = Mth.clamp((grow - at) * 6.0F, 0.0F, 1.0F); // 先頭が通ってから開く
+            if (open <= 0.0F) continue;
+            Vec3 c = end.scale(at);
+            float pulse = 1.0F + 0.12F * Mth.sin(age * 0.8F - i * 0.9F);
+            float r = (1.0F + 0.5F * (1.0F - at)) * open * pulse;
+            boolean red = i % 2 == 0;
+            int g = red ? 70 : 220, b = red ? 90 : 140;
+            int segs = 24;
+            float spin = age * 0.15F * (red ? -1 : 1);
+            for (int k = 0; k < segs; k++) {
+                if (k % 6 == 5) continue; // 切れ目のある輪
+                double a0 = spin + Math.PI * 2 * k / segs, a1 = spin + Math.PI * 2 * (k + 1) / segs;
+                Vec3 p0 = c.add(u.scale(Math.cos(a0) * r)).add(v.scale(Math.sin(a0) * r));
+                Vec3 p1 = c.add(u.scale(Math.cos(a1) * r)).add(v.scale(Math.sin(a1) * r));
+                ribbon(vc, m, p0, p1, cam, 0.14F * fade, 255, g, b, (int) (210 * fade * open));
             }
         }
     }

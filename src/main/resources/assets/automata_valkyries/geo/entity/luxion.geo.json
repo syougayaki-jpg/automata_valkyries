@@ -25282,7 +25282,18 @@
         0,
         10
        ]
-      },
+      }
+     ]
+    },
+    {
+     "name": "right_shin",
+     "pivot": [
+      -2.2,
+      12.5,
+      0
+     ],
+     "parent": "right_leg",
+     "cubes": [
       {
        "origin": [
         -3.6,
@@ -26596,7 +26607,7 @@
       8.0,
       1.6
      ],
-     "parent": "right_leg",
+     "parent": "right_shin",
      "rotation": [
       25,
       0,
@@ -27097,7 +27108,18 @@
         0,
         -10
        ]
-      },
+      }
+     ]
+    },
+    {
+     "name": "left_shin",
+     "pivot": [
+      2.2,
+      12.5,
+      0
+     ],
+     "parent": "left_leg",
+     "cubes": [
       {
        "origin": [
         0.8,
@@ -28411,7 +28433,7 @@
       8.0,
       1.6
      ],
-     "parent": "left_leg",
+     "parent": "left_shin",
      "rotation": [
       25,
       0,
