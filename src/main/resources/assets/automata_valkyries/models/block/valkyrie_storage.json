@@ -1,8 +1,9 @@
 {
-  "parent": "minecraft:block/orientable",
+  "parent": "minecraft:block/orientable_with_bottom",
   "textures": {
-    "front": "automata_valkyries:block/tether_pylon_front_t1_on",
-    "side": "automata_valkyries:block/valkyrie_charger_side",
-    "top": "automata_valkyries:block/valkyrie_charger_metal"
+    "front": "automata_valkyries:block/valkyrie_storage_front",
+    "side": "automata_valkyries:block/valkyrie_storage_side",
+    "top": "automata_valkyries:block/valkyrie_storage_top",
+    "bottom": "automata_valkyries:block/valkyrie_storage_bottom"
   }
 }
