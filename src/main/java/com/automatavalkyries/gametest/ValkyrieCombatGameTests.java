@@ -9,6 +9,8 @@ import com.automatavalkyries.registry.ModWeapons;
 import com.automatavalkyries.weapon.TacticalWeaponItem;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.monster.Zombie;
@@ -123,6 +125,25 @@ public class ValkyrieCombatGameTests {
             plain.releaseAndDiscard();
             a.discard();
             b.discard();
+        }).thenSucceed();
+    }
+
+    /** オメガコアはデバフ（バニラ・MOD の物とも）を受けず、積む前から掛かっていた物も消す。良い効果は残す */
+    @GameTest(template = TEMPLATE, batch = "valkyrie_combat", timeoutTicks = 40)
+    public static void valkyrieOmegaCoreClearsDebuffs(GameTestHelper helper) {
+        ValkyrieEntity v = helper.spawn(ModEntities.VALKYRIE.get(), 1, 2, 1);
+        v.addEffect(new MobEffectInstance(MobEffects.POISON, 200));
+        v.addEffect(new MobEffectInstance(MobEffects.DAMAGE_BOOST, 200));
+        helper.assertTrue(v.hasEffect(MobEffects.POISON), "poison not applied without omega core");
+        v.setCore(new ItemStack(ModWeapons.CORE_STELLA_GENESIS_OMEGA.get()));
+        helper.startSequence().thenIdle(2).thenExecute(() -> {
+            helper.assertFalse(v.hasEffect(MobEffects.POISON), "existing poison not cleared by omega core");
+            helper.assertTrue(v.hasEffect(MobEffects.DAMAGE_BOOST), "omega core removed a beneficial effect");
+            helper.assertFalse(v.addEffect(new MobEffectInstance(MobEffects.WITHER, 200)), "omega core accepted wither");
+            v.forceAddEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 200), null);
+            helper.assertFalse(v.hasEffect(MobEffects.MOVEMENT_SLOWDOWN), "omega core accepted forced slowness");
+            helper.assertFalse(v.addEffect(new MobEffectInstance(ModWeapons.FROSTBITE.get(), 200)), "omega core accepted a modded debuff");
+            v.releaseAndDiscard();
         }).thenSucceed();
     }
 

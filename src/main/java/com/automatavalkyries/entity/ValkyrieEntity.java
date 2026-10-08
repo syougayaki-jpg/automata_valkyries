@@ -8,6 +8,7 @@ import com.automatavalkyries.registry.ModWeapons;
 import com.automatavalkyries.weapon.RepairInjectorItem;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtUtils;
@@ -28,6 +29,9 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.PathfinderMob;
+import net.minecraft.world.effect.MobEffect;
+import net.minecraft.world.effect.MobEffectCategory;
+import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.FloatGoal;
@@ -417,6 +421,30 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
     /** 胸のコアがステラ・ジェネシス・オメガか（即死・消去を完全に無効にする） */
     public boolean hasOmegaCore() {
         return getCore().is(ModWeapons.CORE_STELLA_GENESIS_OMEGA.get());
+    }
+
+    /**
+     * オメガコアが断るデバフか。バニラ・他 MOD・このMOD を問わず悪い効果（HARMFUL）と、
+     * 分類が悪い効果になっていなくても名前がフラグ辞書で保護対象に有害とされる物（停止・拘束・即死の印など）
+     */
+    public static boolean isOmegaBlockedDebuff(MobEffect effect) {
+        if (effect.getCategory() == MobEffectCategory.HARMFUL) return true;
+        ResourceLocation id = BuiltInRegistries.MOB_EFFECT.getKey(effect);
+        return id != null && com.automatavalkyries.protect.flag.FlagDictionary.harmfulOnProtected(id.getPath());
+    }
+
+    /** オメガコアならデバフを受けない */
+    @Override
+    public boolean canBeAffected(MobEffectInstance effect) {
+        if (hasOmegaCore() && isOmegaBlockedDebuff(effect.getEffect())) return false;
+        return super.canBeAffected(effect);
+    }
+
+    /** canBeAffected を通らずに入ったデバフ（積む前から掛かっていた物を含む）を消す */
+    private void clearDebuffs() {
+        for (MobEffect effect : java.util.List.copyOf(getActiveEffectsMap().keySet())) {
+            if (isOmegaBlockedDebuff(effect)) removeEffect(effect);
+        }
     }
 
     // ------------------------------------------------------------------ 段階 3: 構え・ステップの動き（モデルの動きの合図）
@@ -1141,6 +1169,7 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
 
     private void serverTick() {
         super.tick();
+        if (hasOmegaCore()) clearDebuffs();
         // HP が直接 0 以下に書き換えられていたら（setHealth を通らない書き換え）即死の扱い。オメガコアなら直前の HP へ戻す
         float hp = DirectRead.health(this);
         if (hp <= 0.0F || !Float.isFinite(hp)) {
