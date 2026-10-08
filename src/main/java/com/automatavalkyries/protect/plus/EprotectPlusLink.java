@@ -1,8 +1,6 @@
 package com.automatavalkyries.protect.plus;
 
 import com.automatavalkyries.AutomataValkyries;
-import com.automatavalkyries.annihilate.AnnihilationExecutionAgent;
-import com.automatavalkyries.protect.attack.CallerAttribution;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
@@ -26,9 +24,9 @@ import java.util.concurrent.atomic.AtomicLong;
  * MOD 側から Eprotect+ Java エージェント（システムクラスローダー常駐）を操作・参照するためのリンク。
  * <p>
  * {@code -javaagent:automata_valkyries-eprotect-plus.jar} が付いていれば JVM エージェント経由で
- * バイトコード操作・特権迂回・真抹殺を実行する。
+ * バイトコード監視・再監査・診断を利用できる。
  * エージェントが付いていない環境（通常の GameTest や非エージェント起動時）でも、
- * 内蔵の Unsafe / リフレクションによる同等の迂回・調査・真抹殺フォールバックエンジンが自動で稼働する。
+ * ゲーム内の対象限定の前処理を使う。バイトコード操作はエージェント接続時だけ利用できる。
  * </p>
  */
 public final class EprotectPlusLink {
@@ -37,7 +35,8 @@ public final class EprotectPlusLink {
 
     @Nullable
     private static volatile Class<?> bridge;
-    private static volatile boolean looked = false;
+    private static volatile long nextBridgeLookupNs = System.nanoTime();
+    private static final Map<String, Method> BRIDGE_METHODS = new java.util.concurrent.ConcurrentHashMap<>();
 
     // ---- フォールバック用ローカル記憶域（エージェント未接続時） -----------------
     private static final int MAX_LOCAL_EVENTS = 512;
@@ -47,22 +46,32 @@ public final class EprotectPlusLink {
     private static final AtomicLong LOCAL_PROTECTIONS = new AtomicLong();
     private static final AtomicLong LOCAL_ANNIHILATIONS = new AtomicLong();
     private static final ThreadLocal<Boolean> LOCAL_PRIVILEGED = ThreadLocal.withInitial(() -> Boolean.FALSE);
-    private static final AtomicLong LOCAL_REINFORCED_UNTIL_MS = new AtomicLong(0);
+    private static final AtomicLong LOCAL_REINFORCED_UNTIL_NS = new AtomicLong(System.nanoTime());
     private static volatile String LOCAL_REINFORCED_REASON = "";
 
     private EprotectPlusLink() {}
 
     @Nullable
-    private static Class<?> bridge() {
-        if (!looked) {
-            looked = true;
-            try {
-                bridge = Class.forName(BRIDGE_CLASS, true, ClassLoader.getSystemClassLoader());
-            } catch (Throwable t) {
-                bridge = null;
-            }
-        }
+    private static synchronized Class<?> bridge() {
+        if (bridge != null) return bridge;
+        long now = System.nanoTime();
+        if (now - nextBridgeLookupNs < 0) return null;
+        nextBridgeLookupNs = now + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+        try {
+            bridge = Class.forName(BRIDGE_CLASS, true, ClassLoader.getSystemClassLoader());
+        } catch (ClassNotFoundException | LinkageError ignored) { }
         return bridge;
+    }
+
+    private static Method bridgeMethod(Class<?> type, String name, Class<?>... parameters)
+            throws NoSuchMethodException {
+        String key = name + java.util.Arrays.toString(parameters);
+        Method method = BRIDGE_METHODS.get(key);
+        if (method == null) {
+            method = type.getMethod(name, parameters);
+            BRIDGE_METHODS.putIfAbsent(key, method);
+        }
+        return method;
     }
 
     /** Java エージェントが有効かつ稼働中か */
@@ -70,79 +79,78 @@ public final class EprotectPlusLink {
         Class<?> type = bridge();
         if (type == null) return false;
         try {
-            Method m = type.getMethod("isActive");
+            Method m = bridgeMethod(type, "isActive");
             return Boolean.TRUE.equals(m.invoke(null));
         } catch (Throwable t) {
             return false;
         }
     }
 
-    /** 特権実行（StackChecker 迂回）中か */
+    /** 協調用の特権フラグの実行範囲内か（JVM権限・スタックを変更するものではない） */
     public static boolean isPrivilegedOrBypassing() {
         if (Boolean.TRUE.equals(LOCAL_PRIVILEGED.get())) return true;
         Class<?> type = bridge();
         if (type != null) {
             try {
-                Method m = type.getMethod("isPrivileged");
+                Method m = bridgeMethod(type, "isPrivileged");
                 return Boolean.TRUE.equals(m.invoke(null));
             } catch (Throwable ignored) {}
         }
         return false;
     }
 
-    /** 特権コンテキストで処理を実行 */
+    /** 同じスレッド上の協調用フラグ。action は正常時・例外時とも一度だけ実行する。 */
     public static void runPrivileged(Runnable action) {
-        boolean prevLocal = LOCAL_PRIVILEGED.get();
-        LOCAL_PRIVILEGED.set(true);
-
-        Class<?> type = bridge();
-        if (type != null) {
-            try {
-                Method m = type.getMethod("runPrivileged", Runnable.class);
-                m.invoke(null, action);
-                return;
-            } catch (Throwable ignored) {}
-        }
-
-        try {
-            action.run();
-        } finally {
-            LOCAL_PRIVILEGED.set(prevLocal);
-        }
+        runScoped("runPrivileged", action);
     }
 
-    /**
-     * スタックトレース偽装・検閲欺瞞コンテキストで処理を実行（案3）。
-     */
+    /** 互換API。呼び出し履歴を隠す保証はなく、特権フラグの範囲だけを管理する。 */
     public static void runWithCloakedStack(Runnable action) {
-        boolean prevLocal = LOCAL_PRIVILEGED.get();
+        runScoped("runCloaked", action);
+    }
+
+    private static void runScoped(String methodName, Runnable action) {
+        java.util.Objects.requireNonNull(action, "action");
+        boolean previous = LOCAL_PRIVILEGED.get();
         LOCAL_PRIVILEGED.set(true);
-
-        Class<?> type = bridge();
-        if (type != null) {
-            try {
-                Method m = type.getMethod("runCloaked", Runnable.class);
-                m.invoke(null, action);
-                return;
-            } catch (Throwable ignored) {}
-        }
-
         try {
-            action.run();
+            Class<?> type = bridge();
+            Method method = null;
+            if (type != null && isAgentActive()) {
+                try {
+                    method = bridgeMethod(type, methodName, Runnable.class);
+                } catch (NoSuchMethodException ignored) { }
+            }
+            if (method == null) {
+                action.run();
+                return;
+            }
+            try {
+                method.invoke(null, action);
+            } catch (java.lang.reflect.InvocationTargetException exception) {
+                Throwable cause = exception.getCause();
+                if (cause instanceof RuntimeException runtime) throw runtime;
+                if (cause instanceof Error error) throw error;
+                throw new IllegalStateException("Eprotect+ action failed", cause);
+            } catch (IllegalAccessException exception) {
+                // Invocation has not started; only this case may use the local action.
+                action.run();
+            }
         } finally {
-            LOCAL_PRIVILEGED.set(prevLocal);
+            if (previous) LOCAL_PRIVILEGED.set(true);
+            else LOCAL_PRIVILEGED.remove();
         }
     }
 
     /**
      * JVM エージェントによる能動的バイトコード再監査・強制復元（案2）。
-     * @return 再監査・復元したクラス数
+     * @return 正常に再変換したクラス数（復元を確認した件数ではない）
      */
     public static int enforceBytecodeIntegrity() {
         Class<?> type = bridge();
         if (type != null) {
             try {
-                Method m = type.getMethod("retransformCriticalClasses");
+                Method m = bridgeMethod(type, "retransformCriticalClasses");
                 Object res = m.invoke(null);
                 if (res instanceof Integer count) {
                     return count;
@@ -159,14 +167,16 @@ public final class EprotectPlusLink {
      */
     public static void triggerReinforcedProtection(long durationMs, String reason) {
         boolean alreadyActive = isReinforcedActive();
-        long targetUntil = System.currentTimeMillis() + durationMs;
-        LOCAL_REINFORCED_UNTIL_MS.updateAndGet(prev -> Math.max(prev, targetUntil));
+        long now = System.nanoTime();
+        long durationNs = Math.min(Long.MAX_VALUE / 2,
+                java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(Math.max(0, durationMs)));
+        LOCAL_REINFORCED_UNTIL_NS.updateAndGet(previous -> previous - now > durationNs ? previous : now + durationNs);
         LOCAL_REINFORCED_REASON = reason != null ? reason : "UNKNOWN";
 
         Class<?> type = bridge();
         if (type != null) {
             try {
-                Method m = type.getMethod("triggerReinforced", long.class, String.class);
+                Method m = bridgeMethod(type, "triggerReinforced", long.class, String.class);
                 m.invoke(null, durationMs, reason);
             } catch (Throwable ignored) {}
         }
@@ -175,18 +185,19 @@ public final class EprotectPlusLink {
             // 強化処理開始時に能動的バイトコード点検を執行
             enforceBytecodeIntegrity();
 
-            recordProtection("EprotectPlusLink", reason, "reinforced_mode",
-                    "Eprotect+ 強化処理発動（期間: " + durationMs + "ms, 理由: " + LOCAL_REINFORCED_REASON + "）");
+            recordLocal("強化", "EprotectPlusLink", reason, "reinforced_mode", "発動",
+                    "期間: " + durationMs + "ms, 理由: " + LOCAL_REINFORCED_REASON);
             AutomataValkyries.LOGGER.info("[eprotect-plus] >>> REINFORCED PROTECTION ACTIVATED <<< Duration: {}ms, Reason: {}",
                     durationMs, LOCAL_REINFORCED_REASON);
         }
     }
 
     /**
-     * 強化処理（指定 Tick 数、例: 200 ticks = 10秒）を発動する。
+     * 強化処理（Tick 数を50msに換算、例: 200 ticks = 実時間10秒）を発動する。
      */
     public static void triggerReinforcedProtectionTicks(long durationTicks, String reason) {
-        triggerReinforcedProtection(durationTicks * 50L, reason);
+        long ticks = Math.max(0, durationTicks);
+        triggerReinforcedProtection(ticks > Long.MAX_VALUE / 50L ? Long.MAX_VALUE : ticks * 50L, reason);
     }
 
     /**
@@ -208,11 +219,11 @@ public final class EprotectPlusLink {
      * 現在 Eprotect+ 強化処理が稼働中か。
      */
     public static boolean isReinforcedActive() {
-        if (System.currentTimeMillis() < LOCAL_REINFORCED_UNTIL_MS.get()) return true;
+        if (LOCAL_REINFORCED_UNTIL_NS.get() - System.nanoTime() > 0) return true;
         Class<?> type = bridge();
         if (type != null) {
             try {
-                Method m = type.getMethod("isReinforced");
+                Method m = bridgeMethod(type, "isReinforced");
                 return Boolean.TRUE.equals(m.invoke(null));
             } catch (Throwable ignored) {}
         }
@@ -227,11 +238,11 @@ public final class EprotectPlusLink {
     }
 
     public static long getReinforcedRemainingMs() {
-        long localRemaining = Math.max(0, LOCAL_REINFORCED_UNTIL_MS.get() - System.currentTimeMillis());
+        long localRemaining = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(Math.max(0, LOCAL_REINFORCED_UNTIL_NS.get() - System.nanoTime()));
         Class<?> type = bridge();
         if (type != null) {
             try {
-                Method m = type.getMethod("getReinforcedRemainingMs");
+                Method m = bridgeMethod(type, "getReinforcedRemainingMs");
                 Object val = m.invoke(null);
                 if (val instanceof Long l) return Math.max(localRemaining, l);
             } catch (Throwable ignored) {}
@@ -243,12 +254,12 @@ public final class EprotectPlusLink {
      * 強化処理状態を即時リセットする（テスト環境・戦闘終了用）。
      */
     public static void resetReinforced() {
-        LOCAL_REINFORCED_UNTIL_MS.set(0);
+        LOCAL_REINFORCED_UNTIL_NS.set(System.nanoTime());
         LOCAL_REINFORCED_REASON = "";
         Class<?> type = bridge();
         if (type != null) {
             try {
-                Method m = type.getMethod("resetReinforced");
+                Method m = bridgeMethod(type, "resetReinforced");
                 m.invoke(null);
             } catch (Throwable ignored) {}
         }
@@ -263,7 +274,7 @@ public final class EprotectPlusLink {
         Class<?> type = bridge();
         if (type != null) {
             try {
-                Method m = type.getMethod("recordInterference", String.class, String.class, String.class, String.class);
+                Method m = bridgeMethod(type, "recordInterference", String.class, String.class, String.class, String.class);
                 m.invoke(null, target, caller, op, details);
                 return;
             } catch (Throwable ignored) {}
@@ -271,11 +282,12 @@ public final class EprotectPlusLink {
 
         LOCAL_INTERFERENCES.incrementAndGet();
         String key = (target != null ? target : "") + "#" + (op != null ? op : "");
-        long now = System.currentTimeMillis();
+        long now = System.nanoTime();
         Long prev = LAST_LOCAL_INTERFERENCE_MS.get(key);
-        if (prev != null && (now - prev) < LOCAL_INTERFERENCE_THROTTLE_MS) {
+        if (prev != null && (now - prev) < java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(LOCAL_INTERFERENCE_THROTTLE_MS)) {
             return;
         }
+        if (LAST_LOCAL_INTERFERENCE_MS.size() > 4096) LAST_LOCAL_INTERFERENCE_MS.clear();
         LAST_LOCAL_INTERFERENCE_MS.put(key, now);
         recordLocal("調査・干渉検知", target, caller, op, "検知・解析完了", details);
     }
@@ -284,7 +296,7 @@ public final class EprotectPlusLink {
         Class<?> type = bridge();
         if (type != null) {
             try {
-                Method m = type.getMethod("recordBypass", String.class, String.class, String.class, String.class);
+                Method m = bridgeMethod(type, "recordBypass", String.class, String.class, String.class, String.class);
                 m.invoke(null, target, caller, op, details);
                 return;
             } catch (Throwable ignored) {}
@@ -298,7 +310,7 @@ public final class EprotectPlusLink {
         Class<?> type = bridge();
         if (type != null) {
             try {
-                Method m = type.getMethod("recordProtection", String.class, String.class, String.class, String.class);
+                Method m = bridgeMethod(type, "recordProtection", String.class, String.class, String.class, String.class);
                 m.invoke(null, target, caller, op, details);
                 return;
             } catch (Throwable ignored) {}
@@ -312,7 +324,7 @@ public final class EprotectPlusLink {
         Class<?> type = bridge();
         if (type != null) {
             try {
-                Method m = type.getMethod("recordAnnihilation", String.class, String.class, String.class, String.class);
+                Method m = bridgeMethod(type, "recordAnnihilation", String.class, String.class, String.class, String.class);
                 m.invoke(null, target, caller, op, details);
                 return;
             } catch (Throwable ignored) {}
@@ -322,7 +334,7 @@ public final class EprotectPlusLink {
         recordLocal("真抹殺執行", target, caller, op, "完全消滅", details);
     }
 
-    private static synchronized void recordLocal(String kind, String target, String caller, String op, String action, String note) {
+    private static void recordLocal(String kind, String target, String caller, String op, String action, String note) {
         Map<String, String> ev = new LinkedHashMap<>();
         ev.put("time", java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_TIME));
         ev.put("kind", kind);
@@ -332,8 +344,10 @@ public final class EprotectPlusLink {
         ev.put("action", action != null ? action : "-");
         ev.put("note", note != null ? note : "");
 
-        LOCAL_EVENTS.addLast(ev);
-        if (LOCAL_EVENTS.size() > MAX_LOCAL_EVENTS) LOCAL_EVENTS.removeFirst();
+        synchronized (LOCAL_EVENTS) {
+            LOCAL_EVENTS.addLast(Collections.unmodifiableMap(ev));
+            if (LOCAL_EVENTS.size() > MAX_LOCAL_EVENTS) LOCAL_EVENTS.removeFirst();
+        }
     }
 
     // ---- 迂回 & 保護 (Bypass & Protection) -----------------------------------
@@ -342,7 +356,7 @@ public final class EprotectPlusLink {
      * 保護対象エンティティへの外部干渉を迂回し、正規の生命状態を維持する。
      */
     public static void inspectAndBypassInterference(LivingEntity entity) {
-        if (entity == null) return;
+        if (entity == null || !com.automatavalkyries.protect.SpecificCountermeasures.enabled()) return;
         UUID uuid = entity.getUUID();
 
         // 1. No-Sugar / ACE 型の erased 偽装の検出と迂回
@@ -397,216 +411,40 @@ public final class EprotectPlusLink {
 
     // ---- 真抹殺 (True Annihilation) ------------------------------------------
 
-    /**
-     * Java エージェント経由（または内蔵特権エンジン）で対象エンティティの不死・生命維持・防御機構を剥奪し抹殺する。
-     */
-    public static boolean annihilateTargetWithAgent(Entity target) {
-        if (target == null) return false;
-
-        // 1. エージェントが接続されている場合はエージェントに委譲
-        Class<?> type = bridge();
-        if (type != null && isAgentActive()) {
-            try {
-                Method m = type.getMethod("annihilateTarget", Object.class);
-                Object res = m.invoke(null, target);
-                if (Boolean.TRUE.equals(res)) return true;
-            } catch (Throwable t) {
-                AutomataValkyries.LOGGER.warn("[eprotect-plus] Agent delegation threw, falling back to local engine: {}", t.getMessage());
-            }
+    /** 後続の抹殺パイプラインに渡す対象限定の前処理。エージェント有無で同じ処理を使う。 */
+    public static Map<String, String> prepareAnnihilation(Entity target) {
+        if (target == null || target instanceof Player
+                || (target instanceof com.automatavalkyries.protect.IEprotected protectedEntity
+                && !protectedEntity.isTerminusTestTarget())) {
+            return Map.of("status", "unsupported", "reason", "excluded_target");
         }
-
-        // 2. フォールバック特権エンジンによる直接執行
-        return executeLocalPrivilegedAnnihilation(target);
+        if (!(target.level() instanceof net.minecraft.server.level.ServerLevel level) || !level.getServer().isSameThread()) {
+            return Map.of("status", "unsupported", "reason", "server_thread_required");
+        }
+        try {
+            runPrivileged(() -> {
+                com.automatavalkyries.annihilate.ModProtectionBreaker.breakProtection(level, target);
+                if (target instanceof LivingEntity living) living.setHealth(0.0F);
+            });
+            // Preparation is not proof of death/removal. The caller verifies the final pipeline.
+            return Map.of("status", "attempted", "reason", "target_prepared");
+        } catch (RuntimeException exception) {
+            recordLocal("実行失敗", target.getClass().getName(), "Eprotect+", "prepare",
+                    "failed", exception.toString());
+            return Map.of("status", "failed", "reason", exception.toString());
+        }
     }
 
-    private static boolean executeLocalPrivilegedAnnihilation(Entity target) {
-        final boolean[] success = new boolean[]{false};
-        runPrivileged(() -> {
-            Class<?> clazz = target.getClass();
-            UUID uuid = target.getUUID();
-            recordBypass(clazz.getName(), "TrueKillStick", "localAnnihilate", "内蔵特権空間から不死機構の解除を開始");
+    /** 互換API。true はサーバーで個体の消去が確認できた場合だけ返す。 */
+    public static boolean annihilateTargetWithAgent(Entity target) {
+        if (!"attempted".equals(prepareAnnihilation(target).get("status"))) return false;
+        return isAnnihilationConfirmed(target);
+    }
 
-            // Witherzilla 生命維持フラグ (witherzillaLife) の解除
-            for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
-                try {
-                    Field f = c.getDeclaredField("witherzillaLife");
-                    f.setAccessible(true);
-                    f.setBoolean(target, false);
-                } catch (Throwable ignored) {}
-
-                try {
-                    Field f = c.getDeclaredField("life");
-                    if (f.getType() == boolean.class) {
-                        f.setAccessible(true);
-                        f.setBoolean(target, false);
-                    }
-                } catch (Throwable ignored) {}
-            }
-            try {
-                Method m = clazz.getMethod("setWitherzillaLife", boolean.class);
-                m.invoke(target, false);
-            } catch (Throwable ignored) {}
-
-            // Flashfur healthDelta & RemoveDeadEntities 解除
-            for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
-                try {
-                    Field f = c.getDeclaredField("healthDelta");
-                    f.setAccessible(true);
-                    f.setFloat(target, 0.0F);
-                } catch (Throwable ignored) {}
-            }
-            try {
-                Method m = clazz.getMethod("setHealthDelta", float.class);
-                m.invoke(target, 0.0F);
-            } catch (Throwable ignored) {}
-
-            // MetapotentFlashfur 本体（Proxy 元）の解体と MetapotentFlashfurLevel / Respawning リストからの抹消
-            Object core = null;
-            for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
-                try {
-                    Field f = c.getDeclaredField("metapotentFlashfur");
-                    f.setAccessible(true);
-                    core = f.get(target);
-                    if (core != null) break;
-                } catch (Throwable ignored) {}
-            }
-            if (core != null) {
-                dismantleFlashfurCore(core);
-            }
-
-            // MetapotentFlashfurLevel.metapotentFlashfurList & Respawning.RESPAWNING_ENTITIES から強制除去
-            forciblyRemoveFromList("flashfur.omnimobs.entities.metapotent_flashfur.MetapotentFlashfurLevel", "metapotentFlashfurList", core);
-            forciblyRemoveFromList("flashfur.omnimobs.entities.flashfur.powers.Respawning", "RESPAWNING_ENTITIES", target);
-            forciblyRemoveFromList("flashfur.omnimobs.entities.base.RemoveDeadEntities", "deadEntities", target);
-
-            // SuperSteve 解体
-            if (clazz.getName().startsWith("plz.lizi.supersteve.")) {
-                try {
-                    if (clazz.getName().contains("SafeServerPlayer") || clazz.getName().contains("DeathServerPlayer")) {
-                        try {
-                            Method dc = clazz.getMethod("disconnect");
-                            dc.invoke(target);
-                        } catch (Throwable ignored) {}
-                    }
-                    for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
-                        try {
-                            Field f = c.getDeclaredField("health");
-                            f.setAccessible(true);
-                            Object op = f.get(target);
-                            if (op != null) {
-                                Method m = op.getClass().getMethod("operate", Object[].class);
-                                Field vrfField = c.getDeclaredField("VRF");
-                                vrfField.setAccessible(true);
-                                String[] vrf = (String[]) vrfField.get(null);
-                                if (vrf != null && vrf.length > 5) {
-                                    m.invoke(op, new Object[]{ new Object[]{ vrf[5], 0.0F } });
-                                }
-                            }
-                        } catch (Throwable ignored) {}
-
-                        try {
-                            Field be = c.getDeclaredField("bossEvent");
-                            be.setAccessible(true);
-                            Object bossEvent = be.get(target);
-                            if (bossEvent != null) {
-                                Method clear = bossEvent.getClass().getMethod("removeAllPlayers");
-                                clear.invoke(bossEvent);
-                            }
-                        } catch (Throwable ignored) {}
-                    }
-                    try {
-                        Class<?> ssu = Class.forName("plz.lizi.supersteve.api.SSUtil");
-                        for (Method m : ssu.getMethods()) {
-                            if (m.getName().equals("killEntity") && m.getParameterCount() == 2) {
-                                m.invoke(null, target, true);
-                                break;
-                            }
-                        }
-                    } catch (Throwable ignored) {}
-                } catch (Throwable ignored) {}
-            }
-
-            // Pig2Mod 解体
-            if (clazz.getName().startsWith("kakiku.pig2mod.")) {
-                try {
-                    try {
-                        Method stop = clazz.getDeclaredMethod("stopFightingRemovedEnemy");
-                        stop.setAccessible(true);
-                        stop.invoke(target);
-                    } catch (Throwable ignored) {}
-                    for (String fieldName : new String[]{"mAttackingEnemy", "mAttackLevel"}) {
-                        try {
-                            Field f = clazz.getDeclaredField(fieldName);
-                            f.setAccessible(true);
-                            f.set(target, null);
-                        } catch (Throwable ignored) {}
-                    }
-                } catch (Throwable ignored) {}
-            }
-
-            // Nekohashizuku Blade 解体
-            try {
-                Class<?> helper = Class.forName("com.buwan.shizuku.core.AgentHealthMethodHelper");
-                Field f = helper.getDeclaredField("HEALTH_MAP");
-                f.setAccessible(true);
-                Map<?, ?> map = (Map<?, ?>) f.get(null);
-                if (map != null) {
-                    map.remove(target);
-                }
-            } catch (Throwable ignored) {}
-
-            // 不死フラグ探索初期化（フラグ辞書と連携）
-            for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
-                for (Field f : c.getDeclaredFields()) {
-                    if (Modifier.isStatic(f.getModifiers())) continue;
-                    String name = f.getName();
-                    if (com.automatavalkyries.protect.flag.FlagDictionary.isDefensiveField(name)) {
-                        try {
-                            f.setAccessible(true);
-                            if (f.getType() == boolean.class) {
-                                f.setBoolean(target, false);
-                            } else if (f.getType() == int.class) {
-                                f.setInt(target, 0);
-                            } else if (f.getType() == float.class) {
-                                f.setFloat(target, 0.0F);
-                            } else if (f.getType() == double.class) {
-                                f.setDouble(target, 0.0D);
-                            }
-                        } catch (Throwable ignored) {}
-                    } else if (com.automatavalkyries.protect.flag.FlagDictionary.isDeathStateField(name)) {
-                        try {
-                            f.setAccessible(true);
-                            if (f.getType() == boolean.class) {
-                                f.setBoolean(target, true);
-                            }
-                        } catch (Throwable ignored) {}
-                    }
-                }
-            }
-
-            // プレイヤー無敵・飛行アビリティの剥奪
-            if (target instanceof Player player) {
-                try {
-                    player.getAbilities().invulnerable = false;
-                    player.getAbilities().mayfly = false;
-                    player.getAbilities().flying = false;
-                } catch (Throwable ignored) {}
-            }
-
-            // HP を 0.0F にし、死亡・削除を強制
-            if (target instanceof LivingEntity living) {
-                try {
-                    living.setHealth(0.0F);
-                } catch (Throwable ignored) {}
-                living.deathTime = 19;
-            }
-
-            recordAnnihilation(clazz.getName(), "TrueKillStick", "true_annihilation",
-                    "特権空間から対象の全不死防御機構を解体: " + target.getName().getString() + " (" + uuid + ")");
-            success[0] = true;
-        });
-
-        return success[0];
+    public static boolean isAnnihilationConfirmed(Entity target) {
+        if (target == null || !(target.level() instanceof net.minecraft.server.level.ServerLevel level)) return false;
+        return com.automatavalkyries.protect.DirectRead.isRemoved(target)
+                && level.getEntity(target.getUUID()) != target && level.getEntity(target.getId()) != target;
     }
 
     // ---- 状態・イベント取得 ---------------------------------------------------
@@ -616,7 +454,7 @@ public final class EprotectPlusLink {
         Class<?> type = bridge();
         if (type != null) {
             try {
-                Method m = type.getMethod("getEvents");
+                Method m = bridgeMethod(type, "getEvents");
                 Object res = m.invoke(null);
                 if (res instanceof List<?> list) return (List<Map<String, String>>) list;
             } catch (Throwable ignored) {}
@@ -631,7 +469,7 @@ public final class EprotectPlusLink {
         Class<?> type = bridge();
         if (type != null) {
             try {
-                Method m = type.getMethod("clearEvents");
+                Method m = bridgeMethod(type, "clearEvents");
                 m.invoke(null);
             } catch (Throwable ignored) {}
         }
@@ -645,14 +483,16 @@ public final class EprotectPlusLink {
         Class<?> type = bridge();
         if (type != null) {
             try {
-                Method m = type.getMethod("getStats");
+                Method m = bridgeMethod(type, "getStats");
                 Object res = m.invoke(null);
                 if (res instanceof Map<?, ?> map) return (Map<String, String>) map;
             } catch (Throwable ignored) {}
         }
 
         Map<String, String> stats = new LinkedHashMap<>();
-        stats.put("active", "false (local engine active)");
+        stats.put("active", "false");
+        stats.put("agentState", "INACTIVE");
+        stats.put("gamePreparation", "available");
         stats.put("lateAttached", "false");
         stats.put("instrumentation", "false");
         stats.put("canRetransform", "false");
@@ -660,84 +500,8 @@ public final class EprotectPlusLink {
         stats.put("bypasses", String.valueOf(LOCAL_BYPASSES.get()));
         stats.put("protections", String.valueOf(LOCAL_PROTECTIONS.get()));
         stats.put("annihilations", String.valueOf(LOCAL_ANNIHILATIONS.get()));
-        stats.put("events", String.valueOf(LOCAL_EVENTS.size()));
+        synchronized (LOCAL_EVENTS) { stats.put("events", String.valueOf(LOCAL_EVENTS.size())); }
         return stats;
-    }
-
-    private static void dismantleFlashfurCore(Object core) {
-        if (core == null) return;
-        try {
-            Class<?> coreClass = core.getClass();
-            try {
-                Field idf = coreClass.getDeclaredField("id");
-                idf.setAccessible(true);
-                UUID id = (UUID) idf.get(core);
-                if (id != null) {
-                    AnnihilationExecutionAgent.markAnnihilated(id);
-                }
-            } catch (Throwable ignored) {}
-            try {
-                Field rf = coreClass.getDeclaredField("removed");
-                rf.setAccessible(true);
-                rf.setBoolean(core, true);
-            } catch (Throwable ignored) {}
-            try {
-                Field pf = coreClass.getDeclaredField("metapotentFlashfurProxy");
-                pf.setAccessible(true);
-                pf.set(core, null);
-            } catch (Throwable ignored) {}
-            for (String timerName : new String[]{"beamTimer", "eraseTimer", "swipeTimer", "totalityBoomTimer", "throwInAirTimer"}) {
-                try {
-                    Field f = coreClass.getDeclaredField(timerName);
-                    f.setAccessible(true);
-                    f.setInt(core, -9999);
-                } catch (Throwable ignored) {}
-            }
-            try {
-                Field bf = coreClass.getDeclaredField("bossEvent");
-                bf.setAccessible(true);
-                Object be = bf.get(core);
-                if (be != null) {
-                    try { be.getClass().getMethod("removeAllPlayers").invoke(be); } catch (Throwable ignored) {}
-                    try { be.getClass().getMethod("setVisible", boolean.class).invoke(be, false); } catch (Throwable ignored) {}
-                }
-            } catch (Throwable ignored) {}
-        } catch (Throwable ignored) {}
-    }
-
-    private static void forciblyRemoveFromList(String className, String fieldName, Object target) {
-        try {
-            Class<?> clazz = Class.forName(className);
-            Field listField = clazz.getDeclaredField(fieldName);
-            listField.setAccessible(true);
-            Object list = listField.get(null);
-            if (list == null) return;
-
-            Field sizeField = java.util.ArrayList.class.getDeclaredField("size");
-            sizeField.setAccessible(true);
-            Field dataField = java.util.ArrayList.class.getDeclaredField("elementData");
-            dataField.setAccessible(true);
-
-            int size = sizeField.getInt(list);
-            Object[] data = (Object[]) dataField.get(list);
-            if (data == null || size == 0) return;
-
-            int newSize = 0;
-            for (int i = 0; i < size; i++) {
-                Object elem = data[i];
-                if (elem == null) continue;
-                if (target == null || elem == target || elem.equals(target)) {
-                    dismantleFlashfurCore(elem);
-                    data[i] = null;
-                } else {
-                    data[newSize++] = elem;
-                }
-            }
-            for (int i = newSize; i < size; i++) {
-                data[i] = null;
-            }
-            sizeField.setInt(list, newSize);
-        } catch (Throwable ignored) {}
     }
 
     /**
@@ -746,13 +510,7 @@ public final class EprotectPlusLink {
      */
     public static void clearPlayerFromKillModLists(UUID uuid) {
         if (uuid == null) return;
-        Class<?> type = bridge();
-        if (type != null) {
-            try {
-                Method m = type.getMethod("clearPlayerFromKillModLists", UUID.class);
-                m.invoke(null, uuid);
-            } catch (Throwable ignored) {}
-        }
+        if (!com.automatavalkyries.protect.SpecificCountermeasures.enabled()) return;
 
         // フォールバック（エージェント未接続時でもリフレクションで直接除去）
         for (String className : new String[]{
@@ -828,11 +586,4 @@ public final class EprotectPlusLink {
             }
         } catch (Throwable ignored) {}
     }
-
-    public static boolean isAnnihilationConfirmed(Entity target) {
-        if (target == null || !(target.level() instanceof net.minecraft.server.level.ServerLevel level)) return false;
-        return com.automatavalkyries.protect.DirectRead.isRemoved(target)
-                && level.getEntity(target.getUUID()) != target && level.getEntity(target.getId()) != target;
-    }
-
 }

@@ -77,6 +77,7 @@ final class ClassSummary {
             for (int a = 0; a < attributes; a++) {
                 String attribute = (String) pool[in.readUnsignedShort()];
                 int length = in.readInt();
+                if (length < 0 || length > in.available()) throw new IOException("Invalid attribute length");
                 byte[] data = new byte[length];
                 in.readFully(data);
                 if ("Code".equals(attribute)) summary.methods.put(name + descriptor, codeInfo(data));
@@ -110,6 +111,7 @@ final class ClassSummary {
         in.readUnsignedShort();
         in.readUnsignedShort();
         int codeLength = in.readInt();
+        if (codeLength < 0 || codeLength > in.available()) throw new IOException("Invalid code length");
         byte[] code = new byte[codeLength];
         in.readFully(code);
         CRC32 crc = new CRC32();
@@ -127,7 +129,10 @@ final class ClassSummary {
             int op1 = code[0] & 0xFF;
             int op2 = code[1] & 0xFF;
             // iconst_0 ireturn (boolean false / int 0)
-            if (op1 == 0x03 && op2 == 0xAC) return true;
+            if (op1 >= 0x02 && op1 <= 0x08 && op2 == 0xAC) return true;
+            if (op1 >= 0x09 && op1 <= 0x0A && op2 == 0xAD) return true;
+            if (op1 >= 0x0B && op1 <= 0x0D && op2 == 0xAE) return true;
+            if (op1 >= 0x0E && op1 <= 0x0F && op2 == 0xAF) return true;
             // aconst_null areturn
             if (op1 == 0x01 && op2 == 0xB0) return true;
         }

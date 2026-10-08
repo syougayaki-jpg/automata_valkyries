@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * Eprotect+ Java エージェントの記録・統計・MOD との橋渡し。
  * <p>
  * システムクラスローダーに常駐し、MOD 側からはリフレクションを介して呼び出される。
- * JDK 標準型のみで通信を行い、クラスローダーの壁を越えて一貫した保護・調査・迂回・真抹殺を実行する。
+ * JDK 標準型のみで通信し、変換の監視・再監査・協調用の実行範囲・診断結果を提供する。
  * 記録は logs/automata_valkyries-eprotect-plus.log にも書き出される。
  * </p>
  */
@@ -38,31 +38,59 @@ public final class EprotectPlusBridge {
 
     private static volatile boolean active = false;
     private static volatile boolean lateAttached = false;
-    private static BufferedWriter writer;
+    private static final java.util.concurrent.ArrayBlockingQueue<String> LOG_QUEUE = new java.util.concurrent.ArrayBlockingQueue<>(1024);
+    private static final AtomicLong DROPPED_LOGS = new AtomicLong();
+    private static final AtomicLong LOG_ERRORS = new AtomicLong();
+    private static volatile boolean loggingStarted;
+    private static volatile boolean stopping;
 
-    /** 特権実行（StackChecker などの発信元チェックを迂回するコンテキスト）フラグ */
+    /** 協調用の実行範囲フラグ。JVM権限やスタックトレースを変更しない。 */
     private static final ThreadLocal<Boolean> PRIVILEGED_EXECUTION = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
-    /** 強化処理（Reinforced Protection）モード終了時刻（ミリ秒）と理由 */
-    private static final AtomicLong REINFORCED_UNTIL_MS = new AtomicLong(0);
+    /** 強化処理（Reinforced Protection）モード終了時刻（単調時計のナノ秒）と理由 */
+    private static final AtomicLong REINFORCED_UNTIL_NS = new AtomicLong(System.nanoTime());
     private static volatile String REINFORCED_REASON = "";
 
     private EprotectPlusBridge() {}
 
-    static synchronized void init(boolean late) {
+    public static synchronized void init(boolean late) {
         lateAttached = late;
-        active = true;
+        if (loggingStarted) return;
+        loggingStarted = true;
+        Thread logger = new Thread(EprotectPlusBridge::writeLogs, "EprotectPlus-log");
+        logger.setDaemon(true);
+        logger.start();
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            stopping = true;
+            logger.interrupt();
+            try { logger.join(2000); } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
+        }, "EprotectPlus-log-close"));
+    }
+
+    static void setActive(boolean value) { active = value; }
+
+    private static void writeLogs() {
+        Path path = Paths.get("logs", "automata_valkyries-eprotect-plus.log");
         try {
-            Path path = Paths.get("logs", "automata_valkyries-eprotect-plus.log");
             Files.createDirectories(path.getParent());
-            writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-            writer.write("# Eprotect+ Java エージェント診断・調査・迂回・保護ログ");
-            writer.newLine();
-            writer.write("# 形式: 時刻 | 種別 | クラス/対象 | 発信元/呼出元 | 操作/フック | 対処/結果 | 備考");
-            writer.newLine();
-            writer.flush();
-        } catch (IOException e) {
-            writer = null;
+            try (BufferedWriter output = Files.newBufferedWriter(path, StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE, StandardOpenOption.APPEND)) {
+                while (!stopping || !LOG_QUEUE.isEmpty()) {
+                    String line;
+                    try { line = LOG_QUEUE.poll(1, java.util.concurrent.TimeUnit.SECONDS); }
+                    catch (InterruptedException exception) { continue; }
+                    if (line == null) continue;
+                    output.write(line);
+                    output.newLine();
+                    for (int batch = 0; batch < 127 && (line = LOG_QUEUE.poll()) != null; batch++) {
+                        output.write(line);
+                        output.newLine();
+                    }
+                    output.flush();
+                }
+            }
+        } catch (IOException exception) {
+            LOG_ERRORS.incrementAndGet();
         }
     }
 
@@ -79,13 +107,8 @@ public final class EprotectPlusBridge {
         EVENTS.addLast(ev);
         if (EVENTS.size() > MAX_EVENTS) EVENTS.removeFirst();
 
-        if (writer != null) {
-            try {
-                writer.write(String.join(" | ", ev.values()));
-                writer.newLine();
-                writer.flush();
-            } catch (IOException ignored) {}
-        }
+        if (!LOG_QUEUE.offer(String.join(" | ", ev.values()).replace('\n', ' ').replace('\r', ' ')))
+            DROPPED_LOGS.incrementAndGet();
     }
 
     private static final Map<String, Long> LAST_INTERFERENCE_MS = new java.util.concurrent.ConcurrentHashMap<>();
@@ -94,11 +117,12 @@ public final class EprotectPlusBridge {
     public static void recordInterference(String target, String caller, String op, String details) {
         INTERFERENCE_COUNT.incrementAndGet();
         String key = (target != null ? target : "") + "#" + (op != null ? op : "");
-        long now = System.currentTimeMillis();
+        long now = System.nanoTime();
         Long prev = LAST_INTERFERENCE_MS.get(key);
-        if (prev != null && (now - prev) < INTERFERENCE_THROTTLE_MS) {
+        if (prev != null && (now - prev) < java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(INTERFERENCE_THROTTLE_MS)) {
             return;
         }
+        if (LAST_INTERFERENCE_MS.size() > 4096) LAST_INTERFERENCE_MS.clear();
         LAST_INTERFERENCE_MS.put(key, now);
         recordEvent("調査・干渉検知", target, caller, op, "検知・解析完了", details);
     }
@@ -110,6 +134,14 @@ public final class EprotectPlusBridge {
 
     public static void recordProtection(String target, String caller, String op, String details) {
         PROTECTION_COUNT.incrementAndGet();
+        String key = "protection#" + target + "#" + caller + "#" + op;
+        long now = System.nanoTime();
+        synchronized (LAST_INTERFERENCE_MS) {
+            Long previous = LAST_INTERFERENCE_MS.get(key);
+            if (previous != null && now - previous < java.util.concurrent.TimeUnit.SECONDS.toNanos(5)) return;
+            if (LAST_INTERFERENCE_MS.size() > 4096) LAST_INTERFERENCE_MS.clear();
+            LAST_INTERFERENCE_MS.put(key, now);
+        }
         recordEvent("保護執行", target, caller, op, "改ざん拒否・復元", details);
     }
 
@@ -125,33 +157,27 @@ public final class EprotectPlusBridge {
     }
 
     public static void setPrivileged(boolean privileged) {
-        PRIVILEGED_EXECUTION.set(privileged);
+        if (privileged) PRIVILEGED_EXECUTION.set(true);
+        else PRIVILEGED_EXECUTION.remove();
     }
 
     public static void runPrivileged(Runnable action) {
+        java.util.Objects.requireNonNull(action, "action");
         boolean prev = PRIVILEGED_EXECUTION.get();
         PRIVILEGED_EXECUTION.set(true);
         try {
             action.run();
         } finally {
-            PRIVILEGED_EXECUTION.set(prev);
+            setPrivileged(prev);
         }
     }
 
     /**
-     * スタックトレース偽装・検閲欺瞞コンテキストで処理を実行する（案3）。
+     * 互換API。特権フラグの範囲内で実行し、呼び出し履歴は隠さない。
      */
     public static void runCloaked(Runnable action) {
-        boolean prev = isPrivileged();
-        setPrivileged(true);
-        try {
-            java.security.AccessController.doPrivileged((java.security.PrivilegedAction<Void>) () -> {
-                action.run();
-                return null;
-            });
-        } finally {
-            setPrivileged(prev);
-        }
+        // Compatibility name; the JVM stack is not hidden by this scope.
+        runPrivileged(action);
     }
 
     /**
@@ -164,15 +190,17 @@ public final class EprotectPlusBridge {
     // ---- 強化処理（Reinforced Protection）制御 ---------------------------------
 
     public static void triggerReinforced(long durationMs, String reason) {
-        long targetUntil = System.currentTimeMillis() + durationMs;
-        REINFORCED_UNTIL_MS.updateAndGet(prev -> Math.max(prev, targetUntil));
+        long now = System.nanoTime();
+        long durationNs = Math.min(Long.MAX_VALUE / 2,
+                java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(Math.max(0, durationMs)));
+        REINFORCED_UNTIL_NS.updateAndGet(previous -> previous - now > durationNs ? previous : now + durationNs);
         REINFORCED_REASON = reason != null ? reason : "UNKNOWN";
-        recordProtection("EprotectPlusBridge", reason, "reinforced_mode",
+        recordEvent("強化", "EprotectPlusBridge", reason, "reinforced_mode", "発動",
                 "強化処理発動（期間: " + durationMs + "ms, 理由: " + REINFORCED_REASON + "）");
     }
 
     public static boolean isReinforced() {
-        return System.currentTimeMillis() < REINFORCED_UNTIL_MS.get();
+        return REINFORCED_UNTIL_NS.get() - System.nanoTime() > 0;
     }
 
     public static String getReinforcedReason() {
@@ -180,12 +208,12 @@ public final class EprotectPlusBridge {
     }
 
     public static long getReinforcedRemainingMs() {
-        long diff = REINFORCED_UNTIL_MS.get() - System.currentTimeMillis();
-        return Math.max(0, diff);
+        long diff = REINFORCED_UNTIL_NS.get() - System.nanoTime();
+        return java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(Math.max(0, diff));
     }
 
     public static void resetReinforced() {
-        REINFORCED_UNTIL_MS.set(0);
+        REINFORCED_UNTIL_NS.set(System.nanoTime());
         REINFORCED_REASON = "";
     }
 
@@ -217,7 +245,7 @@ public final class EprotectPlusBridge {
         EVENTS.clear();
     }
 
-    public static Map<String, String> getStats() {
+    public static synchronized Map<String, String> getStats() {
         Map<String, String> stats = new LinkedHashMap<>();
         stats.put("active", String.valueOf(active));
         stats.put("lateAttached", String.valueOf(lateAttached));
@@ -229,7 +257,10 @@ public final class EprotectPlusBridge {
         stats.put("annihilations", String.valueOf(ANNIHILATION_COUNT.get()));
         stats.put("reinforced", String.valueOf(isReinforced()));
         stats.put("events", String.valueOf(EVENTS.size()));
-        stats.put("flagDictionaryProtector", "active");
+        stats.put("flagDictionaryProtector", String.valueOf(com.automatavalkyries.eprotectplus.flag.FlagDictionaryAgent.hasInstrumentation()));
+        stats.put("droppedLogs", Long.toString(DROPPED_LOGS.get()));
+        stats.put("logErrors", Long.toString(LOG_ERRORS.get()));
+        stats.putAll(EprotectPlusAgent.getAuditStats());
         stats.putAll(com.automatavalkyries.eprotectplus.flag.FlagDictionaryProtector.getStats());
         return stats;
     }

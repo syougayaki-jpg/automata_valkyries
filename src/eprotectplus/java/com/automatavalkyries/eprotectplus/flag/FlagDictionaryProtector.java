@@ -135,111 +135,76 @@ public final class FlagDictionaryProtector {
      */
     public static boolean verifyAndRepair(Class<?> flagDictionaryClass) {
         if (flagDictionaryClass == null) return false;
-        try {
-            boolean tampered = false;
-
-            // 1. active フィールドの点検
-            Field activeField = flagDictionaryClass.getDeclaredField("active");
-            activeField.setAccessible(true);
-            Object activeObj = activeField.get(null);
-
-            if (activeObj instanceof Map<?, ?> map) {
-                if (map.isEmpty() || map.size() < MASTER_DICTIONARY.size()) {
-                    tampered = true;
-                } else {
-                    // 各カテゴリーのエントリ数を点検
-                    for (Map.Entry<?, ?> entry : map.entrySet()) {
-                        String catName = entry.getKey().toString();
-                        if (entry.getValue() instanceof List<?> list) {
-                            List<String> expected = MASTER_DICTIONARY.get(catName);
-                            if (expected != null && list.size() < expected.size() / 2) {
-                                tampered = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-            } else {
-                tampered = true;
-            }
-
-            // 2. BUILT_IN フィールドの点検
-            Field builtInField = flagDictionaryClass.getDeclaredField("BUILT_IN");
-            builtInField.setAccessible(true);
-            Object builtInObj = builtInField.get(null);
-            if (builtInObj instanceof Map<?, ?> builtInMap && builtInMap.isEmpty()) {
-                tampered = true;
-            }
-
-            if (tampered) {
+        synchronized (flagDictionaryClass) {
+            try {
+                Field active = flagDictionaryClass.getDeclaredField("active");
+                Field builtIn = flagDictionaryClass.getDeclaredField("BUILT_IN");
+                active.setAccessible(true);
+                builtIn.setAccessible(true);
+                Map<String, List<String>> expected = expectedActive(flagDictionaryClass);
+                if (MASTER_DICTIONARY.equals(snapshot(builtIn.get(null)))
+                        && expected.equals(snapshot(active.get(null)))) return false;
                 TAMPER_DETECTED_COUNT.incrementAndGet();
-                repairModFlagDictionary(flagDictionaryClass, activeField, builtInField);
+                repairModFlagDictionary(flagDictionaryClass, active, builtIn);
+                // Do not report a repair merely because reflective writes returned normally.
+                if (!MASTER_DICTIONARY.equals(snapshot(builtIn.get(null)))
+                        || !expected.equals(snapshot(active.get(null)))) {
+                    EprotectPlusBridge.recordEvent("警告", "FlagDictionary", "integrity", "repair", "未確認", "Content still differs after reload");
+                    return false;
+                }
                 REPAIRED_COUNT.incrementAndGet();
-                EprotectPlusBridge.recordProtection("FlagDictionary", "ForeignMod/Reflection", "integrity_repair",
-                        "MOD側のフラグ辞書改ざん・初期化を検知し、JVMエージェントマスターデータから完全復元");
+                EprotectPlusBridge.recordProtection("FlagDictionary", "integrity", "integrity_repair", "Built-in content restored; user extra/ignore configuration reapplied");
                 return true;
+            } catch (ReflectiveOperationException | RuntimeException exception) {
+                EprotectPlusBridge.recordEvent("警告", "FlagDictionaryProtector", "integrity", "inspect", "失敗", exception.toString());
+                return false;
             }
-
-            return false;
-        } catch (Throwable t) {
-            EprotectPlusBridge.recordEvent("警告", "FlagDictionaryProtector", "verifyAndRepair", "inspect", "検証中例外", t.getMessage());
-            return false;
         }
+    }
+
+    private static Map<String, List<String>> snapshot(Object value) {
+        if (!(value instanceof Map<?, ?> map)) return Map.of();
+        Map<String, List<String>> result = new LinkedHashMap<>();
+        for (var entry : map.entrySet()) {
+            if (!(entry.getValue() instanceof List<?> list)) return Map.of();
+            List<String> words = new ArrayList<>();
+            for (Object word : list) {
+                if (!(word instanceof String text)) return Map.of();
+                words.add(text);
+            }
+            result.put(entry.getKey().toString(), words);
+        }
+        return result;
+    }
+
+    private static Map<String, List<String>> expectedActive(Class<?> dictionary) throws ReflectiveOperationException {
+        Map<String, List<String>> expected = new LinkedHashMap<>();
+        MASTER_DICTIONARY.forEach((key, value) -> expected.put(key, new ArrayList<>(value)));
+        Class<?> config = Class.forName("com.automatavalkyries.config.EprotectConfig", true, dictionary.getClassLoader());
+        Object extra = config.getField("FLAG_EXTRA").get(null);
+        java.lang.reflect.Method getter = java.util.Arrays.stream(config.getMethods())
+                .filter(method -> method.getName().equals("getList") && method.getParameterCount() == 1)
+                .findFirst().orElseThrow(() -> new NoSuchMethodException("EprotectConfig.getList"));
+        for (Object item : (List<?>) getter.invoke(null, extra)) {
+            String line = item.toString();
+            int colon = line.indexOf(':');
+            if (colon <= 0) continue;
+            List<String> entries = expected.get(line.substring(0, colon).trim().toUpperCase(Locale.ROOT));
+            String word = line.substring(colon + 1).trim().toLowerCase(Locale.ROOT);
+            if (entries != null && !word.isEmpty()) entries.add(word);
+        }
+        return expected;
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
-    private static void repairModFlagDictionary(Class<?> flagDictClass, Field activeField, Field builtInField) throws Exception {
-        Class<?> categoryEnumClass = Class.forName("com.automatavalkyries.protect.flag.FlagDictionary$Category", true, flagDictClass.getClassLoader());
-        Map newMerged = (Map) EnumMap.class.getConstructor(Class.class).newInstance(categoryEnumClass);
-
-        Object[] enumConstants = categoryEnumClass.getEnumConstants();
-        for (Object enumConst : enumConstants) {
-            String name = enumConst.toString();
-            List<String> masterEntries = MASTER_DICTIONARY.get(name);
-            if (masterEntries != null) {
-                newMerged.put(enumConst, Collections.unmodifiableList(new ArrayList<>(masterEntries)));
-            } else {
-                newMerged.put(enumConst, Collections.emptyList());
-            }
-        }
-
-        // active フィールドを上書き復元
-        activeField.set(null, newMerged);
-
-        // BUILT_IN フィールドも復元
-        if (builtInField != null) {
-            Object builtInMap = builtInField.get(null);
-            if (builtInMap instanceof Map m) {
-                for (Object enumConst : enumConstants) {
-                    String name = enumConst.toString();
-                    List<String> masterEntries = MASTER_DICTIONARY.get(name);
-                    if (masterEntries != null) {
-                        m.put(enumConst, new ArrayList<>(masterEntries));
-                    }
-                }
-            }
-        }
-
-        // CACHE をクリア
-        try {
-            Field cacheField = flagDictClass.getDeclaredField("CACHE");
-            cacheField.setAccessible(true);
-            Object cacheObj = cacheField.get(null);
-            if (cacheObj instanceof Map m) {
-                m.clear();
-            }
-        } catch (Throwable ignored) {}
-
-        // generation をインクリメント
-        try {
-            Field genField = flagDictClass.getDeclaredField("generation");
-            genField.setAccessible(true);
-            int currentGen = genField.getInt(null);
-            genField.setInt(null, currentGen + 1);
-        } catch (Throwable ignored) {}
+    private static void repairModFlagDictionary(Class<?> dictionary, Field active, Field builtIn) throws ReflectiveOperationException {
+        Class<?> category = Class.forName("com.automatavalkyries.protect.flag.FlagDictionary$Category", true, dictionary.getClassLoader());
+        Map map = (Map) builtIn.get(null);
+        map.clear();
+        for (Object key : category.getEnumConstants())
+            map.put(key, MASTER_DICTIONARY.getOrDefault(key.toString(), List.of()));
+        dictionary.getMethod("reloadFromConfig").invoke(null);
     }
-
-    // ---- エージェント内蔵判定エンジン（JDK 標準のみで完結） ----------------------
 
     public static Set<String> classify(String name) {
         if (name == null || name.isEmpty()) return Collections.emptySet();
