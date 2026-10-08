@@ -23,9 +23,17 @@ MOD 全体の仕様（世界観、兵姫、敵・ボス、アイテム、マシ�
 
 保護の仕組み（Eprotect）の全体像・各層・設定・テスト方針・他 MOD への移植手順は **[`docs/SPEC_EPROTECT_ARCHITECTURE.md`](docs/SPEC_EPROTECT_ARCHITECTURE.md)** にまとめてある（ゲーム内保護側）。
 
+守る側の Java エージェント（観察者・LifeGuard・オートマタヴァルキリー protect、共通部品 `src/agentcommon`、起動の順番、このMOD 同士の決まり、乗っ取る MOD への備え）の地図は **[`docs/SPEC_JAVA_AGENTS_DEFENSIVE.md`](docs/SPEC_JAVA_AGENTS_DEFENSIVE.md)**（2026-10-08 整理）。
+
 Java エージェント（Eprotect+ / FlagDictionaryProtector）、終焉執行エンジン（Terminus / プレイヤー絶対死 / 10秒耐性検知）、および高次元防護（ブラックリスト強化・10秒間無敵・バイトコード完全性復元）の包括的アーキテクチャ仕様書・データは **[`docs/SPEC_JAVA_AGENT_TERMINUS_AND_EPROTECT_PLUS.md`](docs/SPEC_JAVA_AGENT_TERMINUS_AND_EPROTECT_PLUS.md)** に完全永続化保存されている。
 
+Eprotect および抹殺機構の汎用化・準汎用層への昇格引継ぎ仕様書は **[`docs/HANDOFF_CODEX_GENERALIZATION.md`](docs/HANDOFF_CODEX_GENERALIZATION.md)**（2026-10-08 CODEX 引継ぎ）。
+
+Antigravity 担当業務（即死・抹殺機構 `annihilate/`、Eprotect+ Java エージェント `src/eprotectplus/`、終焉機構 `terminus`）の CODEX への全体引継書は **[`docs/HANDOFF_ANTIGRAVITY_TO_CODEX.md`](docs/HANDOFF_ANTIGRAVITY_TO_CODEX.md)**（2026-10-08 引継ぎ完了）。
+
 ## 戦術兵姫MOD 設計・開発コンテキスト（Antigravity引継ぎ）
+
+**2026-10-08: Antigravity の担当（抹殺・終焉機構、Eprotect+、即死 MOD 個別の対抗など）は CODEX に引き継いだ。** CODEX の入口はリポジトリ直下の [`AGENTS.md`](AGENTS.md)、引継書は [`docs/HANDOFF_ANTIGRAVITY_TO_CODEX.md`](docs/HANDOFF_ANTIGRAVITY_TO_CODEX.md)。担当の分け方と境界の決まり（相手の担当ファイルを編集しない・自分のファイルだけをパス指定でコミットする）は AGENTS.md にある。
 
 Antigravity AIとの対話で策定・実装された戦術兵姫のコア保護システム（`eprotect`）およびサンプルボス（エレノア）の全仕様・コード資産は **[`docs/TACTICAL_DOLL_CHAT_CONTEXT.md`](docs/TACTICAL_DOLL_CHAT_CONTEXT.md)** に詳細に記録されています。
 

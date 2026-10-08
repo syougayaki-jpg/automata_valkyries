@@ -16,34 +16,20 @@ base {
 // Mojang ships Java 17 to end users in 1.18+, so your mod should target Java 17.
 java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 
-// 観察用・防御用の Java エージェント（src/observer, src/eprotectplus）。MOD とは別の jar にし、
-// 起動オプション -javaagent で読ませる。Minecraft・Forge には依存しない（JDK だけ）
+// Java エージェント（MOD とは別の jar。起動オプション -javaagent で読ませる。Minecraft・Forge には依存しない）。全体の地図は docs/SPEC_JAVA_AGENTS_DEFENSIVE.md
+//   守る側（このMOD の担当）: observer（観察・改ざん防止）、lifeguard（真ライフ）、valkyrieprotect（戦術兵姫の保護）。共通部品は agentcommon
+//   Eprotect+ とフラグ辞書のエージェント（src/eprotectplus）は Antigravity の担当
 sourceSets {
     observer
     eprotectplus
-    // LifeGuard（防御専用の Java エージェント）: 保護対象の生死の getter を他のエージェントの偽装より外側で実際の値に直す。
-    // lifeguardhooks はブートストラップのクラスパスに置く呼び出し先（JDK だけ）。lifeguard は ASM を同梱する
+    // 守る側のエージェントの共通部品（このMOD 同士の再変換の見分け・ログ・いちばん外側に保つ係。JDK だけ）。各エージェントの jar に同梱する
+    agentcommon
+    // LifeGuard: 保護対象の生死の getter を他のエージェントの偽装より外側で実際の値に直す。lifeguardhooks はブートストラップに置く呼び出し先（JDK だけ）
     lifeguardhooks
     lifeguard
-    // オートマタヴァルキリー protect（戦術兵姫だけを守る Java エージェント）。valkyrieprotecthooks はブートストラップに置く呼び出し先（JDK だけ）
+    // オートマタヴァルキリー protect（戦術兵姫だけを守る）。valkyrieprotecthooks はブートストラップに置く呼び出し先（JDK だけ）
     valkyrieprotecthooks
     valkyrieprotect
-}
-def observerJarFile = layout.buildDirectory.file("libs/${mod_id}-observer.jar")
-tasks.register('observerJar', Jar) {
-    group = 'build'
-    description = 'Builds the observation Java agent'
-    from sourceSets.observer.output
-    archiveFileName = "${mod_id}-observer.jar"
-    manifest {
-        attributes([
-                'Premain-Class'          : 'com.automatavalkyries.observer.ObserverAgent',
-                'Agent-Class'            : 'com.automatavalkyries.observer.ObserverAgent',
-                'Can-Retransform-Classes': 'true',
-                'Can-Redefine-Classes'   : 'false',
-                'Implementation-Version' : mod_version
-        ])
-    }
 }
 configurations {
     lifeguardAsm
@@ -51,72 +37,59 @@ configurations {
     devMods
 }
 dependencies {
+    observerImplementation sourceSets.agentcommon.output
+    lifeguardImplementation sourceSets.agentcommon.output
     lifeguardImplementation sourceSets.lifeguardhooks.output
     lifeguardImplementation 'org.ow2.asm:asm:9.8'
     lifeguardAsm 'org.ow2.asm:asm:9.8'
+    valkyrieprotectImplementation sourceSets.agentcommon.output
     valkyrieprotectImplementation sourceSets.valkyrieprotecthooks.output
     valkyrieprotectImplementation 'org.ow2.asm:asm:9.8'
 }
-def valkyrieProtectHooksJarFile = layout.buildDirectory.file("libs/${mod_id}-valkyrie-protect-hooks.jar")
-tasks.register('valkyrieProtectHooksJar', Jar) {
-    group = 'build'
-    description = 'Builds the Automata Valkyrie Protect bootstrap hooks'
-    from sourceSets.valkyrieprotecthooks.output
-    archiveFileName = "${mod_id}-valkyrie-protect-hooks.jar"
-}
-def valkyrieProtectJarFile = layout.buildDirectory.file("libs/${mod_id}-valkyrie-protect.jar")
-tasks.register('valkyrieProtectJar', Jar) {
-    group = 'build'
-    description = 'Builds the Automata Valkyrie Protect Java agent'
-    dependsOn 'valkyrieProtectHooksJar'
-    from sourceSets.valkyrieprotect.output
-    // ASM を同梱する（LifeGuard と同じ）
-    from({ configurations.lifeguardAsm.collect { zipTree(it) } }) {
-        exclude 'META-INF/**', 'module-info.class'
-    }
-    archiveFileName = "${mod_id}-valkyrie-protect.jar"
-    manifest {
-        attributes([
-                'Premain-Class'          : 'com.automatavalkyries.valkyrieprotect.ValkyrieProtectAgent',
-                'Agent-Class'            : 'com.automatavalkyries.valkyrieprotect.ValkyrieProtectAgent',
+
+/**
+ * 守る側のエージェントの jar を作るタスクを登録する。共通部品（agentcommon）を同梱し、asm なら ASM も同梱する。
+ * hooks を渡すと、そのブートストラップ用の jar（同じフォルダに置く）を Boot-Class-Path に書き、先に作る
+ */
+def defensiveAgentJar = { String taskName, String fileSuffix, SourceSet set, String agentClass, String desc, boolean asm, String hooksTask, String hooksSuffix ->
+    tasks.register(taskName, Jar) {
+        group = 'build'
+        description = desc
+        if (hooksTask != null) dependsOn hooksTask
+        from set.output
+        from sourceSets.agentcommon.output
+        // ASM を同梱する（エージェントはシステムのクラスローダーで動き、ゲームの ASM は見えないことがある）
+        if (asm) from({ configurations.lifeguardAsm.collect { zipTree(it) } }) { exclude 'META-INF/**', 'module-info.class' }
+        archiveFileName = "${mod_id}-${fileSuffix}.jar"
+        def attrs = [
+                'Premain-Class'          : agentClass,
+                'Agent-Class'            : agentClass,
                 'Can-Retransform-Classes': 'true',
                 'Can-Redefine-Classes'   : 'false',
-                // 呼び出し先はブートストラップへ（vanilla の Entity からも見えるように）。同じフォルダの jar
-                'Boot-Class-Path'        : "${mod_id}-valkyrie-protect-hooks.jar",
                 'Implementation-Version' : mod_version
-        ])
+        ]
+        // 呼び出し先はブートストラップへ（vanilla の Entity / LivingEntity からも見えるように）。同じフォルダの jar
+        if (hooksSuffix != null) attrs['Boot-Class-Path'] = "${mod_id}-${hooksSuffix}.jar"
+        manifest { attributes(attrs) }
+    }
+    return layout.buildDirectory.file("libs/${mod_id}-${fileSuffix}.jar")
+}
+def hooksJar = { String taskName, String fileSuffix, SourceSet set, String desc ->
+    tasks.register(taskName, Jar) {
+        group = 'build'
+        description = desc
+        from set.output
+        archiveFileName = "${mod_id}-${fileSuffix}.jar"
     }
 }
-def lifeguardHooksJarFile = layout.buildDirectory.file("libs/${mod_id}-lifeguard-hooks.jar")
-tasks.register('lifeguardHooksJar', Jar) {
-    group = 'build'
-    description = 'Builds the LifeGuard bootstrap hooks'
-    from sourceSets.lifeguardhooks.output
-    archiveFileName = "${mod_id}-lifeguard-hooks.jar"
-}
-def lifeguardJarFile = layout.buildDirectory.file("libs/${mod_id}-lifeguard.jar")
-tasks.register('lifeguardJar', Jar) {
-    group = 'build'
-    description = 'Builds the LifeGuard Java agent'
-    dependsOn 'lifeguardHooksJar'
-    from sourceSets.lifeguard.output
-    // ASM を同梱する（エージェントはシステムのクラスローダーで動き、ゲームの ASM は見えないことがある）
-    from({ configurations.lifeguardAsm.collect { zipTree(it) } }) {
-        exclude 'META-INF/**', 'module-info.class'
-    }
-    archiveFileName = "${mod_id}-lifeguard.jar"
-    manifest {
-        attributes([
-                'Premain-Class'          : 'com.automatavalkyries.lifeguard.LifeGuardAgent',
-                'Agent-Class'            : 'com.automatavalkyries.lifeguard.LifeGuardAgent',
-                'Can-Retransform-Classes': 'true',
-                'Can-Redefine-Classes'   : 'false',
-                // 呼び出し先はブートストラップへ（vanilla の LivingEntity からも見えるように）。同じフォルダの jar
-                'Boot-Class-Path'        : "${mod_id}-lifeguard-hooks.jar",
-                'Implementation-Version' : mod_version
-        ])
-    }
-}
+hooksJar('lifeguardHooksJar', 'lifeguard-hooks', sourceSets.lifeguardhooks, 'Builds the LifeGuard bootstrap hooks')
+hooksJar('valkyrieProtectHooksJar', 'valkyrie-protect-hooks', sourceSets.valkyrieprotecthooks, 'Builds the Automata Valkyrie Protect bootstrap hooks')
+def observerJarFile = defensiveAgentJar('observerJar', 'observer', sourceSets.observer,
+        'com.automatavalkyries.observer.ObserverAgent', 'Builds the observation Java agent', false, null, null)
+def lifeguardJarFile = defensiveAgentJar('lifeguardJar', 'lifeguard', sourceSets.lifeguard,
+        'com.automatavalkyries.lifeguard.LifeGuardAgent', 'Builds the LifeGuard Java agent', true, 'lifeguardHooksJar', 'lifeguard-hooks')
+def valkyrieProtectJarFile = defensiveAgentJar('valkyrieProtectJar', 'valkyrie-protect', sourceSets.valkyrieprotect,
+        'com.automatavalkyries.valkyrieprotect.ValkyrieProtectAgent', 'Builds the Automata Valkyrie Protect Java agent', true, 'valkyrieProtectHooksJar', 'valkyrie-protect-hooks')
 def eprotectPlusJarFile = layout.buildDirectory.file("libs/${mod_id}-eprotect-plus.jar")
 tasks.register('eprotectPlusJar', Jar) {
     group = 'build'
@@ -173,17 +146,12 @@ tasks.register('syncDevMods') {
     }
 }
 tasks.matching { it.name in ['runClient', 'runServer', 'runGameTestServer'] }.configureEach { dependsOn 'syncDevMods' }
-if (project.hasProperty('withValkyrieProtect')) {
-    tasks.matching { it.name.startsWith('prepareRun') || it.name in ['runClient', 'runServer', 'runGameTestServer'] }
-            .configureEach { dependsOn 'valkyrieProtectJar' }
-}
-if (project.hasProperty('withLifeGuard')) {
-    tasks.matching { it.name.startsWith('prepareRun') || it.name in ['runClient', 'runServer', 'runGameTestServer'] }
-            .configureEach { dependsOn 'lifeguardJar' }
-}
-if (project.hasProperty('withObserver')) {
-    tasks.matching { it.name.startsWith('prepareRun') || it.name in ['runClient', 'runServer', 'runGameTestServer'] }
-            .configureEach { dependsOn 'observerJar' }
+// 守る側のエージェント: フラグを付けて起動するときは先に jar を作る
+['withObserver': 'observerJar', 'withLifeGuard': 'lifeguardJar', 'withValkyrieProtect': 'valkyrieProtectJar'].each { flag, jarTask ->
+    if (project.hasProperty(flag)) {
+        tasks.matching { it.name.startsWith('prepareRun') || it.name in ['runClient', 'runServer', 'runGameTestServer'] }
+                .configureEach { dependsOn jarTask }
+    }
 }
 if (project.hasProperty('withEprotectPlus') || project.hasProperty('withAllAgents') || project.hasProperty('withAllKillMods')) {
     tasks.matching { it.name.startsWith('prepareRun') || it.name in ['runClient', 'runServer', 'runGameTestServer'] }
@@ -263,11 +231,14 @@ minecraft {
             // -PdisableMixins=compat.HyperlinkMixins,...: このMODの Mixin を名前で外して起動する（干渉の切り分け用。mixin/AutomataMixinPlugin）
             if (project.hasProperty('disableMixins')) property 'automata_valkyries.disableMixins', project.property('disableMixins')
 
-            // -PwithObserver: 観察用の Java エージェント（クラスの書き換えを見張るだけ）を付けて起動する
-            if (project.hasProperty('withLifeGuard')) jvmArg "-javaagent:${lifeguardJarFile.get().asFile.absolutePath}"
-            // -PwithValkyrieProtect: オートマタヴァルキリー protect の Java エージェント（戦術兵姫だけを守る）を付けて起動する
-            if (project.hasProperty('withValkyrieProtect')) jvmArg "-javaagent:${valkyrieProtectJarFile.get().asFile.absolutePath}"
+            // 守る側の Java エージェント（docs/SPEC_JAVA_AGENTS_DEFENSIVE.md）。観察者をいちばん先に付ける
+            // （このMOD のクラスの「読み込んだときの形」を、ほかのエージェントが手を入れる前に覚えるため）
+            //   -PwithObserver: 観察（クラスの書き換えを見張る・このMOD のクラスの改ざんを戻す）
+            //   -PwithLifeGuard: 真ライフ（保護対象の生死の getter を実際の値に直す）
+            //   -PwithValkyrieProtect: オートマタヴァルキリー protect（戦術兵姫の消去・即死を断る）
             if (project.hasProperty('withObserver')) jvmArg "-javaagent:${observerJarFile.get().asFile.absolutePath}"
+            if (project.hasProperty('withLifeGuard')) jvmArg "-javaagent:${lifeguardJarFile.get().asFile.absolutePath}"
+            if (project.hasProperty('withValkyrieProtect')) jvmArg "-javaagent:${valkyrieProtectJarFile.get().asFile.absolutePath}"
 
             // -PwithEprotectPlus / -PwithAllAgents / -PwithAllKillMods: Eprotect+ 高度防御・調査・迂回・真抹殺 Java エージェントを付けて起動する
             if (project.hasProperty('withEprotectPlus') || project.hasProperty('withAllAgents') || project.hasProperty('withAllKillMods')) {

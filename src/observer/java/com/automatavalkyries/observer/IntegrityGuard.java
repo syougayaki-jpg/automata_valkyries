@@ -90,7 +90,9 @@ final class IntegrityGuard {
 
     private static byte[] restore(String className, Class<?> redefined, byte[] bytes) throws Exception {
         if (!enabled || className == null || redefined == null || !className.startsWith(OWN_PREFIX)) return null;
-        if (inHouseRetransform()) return null; // このMOD 同士の再変換（LifeGuard・Eprotect+・オートマタヴァルキリー protect）は改ざんではない
+        // このMOD 同士の再変換（LifeGuard・Eprotect+・オートマタヴァルキリー protect）は改ざんではない。
+        // ただし戻すための自分の再変換（maintain）は通す（これも呼び出し元はこのMOD なので、見分けないと戻せなかった。2026-10-08）
+        if (Thread.currentThread() != restoringThread && inHouseRetransform()) return null;
         byte[] original = ORIGINAL.get(className);
         if (original == null || Arrays.equals(original, bytes)) return null;
         // 並べ替えただけ（他のエージェントがクラスを読み直して書き出しただけ）なら記録はしないが、戻しはする
@@ -167,6 +169,8 @@ final class IntegrityGuard {
     private static final byte[] PROBE_CODE = {0x10, 0x2A, (byte) 0xAC};
     private static final byte[] PROBE_NEUTERED = {0x03, 0x00, (byte) 0xAC};
     private static volatile ClassFileTransformer hostile;
+    /** 自己点検の「他のエージェントの書き換えの真似」を再変換しているスレッド */
+    private static volatile Thread selfTestThread;
 
     /**
      * 他のエージェントの書き換えを真似る: 改ざん防止より後に、点検用のクラスの value() を潰す変換器を登録して再変換する。
@@ -189,7 +193,12 @@ final class IntegrityGuard {
         };
         hostile = transformer;
         instrumentation.addTransformer(transformer, true);
-        instrumentation.retransformClasses(probe);
+        selfTestThread = Thread.currentThread();
+        try {
+            instrumentation.retransformClasses(probe);
+        } finally {
+            selfTestThread = null;
+        }
         return "started";
     }
 
@@ -214,23 +223,11 @@ final class IntegrityGuard {
     }
 
     /**
-     * この再変換・再定義を呼んだのがこのMOD（このMOD のほかのエージェント・Eprotect+・MOD 本体）か（2026-10-05）。
-     * 呼び出し履歴で、Instrumentation の再変換・再定義のすぐ外側の呼び出し元を見る。このMOD 同士の再変換を「他のエージェントの書き換え」と
-     * 数えると、オートマタヴァルキリー protect と LifeGuard が互いに「いちばん外側へ並べ直す → 再変換」を上限まで繰り返していた
+     * このMOD 同士の再変換（LifeGuard・Eprotect+・オートマタヴァルキリー protect）は改ざんとして数えない（{@code agentcommon/InHouse}）。
+     * ただし自己点検の「他のエージェントの書き換えの真似」は、このMOD のコードから呼ぶが改ざんとして数える（数えないと戻さず、
+     * GameTest の integrityGuardRestoresOwnClasses が落ちていた。2026-10-08）
      */
     static boolean inHouseRetransform() {
-        return StackWalker.getInstance().walk(frames -> {
-            boolean afterInstrumentation = false;
-            for (java.util.Iterator<StackWalker.StackFrame> it = frames.iterator(); it.hasNext(); ) {
-                StackWalker.StackFrame f = it.next();
-                String c = f.getClassName(), m = f.getMethodName();
-                if (c.equals("sun.instrument.InstrumentationImpl") && (m.startsWith("retransformClasses") || m.startsWith("redefineClasses"))) {
-                    afterInstrumentation = true;
-                    continue;
-                }
-                if (afterInstrumentation) return c.startsWith("com.automatavalkyries.");
-            }
-            return false;
-        });
+        return Thread.currentThread() != selfTestThread && com.automatavalkyries.agentcommon.InHouse.retransformedByThisMod();
     }
 }
