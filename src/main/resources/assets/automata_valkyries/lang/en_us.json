@@ -886,6 +886,8 @@
   "entity.automata_valkyries.valkyrie_dummy.hits": "  last %s / total %s",
   "item.automata_valkyries.valkyrie_dummy_spawn_egg": "Valkyrie Dummy Spawn Egg",
   "message.automata_valkyries.valkyrie_dummy.evicted": "%s valkyrie dummies have left",
+  "bossbar.automata_valkyries.luxion.rank": "AEC-Class Hero Unit",
+  "bossbar.automata_valkyries.luxion.phase2": "Phase II — Radiant Overdrive",
   "entity.automata_valkyries.luxion": "Luxion, the Lightspeed",
   "item.automata_valkyries.luxion_spawn_egg": "Luxion Spawn Egg",
   "item.automata_valkyries.signal_luxion": "Hero Unit Call: Luxion",

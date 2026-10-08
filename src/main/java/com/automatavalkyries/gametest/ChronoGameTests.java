@@ -312,6 +312,7 @@ public class ChronoGameTests {
             helper.assertFalse(condition.test(null), "the config switch does not turn the recipe off");
         } finally {
             flag.set(true);
+            com.automatavalkyries.config.MachineConfig.SPEC.save();
         }
         helper.assertTrue(com.automatavalkyries.config.MachineConfig.FLAGS.size() == 3, "one switch per upgrade kit");
         helper.succeed();

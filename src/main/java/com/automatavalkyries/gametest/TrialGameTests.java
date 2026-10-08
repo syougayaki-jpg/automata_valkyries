@@ -409,26 +409,42 @@ public class TrialGameTests {
      */
     @GameTest(template = TEMPLATE, batch = "trials_annihilation_loot", timeoutTicks = 100)
     public static void overloadT4AnnihilationDropsLootAndExp(GameTestHelper helper) {
+        boolean prevLoot = helper.getLevel().getGameRules().getBoolean(net.minecraft.world.level.GameRules.RULE_DOMOBLOOT);
+        helper.getLevel().getGameRules().getRule(net.minecraft.world.level.GameRules.RULE_DOMOBLOOT).set(true, helper.getLevel().getServer());
+        net.minecraft.core.BlockPos pos = helper.absolutePos(new BlockPos(3, 2, 3));
+        var chunkPos = new net.minecraft.world.level.ChunkPos(pos);
+        var manager = (net.minecraft.world.level.entity.PersistentEntitySectionManager<net.minecraft.world.entity.Entity>)
+                ((com.automatavalkyries.mixin.ServerLevelTickListAccessor) helper.getLevel()).automata_valkyries$getEntityManager();
+        manager.updateChunkStatus(chunkPos, net.minecraft.server.level.FullChunkStatus.ENTITY_TICKING);
+        helper.getLevel().setChunkForced(chunkPos.x, chunkPos.z, true);
         FakePlayer over = player(helper, new Vec3(0.5, 2, 0.5));
         ItemStack ragnarok = ((TacticalWeaponItem) ModWeapons.RAGNAROK_EDGE.get()).charged();
         over.setItemInHand(InteractionHand.MAIN_HAND, Overload.apply(ragnarok));
 
         var sheep = helper.spawn(EntityType.SHEEP, new Vec3(3.5, 2, 3.5));
         sheep.setNoAi(true);
-        Overload.overkill(sheep, over);
+        helper.runAfterDelay(2, () -> Overload.overkill(sheep, over));
+        helper.runAfterDelay(5, () -> {
+            try {
+                var area = new net.minecraft.world.phys.AABB(helper.absolutePos(new BlockPos(3, 2, 3))).inflate(6);
+                var allItems = helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, area);
+                var items = helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, area,
+                        e -> e.getItem().is(net.minecraft.tags.ItemTags.WOOL));
+                var orbs = helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.ExperienceOrb.class, area);
+                com.automatavalkyries.AutomataValkyries.LOGGER.info("[loot-check] found allItems={}, woolItems={}, orbs={}",
+                        allItems.stream().map(i -> i.getItem().getItem().toString()).toList(), items.size(), orbs.size());
 
-        var area = new net.minecraft.world.phys.AABB(helper.absolutePos(new BlockPos(3, 2, 3))).inflate(6);
-        var items = helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, area,
-                e -> e.getItem().is(net.minecraft.tags.ItemTags.WOOL));
-        var orbs = helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.ExperienceOrb.class, area);
+                helper.assertTrue(!items.isEmpty(), "no wool dropped by annihilated sheep (allItems=" + allItems.stream().map(i -> i.getItem().getItem().toString()).toList() + ")");
+                helper.assertTrue(!orbs.isEmpty(), "no exp orbs dropped by annihilated sheep");
 
-        helper.assertTrue(!items.isEmpty(), "no wool dropped by annihilated sheep");
-        helper.assertTrue(!orbs.isEmpty(), "no exp orbs dropped by annihilated sheep");
-
-        for (var e : helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.Entity.class, area, e -> !(e instanceof net.minecraft.world.entity.player.Player))) {
-            e.discard();
-        }
-        helper.succeed();
+                for (var e : helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.Entity.class, area, e -> !(e instanceof net.minecraft.world.entity.player.Player))) {
+                    e.discard();
+                }
+                helper.succeed();
+            } finally {
+                helper.getLevel().getGameRules().getRule(net.minecraft.world.level.GameRules.RULE_DOMOBLOOT).set(prevLoot, helper.getLevel().getServer());
+            }
+        });
     }
 
     /**

@@ -45,7 +45,9 @@ public final class DeathLootFallback {
 
     @SubscribeEvent(priority = EventPriority.LOWEST, receiveCanceled = true)
     public static void onDrops(LivingDropsEvent event) {
-        DROPPED.add(event.getEntity());
+        if (!event.getDrops().isEmpty()) {
+            DROPPED.add(event.getEntity());
+        }
     }
 
     /** 抹殺の前に呼ぶ（印を消す） */

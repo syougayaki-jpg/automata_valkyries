@@ -18,6 +18,9 @@ import org.joml.Matrix4f;
  */
 public class LuxionRenderer extends ChronoGazerRenderer<LuxionEntity> {
 
+    /** ボスバーの横顔を描いている間（光のマント・残光などは描かない） */
+    static boolean portrait;
+
     /** 横の帯の数・縦の段の数 */
     private static final int COLS = 16, ROWS = 6;
 
@@ -42,7 +45,7 @@ public class LuxionRenderer extends ChronoGazerRenderer<LuxionEntity> {
 
     private void renderScaled(LuxionEntity lux, float entityYaw, float partialTick, PoseStack pose, MultiBufferSource buffers, int light) {
         super.render(lux, entityYaw, partialTick, pose, buffers, light);
-        if (lux.isInvisible() || lux.isDefeatedSynced()) return;
+        if (portrait || lux.isInvisible() || lux.isDefeatedSynced()) return;
         afterimages(lux, partialTick, pose, buffers);
         float age = lux.tickCount + partialTick;
         float yaw = Mth.rotLerp(partialTick, lux.yBodyRotO, lux.yBodyRot);

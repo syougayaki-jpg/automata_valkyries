@@ -24,7 +24,10 @@ public final class KillModCounters {
             new Entry("omni_mobs", "flashfur.omnimobs.util.GetHealthModifyUtil", EprotectOmniMobsCounter::counter),
             new Entry("trial_monolith", "io.github.kosianodangoo.trialmonolith.api.mixin.ISoulDamage", EprotectTrialMonolithCounter::counter),
             new Entry("imds", "net.mcreator.imds_reborn.ImdsKillManager", EprotectImdsCounter::counter),
-            new Entry("hyperlink", "com.sakurafuld.hyperdaimc.api.mixin.ILivingEntityMuteki", EprotectHyperlinkCounter::counter)
+            new Entry("hyperlink", "com.sakurafuld.hyperdaimc.api.mixin.ILivingEntityMuteki", EprotectHyperlinkCounter::counter),
+            new Entry("super_steve", "plz.lizi.supersteve.power.SSCore", EprotectSuperSteveCounter::counter),
+            new Entry("pig2mod", "kakiku.pig2mod.entity.Pig2", EprotectPig2Counter::counter),
+            new Entry("nekohashizuku", "com.buwan.shizuku.core.AgentHealthMethodHelper", EprotectNekohashizukuCounter::counter)
     );
 
     private KillModCounters() {}

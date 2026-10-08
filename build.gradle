@@ -47,6 +47,8 @@ tasks.register('observerJar', Jar) {
 }
 configurations {
     lifeguardAsm
+    // run/mods に置いて読ませる検証用 MOD（クラスパスに載せると動かない物。-PwithSuperSteve）
+    devMods
 }
 dependencies {
     lifeguardImplementation sourceSets.lifeguardhooks.output
@@ -154,6 +156,23 @@ tasks.named('assemble') {
     dependsOn 'eprotectPlusJar'
     dependsOn 'flagDictionaryAgentJar'
 }
+// 検証用 MOD を run/mods に置く（dev- で始まる物だけ入れ替える。フラグを外せば消える）
+tasks.register('syncDevMods') {
+    group = 'verification'
+    def modsDir = project.file('run/mods')
+    doLast {
+        modsDir.mkdirs()
+        project.fileTree(modsDir) { include 'dev-*.jar' }.each { it.delete() }
+        configurations.devMods.resolvedConfiguration.resolvedArtifacts.each { a ->
+            project.copy {
+                from a.file
+                into modsDir
+                rename { "dev-${a.file.name}" }
+            }
+        }
+    }
+}
+tasks.matching { it.name in ['runClient', 'runServer', 'runGameTestServer'] }.configureEach { dependsOn 'syncDevMods' }
 if (project.hasProperty('withValkyrieProtect')) {
     tasks.matching { it.name.startsWith('prepareRun') || it.name in ['runClient', 'runServer', 'runGameTestServer'] }
             .configureEach { dependsOn 'valkyrieProtectJar' }
@@ -515,6 +534,18 @@ dependencies {
     }
     if (project.hasProperty('withWitherzilla')) {
         runtimeOnly fg.deobf("maven.modrinth:witherzilla:1.7")                  // Witherzilla 1.7
+    }
+    // エージェントで他のエージェントに手を出す MOD の検証（2026-10-08、保護エージェントの対策づくり用）
+    //   ./gradlew runClient -PwithSuperSteve -PwithObserver   （SuperSteve: 自分で attach し、JDK の InstrumentationImpl を書き換えて
+    //                                                         他のエージェントの書き換えを捨てる。-Dsupersteve.safemode=true か MOD jzyy があるとしない）
+    //   ./gradlew runClient -PwithMadness -PwithObserver      （Madness Entities: 本体のクラスを暗号化して隠し、Unsafe で定義する。コアMOD とエージェント同梱）
+    // SuperSteve は自分の jar を読み直してクラスを作る。クラスパスに載ると jar の場所を取り違えて起動時に落ちる（2026-10-08）ので、
+    // デオブフした物を run/mods に置いて MOD としてだけ読ませる（syncDevMods）
+    if (project.hasProperty('withSuperSteve')) {
+        devMods fg.deobf("maven.modrinth:supersteve:6.10.5pr")                   // SuperSteve 6.10.5pr
+    }
+    if (project.hasProperty('withMadness')) {
+        devMods fg.deobf("maven.modrinth:madness_entities:MadnessEntities-1.20.1-3.3.1") // Madness Entities 3.3.1（隠したクラスを自分の jar から読み直すので run/mods に置く）
     }
     // ダメージの確かめ用の的（2026-10-04 ユーザー指定）: ./gradlew runClient -PwithDummy
     //   MmmMmmMmmMmm は refmap を持たず Mixin の注釈に SRG 名を直書きしているので、開発環境（公式名）ではそのままだと起動時に落ちる。

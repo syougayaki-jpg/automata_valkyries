@@ -559,6 +559,53 @@ public class KillModGameTests {
         helper.succeed();
     }
 
+    /** SuperSteve: 当たり判定崩壊・物理無効化・無敵解除の改ざんが EprotectSuperSteveCounter で修復されること */
+    @GameTest(template = TEMPLATE, timeoutTicks = 60)
+    public static void superSteveCounterTest(GameTestHelper helper) {
+        ElenorEntity elenor = spawnElenor(helper);
+        net.minecraft.world.phys.Vec3 pos = elenor.position();
+        elenor.setBoundingBox(new net.minecraft.world.phys.AABB(pos.x, pos.y, pos.z, pos.x, pos.y, pos.z));
+        elenor.noPhysics = true;
+
+        boolean neutralized = com.automatavalkyries.protect.EprotectSuperSteveCounter.counter(elenor);
+        helper.assertTrue(neutralized, "EprotectSuperSteveCounter did not report neutralized");
+        helper.assertFalse(elenor.noPhysics, "noPhysics was not restored to false");
+        helper.assertTrue(elenor.getBoundingBox().getXsize() > 0.01D, "Bounding box was not restored");
+
+        elenor.getEprotect().triggerDespawn();
+        helper.succeed();
+    }
+
+    /** SuperSteve: MOD 自体が導入されている場合、SSUtil.simpleKillEntity を耐え抜くこと */
+    @GameTest(template = TEMPLATE, timeoutTicks = 100)
+    public static void superSteveKillEntityIsCountered(GameTestHelper helper) {
+        if (!loaded(helper, "supersteve")) return;
+        ElenorEntity elenor = spawnElenor(helper);
+        invoke(helper, "plz.lizi.supersteve.api.SSUtil", "simpleKillEntity",
+                new Class<?>[]{net.minecraft.world.entity.Entity.class}, elenor);
+        assertSurvivesAfterRepair(helper, elenor);
+    }
+
+    /** Pig2Mod: EprotectPig2Counter が安全に動作し、無関係なエンティティで誤動作しないこと */
+    @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    public static void pig2CounterSafetyTest(GameTestHelper helper) {
+        ElenorEntity elenor = spawnElenor(helper);
+        boolean res = com.automatavalkyries.protect.EprotectPig2Counter.counter(elenor);
+        helper.assertFalse(res, "Pig2 counter should return false when not in gKilledEnemyUUIDs");
+        elenor.getEprotect().triggerDespawn();
+        helper.succeed();
+    }
+
+    /** Nekohashizuku Blade: EprotectNekohashizukuCounter が安全に動作し、無関係なエンティティで誤動作しないこと */
+    @GameTest(template = TEMPLATE, timeoutTicks = 40)
+    public static void nekohashizukuCounterSafetyTest(GameTestHelper helper) {
+        ElenorEntity elenor = spawnElenor(helper);
+        boolean res = com.automatavalkyries.protect.EprotectNekohashizukuCounter.counter(elenor);
+        helper.assertFalse(res, "Nekohashizuku counter should return false when not in HEALTH_MAP");
+        elenor.getEprotect().triggerDespawn();
+        helper.succeed();
+    }
+
     /**
      * The Last Sword / ECA: プレイヤーが死亡または手放した際、EntityLocationManager の位置固定・ヘルスロック・無敵・飛行タグが
      * 即座に解除され、移動不能や死地への強制引き戻しが発生しないこと。

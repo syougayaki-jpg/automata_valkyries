@@ -24,6 +24,7 @@ import java.util.EnumSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -62,6 +63,9 @@ public final class ModProtectionBreaker {
     public static Context breakProtection(ServerLevel level, Entity target) {
         FlagDictionary.ensureAgentProtection();
         breakTrialMonolith(target);
+        breakSuperSteve(target);
+        breakPig2(target);
+        breakNekohashizuku(target);
         breakProtectiveStates(target);
         List<Object> controllers = removeControllers(target);
         purgeStaticReferences(target, controllers);
@@ -123,6 +127,90 @@ public final class ModProtectionBreaker {
         } catch (Throwable t) {
             AutomataValkyries.LOGGER.debug("[AnnihilationAgent] Trial Monolith protection breaking failed for {}", target, t);
         }
+    }
+
+    private static void breakSuperSteve(Entity target) {
+        if (!com.automatavalkyries.protect.SpecificCountermeasures.enabled()) return;
+        String name = target.getClass().getName();
+        if (!name.startsWith("plz.lizi.supersteve.")) return;
+        try {
+            if (name.contains("SafeServerPlayer") || name.contains("DeathServerPlayer")) {
+                try {
+                    Method dc = target.getClass().getMethod("disconnect");
+                    dc.invoke(target);
+                    AutomataValkyries.LOGGER.info("[AnnihilationAgent] Disconnected SuperSteve player {}", target.getName().getString());
+                } catch (Throwable ignored) {}
+            }
+            for (Class<?> c = target.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
+                try {
+                    Field f = c.getDeclaredField("health");
+                    f.setAccessible(true);
+                    Object op = f.get(target);
+                    if (op != null) {
+                        Method m = op.getClass().getMethod("operate", Object[].class);
+                        Field vrfField = c.getDeclaredField("VRF");
+                        vrfField.setAccessible(true);
+                        String[] vrf = (String[]) vrfField.get(null);
+                        if (vrf != null && vrf.length > 5) {
+                            m.invoke(op, new Object[]{ new Object[]{ vrf[5], 0.0F } });
+                            AutomataValkyries.LOGGER.info("[AnnihilationAgent] Reset SuperSteve health operator on {}", target.getName().getString());
+                        }
+                    }
+                } catch (Throwable ignored) {}
+
+                try {
+                    Field be = c.getDeclaredField("bossEvent");
+                    be.setAccessible(true);
+                    Object bossEvent = be.get(target);
+                    if (bossEvent != null) {
+                        Method clear = bossEvent.getClass().getMethod("removeAllPlayers");
+                        clear.invoke(bossEvent);
+                    }
+                } catch (Throwable ignored) {}
+            }
+            try {
+                Class<?> ssu = Class.forName("plz.lizi.supersteve.api.SSUtil");
+                Method k = ssu.getMethod("killEntity", Entity.class, boolean.class);
+                k.invoke(null, target, true);
+            } catch (Throwable ignored) {}
+        } catch (Throwable t) {
+            AutomataValkyries.LOGGER.debug("[AnnihilationAgent] SuperSteve protection breaking failed for {}", target, t);
+        }
+    }
+
+    private static void breakPig2(Entity target) {
+        if (!com.automatavalkyries.protect.SpecificCountermeasures.enabled()) return;
+        if (!target.getClass().getName().startsWith("kakiku.pig2mod.")) return;
+        try {
+            try {
+                Method stop = target.getClass().getDeclaredMethod("stopFightingRemovedEnemy");
+                stop.setAccessible(true);
+                stop.invoke(target);
+            } catch (Throwable ignored) {}
+            for (String fieldName : new String[]{"mAttackingEnemy", "mAttackLevel"}) {
+                try {
+                    Field f = target.getClass().getDeclaredField(fieldName);
+                    f.setAccessible(true);
+                    f.set(target, null);
+                } catch (Throwable ignored) {}
+            }
+            AutomataValkyries.LOGGER.info("[AnnihilationAgent] Neutralized Pig2 combat state on {}", target.getName().getString());
+        } catch (Throwable t) {
+            AutomataValkyries.LOGGER.debug("[AnnihilationAgent] Pig2 protection breaking failed for {}", target, t);
+        }
+    }
+
+    private static void breakNekohashizuku(Entity target) {
+        if (!com.automatavalkyries.protect.SpecificCountermeasures.enabled()) return;
+        try {
+            Class<?> helper = Class.forName("com.buwan.shizuku.core.AgentHealthMethodHelper");
+            Field f = helper.getDeclaredField("HEALTH_MAP");
+            f.setAccessible(true);
+            Map<?, ?> map = (Map<?, ?>) f.get(null);
+            if (map != null && map.remove(target) != null) {
+                AutomataValkyries.LOGGER.info("[AnnihilationAgent] Removed {} from Nekohashizuku HEALTH_MAP", target.getName().getString());
+            }
+        } catch (Throwable ignored) {}
     }
 
     // ---- 準汎用: 保護の切り替え・フラグ・永続データ・状態異常 -------------------------------

@@ -91,7 +91,8 @@
     "compat.FantasyEndingMixins$ShaderUniforms",
     "client.ClientLevelAccessor",
     "client.DeathScreenGuardMixin",
-    "client.TransientEntitySectionManagerAccessor"
+    "client.TransientEntitySectionManagerAccessor",
+    "client.EprotectTransientSectionCallbackMixin"
   ],
   "injectors": {
     "defaultRequire": 1

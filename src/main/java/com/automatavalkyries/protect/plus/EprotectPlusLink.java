@@ -372,6 +372,27 @@ public final class EprotectPlusLink {
                 recordBypass(entity.getClass().getName(), "Eprotect+", "healthDelta", "デルタを0に修正し不正HP削りを無力化");
             }
         } catch (Throwable ignored) {}
+
+        // 3. SuperSteve 改ざん・当たり判定崩壊・コールバック偽装の検出と迂回
+        try {
+            if (com.automatavalkyries.protect.EprotectSuperSteveCounter.counter(entity)) {
+                recordBypass(entity.getClass().getName(), "Eprotect+", "superSteveCounter", "SuperSteveの改ざん・判定崩壊を修復");
+            }
+        } catch (Throwable ignored) {}
+
+        // 4. Pig2Mod 抹殺追跡リストの検出と迂回
+        try {
+            if (com.automatavalkyries.protect.EprotectPig2Counter.counter(entity)) {
+                recordBypass(entity.getClass().getName(), "Eprotect+", "pig2Counter", "Pig2Modの抹殺追跡リストから除外");
+            }
+        } catch (Throwable ignored) {}
+
+        // 5. Nekohashizuku Blade HEALTH_MAP 改ざんの検出と迂回
+        try {
+            if (com.automatavalkyries.protect.EprotectNekohashizukuCounter.counter(entity)) {
+                recordBypass(entity.getClass().getName(), "Eprotect+", "nekohashizukuCounter", "Nekohashizuku HEALTH_MAPから除外");
+            }
+        } catch (Throwable ignored) {}
     }
 
     // ---- 真抹殺 (True Annihilation) ------------------------------------------
@@ -457,6 +478,82 @@ public final class EprotectPlusLink {
             forciblyRemoveFromList("flashfur.omnimobs.entities.metapotent_flashfur.MetapotentFlashfurLevel", "metapotentFlashfurList", core);
             forciblyRemoveFromList("flashfur.omnimobs.entities.flashfur.powers.Respawning", "RESPAWNING_ENTITIES", target);
             forciblyRemoveFromList("flashfur.omnimobs.entities.base.RemoveDeadEntities", "deadEntities", target);
+
+            // SuperSteve 解体
+            if (clazz.getName().startsWith("plz.lizi.supersteve.")) {
+                try {
+                    if (clazz.getName().contains("SafeServerPlayer") || clazz.getName().contains("DeathServerPlayer")) {
+                        try {
+                            Method dc = clazz.getMethod("disconnect");
+                            dc.invoke(target);
+                        } catch (Throwable ignored) {}
+                    }
+                    for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
+                        try {
+                            Field f = c.getDeclaredField("health");
+                            f.setAccessible(true);
+                            Object op = f.get(target);
+                            if (op != null) {
+                                Method m = op.getClass().getMethod("operate", Object[].class);
+                                Field vrfField = c.getDeclaredField("VRF");
+                                vrfField.setAccessible(true);
+                                String[] vrf = (String[]) vrfField.get(null);
+                                if (vrf != null && vrf.length > 5) {
+                                    m.invoke(op, new Object[]{ new Object[]{ vrf[5], 0.0F } });
+                                }
+                            }
+                        } catch (Throwable ignored) {}
+
+                        try {
+                            Field be = c.getDeclaredField("bossEvent");
+                            be.setAccessible(true);
+                            Object bossEvent = be.get(target);
+                            if (bossEvent != null) {
+                                Method clear = bossEvent.getClass().getMethod("removeAllPlayers");
+                                clear.invoke(bossEvent);
+                            }
+                        } catch (Throwable ignored) {}
+                    }
+                    try {
+                        Class<?> ssu = Class.forName("plz.lizi.supersteve.api.SSUtil");
+                        for (Method m : ssu.getMethods()) {
+                            if (m.getName().equals("killEntity") && m.getParameterCount() == 2) {
+                                m.invoke(null, target, true);
+                                break;
+                            }
+                        }
+                    } catch (Throwable ignored) {}
+                } catch (Throwable ignored) {}
+            }
+
+            // Pig2Mod 解体
+            if (clazz.getName().startsWith("kakiku.pig2mod.")) {
+                try {
+                    try {
+                        Method stop = clazz.getDeclaredMethod("stopFightingRemovedEnemy");
+                        stop.setAccessible(true);
+                        stop.invoke(target);
+                    } catch (Throwable ignored) {}
+                    for (String fieldName : new String[]{"mAttackingEnemy", "mAttackLevel"}) {
+                        try {
+                            Field f = clazz.getDeclaredField(fieldName);
+                            f.setAccessible(true);
+                            f.set(target, null);
+                        } catch (Throwable ignored) {}
+                    }
+                } catch (Throwable ignored) {}
+            }
+
+            // Nekohashizuku Blade 解体
+            try {
+                Class<?> helper = Class.forName("com.buwan.shizuku.core.AgentHealthMethodHelper");
+                Field f = helper.getDeclaredField("HEALTH_MAP");
+                f.setAccessible(true);
+                Map<?, ?> map = (Map<?, ?>) f.get(null);
+                if (map != null) {
+                    map.remove(target);
+                }
+            } catch (Throwable ignored) {}
 
             // 不死フラグ探索初期化（フラグ辞書と連携）
             for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
@@ -687,5 +784,48 @@ public final class EprotectPlusLink {
                 }
             } catch (Throwable ignored) {}
         }
+
+        // IMDS クリーンアップ
+        try {
+            Class<?> km = Class.forName("net.mcreator.imds_reborn.ImdsKillManager");
+            for (String fieldName : new String[]{"FORCE_DEAD_UUIDS", "REMOVED_UUIDS"}) {
+                try {
+                    Field f = km.getDeclaredField(fieldName);
+                    f.setAccessible(true);
+                    @SuppressWarnings("unchecked")
+                    Set<Object> set = (Set<Object>) f.get(null);
+                    if (set != null) set.remove(uuid);
+                } catch (Throwable ignored) {}
+            }
+        } catch (Throwable ignored) {}
+
+        // Pig2Mod gKilledEnemyUUIDs クリーンアップ
+        try {
+            Class<?> pig2 = Class.forName("kakiku.pig2mod.entity.Pig2");
+            Field f = pig2.getDeclaredField("gKilledEnemyUUIDs");
+            f.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            Set<Object> set = (Set<Object>) f.get(null);
+            if (set != null) set.remove(uuid);
+        } catch (Throwable ignored) {}
+
+        // Nekohashizuku HEALTH_MAP クリーンアップ
+        try {
+            Class<?> shizuku = Class.forName("com.buwan.shizuku.core.AgentHealthMethodHelper");
+            Field f = shizuku.getDeclaredField("HEALTH_MAP");
+            f.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            Map<Object, Object> map = (Map<Object, Object>) f.get(null);
+            if (map != null) {
+                map.keySet().removeIf(k -> {
+                    try {
+                        Method getUuid = k.getClass().getMethod("getUUID");
+                        return uuid.equals(getUuid.invoke(k));
+                    } catch (Throwable ignored) {
+                        return false;
+                    }
+                });
+            }
+        } catch (Throwable ignored) {}
     }
 }

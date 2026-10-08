@@ -87,6 +87,7 @@ public final class EprotectPlusAgent {
 
         try {
             inst.addTransformer(TRANSFORMER, true);
+            neutralizeSuperSteveAgtCallback(inst);
             com.automatavalkyries.eprotectplus.flag.FlagDictionaryAgent.start(inst, lateAttach);
             EprotectPlusBridge.recordEvent("初期化", "EprotectPlusAgent", "JVM-Agent", "start", "起動完了",
                     "CanRetransform=" + inst.isRetransformClassesSupported() + ", CanRedefine=" + inst.isRedefineClassesSupported());
@@ -185,6 +186,7 @@ public final class EprotectPlusAgent {
             }
 
             if (!toRetransform.isEmpty()) {
+                neutralizeSuperSteveAgtCallback(instrumentation);
                 instrumentation.retransformClasses(toRetransform.toArray(new Class<?>[0]));
                 EprotectPlusBridge.recordProtection("JVM", "EprotectPlusAgent", "active_retransform",
                         "重要クラス " + toRetransform.size() + " 件の能動的整合性再監査・復元を完了");
@@ -251,6 +253,15 @@ public final class EprotectPlusAgent {
             // 1. Witherzilla 対策: 生命維持フラグ (witherzillaLife) を強制無効化
             neutralizeWitherzillaLife(entity, clazz);
 
+            // 1.5 SuperSteve 対策: health Operator / SafeServerPlayer の解体
+            neutralizeSuperSteve(entity, clazz);
+
+            // 1.6 Pig2Mod 対策: 追跡・戦闘状態の解体
+            neutralizePig2(entity, clazz);
+
+            // 1.7 Nekohashizuku 対策: HEALTH_MAP の除去
+            neutralizeNekohashizuku(entity, clazz);
+
             // 2. Omni-Mobs / Metapotent Flashfur 対策: healthDelta をリセットし、StackChecker を迂回
             neutralizeFlashfur(entity, clazz);
 
@@ -307,6 +318,100 @@ public final class EprotectPlusAgent {
         try {
             Method m = clazz.getMethod("setWitherzillaLife", boolean.class);
             m.invoke(entity, false);
+        } catch (Throwable ignored) {}
+    }
+
+    public static void neutralizeSuperSteveAgtCallback(Instrumentation inst) {
+        try {
+            Class<?> agt = Class.forName("plz.lizi.supersteve.power.AgtCallback");
+            Field f = agt.getDeclaredField("INST");
+            f.setAccessible(true);
+            Object cur = f.get(null);
+            if (cur != null && cur != inst) {
+                f.set(null, inst);
+                EprotectPlusBridge.recordProtection("JVM", "SuperSteve", "neutralize_agt_callback",
+                        "AgtCallback.INST を同期し、外部エージェント破棄トラップを無力化");
+            }
+        } catch (Throwable ignored) {}
+    }
+
+    private static void neutralizeSuperSteve(Object entity, Class<?> clazz) {
+        if (entity == null) return;
+        String name = clazz.getName();
+        if (name.contains("SuperSteve") || name.contains("SafeServerPlayer") || name.contains("DeathServerPlayer")) {
+            try {
+                Method dc = clazz.getMethod("disconnect");
+                dc.invoke(entity);
+            } catch (Throwable ignored) {}
+
+            for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
+                try {
+                    Field f = c.getDeclaredField("health");
+                    f.setAccessible(true);
+                    Object op = f.get(entity);
+                    if (op != null) {
+                        Method m = op.getClass().getMethod("operate", Object[].class);
+                        Field vrfField = c.getDeclaredField("VRF");
+                        vrfField.setAccessible(true);
+                        String[] vrf = (String[]) vrfField.get(null);
+                        if (vrf != null && vrf.length > 5) {
+                            m.invoke(op, new Object[]{ new Object[]{ vrf[5], 0.0F } });
+                        }
+                    }
+                } catch (Throwable ignored) {}
+
+                try {
+                    Field be = c.getDeclaredField("bossEvent");
+                    be.setAccessible(true);
+                    Object bossEvent = be.get(entity);
+                    if (bossEvent != null) {
+                        Method clear = bossEvent.getClass().getMethod("removeAllPlayers");
+                        clear.invoke(bossEvent);
+                    }
+                } catch (Throwable ignored) {}
+            }
+
+            try {
+                Class<?> ssu = Class.forName("plz.lizi.supersteve.api.SSUtil");
+                for (Method m : ssu.getMethods()) {
+                    if (m.getName().equals("killEntity") && m.getParameterCount() == 2) {
+                        m.invoke(null, entity, true);
+                        break;
+                    }
+                }
+            } catch (Throwable ignored) {}
+        }
+    }
+
+    private static void neutralizePig2(Object entity, Class<?> clazz) {
+        if (entity == null) return;
+        if (clazz.getName().contains("Pig2")) {
+            try {
+                Method stop = clazz.getDeclaredMethod("stopFightingRemovedEnemy");
+                stop.setAccessible(true);
+                stop.invoke(entity);
+            } catch (Throwable ignored) {}
+
+            for (String fieldName : new String[]{"mAttackingEnemy", "mAttackLevel"}) {
+                try {
+                    Field f = clazz.getDeclaredField(fieldName);
+                    f.setAccessible(true);
+                    f.set(entity, null);
+                } catch (Throwable ignored) {}
+            }
+        }
+    }
+
+    private static void neutralizeNekohashizuku(Object entity, Class<?> clazz) {
+        if (entity == null) return;
+        try {
+            Class<?> shizuku = Class.forName("com.buwan.shizuku.core.AgentHealthMethodHelper");
+            Field f = shizuku.getDeclaredField("HEALTH_MAP");
+            f.setAccessible(true);
+            Map<?, ?> map = (Map<?, ?>) f.get(null);
+            if (map != null) {
+                map.remove(entity);
+            }
         } catch (Throwable ignored) {}
     }
 
@@ -707,6 +812,33 @@ public final class EprotectPlusAgent {
                     Set<Object> set = (Set<Object>) f.get(null);
                     if (set != null) set.remove(uuid);
                 } catch (Throwable ignored) {}
+            }
+        } catch (Throwable ignored) {}
+
+        // Pig2Mod gKilledEnemyUUIDs クリーンアップ
+        try {
+            Class<?> pig2 = Class.forName("kakiku.pig2mod.entity.Pig2");
+            Field f = pig2.getDeclaredField("gKilledEnemyUUIDs");
+            f.setAccessible(true);
+            Set<Object> set = (Set<Object>) f.get(null);
+            if (set != null) set.remove(uuid);
+        } catch (Throwable ignored) {}
+
+        // Nekohashizuku HEALTH_MAP クリーンアップ
+        try {
+            Class<?> shizuku = Class.forName("com.buwan.shizuku.core.AgentHealthMethodHelper");
+            Field f = shizuku.getDeclaredField("HEALTH_MAP");
+            f.setAccessible(true);
+            Map<Object, Object> map = (Map<Object, Object>) f.get(null);
+            if (map != null) {
+                map.keySet().removeIf(k -> {
+                    try {
+                        Method getUuid = k.getClass().getMethod("getUUID");
+                        return uuid.equals(getUuid.invoke(k));
+                    } catch (Throwable ignored) {
+                        return false;
+                    }
+                });
             }
         } catch (Throwable ignored) {}
     }

@@ -886,6 +886,8 @@
   "entity.automata_valkyries.valkyrie_dummy.hits": "  最後 %s / 合計 %s",
   "item.automata_valkyries.valkyrie_dummy_spawn_egg": "戦術兵姫のダミーちゃんのスポーンエッグ",
   "message.automata_valkyries.valkyrie_dummy.evicted": "戦術兵姫のダミーちゃん %s 体に退去してもらいました",
+  "bossbar.automata_valkyries.luxion.rank": "AEC級英雄機",
+  "bossbar.automata_valkyries.luxion.phase2": "第二形態・極光解放",
   "entity.automata_valkyries.luxion": "最光速『ルクシオン』",
   "item.automata_valkyries.luxion_spawn_egg": "最光速『ルクシオン』のスポーンエッグ",
   "item.automata_valkyries.signal_luxion": "英雄機の呼び声『ルクシオン』",

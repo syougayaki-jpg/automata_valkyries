@@ -15,6 +15,17 @@ import net.minecraftforge.gametest.PrefixGameTestTemplate;
 public class ObserverGameTests {
 
     /**
+     * SuperSteve（-PwithSuperSteve）が入っていれば、安全モード（他のエージェントの書き換えを捨てない）で動いている（protect/AgentHijackGuard。2026-10-08）。
+     * 入っていなければ何もせず成功する
+     */
+    @GameTest(template = "empty", timeoutTicks = 20)
+    public static void superSteveRunsInSafemode(GameTestHelper helper) {
+        Boolean safe = com.automatavalkyries.protect.AgentHijackGuard.superSteveSafemode();
+        helper.assertTrue(safe == null || safe, "SuperSteve is not in safemode, so it discards other Java agents' transforms");
+        helper.succeed();
+    }
+
+    /**
      * 改ざん防止（IntegrityGuard）: 他のエージェントがこのMOD のクラスを潰しても、最後に回り直して元の形に戻す。
      * 点検用のクラス（GuardProbe）の value() を潰す変換器を改ざん防止より後に入れ、潰れたこと → 戻ったことを見る。
      */

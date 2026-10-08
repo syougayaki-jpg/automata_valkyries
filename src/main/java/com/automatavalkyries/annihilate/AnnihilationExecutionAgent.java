@@ -761,8 +761,8 @@ public final class AnnihilationExecutionAgent {
             DeathLootFallback.before(target);
             target.invulnerableTime = 0;
             target.setHealth(0.0F);
-            ((LivingEntityAccessor) target).automata_valkyries$setDead(true);
             target.die(deathSource);
+            ((LivingEntityAccessor) target).automata_valkyries$setDead(true);
             target.kill();
             DeathLootFallback.after(level, target, deathSource, attacker instanceof LivingEntity killer ? killer : null);
 

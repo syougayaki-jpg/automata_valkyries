@@ -22,6 +22,7 @@ public class AutomataMixinPlugin implements IMixinConfigPlugin {
 
     @Override
     public void onLoad(String mixinPackage) {
+        com.automatavalkyries.protect.AgentHijackGuard.beforeModsLoad(); // 他のエージェントの書き換えを捨てる MOD への備え（どの MOD より先に）
         String value = System.getProperty("automata_valkyries.disableMixins", "");
         disabled = Arrays.stream(value.split(",")).map(String::trim).filter(s -> !s.isEmpty()).collect(Collectors.toSet());
         if (!disabled.isEmpty()) System.out.println("[automata_valkyries] Mixins disabled for this launch: " + disabled);

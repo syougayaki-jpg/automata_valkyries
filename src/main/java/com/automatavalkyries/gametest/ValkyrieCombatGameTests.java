@@ -243,6 +243,11 @@ public class ValkyrieCombatGameTests {
     public static void crashedPodWakesWithProtoCore(GameTestHelper helper) {
         clearAround(helper);
         net.minecraft.core.BlockPos surface = helper.absolutePos(new net.minecraft.core.BlockPos(4, 0, 4)); // 空の型の床の上
+        var chunkPos = new net.minecraft.world.level.ChunkPos(surface);
+        var manager = (net.minecraft.world.level.entity.PersistentEntitySectionManager<net.minecraft.world.entity.Entity>)
+                ((com.automatavalkyries.mixin.ServerLevelTickListAccessor) helper.getLevel()).automata_valkyries$getEntityManager();
+        manager.updateChunkStatus(chunkPos, net.minecraft.server.level.FullChunkStatus.ENTITY_TICKING);
+        helper.getLevel().setChunkForced(chunkPos.x, chunkPos.z, true);
         com.automatavalkyries.world.CrashedPods.place(helper.getLevel(), surface, net.minecraft.util.RandomSource.create(1)); // テストの世界は海のバイオームなので場所の確認は飛ばす
         var sleepers = helper.getLevel().getEntitiesOfClass(ValkyrieEntity.class, new net.minecraft.world.phys.AABB(surface).inflate(4), ValkyrieEntity::isPodSleeper);
         helper.assertTrue(sleepers.size() == 1, "expected one sleeping valkyrie, found " + sleepers.size());

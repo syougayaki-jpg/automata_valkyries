@@ -226,6 +226,16 @@ public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntity
     }
 
     private void animateLuxion(com.automatavalkyries.entity.chrono.LuxionEntity lux, float pt, float age, float walk, float limb, float pitch) {
+        if (lux.isDefeatedSynced()) { // 撃破後は歩く脚の振り・首の向きを止める
+            walk = 0.0F;
+            pitch = 0.0F;
+        }
+        if (LuxionRenderer.portrait) { // ボスバーの横顔: いつも同じ姿で止める
+            pt = 0.0F;
+            age = 0.0F;
+            walk = 0.0F;
+            pitch = 0.0F;
+        }
         boolean hovering = lux.isHovering();
         if (hovering) walk *= 0.2F; // 空中では歩かない
         float legSwing = Mth.cos(limb * 0.7F) * 1.1F * walk;

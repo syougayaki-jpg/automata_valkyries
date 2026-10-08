@@ -203,7 +203,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
      * 向かう位置へ、1 Tick に最大 0.6 ブロックで寄る
      */
     private void tickHover() {
-        boolean hover = hoverTicks > 0 && hoverTarget != null && stage() == STAGE_NONE && isAlive();
+        boolean hover = hoverTicks > 0 && hoverTarget != null && stage() == STAGE_NONE && isAlive() && !defeatedNow();
         if (hover) {
             hoverTicks--;
             Vec3 d = hoverTarget.subtract(position()).scale(0.3);
@@ -256,12 +256,28 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
     /** 演出の間は動かず、技も出さない（AI ごと止める） */
     @Override
     protected boolean isImmobile() {
-        return super.isImmobile() || stage() != STAGE_NONE;
+        return super.isImmobile() || stage() != STAGE_NONE || isDefeatedSynced();
+    }
+
+    /** 撃破されたか（HP が残ったまま即死 MOD で倒れた場合も含む） */
+    private boolean defeatedNow() {
+        return isDefeatedSynced() || deathTime > 0;
+    }
+
+    @Override
+    public boolean isPushable() {
+        return !defeatedNow() && super.isPushable();
+    }
+
+    @Override
+    public void knockback(double strength, double x, double z) {
+        if (!defeatedNow()) super.knockback(strength, x, z);
     }
 
     @Override
     public boolean hurt(DamageSource source, float amount) {
         if (stage() == STAGE_TRANSFORM && !source.is(net.minecraft.tags.DamageTypeTags.BYPASSES_INVULNERABILITY)) return false; // 変身の間は受けない
+        if (defeatedNow()) return false; // 撃破の演出の間は受けない（のけぞり・押し戻しも無し）
         boolean hurt = super.hurt(source, amount);
         if (hurt && amount >= BIG_HIT && !level().isClientSide) level().broadcastEntityEvent(this, EVENT_BIG_HURT);
         return hurt;
@@ -449,13 +465,23 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
         }
         protect.tick();
         float ratio = Mth.clamp(DirectRead.health(this) / getMaxHealth(), 0.0F, 1.0F);
-        bossEvent.setProgress(ratio);
+        // 撃破されたら HP の値に関わらずボスバーを 0 に（即死 MOD で HP が残ったまま倒れると減らず、ボスバーの砕ける演出が始まらなかった。2026-10-08）
+        bossEvent.setProgress(entityData.get(DEFEATED) || deathTime > 0 ? 0.0F : ratio);
         if (!introDone) { // 降臨（光の柱から降りてくる）
             introDone = true;
             if (isAlive()) startStage(STAGE_INTRO);
         }
         tickStage();
         tickHover();
+        if (defeatedNow()) { // 撃破されたらその場で止まる（歩かない・向きを変えない・技を出さない。2026-10-08 ユーザー指定）
+            getNavigation().stop();
+            setTarget(null);
+            setAggressive(false);
+            Vec3 v = getDeltaMovement();
+            setDeltaMovement(0.0, Math.min(v.y, 0.0), 0.0); // 落ちるだけ
+            xxa = zza = 0.0F;
+            setYHeadRot(yBodyRot);
+        }
         if (!isPhase2() && ratio <= 0.5F && isAlive()) {
             entityData.set(PHASE2, true);
             startStage(STAGE_TRANSFORM); // 剣を天へ掲げて浮かび、翼と光輪を開く（1.5 秒、攻撃を受けない）

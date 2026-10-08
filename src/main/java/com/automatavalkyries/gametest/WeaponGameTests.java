@@ -764,6 +764,12 @@ public class WeaponGameTests {
     /** 通常攻撃は左クリック（振り）で出て、間隔のあいだは出ず、1 回分の電力だけ減る */
     @GameTest(template = TEMPLATE, batch = "t4_normal_ready")
     public static void t4NormalAttackCooldown(GameTestHelper helper) {
+        net.minecraft.core.BlockPos pos = helper.absolutePos(new net.minecraft.core.BlockPos(1, 2, 1));
+        var chunkPos = new net.minecraft.world.level.ChunkPos(pos);
+        var manager = (net.minecraft.world.level.entity.PersistentEntitySectionManager<net.minecraft.world.entity.Entity>)
+                ((com.automatavalkyries.mixin.ServerLevelTickListAccessor) helper.getLevel()).automata_valkyries$getEntityManager();
+        manager.updateChunkStatus(chunkPos, net.minecraft.server.level.FullChunkStatus.ENTITY_TICKING);
+        helper.getLevel().setChunkForced(chunkPos.x, chunkPos.z, true);
         FakePlayer player = player(helper, new Vec3(1, 2, 1));
         player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, ((TacticalWeaponItem) ModWeapons.LUMINOUS_REQUIEM.get()).charged());
         ItemStack stack = player.getMainHandItem();
