@@ -828,4 +828,11 @@ public final class EprotectPlusLink {
             }
         } catch (Throwable ignored) {}
     }
+
+    public static boolean isAnnihilationConfirmed(Entity target) {
+        if (target == null || !(target.level() instanceof net.minecraft.server.level.ServerLevel level)) return false;
+        return com.automatavalkyries.protect.DirectRead.isRemoved(target)
+                && level.getEntity(target.getUUID()) != target && level.getEntity(target.getId()) != target;
+    }
+
 }

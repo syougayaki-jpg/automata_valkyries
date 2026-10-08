@@ -41,9 +41,8 @@ import java.util.UUID;
 /**
  * 真抹殺執行エンジン（True Annihilation Engine）。
  * <p>
- * Eprotect+ Java エージェントと連携し、Witherzilla の生命維持フラグ（witherzillaLife）や
- * Metapotent Flashfur の StackChecker（スタック検閲防壁）を含む、あらゆるチートモブの
- * JVM レベルの防御・偽装・不死機構を突破・解体して不可逆的に抹殺する。
+ * MOD 側の対策と消去処理を実行し、対象がワールドの UUID/ID 検索から退去したことを確認する。
+ * Eprotect+ 接続時には協調用の実行範囲と診断を利用する。将来の復活や外部保存までの消去は保証しない。
  * </p>
  */
 public final class TrueAnnihilationEngine {
@@ -59,7 +58,8 @@ public final class TrueAnnihilationEngine {
      * @return 抹殺が完了したか
      */
     public static boolean annihilateEntity(ServerLevel level, Player player, Entity target) {
-        if (target == null || target instanceof Player || (target instanceof IEprotected protectedEntity && !protectedEntity.isTerminusTestTarget())) {
+        if (target == null || target.level() != level || !level.getServer().isSameThread()
+                || target instanceof Player || (target instanceof IEprotected protectedEntity && !protectedEntity.isTerminusTestTarget())) {
             return false;
         }
 
@@ -73,11 +73,6 @@ public final class TrueAnnihilationEngine {
         AnnihilationExecutionAgent.clearBossEvents(target);
 
         final boolean[] defended = new boolean[1];
-
-        // 1. Eprotect+ Java エージェント（または内蔵特権空間）による JVM レベルの不死剥奪・本体解体（案3: スタック偽装下で執行）
-        EprotectPlusLink.runWithCloakedStack(() -> {
-            EprotectPlusLink.annihilateTargetWithAgent(target);
-        });
 
         // 2. AnnihilationExecutionAgent のブラックリスト登録 & スポーン拒否 & ボス固有解体
         EprotectPlusLink.runWithCloakedStack(() -> AnnihilationExecutionAgent.runWithEventSuppression(() -> {
@@ -99,6 +94,9 @@ public final class TrueAnnihilationEngine {
                 if (instances != null) instances.add(target);
             } catch (Throwable ignored) {}
 
+            // Capture target-owned references before any specific or memory cleanup.
+            ModProtectionBreaker.Context context = ModProtectionBreaker.breakProtection(level, target);
+
             // (2) Witherzilla / Omni-Mobs 等のボス固有無力化（Unsafe 解体 & メモリ直接消去）
             AnnihilationExecutionAgent.neutralizeWitherzilla(level, target);
             AnnihilationExecutionAgent.neutralizeFlashfur(level, target);
@@ -110,7 +108,6 @@ public final class TrueAnnihilationEngine {
             }
 
             // (3) 他 MOD の独自の生命維持（保護の切り替え・フラグ・代理の本体）を解除
-            ModProtectionBreaker.Context context = ModProtectionBreaker.breakProtection(level, target);
             ModProtectionBreaker.finishWithModOwnDeath(target);
             target.ejectPassengers();
             target.stopRiding();
@@ -228,26 +225,24 @@ public final class TrueAnnihilationEngine {
                         new AnnihilatedEntitiesPacket(packetUuids, List.of(targetId)));
             } catch (Throwable ignored) {}
 
-            // (10) フラッシュファー（Omni-Mobs）のディスク永続保存ファイルの完全抹消
-            try {
-                java.nio.file.Path saveDir = level.getServer().getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT).resolve("metapotent_flashfurs");
-                if (java.nio.file.Files.isDirectory(saveDir)) {
-                    try (var stream = java.nio.file.Files.walk(saveDir)) {
-                        stream.sorted(java.util.Comparator.reverseOrder())
-                                .forEach(p -> { try { java.nio.file.Files.deleteIfExists(p); } catch (Throwable ignored) {} });
-                    }
-                }
-            } catch (Throwable ignored) {}
+            // Unknown save formats cannot establish target ownership. Never erase the whole directory.
         }));
 
         if (defended[0]) {
             return false;
         }
 
+        if (!com.automatavalkyries.protect.DirectRead.isRemoved(target)
+                || level.getEntity(targetUuid) == target || level.getEntity(targetId) == target) {
+            AutomataValkyries.LOGGER.warn("[TrueAnnihilation] Removal unconfirmed: {} ({})", targetName, targetUuid);
+            return false;
+        }
+
         // 演出エフェクト
         spawnVisualEffects(level, pos);
 
-        AutomataValkyries.LOGGER.info("[TrueAnnihilation] Eradicated {} ({}) with Eprotect+ Java Agent", targetName, targetUuid);
+        EprotectPlusLink.recordAnnihilation(targetName, "TrueAnnihilationEngine", "confirmed_removal", targetUuid.toString());
+        AutomataValkyries.LOGGER.info("[TrueAnnihilation] Removal confirmed for {} ({})", targetName, targetUuid);
         return true;
     }
 

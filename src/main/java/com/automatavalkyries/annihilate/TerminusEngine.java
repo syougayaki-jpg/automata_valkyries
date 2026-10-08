@@ -44,6 +44,7 @@ public final class TerminusEngine {
         public final WeakReference<Entity> entityRef;
         public final long startTick;
         public final long startTimeMs;
+        public final long startNanos = System.nanoTime();
         public volatile boolean reinforcementTriggered = false;
 
         public TargetRecord(Entity entity, long startTick, long startTimeMs) {
@@ -59,6 +60,81 @@ public final class TerminusEngine {
     }
 
     private static final Map<UUID, TargetRecord> TRACKED_TARGETS = new ConcurrentHashMap<>();
+    public static final int AREA_TARGETS_PER_TICK = 4;
+    private static final long AREA_BUDGET_NANOS = 4_000_000L;
+    private static final java.util.ArrayDeque<AreaJob> AREA_JOBS = new java.util.ArrayDeque<>();
+
+    private static final class AreaJob {
+        final ServerLevel level;
+        final WeakReference<Entity> attacker;
+        final java.util.ArrayDeque<WeakReference<Entity>> targets = new java.util.ArrayDeque<>();
+        final java.util.function.IntConsumer completed;
+        int count;
+
+        AreaJob(ServerLevel level, Entity attacker, List<Entity> targets,
+                java.util.function.IntConsumer completed) {
+            this.level = level;
+            this.attacker = new WeakReference<>(attacker);
+            targets.forEach(target -> this.targets.add(new WeakReference<>(target)));
+            this.completed = completed;
+        }
+    }
+
+    /** Loaded entities are selected once; repeated requests from the same attacker are coalesced. */
+    public static boolean queueAreaTerminus(ServerLevel level, Entity attacker, double radius,
+            boolean includePlayers, java.util.function.IntConsumer completed) {
+        if (level == null || attacker == null || attacker.level() != level
+                || !level.getServer().isSameThread() || !Double.isFinite(radius) || radius < 0) return false;
+        for (AreaJob job : AREA_JOBS) {
+            if (job.attacker.get() == attacker) return false;
+        }
+        List<Entity> targets = level.getEntities(attacker, attacker.getBoundingBox().inflate(radius), e ->
+                !e.getUUID().equals(attacker.getUUID()) && !(e instanceof IEprotected protectedEntity
+                        && !protectedEntity.isTerminusTestTarget())
+                        && (includePlayers || !(e instanceof Player))
+                        && (e instanceof LivingEntity || e.isAlive()));
+        AREA_JOBS.add(new AreaJob(level, attacker, targets, completed));
+        return true;
+    }
+
+    private static void processAreaJobs() {
+        long started = System.nanoTime();
+        int processed = 0;
+        while (!AREA_JOBS.isEmpty() && processed < AREA_TARGETS_PER_TICK
+                && System.nanoTime() - started < AREA_BUDGET_NANOS) {
+            AreaJob job = AREA_JOBS.removeFirst();
+            Entity attacker = job.attacker.get();
+            if (attacker == null || attacker.level() != job.level
+                    || com.automatavalkyries.protect.DirectRead.isRemoved(attacker)) continue;
+            WeakReference<Entity> reference = job.targets.pollFirst();
+            if (reference != null) {
+                processed++;
+                Entity target = reference.get();
+                try {
+                    if (target != null && target.level() == job.level
+                            && job.level.getEntity(target.getUUID()) == target
+                            && executeTerminus(job.level, attacker, target)) job.count++;
+                } catch (RuntimeException failure) {
+                    AutomataValkyries.LOGGER.warn("[TerminusEngine] Area target execution failed", failure);
+                }
+            }
+            if (job.targets.isEmpty()) {
+                try {
+                    if (job.completed != null) job.completed.accept(job.count);
+                } catch (RuntimeException failure) {
+                    AutomataValkyries.LOGGER.warn("[TerminusEngine] Area completion notification failed", failure);
+                }
+            } else {
+                AREA_JOBS.addLast(job);
+            }
+        }
+    }
+
+    @SubscribeEvent
+    public static void onServerStopped(net.minecraftforge.event.server.ServerStoppedEvent event) {
+        TRACKED_TARGETS.clear();
+        AREA_JOBS.clear();
+    }
 
     private TerminusEngine() {}
 
@@ -71,7 +147,8 @@ public final class TerminusEngine {
      * @return 終焉執行に成功したか
      */
     public static boolean executeTerminus(ServerLevel level, Entity attacker, Entity target) {
-        if (target == null) return false;
+        if (target == null || level == null || target.level() != level
+                || !level.getServer().isSameThread()) return false;
 
         // 味方の保護対象（兵姫など）は誤爆防止（※検証用ダミーは終焉機構の保護対象外として執行を許可）
         if (target instanceof IEprotected protectedEntity && !protectedEntity.isTerminusTestTarget()) {
@@ -98,13 +175,13 @@ public final class TerminusEngine {
             return TerminusPlayerExecutor.executeOnPlayer(level, playerAttacker, serverPlayer);
         }
 
-        // 2. MOB 対象の場合: 汎用チート解体 + Eprotect+ 真抹殺執行
-        GenericCheatMobNeutralizer.neutralize(level, target);
+        // 2. MOB: one pipeline captures controllers before dismantling and erasing memory.
         return TrueAnnihilationEngine.annihilateEntity(level, playerAttacker, target);
     }
 
     /**
-     * 範囲内の全エンティティに対して終焉を執行する。
+     * 範囲内の全エンティティに対して同期で終焉を執行する。
+     * 広域のアイテム操作は queueAreaTerminus を使い、Tick の処理予算を守る。
      *
      * @param level          サーバーワールド
      * @param attacker       発動者
@@ -113,6 +190,8 @@ public final class TerminusEngine {
      * @return 終焉執行したエンティティ数
      */
     public static int executeAreaTerminus(ServerLevel level, Entity attacker, double radius, boolean includePlayers) {
+        if (level == null || attacker == null || attacker.level() != level
+                || !level.getServer().isSameThread() || !Double.isFinite(radius) || radius < 0) return 0;
         UUID attackerUuid = attacker.getUUID();
         AABB box = attacker.getBoundingBox().inflate(radius);
         List<Entity> targets = level.getEntities(attacker, box, e -> {
@@ -131,16 +210,6 @@ public final class TerminusEngine {
             }
         }
 
-        // 範囲抹殺後の一括クリーンアップ
-        AnnihilationExecutionAgent.wipeFlashfurLevelMemory();
-        AnnihilationExecutionAgent.wipeFlashfurDiskSaves(level);
-        AnnihilationExecutionAgent.wipeOmniMobsInternalLists();
-        AnnihilationExecutionAgent.sanitizeEventBus();
-
-        level.getLevelData().setRaining(false);
-        level.setRainLevel(0.0F);
-        level.setThunderLevel(0.0F);
-
         AutomataValkyries.LOGGER.info("[TerminusEngine] Area terminus executed by {} in radius {}: {} eliminated",
                 attacker.getName().getString(), radius, count);
         return count;
@@ -151,13 +220,16 @@ public final class TerminusEngine {
     public static void trackTarget(Entity target, ServerLevel level) {
         if (target == null) return;
         long currentTick = level != null && level.getServer() != null ? level.getServer().getTickCount() : 0;
-        TRACKED_TARGETS.put(target.getUUID(), new TargetRecord(target, currentTick, System.currentTimeMillis()));
+        TRACKED_TARGETS.compute(target.getUUID(), (uuid, previous) ->
+                previous != null && previous.getEntity() == target ? previous
+                        : new TargetRecord(target, currentTick, System.currentTimeMillis()));
     }
 
     @SubscribeEvent
     public static void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
         checkResistanceAll();
+        processAreaJobs();
     }
 
     /**
@@ -165,7 +237,7 @@ public final class TerminusEngine {
      */
     public static void checkResistanceAll() {
         if (TRACKED_TARGETS.isEmpty()) return;
-        long nowMs = System.currentTimeMillis();
+        long nowNanos = System.nanoTime();
 
         Iterator<Map.Entry<UUID, TargetRecord>> it = TRACKED_TARGETS.entrySet().iterator();
         while (it.hasNext()) {
@@ -174,27 +246,26 @@ public final class TerminusEngine {
             Entity entity = record.getEntity();
 
             // 対象が消滅（GC 済み・ワールドから削除・非生存）している場合は追跡解除
-            if (entity == null || entity.isRemoved() || !entity.isAlive()) {
+            if (entity == null || (entity instanceof ServerPlayer player
+                    ? TerminusPlayerExecutor.isPlayerProperlyKilled(player)
+                    : EprotectPlusLink.isAnnihilationConfirmed(entity))) {
                 it.remove();
                 continue;
             }
 
-            long elapsedMs = nowMs - record.startTimeMs;
+            long elapsedMs = (nowNanos - record.startNanos) / 1_000_000L;
             long currentTick = entity.level().getServer() != null ? entity.level().getServer().getTickCount() : 0;
             long elapsedTicks = currentTick > 0 ? (currentTick - record.startTick) : (elapsedMs / 50L);
 
             // 10秒（200 ticks または 10,000ms）以上耐えている場合
             if ((elapsedTicks >= RESISTANCE_THRESHOLD_TICKS || elapsedMs >= RESISTANCE_THRESHOLD_MS)
                     && !record.reinforcementTriggered) {
-                record.reinforcementTriggered = true;
                 if (!EprotectPlusLink.isReinforcedActive()) {
                     // Eprotect+ 強化処理を 10 秒間実行！
                     EprotectPlusLink.triggerTerminusResistedReinforcement(entity);
+                    record.reinforcementTriggered = true;
                     AutomataValkyries.LOGGER.warn("[TerminusEngine] Entity {} resisted Terminus for >= 10s (elapsed: {} ticks, {} ms)! Triggered Eprotect+ 10-second reinforced protection.",
                             entity.getName().getString(), elapsedTicks, elapsedMs);
-                } else {
-                    AutomataValkyries.LOGGER.info("[TerminusEngine] Entity {} resisted Terminus for >= 10s (reinforcement already active)",
-                            entity.getName().getString());
                 }
             }
         }

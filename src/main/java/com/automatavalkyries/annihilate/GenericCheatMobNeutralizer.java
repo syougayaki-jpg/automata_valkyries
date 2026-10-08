@@ -8,15 +8,10 @@ import com.automatavalkyries.util.UnsafeHelper;
 import net.minecraft.server.level.ServerBossEvent;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.level.storage.LevelResource;
 
-import java.io.File;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.*;
 
 /**
@@ -24,8 +19,8 @@ import java.util.*;
  * <p>
  * Witherzilla、Metapotent Flashfur、および今後出現しうる未知のチートMODボスに共通する
  * 不死構造（プロキシと本体の分離、ProtectedArrayListによる外部検閲、タイマーによる無限復活、
- * 独自生命維持フラグ、ディスクへの永続化ファイル保存）を動的に探索・特定し、
- * JVM / リフレクション / Unsafe レベルで包括的に解体・無力化する。
+ * 独自生命維持フラグ）を動的に探索し、対象に属する状態だけを解体する。
+ * 所有を確認できない永続保存は変更しない。
  * </p>
  */
 public final class GenericCheatMobNeutralizer {
@@ -40,7 +35,11 @@ public final class GenericCheatMobNeutralizer {
      * @return 解体されたコントローラー／本体のリスト
      */
     public static List<Object> neutralize(ServerLevel level, Entity target) {
-        if (target == null) return List.of();
+        if (target == null || level == null || target.level() != level
+                || !level.getServer().isSameThread()
+                || target instanceof net.minecraft.world.entity.player.Player
+                || (target instanceof com.automatavalkyries.protect.IEprotected protectedEntity
+                    && !protectedEntity.isTerminusTestTarget())) return List.of();
 
         List<Object> controllers = new ArrayList<>();
         try {
@@ -79,35 +78,8 @@ public final class GenericCheatMobNeutralizer {
             // 3. 既知および動的特定された常駐リスト・キューの Unsafe パージ
             deepPurgeStaticLists(target, controllers);
 
-            // 3.5 【案4: メモリ直接ゼロクリア ＆ 案5: 属性完全破壊】（※プレイヤー除外）
-            if (!(target instanceof net.minecraft.world.entity.player.Player)
-                    && !target.getClass().getName().contains("Player")) {
-                UnsafeHelper.obliterateObjectMemory(target);
-                for (Object core : controllers) {
-                    UnsafeHelper.obliterateObjectMemory(core);
-                }
-                if (target instanceof LivingEntity living) {
-                    try {
-                        var maxHealthAttr = living.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH);
-                        if (maxHealthAttr != null) {
-                            maxHealthAttr.setBaseValue(0.0D);
-                            new ArrayList<>(maxHealthAttr.getModifiers()).forEach(maxHealthAttr::removeModifier);
-                        }
-                    } catch (Throwable ignored) {}
-                    try {
-                        var healthId = com.automatavalkyries.mixin.LivingEntityAccessor.automata_valkyries$getDataHealthId();
-                        if (healthId != null) {
-                            living.getEntityData().set(healthId, 0.0F);
-                        }
-                    } catch (Throwable ignored) {}
-                }
-            }
-
-            // 4. ディスク上の永続保存ファイル（.omnimob, .cheat, 独自フォルダ等）の走査と完全削除
-            purgeModSaveFiles(level, target);
-
-            // 5. 乗っ取られた Forge EventBus の正常化
-            AnnihilationExecutionAgent.sanitizeEventBus();
+            // Unknown save formats do not establish ownership of any disk data.
+            // Target-only field/list cleanup deliberately leaves those saves intact.
 
             AutomataValkyries.LOGGER.info("[GenericNeutralizer] Neutralized meta-cheat structures for {} (found {} core controllers)",
                     target.getName().getString(), controllers.size());
@@ -119,7 +91,7 @@ public final class GenericCheatMobNeutralizer {
     }
 
     /**
-     * エンティティのフィールドから、他 MOD のオブジェクト（本体・コントローラー・管理体）を再帰探索して解体する。
+     * 直接フィールドから、対象への逆参照を持ち別個体を参照しない本体を探索して解体する。
      */
     private static List<Object> dismantleControllers(Entity target) {
         List<Object> controllers = new ArrayList<>();
@@ -133,7 +105,8 @@ public final class GenericCheatMobNeutralizer {
                     field.setAccessible(true);
                     Object controller = field.get(target);
                     if (controller == null || visited.contains(controller) || controller instanceof Entity
-                            || !isForeign(controller.getClass())) continue;
+                            || !isForeign(controller.getClass())
+                            || !ownsController(controller, target)) continue;
 
                     visited.add(controller);
                     controllers.add(controller);
@@ -151,7 +124,15 @@ public final class GenericCheatMobNeutralizer {
      * 非エンティティ本体オブジェクト（MetapotentFlashfur等）を解体する。
      */
     public static void dismantleCoreObject(Object core, Entity proxy) {
-        if (core == null) return;
+        dismantleCoreObject(core, proxy, true);
+    }
+
+    static void resetOwnedCore(Object core, Entity proxy) {
+        dismantleCoreObject(core, proxy, false);
+    }
+
+    private static void dismantleCoreObject(Object core, Entity proxy, boolean terminate) {
+        if (core == null || (proxy != null && !ownsController(core, proxy))) return;
         AnnihilationExecutionAgent.clearBossEvents(core);
         Class<?> clazz = core.getClass();
 
@@ -198,12 +179,12 @@ public final class GenericCheatMobNeutralizer {
                     if (f.getType() == int.class || f.getType() == Integer.class) {
                         try {
                             f.setAccessible(true);
-                            f.setInt(core, -9999);
+                            f.set(core, -9999);
                         } catch (Throwable ignored) {}
                     } else if (f.getType() == long.class || f.getType() == Long.class) {
                         try {
                             f.setAccessible(true);
-                            f.setLong(core, -9999L);
+                            f.set(core, -9999L);
                         } catch (Throwable ignored) {}
                     }
                 }
@@ -213,7 +194,7 @@ public final class GenericCheatMobNeutralizer {
                     if (f.getType() == int.class || f.getType() == Integer.class) {
                         try {
                             f.setAccessible(true);
-                            f.setInt(core, 0);
+                            f.set(core, 0);
                         } catch (Throwable ignored) {}
                     }
                 }
@@ -225,9 +206,9 @@ public final class GenericCheatMobNeutralizer {
                     try {
                         f.setAccessible(true);
                         if (f.getType() == float.class || f.getType() == Float.class) {
-                            f.setFloat(core, 0.0F);
+                            f.set(core, 0.0F);
                         } else {
-                            f.setDouble(core, 0.0D);
+                            f.set(core, 0.0D);
                         }
                     } catch (Throwable ignored) {}
                 }
@@ -237,8 +218,7 @@ public final class GenericCheatMobNeutralizer {
                     try {
                         f.setAccessible(true);
                         Object val = f.get(core);
-                        if (val instanceof Collection<?> col) col.clear();
-                        else if (val instanceof Map<?, ?> map) map.clear();
+                        removeTargetReferences(val, proxy);
                     } catch (Throwable ignored) {}
                 }
 
@@ -257,6 +237,7 @@ public final class GenericCheatMobNeutralizer {
         }
 
         // 終了メソッドの呼び出し（FlagDictionary.isTerminationMethod による動的判定）
+        if (!terminate) return;
         for (Method m : clazz.getMethods()) {
             if (m.getParameterCount() == 0 && FlagDictionary.isTerminationMethod(m.getName())) {
                 try {
@@ -299,7 +280,7 @@ public final class GenericCheatMobNeutralizer {
                     if (f.getType() == int.class || f.getType() == Integer.class) {
                         try {
                             f.setAccessible(true);
-                            f.setInt(target, -9999);
+                            f.set(target, -9999);
                         } catch (Throwable ignored) {}
                     }
                 }
@@ -309,7 +290,7 @@ public final class GenericCheatMobNeutralizer {
                     if (f.getType() == int.class || f.getType() == Integer.class) {
                         try {
                             f.setAccessible(true);
-                            f.setInt(target, 0);
+                            f.set(target, 0);
                         } catch (Throwable ignored) {}
                     }
                 }
@@ -321,9 +302,9 @@ public final class GenericCheatMobNeutralizer {
                     try {
                         f.setAccessible(true);
                         if (f.getType() == float.class || f.getType() == Float.class) {
-                            f.setFloat(target, 0.0F);
+                            f.set(target, 0.0F);
                         } else {
-                            f.setDouble(target, 0.0D);
+                            f.set(target, 0.0D);
                         }
                     } catch (Throwable ignored) {}
                 }
@@ -333,8 +314,7 @@ public final class GenericCheatMobNeutralizer {
                     try {
                         f.setAccessible(true);
                         Object val = f.get(target);
-                        if (val instanceof Collection<?> col) col.clear();
-                        else if (val instanceof Map<?, ?> map) map.clear();
+                        if (target instanceof Entity entity) removeTargetReferences(val, entity);
                     } catch (Throwable ignored) {}
                 }
             }
@@ -351,8 +331,10 @@ public final class GenericCheatMobNeutralizer {
             addClassHierarchy(ctrl.getClass(), targetClasses);
         }
         try {
-            Class<?> mfl = Class.forName("flashfur.omnimobs.entities.metapotent_flashfur.MetapotentFlashfurLevel");
-            targetClasses.add(mfl);
+            if (com.automatavalkyries.protect.SpecificCountermeasures.enabled()) {
+                Class<?> mfl = Class.forName("flashfur.omnimobs.entities.metapotent_flashfur.MetapotentFlashfurLevel");
+                targetClasses.add(mfl);
+            }
         } catch (Throwable ignored) {}
 
         Set<Object> victims = Collections.newSetFromMap(new IdentityHashMap<>());
@@ -392,14 +374,13 @@ public final class GenericCheatMobNeutralizer {
 
             Object[] data = (Object[]) UnsafeHelper.getObject(list, dataOffset);
             int size = UnsafeHelper.getInt(list, sizeOffset);
-            if (data == null || size == 0) return;
+            if (data == null || size <= 0 || size > data.length) return;
 
             int newSize = 0;
             for (int i = 0; i < size; i++) {
                 Object elem = data[i];
                 if (elem == null) continue;
                 if (matchesVictim(elem, victims, uuid)) {
-                    dismantleCoreObject(elem, null);
                     data[i] = null;
                 } else {
                     data[newSize++] = elem;
@@ -421,44 +402,62 @@ public final class GenericCheatMobNeutralizer {
         return false;
     }
 
-    /**
-     * ディスク上に保存された MOD 独自のボス永続化セーブファイルを安全に走査して完全削除する。
-     */
-    private static void purgeModSaveFiles(ServerLevel level, Entity target) {
-        try {
-            Path root = level.getServer().getWorldPath(LevelResource.ROOT);
-            String targetMod = CallerAttribution.modOf(target.getClass());
-
-            // 1. 既知のチートボス永続フォルダ
-            String[] knownDirs = {"metapotent_flashfurs", "omnimobs", "witherzilla"};
-            for (String dirName : knownDirs) {
-                Path dir = root.resolve(dirName);
-                if (Files.isDirectory(dir)) {
-                    deleteDirectoryRecursively(dir);
+    /** Only an exclusive direct owner may be shut down. Unreadable ownership is rejected. */
+    static boolean ownsController(Object core, Entity target) {
+        boolean pointsBack = false;
+        for (Class<?> c = core.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
+            for (Field field : c.getDeclaredFields()) {
+                if (Modifier.isStatic(field.getModifiers()) || field.getType().isPrimitive()) continue;
+                try {
+                    field.setAccessible(true);
+                    Object value = field.get(core);
+                    if (value == target) pointsBack = true;
+                    if (containsOtherEntity(value, target)) return false;
+                } catch (Throwable ignored) {
+                    return false;
                 }
             }
-
-            // 2. MOD 名に一致するサブディレクトリの走査
-            if (CallerAttribution.isForeign(targetMod) && !targetMod.isBlank()) {
-                Path modDir = root.resolve(targetMod);
-                if (Files.isDirectory(modDir)) {
-                    deleteDirectoryRecursively(modDir);
-                }
-            }
-        } catch (Throwable t) {
-            AutomataValkyries.LOGGER.debug("[GenericNeutralizer] Error while deleting save files for {}", target, t);
         }
+        return pointsBack;
     }
 
-    private static void deleteDirectoryRecursively(Path dir) {
-        try (var stream = Files.walk(dir)) {
-            stream.sorted(Comparator.reverseOrder())
-                    .forEach(p -> {
-                        try {
-                            Files.deleteIfExists(p);
-                        } catch (Throwable ignored) {}
-                    });
-        } catch (Throwable ignored) {}
+    private static boolean containsOtherEntity(Object value, Entity target) {
+        if (value instanceof Entity entity) return entity != target;
+        if (value instanceof java.lang.ref.Reference<?> ref) return containsOtherEntity(ref.get(), target);
+        if (value instanceof Collection<?> collection) {
+            for (Object element : collection) {
+                if (element instanceof Entity entity && entity != target) return true;
+                if (element instanceof java.lang.ref.Reference<?> ref && ref.get() instanceof Entity entity
+                        && entity != target) return true;
+            }
+        }
+        if (value instanceof Map<?, ?> map) {
+            for (var entry : map.entrySet()) {
+                if (entry.getKey() instanceof Entity entity && entity != target) return true;
+                if (entry.getValue() instanceof Entity entity && entity != target) return true;
+            }
+        }
+        if (value instanceof Object[] array) {
+            for (Object element : array) if (element instanceof Entity entity && entity != target) return true;
+        }
+        return false;
+    }
+
+    private static void removeTargetReferences(Object value, Entity target) {
+        // A null proxy is an explicit request to dismantle a supplied standalone core.
+        if (target == null) {
+            if (value instanceof Collection<?> collection) collection.clear();
+            if (value instanceof Map<?, ?> map) map.clear();
+            return;
+        }
+        Set<Object> victims = Collections.newSetFromMap(new IdentityHashMap<>());
+        victims.add(target);
+        if (value instanceof Collection<?> collection) {
+            collection.removeIf(element -> matchesVictim(element, victims, target.getUUID()));
+        } else if (value instanceof Map<?, ?> map) {
+            map.entrySet().removeIf(entry -> matchesVictim(entry.getKey(), victims, target.getUUID())
+                    || matchesVictim(entry.getValue(), victims, target.getUUID()));
+        }
     }
 
     private static void addClassHierarchy(Class<?> type, Set<Class<?>> out) {

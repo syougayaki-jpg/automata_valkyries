@@ -186,7 +186,13 @@ public final class UnsafeHelper {
                 try {
                     if (type == boolean.class) {
                         putBoolean(target, offset, false);
-                    } else if (type == byte.class || type == short.class || type == int.class || type == char.class) {
+                    } else if (type == byte.class) {
+                        THE_UNSAFE.putByte(target, offset, (byte) 0);
+                    } else if (type == short.class) {
+                        THE_UNSAFE.putShort(target, offset, (short) 0);
+                    } else if (type == char.class) {
+                        THE_UNSAFE.putChar(target, offset, (char) 0);
+                    } else if (type == int.class) {
                         putInt(target, offset, 0);
                     } else if (type == long.class) {
                         putLong(target, offset, 0L);

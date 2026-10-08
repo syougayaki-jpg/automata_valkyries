@@ -108,9 +108,12 @@ public class TerminusStickItem extends Item {
         if (!level.isClientSide && level instanceof ServerLevel serverLevel) {
             // 通常空中右クリック: 超広域終焉執行（半径 500 ブロック）
             boolean includePlayers = isIncludePlayers(itemInHand);
-            int eradicated = TerminusEngine.executeAreaTerminus(serverLevel, player, 500.0, includePlayers);
-            player.displayClientMessage(Component.translatable("item.automata_valkyries.terminus_stick.aoe_used",
-                    eradicated).withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD), false);
+            if (TerminusEngine.queueAreaTerminus(serverLevel, player, 500.0, includePlayers,
+                    eradicated -> player.displayClientMessage(Component.translatable(
+                            "item.automata_valkyries.terminus_stick.aoe_used", eradicated)
+                            .withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD), false))) {
+                player.getCooldowns().addCooldown(this, 20);
+            }
         }
 
         return InteractionResultHolder.sidedSuccess(itemInHand, level.isClientSide);

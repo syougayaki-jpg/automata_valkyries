@@ -246,6 +246,7 @@ public final class ModProtectionBreaker {
     /** 代理エンティティの本体（対象を指し返すオブジェクト）を remove() / kill() / discard() で消し、見つけた本体を返す */
     private static List<Object> removeControllers(Entity target) {
         List<Object> controllers = new ArrayList<>();
+        Set<Object> seen = Collections.newSetFromMap(new IdentityHashMap<>());
         for (Class<?> type = target.getClass(); type != null && isForeign(type); type = type.getSuperclass()) {
             for (Field field : type.getDeclaredFields()) {
                 if (Modifier.isStatic(field.getModifiers()) || field.getType().isPrimitive()) continue;
@@ -253,7 +254,8 @@ public final class ModProtectionBreaker {
                     field.setAccessible(true);
                     Object controller = field.get(target);
                     if (controller == null || controller == target || controller instanceof Entity
-                            || !isForeign(controller.getClass()) || !pointsBackTo(controller, target)) continue;
+                            || !isForeign(controller.getClass()) || !GenericCheatMobNeutralizer.ownsController(controller, target)) continue;
+                    if (!seen.add(controller)) continue;
                     controllers.add(controller);
                     boolean invoked = false;
                     for (String name : CONTROLLER_KILL_METHODS) {
@@ -280,21 +282,9 @@ public final class ModProtectionBreaker {
                 } catch (Throwable ignored) {}
             }
         }
+        // Native removal runs first. Remaining target-owned flags are then reset without invoking close twice.
+        for (Object controller : controllers) GenericCheatMobNeutralizer.resetOwnedCore(controller, target);
         return controllers;
-    }
-
-    /** そのオブジェクトのフィールドのどれかが対象そのものを指しているか（本体と代理の関係か） */
-    private static boolean pointsBackTo(Object controller, Entity target) {
-        for (Class<?> type = controller.getClass(); type != null && type != Object.class; type = type.getSuperclass()) {
-            for (Field field : type.getDeclaredFields()) {
-                if (Modifier.isStatic(field.getModifiers()) || field.getType().isPrimitive()) continue;
-                try {
-                    field.setAccessible(true);
-                    if (field.get(controller) == target) return true;
-                } catch (Throwable ignored) {}
-            }
-        }
-        return false;
     }
 
     // ---- 準汎用: 静的な一覧 ------------------------------------------------------

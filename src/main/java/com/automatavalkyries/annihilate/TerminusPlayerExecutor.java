@@ -46,6 +46,8 @@ import java.util.UUID;
  */
 public final class TerminusPlayerExecutor {
 
+    private static final String DEATH_COMPLETED = "automata_valkyries:terminus_death_completed";
+
     private TerminusPlayerExecutor() {}
 
     /**
@@ -57,7 +59,8 @@ public final class TerminusPlayerExecutor {
      * @return 終焉執行が成功したか
      */
     public static boolean executeOnPlayer(ServerLevel level, Player attacker, ServerPlayer target) {
-        if (target == null) return false;
+        if (target == null || level == null || target.level() != level
+                || !level.getServer().isSameThread()) return false;
 
         if (com.automatavalkyries.protect.AgentPlayerProtection.isProtected(target)) {
             AutomataValkyries.LOGGER.info("[Terminus] Target player {} is protected by Java Agent Privilege Aegis; Terminus execution refused", target.getScoreboardName());
@@ -67,6 +70,11 @@ public final class TerminusPlayerExecutor {
         UUID uuid = target.getUUID();
         String name = target.getScoreboardName();
         Vec3 pos = target.position();
+        if (target.getPersistentData().getBoolean("automata_valkyries:terminus_pending_respawn")) {
+            return isPlayerProperlyKilled(target);
+        }
+        final boolean[] confirmed = {false};
+        final boolean[] deathCompleted = {false};
 
         EprotectPlusLink.runPrivileged(() -> {
             AutomataValkyries.LOGGER.info("[Terminus] Initiating absolute player execution for {} ({})", name, uuid);
@@ -143,7 +151,7 @@ public final class TerminusPlayerExecutor {
             try {
                 AnnihilationExecutionAgent.runWithEventSuppression(() -> {
                     try {
-                        target.die(level.damageSources().genericKill());
+                        deathCompleted[0] = invokePlayerDeath(level, target);
                     } catch (Throwable t) {
                         AutomataValkyries.LOGGER.debug("[Terminus] Suppressed exception during player die(): {}", t.getMessage());
                     }
@@ -176,9 +184,15 @@ public final class TerminusPlayerExecutor {
 
             // 8.5. プレイヤーが正常に即死・死亡状態になっているかを判定し、異常があれば自動修復
             target.getPersistentData().putBoolean("automata_valkyries:terminus_pending_respawn", true);
+            target.getPersistentData().putBoolean(DEATH_COMPLETED, deathCompleted[0]);
             if (!isPlayerProperlyKilled(target)) {
                 AutomataValkyries.LOGGER.warn("[Terminus] Target player {} was not properly killed after execution; executing remediation...", name);
-                verifyAndRemediatePlayerDeath(level, target);
+                verifyAndRemediatePlayerDeath(level, target, true);
+            }
+            confirmed[0] = isPlayerProperlyKilled(target);
+            if (!confirmed[0]) {
+                AutomataValkyries.LOGGER.warn("[Terminus] Player execution could not be confirmed for {} ({})", name, uuid);
+                return;
             }
 
             // 9. 死亡パケット（CombatKillPacket）および HP=0 同期パケットの送信（死亡画面強制）
@@ -209,7 +223,19 @@ public final class TerminusPlayerExecutor {
             AutomataValkyries.LOGGER.info("[Terminus] Absolute player execution successful for {} ({})", name, uuid);
         });
 
-        return true;
+        return confirmed[0];
+    }
+
+    private static boolean invokePlayerDeath(ServerLevel level, Player target) {
+        ServerPlayer serverPlayer = target instanceof ServerPlayer sp ? sp : null;
+        boolean connected = serverPlayer != null && serverPlayer.connection != null
+                && serverPlayer.connection.connection != null && serverPlayer.connection.connection.isConnected();
+        int previousDeaths = connected ? serverPlayer.getStats().getValue(
+                net.minecraft.stats.Stats.CUSTOM.get(net.minecraft.stats.Stats.DEATHS)) : 0;
+        target.die(level.damageSources().genericKill());
+        // A connected player's cancelled death hook must not pass just because HP was forced to zero.
+        return !connected || serverPlayer.getStats().getValue(
+                net.minecraft.stats.Stats.CUSTOM.get(net.minecraft.stats.Stats.DEATHS)) > previousDeaths;
     }
 
     /**
@@ -233,13 +259,16 @@ public final class TerminusPlayerExecutor {
      */
     public static boolean isPlayerProperlyKilled(Player player) {
         if (player == null) return false;
+        if (player.getPersistentData().getBoolean("automata_valkyries:terminus_pending_respawn")
+                && !player.getPersistentData().getBoolean(DEATH_COMPLETED)) return false;
 
         // 1. HP チェック（0以下かつ有限数）
-        if (DirectRead.hasHealth(player)) {
+        float storedHp = DirectRead.health(player);
+        if (!Float.isFinite(storedHp) || storedHp > 0.0F) {
             return false;
         }
         float hp = player.getHealth();
-        if (Float.isNaN(hp) || hp > 0.0F) {
+        if (!Float.isFinite(hp) || hp > 0.0F) {
             return false;
         }
 
@@ -304,8 +333,18 @@ public final class TerminusPlayerExecutor {
      * @return 修復後に正常な死亡状態になったか
      */
     public static boolean verifyAndRemediatePlayerDeath(ServerLevel level, Player target) {
+        return verifyAndRemediatePlayerDeath(level, target,
+                target != null && target.getPersistentData().getBoolean("automata_valkyries:terminus_pending_respawn"));
+    }
+
+    private static boolean verifyAndRemediatePlayerDeath(ServerLevel level, Player target, boolean deathAttempted) {
         if (target == null) return false;
         if (level == null && target.level() instanceof ServerLevel sl) level = sl;
+        if (level == null || target.level() != level || !level.getServer().isSameThread()
+                || com.automatavalkyries.protect.AgentPlayerProtection.isProtected(target)) return false;
+        boolean wasDead = DirectRead.deadFlag(target);
+        final boolean[] deathProcessed = {deathAttempted
+                ? target.getPersistentData().getBoolean(DEATH_COMPLETED) : wasDead};
 
         AutomataValkyries.LOGGER.info("[Terminus] Verifying and remediating player death for {} ({})",
                 target.getScoreboardName(), target.getUUID());
@@ -363,13 +402,12 @@ public final class TerminusPlayerExecutor {
             } catch (Throwable ignored) {}
 
             // 8. 死亡イベント発火（die() のみ呼び出し、kill() は絶対に呼ばない）
-            boolean wasDead = target.isDeadOrDying();
-            if (!wasDead && level != null) {
+            if (!deathAttempted && !wasDead) {
                 final ServerLevel lvl = level;
                 try {
                     AnnihilationExecutionAgent.runWithEventSuppression(() -> {
                         try {
-                            target.die(lvl.damageSources().genericKill());
+                            deathProcessed[0] = invokePlayerDeath(lvl, target);
                         } catch (Throwable t) {
                             AutomataValkyries.LOGGER.debug("[Terminus] Exception during remediating die(): {}", t.getMessage());
                         }
@@ -405,7 +443,7 @@ public final class TerminusPlayerExecutor {
             AutomataValkyries.LOGGER.error("[Terminus] Error during verifyAndRemediatePlayerDeath: {}", t.getMessage(), t);
         }
 
-        boolean verified = isPlayerProperlyKilled(target);
+        boolean verified = deathProcessed[0] && isPlayerProperlyKilled(target);
         if (verified) {
             AutomataValkyries.LOGGER.info("[Terminus] Player {} is confirmed properly killed", target.getScoreboardName());
         } else {
@@ -556,6 +594,7 @@ public final class TerminusPlayerExecutor {
         private static void handlePlayerRespawnOrClone(ServerPlayer player) {
             UUID uuid = player.getUUID();
             player.getPersistentData().remove("automata_valkyries:terminus_pending_respawn");
+            player.getPersistentData().remove(DEATH_COMPLETED);
             try {
                 // 1. サーバー側の外部 MOD 消滅リスト（erasedUuids等）から確実に除外
                 EprotectPlusLink.clearPlayerFromKillModLists(uuid);
@@ -588,7 +627,7 @@ public final class TerminusPlayerExecutor {
 
             // 終焉執行後リスポーン待ちのプレイヤーのキル状態判定 & 異常があれば自動修復
             if (player.getPersistentData().getBoolean("automata_valkyries:terminus_pending_respawn")) {
-                if (!isPlayerProperlyKilled(player)) {
+                if (player.tickCount % 20 == 0 && !isPlayerProperlyKilled(player)) {
                     verifyAndRemediatePlayerDeath(player.serverLevel(), player);
                 }
                 return;

@@ -430,7 +430,7 @@ public final class AnnihilationExecutionAgent {
 
     /**
      * Metapotent Flashfur（Omni-Mobs）の無力化。
-     * プロキシエンティティの向こうにある MetapotentFlashfurLevel を Unsafe で直接クリアし、ディスク保存も消去する。
+     * 対象に属する本体を解除する。所有を確認できない保存と他個体のキューは残す。
      */
     public static void neutralizeFlashfur(ServerLevel level, Entity entity) {
         if (!com.automatavalkyries.protect.SpecificCountermeasures.enabled()) return;
@@ -443,7 +443,7 @@ public final class AnnihilationExecutionAgent {
                 Field mfField = UnsafeHelper.findField(entity.getClass(), "metapotentFlashfur");
                 if (mfField != null) {
                     Object flashfurInstance = mfField.get(entity);
-                    if (flashfurInstance != null) {
+                    if (flashfurInstance != null && GenericCheatMobNeutralizer.ownsController(flashfurInstance, entity)) {
                         try {
                             Field idField = flashfurInstance.getClass().getDeclaredField("id");
                             idField.setAccessible(true);
@@ -488,16 +488,13 @@ public final class AnnihilationExecutionAgent {
             // (2) MetapotentFlashfurLevel.metapotentFlashfurList から死亡・抹消済み個体を安全に除去
             purgeDeadFlashfurs();
 
-            // (3) ディスク上の .omnimob ファイルの消去（ワールド再ロード時の復活阻止）
-            wipeFlashfurDiskSaves(level);
-
-            // (4) Respawning 及び RemoveDeadEntities のリスト消去
-            wipeOmniMobsInternalLists();
+            // Unknown persistence ownership must not erase saves or queues of other individuals.
+            // Target-specific references are removed by ModProtectionBreaker using its retained context.
 
             // (5) 乗っ取られた EventBus の正常化
             sanitizeEventBus();
 
-            AutomataValkyries.LOGGER.info("[AnnihilationAgent] Neutralized Metapotent Flashfur and cleared Omni-Mobs persistence");
+            AutomataValkyries.LOGGER.info("[AnnihilationAgent] Neutralized target Metapotent Flashfur; unowned persistence retained");
         } catch (Throwable t) {
             AutomataValkyries.LOGGER.warn("[AnnihilationAgent] Failed during Metapotent Flashfur neutralization", t);
         }
