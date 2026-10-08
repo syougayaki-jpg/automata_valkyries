@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "automata_valkyries:block/valkyrie_storage"
+    },
+    "facing=east": {
+      "model": "automata_valkyries:block/valkyrie_storage",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "automata_valkyries:block/valkyrie_storage",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "automata_valkyries:block/valkyrie_storage",
+      "y": 270
+    }
+  }
+}

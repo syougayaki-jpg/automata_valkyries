@@ -86,6 +86,7 @@
     "automata_valkyries:upgrade_station",
     "automata_valkyries:crashed_pod_hull",
     "automata_valkyries:damaged_interface",
-    "automata_valkyries:charging_dock"
+    "automata_valkyries:charging_dock",
+    "automata_valkyries:valkyrie_storage"
   ]
 }

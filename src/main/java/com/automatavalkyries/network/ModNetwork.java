@@ -96,5 +96,16 @@ public final class ModNetwork {
                 .decoder(DualWieldPacket::decode)
                 .consumerMainThread(DualWieldPacket::handle)
                 .add();
+        // 兵姫の収納テレポーター（2026-10-09）
+        CHANNEL.messageBuilder(StorageListPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(StorageListPacket::encode)
+                .decoder(StorageListPacket::decode)
+                .consumerMainThread(StorageListPacket::handle)
+                .add();
+        CHANNEL.messageBuilder(StorageActionPacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(StorageActionPacket::encode)
+                .decoder(StorageActionPacket::decode)
+                .consumerMainThread(StorageActionPacket::handle)
+                .add();
     }
 }

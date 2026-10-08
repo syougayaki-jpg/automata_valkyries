@@ -1,0 +1,26 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "ACA",
+    "LEL",
+    "AAA"
+  ],
+  "key": {
+    "A": {
+      "item": "automata_valkyries:ingot_astrite"
+    },
+    "C": {
+      "item": "automata_valkyries:circuit_advanced"
+    },
+    "L": {
+      "item": "automata_valkyries:crystal_luminal"
+    },
+    "E": {
+      "item": "minecraft:ender_pearl"
+    }
+  },
+  "result": {
+    "item": "automata_valkyries:valkyrie_storage"
+  }
+}

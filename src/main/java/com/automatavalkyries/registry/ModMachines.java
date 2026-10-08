@@ -77,6 +77,19 @@ public final class ModMachines {
     public static final RegistryObject<BlockEntityType<ValkyrieChargerBlockEntity>> VALKYRIE_CHARGER_ENTITY = BLOCK_ENTITIES.register("valkyrie_charger", () ->
             BlockEntityType.Builder.of(ValkyrieChargerBlockEntity::new, VALKYRIE_CHARGER.get()).build(null));
 
+    // ---- 兵姫の収納テレポーター（2026-10-09 ユーザー指定）: 近くの自分の兵姫を中へしまい、前へ出す。壊すと中身を持ったまま落ちる ----
+    public static final RegistryObject<Block> VALKYRIE_STORAGE = ModBlocks.BLOCKS.register("valkyrie_storage", () -> new com.automatavalkyries.machine.ValkyrieStorageBlock(
+            BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_BLACK).requiresCorrectToolForDrops().strength(4.0F, 8.0F)
+                    .sound(SoundType.METAL).lightLevel(state -> 7)));
+
+    static {
+        ModItems.ITEMS.register("valkyrie_storage", () -> new BlockItem(VALKYRIE_STORAGE.get(), new Item.Properties().stacksTo(1)));
+    }
+
+    @SuppressWarnings("DataFlowIssue")
+    public static final RegistryObject<BlockEntityType<com.automatavalkyries.machine.ValkyrieStorageBlockEntity>> VALKYRIE_STORAGE_ENTITY = BLOCK_ENTITIES.register("valkyrie_storage", () ->
+            BlockEntityType.Builder.of(com.automatavalkyries.machine.ValkyrieStorageBlockEntity::new, VALKYRIE_STORAGE.get()).build(null));
+
     public static final RegistryObject<MenuType<MachineMenu>> MENU = MENUS.register("machine", () -> IForgeMenuType.create(MachineMenu::new));
 
     private ModMachines() {}
