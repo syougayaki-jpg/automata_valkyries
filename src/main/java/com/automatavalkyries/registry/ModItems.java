@@ -101,13 +101,15 @@ public class ModItems {
     public static final RegistryObject<Item> SIGNAL_LUXION = ITEMS.register("signal_luxion", () ->
             new com.automatavalkyries.item.HeroSignalItem(new Item.Properties().stacksTo(16).rarity(Rarity.EPIC), ModEntities.LUXION, "luxion",
                     new org.joml.Vector3f(1.0F, 0.94F, 0.72F)));
-    /** フォトン剣の欠片（クロノ・トルーパーがまれに落とす。使い道はまだ無い＝素材の予定。2026-10-07） */
+    /** フォトン剣の欠片（クロノ・トルーパーがまれに落とす。ルクシオンの呼び出しのアイテムの材料。2026-10-07、2026-10-09 にフレーバーを足した） */
     public static final RegistryObject<Item> PHOTON_BLADE_SHARD = ITEMS.register("photon_blade_shard", () ->
             new Item(new Item.Properties()) {
                 @Override
                 public void appendHoverText(net.minecraft.world.item.ItemStack stack, @org.jetbrains.annotations.Nullable net.minecraft.world.level.Level level,
                                             java.util.List<net.minecraft.network.chat.Component> tooltip, net.minecraft.world.item.TooltipFlag flag) {
                     tooltip.add(net.minecraft.network.chat.Component.translatable("item.automata_valkyries.photon_blade_shard.desc").withStyle(net.minecraft.ChatFormatting.GRAY));
+                    tooltip.add(net.minecraft.network.chat.Component.translatable("item.automata_valkyries.photon_blade_shard.flavor")
+                            .withStyle(net.minecraft.ChatFormatting.DARK_AQUA, net.minecraft.ChatFormatting.ITALIC)); // フレーバー（2026-10-09 ユーザー指定）
                 }
             });
     public static final RegistryObject<Item> SKY_BOSS_SKELETON_SPAWN_EGG = ITEMS.register("sky_boss_skeleton_spawn_egg", () ->
