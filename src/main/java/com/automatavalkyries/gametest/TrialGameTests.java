@@ -262,12 +262,21 @@ public class TrialGameTests {
         helper.assertFalse(warded.isDeadOrDying(), "direct die() went through");
         var elenor = helper.spawnWithNoFreeWill(com.automatavalkyries.registry.ModEntities.ELENOR.get(), new BlockPos(3, 2, 3));
         var ordinary = helper.getLevel().damageSources().mobAttack(elenor);
-        warded.invulnerableTime = 0;
-        warded.hurt(ordinary, 4F);
-        helper.assertTrue(warded.getHealth() < before, "ordinary damage (Elenor's attack) was blocked");
-        warded.invulnerableTime = 0;
-        warded.hurt(ordinary, 1000F);
-        helper.assertTrue(warded.isDeadOrDying(), "lethal ordinary damage did not kill the warded player");
+        // 護符の無いテスト用のプレイヤーにも敵の攻撃が入らない環境（ECA を入れたとき。テスト用のプレイヤーへの敵の攻撃を ECA のどこかが止める。
+        // 2026-10-09 に確認、護符とは関係ない）では、普通のダメージが通るかは確かめられないので飛ばす
+        var control = helper.makeMockPlayer();
+        control.invulnerableTime = 0;
+        control.hurt(ordinary, 4F);
+        if (control.getHealth() < control.getMaxHealth()) {
+            warded.invulnerableTime = 0;
+            warded.hurt(ordinary, 4F);
+            helper.assertTrue(warded.getHealth() < before, "ordinary damage (Elenor's attack) was blocked");
+            warded.invulnerableTime = 0;
+            warded.hurt(ordinary, 1000F);
+            helper.assertTrue(warded.isDeadOrDying(), "lethal ordinary damage did not kill the warded player");
+        } else {
+            com.automatavalkyries.AutomataValkyries.LOGGER.warn("[test] Mob attacks do not land on mock players in this environment; skipping the ordinary-damage part of the ward charm test");
+        }
         plain.hurt(helper.getLevel().damageSources().genericKill(), Float.MAX_VALUE);
         helper.assertTrue(plain.isDeadOrDying(), "/kill did not kill the player without the charm");
         elenor.retreat();

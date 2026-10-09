@@ -34,9 +34,17 @@ public final class MachineConfig {
         SPEC = builder.build();
     }
 
+    /**
+     * GameTest 用の上書き（保存された設定には書かない）。2026-10-09: テストが設定そのものを false → true と書き換えていたが、
+     * Forge の設定の自動保存とファイルの見張りが競り合い、false のまま保存されて次の実行のテストが落ち、遊ぶときも作れなくなっていた
+     */
+    public static final Map<String, Boolean> TEST_OVERRIDES = new java.util.concurrent.ConcurrentHashMap<>();
+
     private MachineConfig() {}
 
     public static boolean enabled(String key) {
+        Boolean forced = TEST_OVERRIDES.get(key);
+        if (forced != null) return forced;
         ForgeConfigSpec.BooleanValue value = FLAGS.get(key);
         if (value == null) return true;
         try {

@@ -390,18 +390,20 @@ public class EprotectGameTests {
      * ダメージ処理を通らない HP の削り（直書き）も、普通の被弾と同じ上限に掛かる: 1 回目は上限（最大 HP の 10%）まで通り、
      * 同じ時間窓の 2 回目は全部戻る（2026-10-03。これまでは HP 0 にならない削りは素通りだった）
      */
-    @GameTest(template = TEMPLATE, timeoutTicks = 100)
+    @GameTest(batch = "eprotect_untracked", template = TEMPLATE, timeoutTicks = 100)
     public static void untrackedHealthLossIsCappedLikeDamage(GameTestHelper helper) {
         ElenorEntity elenor = spawnElenor(helper);
         elenor.getEprotect().resetDamageWindow();
         float max = elenor.getMaxHealth();
         helper.runAfterDelay(2, () -> {
+            com.automatavalkyries.protect.plus.EprotectPlusLink.resetReinforced(); // 他のテストの即死 MOD が続けて強化保護を起こす（強化保護中は全部戻すのが正しい）
             writeHealthBehindTheScenes(elenor, max * 0.5F);
             helper.runAfterDelay(3, () -> {
                 float afterFirst = com.automatavalkyries.protect.DirectRead.health(elenor);
                 float expected = max - max * 0.1F;
                 helper.assertTrue(Math.abs(afterFirst - expected) < 0.5F,
                         "First untracked loss was not capped to 10% (health " + afterFirst + ", expected " + expected + ")");
+                com.automatavalkyries.protect.plus.EprotectPlusLink.resetReinforced(); // 他のテストの即死 MOD が続けて強化保護を起こす（強化保護中は全部戻すのが正しい）
                 writeHealthBehindTheScenes(elenor, max * 0.4F);
                 helper.runAfterDelay(3, () -> {
                     float afterSecond = com.automatavalkyries.protect.DirectRead.health(elenor);

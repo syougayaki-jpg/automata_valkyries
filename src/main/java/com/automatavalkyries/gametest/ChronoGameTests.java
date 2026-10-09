@@ -306,13 +306,12 @@ public class ChronoGameTests {
     public static void upgradeRecipesFollowConfig(GameTestHelper helper) {
         var condition = new com.automatavalkyries.config.MachineConfig.Condition("upgrades.upgrade_kit_future");
         helper.assertTrue(condition.test(null), "upgrade_kit_future should be craftable by default");
-        var flag = com.automatavalkyries.config.MachineConfig.FLAGS.get("upgrades.upgrade_kit_future");
-        flag.set(false);
+        // 保存された設定は書き換えない（書き換えると自動保存と競り合って false のまま残ることがあった）
+        com.automatavalkyries.config.MachineConfig.TEST_OVERRIDES.put("upgrades.upgrade_kit_future", false);
         try {
             helper.assertFalse(condition.test(null), "the config switch does not turn the recipe off");
         } finally {
-            flag.set(true);
-            com.automatavalkyries.config.MachineConfig.SPEC.save();
+            com.automatavalkyries.config.MachineConfig.TEST_OVERRIDES.remove("upgrades.upgrade_kit_future");
         }
         helper.assertTrue(com.automatavalkyries.config.MachineConfig.FLAGS.size() == 3, "one switch per upgrade kit");
         helper.succeed();
