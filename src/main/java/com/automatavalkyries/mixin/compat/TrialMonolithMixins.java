@@ -43,7 +43,12 @@ public final class TrialMonolithMixins {
             if (EprotectCompat.shieldAttack(entity, "trial_monolith:soulKill")) ci.cancel();
         }
 
-        @Inject(method = {"isImmuneToSoulDamage", "isSoulProtected"}, at = @At("HEAD"), cancellable = true, require = 0)
+        /**
+         * 魂ダメージを受けない個体と答える（ビームなどが魂ダメージを足そうとしない）。{@code isSoulProtected} は書き換えない: TM のクラスの書き換え
+         * （{@code transformer.method.EntityMethods}）は「魂の守りがある個体」の getHealth を最大 HP にし、HP の書き込みも最大へ戻すので、
+         * そこを真にすると保護対象の HP が普通のダメージでも一切減らなかった（2026-10-09、即死 MOD を入れた GameTest で見つけた）
+         */
+        @Inject(method = "isImmuneToSoulDamage", at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardSoulProtected(Entity entity, CallbackInfoReturnable<Boolean> cir) {
             if (EprotectCompat.shouldShield(entity)) cir.setReturnValue(true);
         }

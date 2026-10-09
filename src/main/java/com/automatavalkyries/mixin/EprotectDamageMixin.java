@@ -48,9 +48,8 @@ public abstract class EprotectDamageMixin {
 
             // 強化モード中・ブラックリストMOD相手でも、HEAD で遮断するのは即死系の攻撃だけ（通常攻撃は通して上限に掛ける）
             // このMOD自身の兵装や vanilla のダメージは即死技術として扱わず、被弾上限・防御ロジックに任せる
-            boolean isSelf = AutomataValkyries.MODID.equals(sourceMod);
-            boolean isGuardedMod = !isSelf && (isBlacklisted || (isReinforced && !"minecraft".equals(sourceMod)));
-            if (isGuardedMod && com.automatavalkyries.protect.EprotectForgeEvents.isLethalAttack(source, amount)) {
+            boolean isGuardedMod = com.automatavalkyries.protect.EprotectForgeEvents.guardedSource(sourceMod, isReinforced);
+            if (isGuardedMod && com.automatavalkyries.protect.EprotectForgeEvents.isLethalAttack(source, amount, protect)) {
                 cir.setReturnValue(false);
                 cir.cancel();
                 protect.penalizeMaliciousAttack();
@@ -95,9 +94,8 @@ public abstract class EprotectDamageMixin {
             boolean isReinforced = com.automatavalkyries.protect.plus.EprotectPlusLink.isReinforcedActive() || (protect != null && protect.isReinforcedActive());
             String sourceMod = com.automatavalkyries.protect.EprotectForgeEvents.getSourceMod(damageSource);
             boolean isBlacklisted = com.automatavalkyries.protect.attack.ModBlacklist.contains(sourceMod);
-            boolean isSelf = AutomataValkyries.MODID.equals(sourceMod);
-            boolean guarded = !isSelf && (isBlacklisted || (isReinforced && !"minecraft".equals(sourceMod)));
-            boolean malicious = guarded && com.automatavalkyries.protect.EprotectForgeEvents.isLethalAttack(damageSource, damageAmount);
+            boolean guarded = com.automatavalkyries.protect.EprotectForgeEvents.guardedSource(sourceMod, isReinforced);
+            boolean malicious = guarded && com.automatavalkyries.protect.EprotectForgeEvents.isLethalAttack(damageSource, damageAmount, protect);
             if (malicious
                     || FlagDictionary.isHarmfulDamageSource(damageSource)
                     || com.automatavalkyries.protect.EprotectForgeEvents.isAttackerHoldingKillItem(damageSource)) {

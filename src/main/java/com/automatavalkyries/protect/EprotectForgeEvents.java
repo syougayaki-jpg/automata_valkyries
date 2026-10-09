@@ -47,7 +47,7 @@ public class EprotectForgeEvents {
 
             boolean isReinforced = EprotectPlusLink.isReinforcedActive() || protect.isReinforcedActive();
             // 強化保護中・ブラックリストの MOD でも、止めるのは即死系の攻撃だけ。通常攻撃は通して上限に掛ける（capFinalDamage。ブラックリストは 1%）
-            if ((isReinforced || isBlacklisted) && isLethalAttack(source, event.getAmount())) {
+            if (guardedSource(sourceMod, isReinforced) && isLethalAttack(source, event.getAmount(), protect)) {
                 event.setCanceled(true);
                 protect.penalizeMaliciousAttack();
                 AttackLog.refused(target, AttackOp.DAMAGE + ":reinforced_guard", sourceMod != null ? sourceMod : com.automatavalkyries.protect.attack.CallerAttribution.UNKNOWN);
@@ -121,7 +121,7 @@ public class EprotectForgeEvents {
             }
 
             boolean isReinforced = EprotectPlusLink.isReinforcedActive() || protect.isReinforcedActive();
-            if ((isReinforced || isBlacklisted) && isLethalAttack(source, event.getAmount())) {
+            if (guardedSource(sourceMod, isReinforced) && isLethalAttack(source, event.getAmount(), protect)) {
                 event.setCanceled(true);
                 event.setAmount(0.0F);
                 protect.penalizeMaliciousAttack();
@@ -245,6 +245,27 @@ public class EprotectForgeEvents {
      * 即死系の攻撃か: 即死・有害なダメージの種類、即死アイテムを持った攻撃者、NaN・無限大・桁外れの量。
      * 強化保護中・ブラックリストの MOD からは、これだけを止める（通常攻撃は通して被弾の上限に掛ける。2026-10-03 にユーザー指定）
      */
+    /**
+     * 強化保護中・ブラックリストのとき、即死系の攻撃として止める相手か。ブラックリストの MOD は止める。強化保護中は vanilla 以外を止める
+     * （出どころの分からないダメージも止める。2026-10-03 ユーザー指定の凶悪技術の罰則）。このMOD 自身（兵装など）はいつも止めない
+     * （2026-10-09: 被弾のイベントの側だけ自分の兵装を除いておらず、強化保護中は 1000 以上の兵装の一撃が通らなかった）
+     */
+    public static boolean guardedSource(String sourceMod, boolean reinforced) {
+        if (com.automatavalkyries.AutomataValkyries.MODID.equals(sourceMod)) return false;
+        if (ModBlacklist.contains(sourceMod)) return true;
+        return reinforced && !"minecraft".equals(sourceMod);
+    }
+
+    /**
+     * 保護対象ごとの即死系の攻撃か: 量での判定はその個体の数値で見る（被弾の上限なしの個体＝普通に倒せるボスは NaN・無限大だけ。
+     * 桁外れの普通の一撃は即死の技とみなさない。2026-10-09、ルクシオン）
+     */
+    public static boolean isLethalAttack(DamageSource source, float amount, Eprotect protect) {
+        if (protect == null) return isLethalAttack(source, amount);
+        if (protect.profile().isHugeDamage(amount)) return true;
+        return isInstantKillSource(source) || isAttackerHoldingKillItem(source);
+    }
+
     public static boolean isLethalAttack(DamageSource source, float amount) {
         if (!Float.isFinite(amount) || amount >= Eprotect.HUGE_DAMAGE_THRESHOLD) return true;
         return isInstantKillSource(source) || isAttackerHoldingKillItem(source);
