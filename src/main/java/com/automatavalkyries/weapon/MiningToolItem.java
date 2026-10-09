@@ -173,6 +173,30 @@ public class MiningToolItem extends TacticalWeaponItem {
         return ItemEnergy.get(stack) >= perBlock;
     }
 
+    // ---- エンチャント（2026-10-09 ユーザー指定「エンチャントをドリルとチェーンソーにつけられるように」） ----
+    // 耐久が無いので普通の道具の判定（耐久があること）では付けられない。採掘（効率強化・幸運・シルクタッチ）と武器（ダメージ増加・ドロップ増加・
+    // 火属性・ノックバック等）の系統、消滅の呪いを付けられる。耐久力・修繕は耐久が無いので付けない。範囲掘り・伐採で壊したブロックにも幸運・シルクタッチが効く
+
+    @Override
+    public boolean isEnchantable(ItemStack stack) {
+        return true;
+    }
+
+    /** エンチャントのしやすさ（ティアで上がる。ダイヤの道具は 10、金は 22） */
+    @Override
+    public int getEnchantmentValue() {
+        return new int[]{0, 12, 15, 18, 22}[tier];
+    }
+
+    @Override
+    public boolean canApplyAtEnchantingTable(ItemStack stack, net.minecraft.world.item.enchantment.Enchantment enchantment) {
+        var category = enchantment.category;
+        if (category == net.minecraft.world.item.enchantment.EnchantmentCategory.BREAKABLE) return false;
+        return category == net.minecraft.world.item.enchantment.EnchantmentCategory.DIGGER
+                || category == net.minecraft.world.item.enchantment.EnchantmentCategory.WEAPON
+                || category == net.minecraft.world.item.enchantment.EnchantmentCategory.VANISHABLE;
+    }
+
     @Override
     public float getDestroySpeed(ItemStack stack, BlockState state) {
         if (!suits(state)) return 1.0F;

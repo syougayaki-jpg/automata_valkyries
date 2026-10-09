@@ -1399,4 +1399,22 @@ public class WeaponGameTests {
             helper.succeed();
         });
     }
+
+    /** ドリルとチェーンソーにエンチャントを付けられる（採掘・武器の系統。耐久力・修繕は付かない。2026-10-09） */
+    @GameTest(template = TEMPLATE, batch = "mining_enchant")
+    public static void miningToolsAcceptEnchantments(GameTestHelper helper) {
+        for (var item : java.util.List.of(ModWeapons.DRILL_T1.get(), ModWeapons.CHAINSAW_T3.get())) {
+            ItemStack tool = new ItemStack(item);
+            helper.assertTrue(tool.isEnchantable() && tool.getEnchantmentValue() > 0, item + " is not enchantable at the table");
+            for (var ok : java.util.List.of(net.minecraft.world.item.enchantment.Enchantments.BLOCK_EFFICIENCY, net.minecraft.world.item.enchantment.Enchantments.BLOCK_FORTUNE,
+                    net.minecraft.world.item.enchantment.Enchantments.SILK_TOUCH, net.minecraft.world.item.enchantment.Enchantments.SHARPNESS,
+                    net.minecraft.world.item.enchantment.Enchantments.MOB_LOOTING)) {
+                helper.assertTrue(ok.canEnchant(tool), item + " does not accept " + ok.getDescriptionId());
+            }
+            for (var ng : java.util.List.of(net.minecraft.world.item.enchantment.Enchantments.UNBREAKING, net.minecraft.world.item.enchantment.Enchantments.MENDING)) {
+                helper.assertFalse(ng.canEnchant(tool), item + " accepts " + ng.getDescriptionId() + " though it has no durability");
+            }
+        }
+        helper.succeed();
+    }
 }
