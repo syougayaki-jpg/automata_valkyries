@@ -1,6 +1,7 @@
 {
   "replace": false,
   "values": [
-    "automata_valkyries:luxion_accelerator"
+    "automata_valkyries:luxion_accelerator",
+    "automata_valkyries:galliafort_siege_cannon"
   ]
 }

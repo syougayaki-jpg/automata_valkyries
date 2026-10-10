@@ -66,6 +66,23 @@ public class ChronoBolt extends ThrowableProjectile {
         return bolt;
     }
 
+    /** 向き dir へまっすぐ撃つ（ガリアフォートの副砲の扇の弾幕。追尾しない小弾） */
+    public static ChronoBolt fireDir(LivingEntity shooter, Vec3 from, Vec3 dir, float damage, float speed, float inaccuracy, boolean pierce) {
+        return init(new ChronoBolt(ModEntities.CHRONO_BOLT.get(), shooter.level()), shooter, from, dir, damage, speed, inaccuracy, pierce);
+    }
+
+    /** 作った弾 bolt（見た目だけ違う派生の弾も）を、from から向き dir へまっすぐ撃つ */
+    protected static <B extends ChronoBolt> B init(B bolt, LivingEntity shooter, Vec3 from, Vec3 dir, float damage, float speed, float inaccuracy, boolean pierce) {
+        ChronoBolt base = bolt;                                                  // 派生の型からは private の値に触れないので、この型で
+        base.setOwner(shooter);
+        base.damage = damage;
+        base.pierce = pierce;
+        base.setPos(from.x, from.y, from.z);
+        base.shoot(dir.x, dir.y, dir.z, speed, inaccuracy);
+        shooter.level().addFreshEntity(base);
+        return bolt;
+    }
+
     public boolean isShell() {
         return entityData.get(SHELL);
     }
@@ -84,10 +101,15 @@ public class ChronoBolt extends ThrowableProjectile {
     public void tick() {
         super.tick();
         if (level().isClientSide) {
-            level().addParticle(new DustParticleOptions(RED, isShell() ? 1.6F : 0.9F), getX(), getY(), getZ(), 0, 0, 0);
+            trail();
         } else if (tickCount > LIFE) {
             discard();
         }
+    }
+
+    /** 飛んでいる間の尾（クライアント）。見た目だけ違う派生の弾が変える */
+    protected void trail() {
+        level().addParticle(new DustParticleOptions(RED, isShell() ? 1.6F : 0.9F), getX(), getY(), getZ(), 0, 0, 0);
     }
 
     @Override

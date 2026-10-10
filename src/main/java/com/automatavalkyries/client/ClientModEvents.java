@@ -53,6 +53,12 @@ public class ClientModEvents {
         event.registerEntityRenderer(ModEntities.CHRONO_TROOPER.get(), c -> new ChronoGazerRenderer<>(c, "chrono_trooper", 0.5F));
         event.registerEntityRenderer(ModEntities.LUXION.get(), LuxionRenderer::new);
         event.registerEntityRenderer(ModEntities.LUXION_FX.get(), LuxionFxRenderer::new);
+        event.registerEntityRenderer(ModEntities.GALLIAFORT.get(), GalliaFortRenderer::new);
+        event.registerEntityRenderer(ModEntities.GALLIA_MISSILE.get(), c -> new GalliaAmmoRenderer<>(c, "gallia_missile"));   // 3D のミサイル（2026-10-10「副砲とミサイルの弾を自作して搭載」）
+        event.registerEntityRenderer(ModEntities.GALLIA_SHELL.get(), c -> new GalliaAmmoRenderer<>(c, "gallia_shell"));
+        event.registerEntityRenderer(ModEntities.GALLIA_SIEGE_BEAM.get(), GalliaSiegeBeamRenderer::new);
+        event.registerEntityRenderer(ModEntities.GALLIA_RIFT.get(), GalliaRiftRenderer::new);
+        event.registerEntityRenderer(ModEntities.GALLIA_QUAKE.get(), GalliaQuakeRenderer::new);
         event.registerEntityRenderer(ModEntities.VALKYRIE_DUMMY.get(), c -> { // 戦術兵姫のダミーちゃん: Type-V の姿をそのまま使う
             var r = new software.bernie.geckolib.renderer.GeoEntityRenderer<com.automatavalkyries.entity.ValkyrieDummyEntity>(c,
                     new software.bernie.geckolib.model.DefaultedEntityGeoModel<>(net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(com.automatavalkyries.AutomataValkyries.MODID, "valkyrie_type_v")));

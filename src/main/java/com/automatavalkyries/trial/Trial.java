@@ -7,7 +7,7 @@ import java.util.List;
 
 /**
  * 回想のトライアル 1 つ（過去の回想という設定で、回想の空間で指定された条件のもとボスを倒す。2026-10-04 ユーザー指定。条件と数値は【提案】）。
- * ボスはできているもの（ルクシオン）は本物が、まだのものは検証用ボスのエレノアが代わりに出る（{@link TrialManager#spawnBoss} で出し分ける）。
+ * ボスはできているもの（ルクシオン・ガリアフォート）は本物が、まだのものは検証用ボスのエレノアが代わりに出る（{@link TrialManager#spawnBoss} で出し分ける）。
  *
  * @param id         名前（{@code trial.automata_valkyries.<id>}）。回想するボスの名前（{@code boss.automata_valkyries.<id>}）も兼ねる
  * @param timeLimit  ボスが出てから倒すまでの制限時間（Tick）

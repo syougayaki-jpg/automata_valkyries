@@ -101,6 +101,12 @@ public class ModItems {
     public static final RegistryObject<Item> SIGNAL_LUXION = ITEMS.register("signal_luxion", () ->
             new com.automatavalkyries.item.HeroSignalItem(new Item.Properties().stacksTo(16).rarity(Rarity.EPIC), ModEntities.LUXION, "luxion",
                     new org.joml.Vector3f(1.0F, 0.94F, 0.72F)));
+    /** AEC 級英雄機ガリアフォート（2026-10-10）: スポーンエッグと、地面に使って呼ぶ英雄機の呼び声 */
+    public static final RegistryObject<Item> GALLIAFORT_SPAWN_EGG = ITEMS.register("galliafort_spawn_egg", () ->
+            new ForgeSpawnEggItem(ModEntities.GALLIAFORT, 0x30343e, 0x3a6bff, new Item.Properties()));
+    public static final RegistryObject<Item> SIGNAL_GALLIAFORT = ITEMS.register("signal_galliafort", () ->
+            new com.automatavalkyries.item.HeroSignalItem(new Item.Properties().stacksTo(16).rarity(Rarity.EPIC), ModEntities.GALLIAFORT, "galliafort",
+                    new org.joml.Vector3f(0.29F, 0.48F, 1.0F)));
     /** フォトン剣の欠片（クロノ・トルーパーがまれに落とす。ルクシオンの呼び出しのアイテムの材料。2026-10-07、2026-10-09 にフレーバーを足した） */
     public static final RegistryObject<Item> PHOTON_BLADE_SHARD = ITEMS.register("photon_blade_shard", () ->
             new Item(new Item.Properties()) {

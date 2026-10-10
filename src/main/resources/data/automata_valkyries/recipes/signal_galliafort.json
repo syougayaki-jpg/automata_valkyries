@@ -1,0 +1,29 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "PFP",
+    "CLC",
+    "PRP"
+  ],
+  "key": {
+    "P": {
+      "item": "automata_valkyries:composite_plate"
+    },
+    "F": {
+      "item": "automata_valkyries:alloy_chrono_fortress"
+    },
+    "C": {
+      "item": "automata_valkyries:circuit_advanced"
+    },
+    "L": {
+      "item": "automata_valkyries:crystal_luminal"
+    },
+    "R": {
+      "item": "automata_valkyries:drop_chrono_scrap"
+    }
+  },
+  "result": {
+    "item": "automata_valkyries:signal_galliafort"
+  }
+}

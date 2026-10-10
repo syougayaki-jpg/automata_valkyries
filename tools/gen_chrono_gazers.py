@@ -59,6 +59,7 @@ class Model:
         self.ident = ident
         self.bones = []
         self.by = {}
+        self.reuse = set()   # 面の絵を同じ大きさどうしで使い回す材質（テクスチャの節約。数の多い小さな部品向け）
 
     def bone(self, name, parent=None, pivot=(0, 0, 0), rot=None):
         b = {'name': name, 'parent': parent, 'pivot': list(pivot), 'rotation': list(rot) if rot else None, 'cubes': []}
@@ -100,6 +101,8 @@ class Atlas:
         self.glow = Image.new('RGBA', (TEX, TEX), (0, 0, 0, 0))
         self.x = self.y = self.row = 0
         self.rnd = random.Random(seed)
+        self.reuse = set()
+        self.cache = {}
 
     def alloc(self, w, h):
         if self.x + w > TEX:
@@ -117,6 +120,14 @@ class Atlas:
             self.glow.putpixel((u, v), rgb(c) + (255,))
 
     def paint(self, mat, w, h):
+        if mat in self.reuse and (mat, w, h) in self.cache:
+            return self.cache[(mat, w, h)]
+        if mat in self.reuse:
+            self.cache[(mat, w, h)] = self._paint(mat, w, h)
+            return self.cache[(mat, w, h)]
+        return self._paint(mat, w, h)
+
+    def _paint(self, mat, w, h):
         base, light, dark, pat, glows = MAT[mat]
         u, v = self.alloc(w, h)
         for y in range(h):
@@ -171,6 +182,7 @@ def face_dims(a, c, f):
 
 def write(m):
     atlas = Atlas(sum(map(ord, m.ident)))
+    atlas.reuse = set(getattr(m, 'reuse', ()))
     out = []
     for b in m.bones:
         o = {'name': b['name'], 'pivot': [round(p, 3) for p in b['pivot']]}

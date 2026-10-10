@@ -98,6 +98,36 @@ public class ModEntities {
             ENTITY_TYPES.register("luxion_fx", () ->
                     EntityType.Builder.<com.automatavalkyries.entity.chrono.LuxionFxEntity>of(com.automatavalkyries.entity.chrono.LuxionFxEntity::new, MobCategory.MISC)
                             .sized(0.1F, 0.1F).clientTrackingRange(10).updateInterval(20).noSave().build("luxion_fx"));
+    /** AEC 級英雄機「特殊要塞型【重護屋 / ガリアフォート】」（全体仕様書 §4.1。2026-10-10）。逆台形の大きなキャタピラ 4 つの移動要塞（高さ約 6 ブロック） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.GalliaFortEntity>> GALLIAFORT =
+            ENTITY_TYPES.register("galliafort", () ->
+                    EntityType.Builder.of(com.automatavalkyries.entity.chrono.GalliaFortEntity::new, MobCategory.MONSTER)
+                            .sized(3.6F, 3.6F).clientTrackingRange(12).fireImmune().build("galliafort")); // 胴を大きくした（2026-10-10）。要塞もモデルを 0.7 倍にした（2026-10-10）ので 5 → 3.6
+    /** ガリアフォートのミサイル（撃ち上げてから降らせる） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.GalliaMissileEntity>> GALLIA_MISSILE =
+            ENTITY_TYPES.register("gallia_missile", () ->
+                    EntityType.Builder.<com.automatavalkyries.entity.chrono.GalliaMissileEntity>of(com.automatavalkyries.entity.chrono.GalliaMissileEntity::new, MobCategory.MISC)
+                            .sized(0.4F, 0.4F).clientTrackingRange(10).updateInterval(1).noSave().build("gallia_missile"));
+    /** ガリアフォートの副砲の徹甲弾（2026-10-10「副砲とミサイルの弾を自作して搭載」。飛び方はクロノゲイザーの弾と同じ、見た目だけ専用） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.GalliaShellEntity>> GALLIA_SHELL =
+            ENTITY_TYPES.register("gallia_shell", () ->
+                    EntityType.Builder.<com.automatavalkyries.entity.chrono.GalliaShellEntity>of(com.automatavalkyries.entity.chrono.GalliaShellEntity::new, MobCategory.MISC)
+                            .sized(0.3F, 0.3F).clientTrackingRange(8).updateInterval(2).build("gallia_shell"));
+    /** 穿孔破城砲の光の束（見た目だけ。2026-10-10「穿孔破城砲も自作して豪華にして」） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.GalliaSiegeBeamEntity>> GALLIA_SIEGE_BEAM =
+            ENTITY_TYPES.register("gallia_siege_beam", () ->
+                    EntityType.Builder.<com.automatavalkyries.entity.chrono.GalliaSiegeBeamEntity>of(com.automatavalkyries.entity.chrono.GalliaSiegeBeamEntity::new, MobCategory.MISC)
+                            .sized(0.5F, 0.5F).clientTrackingRange(12).updateInterval(20).noSave().build("gallia_siege_beam"));
+    /** 歪曲破界砲の着弾地点の目印（見た目だけ。景色を一瞬歪ませる。2026-10-10） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.GalliaRiftEntity>> GALLIA_RIFT =
+            ENTITY_TYPES.register("gallia_rift", () ->
+                    EntityType.Builder.<com.automatavalkyries.entity.chrono.GalliaRiftEntity>of(com.automatavalkyries.entity.chrono.GalliaRiftEntity::new, MobCategory.MISC)
+                            .sized(0.5F, 0.5F).clientTrackingRange(12).updateInterval(20).noSave().build("gallia_rift"));
+    /** 踏みつけ・重拳の衝撃の見た目（2026-10-10「踏みつけの衝撃を自作して豪華にして」） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.GalliaQuakeEntity>> GALLIA_QUAKE =
+            ENTITY_TYPES.register("gallia_quake", () ->
+                    EntityType.Builder.<com.automatavalkyries.entity.chrono.GalliaQuakeEntity>of(com.automatavalkyries.entity.chrono.GalliaQuakeEntity::new, MobCategory.MISC)
+                            .sized(0.5F, 0.5F).clientTrackingRange(10).updateInterval(20).noSave().build("gallia_quake"));
     /** クロノゲイザーの弾（ドローンのレーザー弾・戦車の砲弾） */
     public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.ChronoBolt>> CHRONO_BOLT =
             ENTITY_TYPES.register("chrono_bolt", () ->
@@ -125,6 +155,7 @@ public class ModEntities {
         event.put(CHRONO_MASK_DRONE.get(), com.automatavalkyries.entity.chrono.MaskDroneEntity.createAttributes().build());
         event.put(CHRONO_TROOPER.get(), com.automatavalkyries.entity.chrono.TrooperEntity.createAttributes().build());
         event.put(LUXION.get(), com.automatavalkyries.entity.chrono.LuxionEntity.createAttributes().build());
+        event.put(GALLIAFORT.get(), com.automatavalkyries.entity.chrono.GalliaFortEntity.createAttributes().build());
         event.put(VALKYRIE_DUMMY.get(), com.automatavalkyries.entity.ValkyrieDummyEntity.createAttributes().build());
         event.put(SKY_BOSS_SKELETON.get(), com.automatavalkyries.entity.SkyBossSkeleton.createAttributes().build());
         event.put(VALKYRIE.get(), com.automatavalkyries.entity.ValkyrieEntity.createAttributes().build());

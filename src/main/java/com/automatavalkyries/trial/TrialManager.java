@@ -234,7 +234,7 @@ public final class TrialManager {
     }
 
     /**
-     * ボスを出す。できているボスは本物（光速の残影 → ルクシオン。2026-10-09）、まだのボスは検証用ボスのエレノアが代わり。
+     * ボスを出す。できているボスは本物（光速の残影 → ルクシオン。2026-10-09、不落の城壁 → ガリアフォート。2026-10-10）、まだのボスは検証用ボスのエレノアが代わり。
      * どれも自分では退かず保存もしない「回想のトライアルのボス」にして、攻撃力に倍率を掛ける
      */
     static @Nullable LivingEntity spawnBoss(ServerLevel level, ServerPlayer player, Session session) {
@@ -243,6 +243,11 @@ public final class TrialManager {
                 com.automatavalkyries.entity.chrono.LuxionEntity luxion = ModEntities.LUXION.get().create(level);
                 if (luxion != null) luxion.setTrialBoss(session.trial.bossAttack()); // 技のダメージは属性ではなく技ごとの値なので倍率で
                 yield luxion;
+            }
+            case "galliafort" -> {
+                com.automatavalkyries.entity.chrono.GalliaFortEntity fort = ModEntities.GALLIAFORT.get().create(level);
+                if (fort != null) fort.setTrialBoss(session.trial.bossAttack());
+                yield fort;
             }
             default -> {
                 ElenorEntity elenor = ModEntities.ELENOR.get().create(level);
@@ -374,7 +379,7 @@ public final class TrialManager {
         LivingEntity boss = s.bossEntity;
         if (boss == null || boss.isRemoved()) return;
         if (boss instanceof ElenorEntity elenor) elenor.retreat();
-        else if (!(boss instanceof com.automatavalkyries.entity.RetreatableBoss retreating) || !retreating.beginRetreat()) boss.discard(); // ルクシオンは剣を納めて光に溶ける
+        else if (!(boss instanceof com.automatavalkyries.entity.RetreatableBoss retreating) || !retreating.beginRetreat()) boss.discard(); // ルクシオンは剣を納めて光に溶ける、ガリアフォートは障壁で身を包んで歪みに消える
     }
 
     /** 元の場所へ戻す（戻り先が無ければ、元の世界の初期スポーン） */

@@ -12,6 +12,8 @@
 | `gen_valkyrie_sounds.py` | `sounds/valkyrie/*.ogg`・`sounds.json`・字幕（lang） | 戦術兵姫の効果音を波形の計算で合成（Python。`pip install numpy soundfile` が要る）。音ごとに a/b/c の 3 つ。数値は各関数で調整し、`python tools/gen_valkyrie_sounds.py [名前の一部]` で作り直す |
 | `gen_valkyrie_units.py` | `geo/entity/unit/*.geo.json`・`textures/entity/unit/valkyrie_units*.png`・`memento_butterfly.png` | 兵姫の外装フレーム（型×部位）・背部ユニットの形と共通の素材の見本帳（Python＋PIL）。座標は兵姫のモデルと同じ。`preview` を付けると兵姫に重ねた確認用 geo を `build/unit_preview/` に作る（GeoPreview で描く）。兵姫の面と同じ平面の面を警告する |
 | `gen_tactical_fx.py` | `textures/fx/*.png` | 戦術級コードの演出の素材（柔らかい光・十字の光・炎 16 コマ・煙・花びら・光の筋。Python＋numpy＋PIL）。`client/TacticalSprites` が貼る |
+| `gen_gallia_fort.py` | `geo/entity/galliafort.geo.json`・`textures/entity/galliafort.png`（＋ `_glowmask.png`） | AEC 級英雄機ガリアフォート（4 本脚の移動要塞）の形とテクスチャ。`gen_chrono_gazers.py` の塗り・詰め込みを 1024×1024 で使う。実寸の半分で作り、描画で 2 倍にする |
+| `gen_gallia_ammo.py` | `geo/entity/gallia_shell.geo.json`・`gallia_missile.geo.json`・`textures/entity/gallia_shell.png`・`gallia_missile.png`（＋ `_glowmask.png`） | ガリアフォートの副砲の徹甲弾とミサイル（2026-10-10）。機首を +Y に向け、真ん中を付け根に作る（`client/GalliaAmmoRenderer` が飛ぶ向きへ回す）。材質は `gen_gallia_fort.py` と同じ、テクスチャは 128×128 |
 | `gen_chrono_gazers.py` | `geo/entity/chrono_*.geo.json`・`textures/entity/chrono_*.png`（＋ `_glowmask.png`） | クロノ・ゲイザーの雑魚 3 種（索敵ドローン・自爆クモボット・重歩行戦車）の形とテクスチャ（Python＋PIL）。面ごとの UV を自動で詰めて色の板で塗る。骨の名前と pivot は Java のモデル（コードで動かす）と一致させる |
 | `GeoPreview.java` | 任意の PNG | GeckoLib モデルを 3 ポーズ × 4 方向で描画して確認（ゲーム起動不要） |
 
