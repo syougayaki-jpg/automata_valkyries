@@ -234,7 +234,7 @@ public final class TrialManager {
     }
 
     /**
-     * ボスを出す。できているボスは本物（光速の残影 → ルクシオン。2026-10-09、不落の城壁 → ガリアフォート。2026-10-10）、まだのボスは検証用ボスのエレノアが代わり。
+     * ボスを出す。できているボスは本物（光速の残影 → ルクシオン。2026-10-09、不落の城壁 → ガリアフォート・死蝶の舞踏 → メメントモリ。2026-10-10）、まだのボスは検証用ボスのエレノアが代わり。
      * どれも自分では退かず保存もしない「回想のトライアルのボス」にして、攻撃力に倍率を掛ける
      */
     static @Nullable LivingEntity spawnBoss(ServerLevel level, ServerPlayer player, Session session) {
@@ -248,6 +248,11 @@ public final class TrialManager {
                 com.automatavalkyries.entity.chrono.GalliaFortEntity fort = ModEntities.GALLIAFORT.get().create(level);
                 if (fort != null) fort.setTrialBoss(session.trial.bossAttack());
                 yield fort;
+            }
+            case "memento_mori" -> { // 死蝶の舞踏 → メメントモリ（2026-10-10）
+                com.automatavalkyries.entity.chrono.MementoMoriEntity mori = ModEntities.MEMENTO_MORI.get().create(level);
+                if (mori != null) mori.setTrialBoss(session.trial.bossAttack());
+                yield mori;
             }
             default -> {
                 ElenorEntity elenor = ModEntities.ELENOR.get().create(level);

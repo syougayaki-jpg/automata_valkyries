@@ -121,6 +121,8 @@ public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntity
             animateLuxion(lux, pt, age, walk, limb, pitch);
         } else if (entity instanceof com.automatavalkyries.entity.chrono.GalliaFortEntity fort) {
             animateGallia(fort, pt, age, walk, limb, pitch);
+        } else if (entity instanceof com.automatavalkyries.entity.chrono.MementoMoriEntity mori) {
+            animateMemento(mori, pt, age);
         } else if (entity instanceof HeavyWalkerEntity walker) {
             float swing = Mth.cos(limb * 0.55F) * 0.55F * walk;
             rotX("leg_left", swing);
@@ -669,6 +671,59 @@ public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntity
         if (pilot != null) {
             pilot.setRotZ(Mth.sin(age * 0.05F) * 0.04F);
             pilot.setRotX(raise * -0.1F + slam * 0.15F);
+        }
+    }
+
+    // ---- メメントモリのモーション（2026-10-10） ----
+
+    /**
+     * 巨大な機械の黒い蝶の動き: いつも羽ばたき（後翅は少し遅れる）、羽ばたきに合わせて体が上下する。
+     * 乱舞は速く強く羽ばたき、弾幕は翅を V 字に上げて小刻みに震わせ、檻は前翅を前へ振って構え、合図で一気に打ち下ろす。
+     * 黒死の月は翅を大きく水平に広げて止め、納める瞬間に打ち下ろす。現れるときは閉じた翅を開き、撃破では翅が垂れて弱く震える。
+     * 第 2 形態は翅が 1.2 倍に大きく開き、紋が赤い翅に入れ替わる（目覚めの途中で）。
+     * 翅の X の回転の向き: 左（+X）の翅は負で先が上がる、右（-X）は正で上がる（プレビューで確かめた）
+     */
+    private void animateMemento(com.automatavalkyries.entity.chrono.MementoMoriEntity mori, float pt, float age) {
+        boolean defeated = mori.isDefeatedSynced();
+        float defeat = defeated ? Mth.clamp((mori.defeatTicks + pt) / com.automatavalkyries.entity.chrono.MementoMoriEntity.DEFEAT_TICKS, 0.0F, 1.0F) : 0.0F;
+        byte stage = mori.stage();
+        float st = age - mori.stageStart;
+        float swarm = envelope(age - mori.swarmTick, 4.0F, 30.0F, 40.0F);
+        float barrage = envelope(age - mori.barrageTick, 6.0F, 40.0F, 50.0F);
+        float cage = envelope(age - mori.cageTick, 8.0F, 60.0F, 75.0F);
+        float strike = envelope(age - mori.cageReleaseTick, 1.0F, 4.0F, 14.0F) + impact(age - mori.moonFallTick, 4.0F);
+        float moon = envelope(age - mori.moonTick, 15.0F, 120.0F, 140.0F);
+        float awaken = stage == com.automatavalkyries.entity.chrono.MementoMoriEntity.STAGE_AWAKEN ? envelope(st, 6.0F, 30.0F, 40.0F) : 0.0F;
+        float intro = stage == com.automatavalkyries.entity.chrono.MementoMoriEntity.STAGE_INTRO ? 1.0F - smooth(st / 30.0F) : 0.0F;
+        // 羽ばたき（ふだんはゆっくり大きく、乱舞は速く強く）。弾幕・月・撃破では小さく
+        float calm = (1.0F - 0.7F * barrage) * (1.0F - 0.85F * moon) * (1.0F - 0.6F * defeat) * (1.0F - cage * 0.5F);
+        float beat = (Mth.sin(age * 0.28F) * 0.55F * (1.0F - swarm) + Mth.sin(age * 0.8F) * 0.85F * swarm) * calm;
+        float beatH = (Mth.sin(age * 0.28F - 0.5F) * 0.5F * (1.0F - swarm) + Mth.sin(age * 0.8F - 0.6F) * 0.8F * swarm) * calm;
+        float quiver = Mth.sin(age * 2.3F) * 0.05F * barrage;
+        float lift = 0.12F + 0.6F * barrage + 0.1F * moon + 1.3F * intro + 0.4F * awaken - 0.5F * defeat - 0.9F * strike + quiver
+                + Mth.sin(age * 1.7F) * 0.08F * defeat;                                    // 撃破で垂れて弱く震える
+        float sweep = 0.45F * cage - 0.15F * moon;                                          // 檻: 前翅を前へ振る（左は正）
+        boolean p2 = mori.isPhase2();
+        boolean red = p2 && (stage != com.automatavalkyries.entity.chrono.MementoMoriEntity.STAGE_AWAKEN || st >= 10.0F);
+        float big = p2 ? 1.0F + 0.2F * (stage == com.automatavalkyries.entity.chrono.MementoMoriEntity.STAGE_AWAKEN ? smooth((st - 6.0F) / 20.0F) : 1.0F) : 1.0F;
+        for (String side : new String[]{"l", "r"}) {
+            float s = side.equals("l") ? -1.0F : 1.0F;                                     // 左は負で上がる
+            for (String kind : new String[]{"f", "h"}) {
+                float a = (kind.equals("f") ? beat : beatH) + lift + (kind.equals("h") ? -0.08F : 0.0F);
+                for (String suffix : new String[]{"", "_red"}) {
+                    CoreGeoBone w = bone("wing_" + kind + side + suffix);
+                    if (w == null) continue;
+                    w.setRotZ(s * a);
+                    w.setRotY(kind.equals("f") ? -s * sweep : -s * sweep * 0.4F);
+                    boolean show = suffix.isEmpty() != red;
+                    scaleBone(w, show ? big : 0.0F);
+                }
+            }
+        }
+        CoreGeoBone body = bone("body");
+        if (body != null) {
+            body.setPosY(-Mth.sin(age * 0.28F) * 0.8F * calm + 2.0F * strike);           // 翅を打ち下ろすと体が持ち上がる
+            body.setRotX(-0.6F * defeat + 0.15F * cage);
         }
     }
 

@@ -54,6 +54,10 @@ public class ClientModEvents {
         event.registerEntityRenderer(ModEntities.LUXION.get(), LuxionRenderer::new);
         event.registerEntityRenderer(ModEntities.LUXION_FX.get(), LuxionFxRenderer::new);
         event.registerEntityRenderer(ModEntities.GALLIAFORT.get(), GalliaFortRenderer::new);
+        event.registerEntityRenderer(ModEntities.MEMENTO_MORI.get(), MementoMoriRenderer::new);
+        event.registerEntityRenderer(ModEntities.MEMENTO_BIT.get(), MementoBitRenderer::new);
+        event.registerEntityRenderer(ModEntities.MEMENTO_BULLET.get(), MementoBulletRenderer::new);
+        event.registerEntityRenderer(ModEntities.MEMENTO_MOON.get(), MementoMoonRenderer::new);
         event.registerEntityRenderer(ModEntities.GALLIA_MISSILE.get(), c -> new GalliaAmmoRenderer<>(c, "gallia_missile"));   // 3D のミサイル（2026-10-10「副砲とミサイルの弾を自作して搭載」）
         event.registerEntityRenderer(ModEntities.GALLIA_SHELL.get(), c -> new GalliaAmmoRenderer<>(c, "gallia_shell"));
         event.registerEntityRenderer(ModEntities.GALLIA_SIEGE_BEAM.get(), GalliaSiegeBeamRenderer::new);

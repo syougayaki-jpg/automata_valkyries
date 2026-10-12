@@ -102,6 +102,12 @@ public class ModItems {
             new com.automatavalkyries.item.HeroSignalItem(new Item.Properties().stacksTo(16).rarity(Rarity.EPIC), ModEntities.LUXION, "luxion",
                     new org.joml.Vector3f(1.0F, 0.94F, 0.72F)));
     /** AEC 級英雄機ガリアフォート（2026-10-10）: スポーンエッグと、地面に使って呼ぶ英雄機の呼び声 */
+    /** AEC 級英雄機メメントモリ（2026-10-10）: スポーンエッグと、地面に使って呼ぶ英雄機の呼び声 */
+    public static final RegistryObject<Item> MEMENTO_MORI_SPAWN_EGG = ITEMS.register("memento_mori_spawn_egg", () ->
+            new ForgeSpawnEggItem(ModEntities.MEMENTO_MORI, 0x16121e, 0x9a4aff, new Item.Properties()));
+    public static final RegistryObject<Item> SIGNAL_MEMENTO_MORI = ITEMS.register("signal_memento_mori", () ->
+            new com.automatavalkyries.item.HeroSignalItem(new Item.Properties().stacksTo(16).rarity(Rarity.EPIC), ModEntities.MEMENTO_MORI, "memento_mori",
+                    new org.joml.Vector3f(0.6F, 0.29F, 1.0F)));
     public static final RegistryObject<Item> GALLIAFORT_SPAWN_EGG = ITEMS.register("galliafort_spawn_egg", () ->
             new ForgeSpawnEggItem(ModEntities.GALLIAFORT, 0x30343e, 0x3a6bff, new Item.Properties()));
     public static final RegistryObject<Item> SIGNAL_GALLIAFORT = ITEMS.register("signal_galliafort", () ->

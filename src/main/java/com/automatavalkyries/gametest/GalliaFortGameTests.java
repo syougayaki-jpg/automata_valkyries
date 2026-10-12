@@ -68,7 +68,7 @@ public class GalliaFortGameTests {
         helper.runAfterDelay(3, () -> {
             helper.assertTrue(fort.isAlive() && !fort.isRemoved(), "/kill removed Galliafort");
             fort.getEprotect().releaseForCleanup();
-            fort.discard();
+            fort.getEprotect().triggerDespawn(); // 守られたボスは discard では消えない
             helper.succeed();
         });
     }
@@ -157,7 +157,7 @@ public class GalliaFortGameTests {
             helper.assertTrue(fort.isHumanoid(), "Galliafort is not humanoid after the transform");
             helper.assertTrue(fort.getBbHeight() == GalliaFortEntity.HUMAN_HEIGHT, "the humanoid hitbox is not tall: " + fort.getBbHeight());
             fort.getEprotect().releaseForCleanup();
-            fort.discard();
+            fort.getEprotect().triggerDespawn(); // 守られたボスは discard では消えない
             helper.succeed();
         });
     }

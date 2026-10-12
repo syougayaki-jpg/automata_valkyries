@@ -103,6 +103,26 @@ public class ModEntities {
             ENTITY_TYPES.register("galliafort", () ->
                     EntityType.Builder.of(com.automatavalkyries.entity.chrono.GalliaFortEntity::new, MobCategory.MONSTER)
                             .sized(3.6F, 3.6F).clientTrackingRange(12).fireImmune().build("galliafort")); // 胴を大きくした（2026-10-10）。要塞もモデルを 0.7 倍にした（2026-10-10）ので 5 → 3.6
+    /** AEC 級英雄機「弾幕特化【黒死蝶 / メメントモリ】」（全体仕様書 §4.1。2026-10-10）。機械仕掛けの巨大な黒い蝶（翼を広げて約 10 ブロック） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.MementoMoriEntity>> MEMENTO_MORI =
+            ENTITY_TYPES.register("memento_mori", () ->
+                    EntityType.Builder.of(com.automatavalkyries.entity.chrono.MementoMoriEntity::new, MobCategory.MONSTER)
+                            .sized(3.0F, 1.6F).clientTrackingRange(12).fireImmune().build("memento_mori"));
+    /** メメントモリの黒死蝶ビット（壊せる。当たると最大 HP を削る） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.MementoBitEntity>> MEMENTO_BIT =
+            ENTITY_TYPES.register("memento_bit", () ->
+                    EntityType.Builder.<com.automatavalkyries.entity.chrono.MementoBitEntity>of(com.automatavalkyries.entity.chrono.MementoBitEntity::new, MobCategory.MISC)
+                            .sized(0.7F, 0.5F).clientTrackingRange(10).updateInterval(1).noSave().build("memento_bit"));
+    /** メメントモリの死蝶の幾何弾幕の蝶弾（クライアントでも同じように動かす） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.MementoBulletEntity>> MEMENTO_BULLET =
+            ENTITY_TYPES.register("memento_bullet", () ->
+                    EntityType.Builder.<com.automatavalkyries.entity.chrono.MementoBulletEntity>of(com.automatavalkyries.entity.chrono.MementoBulletEntity::new, MobCategory.MISC)
+                            .sized(0.35F, 0.35F).clientTrackingRange(8).updateInterval(10).noSave().build("memento_bullet"));
+    /** 黒死の月の見た目（範囲・安全地帯） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.MementoMoonEntity>> MEMENTO_MOON =
+            ENTITY_TYPES.register("memento_moon", () ->
+                    EntityType.Builder.<com.automatavalkyries.entity.chrono.MementoMoonEntity>of(com.automatavalkyries.entity.chrono.MementoMoonEntity::new, MobCategory.MISC)
+                            .sized(0.5F, 0.5F).clientTrackingRange(12).updateInterval(20).noSave().build("memento_moon"));
     /** ガリアフォートのミサイル（撃ち上げてから降らせる） */
     public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.GalliaMissileEntity>> GALLIA_MISSILE =
             ENTITY_TYPES.register("gallia_missile", () ->
@@ -156,6 +176,7 @@ public class ModEntities {
         event.put(CHRONO_TROOPER.get(), com.automatavalkyries.entity.chrono.TrooperEntity.createAttributes().build());
         event.put(LUXION.get(), com.automatavalkyries.entity.chrono.LuxionEntity.createAttributes().build());
         event.put(GALLIAFORT.get(), com.automatavalkyries.entity.chrono.GalliaFortEntity.createAttributes().build());
+        event.put(MEMENTO_MORI.get(), com.automatavalkyries.entity.chrono.MementoMoriEntity.createAttributes().build());
         event.put(VALKYRIE_DUMMY.get(), com.automatavalkyries.entity.ValkyrieDummyEntity.createAttributes().build());
         event.put(SKY_BOSS_SKELETON.get(), com.automatavalkyries.entity.SkyBossSkeleton.createAttributes().build());
         event.put(VALKYRIE.get(), com.automatavalkyries.entity.ValkyrieEntity.createAttributes().build());

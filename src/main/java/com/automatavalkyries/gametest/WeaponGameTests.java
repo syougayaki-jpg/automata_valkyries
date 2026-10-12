@@ -295,21 +295,33 @@ public class WeaponGameTests {
     }
 
     /** カタストロフ・バスター: ブラックホール弾は着弾するまでの最中も、まわりの者を吸い込む */
-    @GameTest(template = TEMPLATE, timeoutTicks = 40, batch = "weapon_blackhole_flight")
+    @GameTest(template = TEMPLATE, timeoutTicks = 200, batch = "weapon_blackhole_flight")
     public static void blackHolePullsInFlight(GameTestHelper helper) {
         FakePlayer player = player(helper, new Vec3(0.5, 2, 0.5));
         Zombie zombie = dummy(helper, new Vec3(3.5, 2, 4.5));
-        com.automatavalkyries.weapon.BlackHoleEntity hole = new com.automatavalkyries.weapon.BlackHoleEntity(helper.getLevel(), player);
-        Vec3 at = helper.absoluteVec(new Vec3(0.5, 3, 0.5));
-        hole.setPos(at.x, at.y, at.z);
-        hole.shoot(1, 0, 0, 0.3F, 0); // 横を通り過ぎる（当たらない）
-        helper.getLevel().addFreshEntity(hole);
-        helper.runAfterDelay(3, () -> {
-            helper.assertTrue(zombie.getDeltaMovement().z < -0.05, "target not pulled toward the flying hole: " + zombie.getDeltaMovement());
-            hole.discard();
-            sweep(helper);
-            helper.succeed();
-        });
+        Zombie anchor = dummy(helper, new Vec3(0.5, 2, 0.5)); // 弾を撃つ所の区画も読み込ませる目印
+        // 区画を強制的に読み込み、エンティティが動き出してから撃つ（2026-10-10: 試験が増えて並びが変わり、エンティティの動かない区画で毎回落ちた）
+        java.util.Set<net.minecraft.world.level.ChunkPos> forced = forceTicking(helper, zombie, anchor);
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(zombie.tickCount > 2 && anchor.tickCount > 2, "the test area entities are not ticking yet"))
+                .thenExecute(() -> {
+                    anchor.discard();
+                    com.automatavalkyries.weapon.BlackHoleEntity hole = new com.automatavalkyries.weapon.BlackHoleEntity(helper.getLevel(), player);
+                    Vec3 at = helper.absoluteVec(new Vec3(0.5, 3, 0.5));
+                    hole.setPos(at.x, at.y, at.z);
+                    hole.shoot(1, 0, 0, 0.3F, 0); // 横を通り過ぎる（当たらない）
+                    helper.getLevel().addFreshEntity(hole);
+                    helper.runAfterDelay(3, () -> {
+                        try {
+                            helper.assertTrue(zombie.getDeltaMovement().z < -0.05, "target not pulled toward the flying hole: " + zombie.getDeltaMovement());
+                        } finally {
+                            hole.discard();
+                            for (net.minecraft.world.level.ChunkPos c : forced) helper.getLevel().setChunkForced(c.x, c.z, false);
+                        }
+                        sweep(helper);
+                        helper.succeed();
+                    });
+                });
     }
 
     /** クアンタムブレード: 三日月の斬撃がまっすぐ飛び、線上の 2 体を貫いて斬る */
@@ -666,6 +678,18 @@ public class WeaponGameTests {
                     "mob not in the world yet (removed=" + e.getRemovalReason() + ", added=" + e.isAddedToWorld() + ", sameLevel=" + (e.level() == helper.getLevel())
                             + ", byId=" + helper.getLevel().getEntity(e.getId()) + ", uuid=" + e.getUUID() + ", pos=" + e.blockPosition() + ", " + entityState(helper, e) + ")");
         }).thenExecute(body);
+    }
+
+    /**
+     * mob のいる区画を強制的に読み込み、エンティティを動かす状態（ENTITY_TICKING）にするよう頼む（2026-10-10: 試験が増えて並びが変わり、
+     * 強制読み込みしてもエンティティが動き出さない区画に当たった。{@link #kickStuckChunks} と同じ頼み直しを最初から行う）。読み込ませた区画を返す
+     */
+    static java.util.Set<net.minecraft.world.level.ChunkPos> forceTicking(GameTestHelper helper, net.minecraft.world.entity.Entity... mobs) {
+        java.util.Set<net.minecraft.world.level.ChunkPos> forced = forceChunks(helper, mobs);
+        var manager = (net.minecraft.world.level.entity.PersistentEntitySectionManager<net.minecraft.world.entity.Entity>)
+                ((com.automatavalkyries.mixin.ServerLevelTickListAccessor) helper.getLevel()).automata_valkyries$getEntityManager();
+        for (net.minecraft.world.entity.Entity e : mobs) manager.updateChunkStatus(e.chunkPosition(), net.minecraft.server.level.FullChunkStatus.ENTITY_TICKING);
+        return forced;
     }
 
     /** 世界に入らない mob の区画の読み込みを頼み直すまでの待ち（Tick） */
