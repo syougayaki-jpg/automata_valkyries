@@ -674,14 +674,16 @@ public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntity
         }
     }
 
-    // ---- メメントモリのモーション（2026-10-10） ----
+    // ---- メメントモリのモーション（2026-10-10。2026-10-13 に蝶の翅を持つ女性型のアンドロイドへ作り直し、同日ユーザーの参考画像を元に細身の脚の姿へ） ----
 
     /**
-     * 巨大な機械の黒い蝶の動き: いつも羽ばたき（後翅は少し遅れる）、羽ばたきに合わせて体が上下する。
-     * 乱舞は速く強く羽ばたき、弾幕は翅を V 字に上げて小刻みに震わせ、檻は前翅を前へ振って構え、合図で一気に打ち下ろす。
-     * 黒死の月は翅を大きく水平に広げて止め、納める瞬間に打ち下ろす。現れるときは閉じた翅を開き、撃破では翅が垂れて弱く震える。
+     * 蝶の翅を持つ巨大な女性型のアンドロイドの動き: いつもゆっくり羽ばたき（翅を後ろへたたむ。後翅は少し遅れる）、体が上下し、長い脚は揃えて下へ垂らし、ゆるく交互に揺れる（片膝を少し曲げる）。
+     * 頭は少し下の相手を見下ろす。乱舞は速く強く羽ばたき、両腕を左右に大きく広げる。弾幕は翅を平らに広げて震わせ、右手で相手を指す。
+     * 檻は両腕を前へ差し出して開き、合図で振り下ろす（翅も後ろへ打つ）。黒死の月は両腕を頭の上へ掲げて翅を大きく広げて止め、納める瞬間に振り下ろす。
+     * 現れるときは閉じた翅を開き、撃破では後ろへ反って腕と翅が垂れ、弱く震える。
      * 第 2 形態は翅が 1.2 倍に大きく開き、紋が赤い翅に入れ替わる（目覚めの途中で）。
-     * 翅の X の回転の向き: 左（+X）の翅は負で先が上がる、右（-X）は正で上がる（プレビューで確かめた）
+     * 向き（プレビューで確かめた）: 左（+X、l）の翅は Y の正で後ろへたたみ、Z の負で先が上がる。右は逆。
+     * 腕は X の正で前へ上がり、左は Z の負で外へ開く（右は正）。体・頭は X の正で後ろへ反る。脚は X の正で先が前へ出る（膝は負で曲がる）
      */
     private void animateMemento(com.automatavalkyries.entity.chrono.MementoMoriEntity mori, float pt, float age) {
         boolean defeated = mori.isDefeatedSynced();
@@ -697,33 +699,101 @@ public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntity
         float intro = stage == com.automatavalkyries.entity.chrono.MementoMoriEntity.STAGE_INTRO ? 1.0F - smooth(st / 30.0F) : 0.0F;
         // 羽ばたき（ふだんはゆっくり大きく、乱舞は速く強く）。弾幕・月・撃破では小さく
         float calm = (1.0F - 0.7F * barrage) * (1.0F - 0.85F * moon) * (1.0F - 0.6F * defeat) * (1.0F - cage * 0.5F);
-        float beat = (Mth.sin(age * 0.28F) * 0.55F * (1.0F - swarm) + Mth.sin(age * 0.8F) * 0.85F * swarm) * calm;
-        float beatH = (Mth.sin(age * 0.28F - 0.5F) * 0.5F * (1.0F - swarm) + Mth.sin(age * 0.8F - 0.6F) * 0.8F * swarm) * calm;
-        float quiver = Mth.sin(age * 2.3F) * 0.05F * barrage;
-        float lift = 0.12F + 0.6F * barrage + 0.1F * moon + 1.3F * intro + 0.4F * awaken - 0.5F * defeat - 0.9F * strike + quiver
-                + Mth.sin(age * 1.7F) * 0.08F * defeat;                                    // 撃破で垂れて弱く震える
-        float sweep = 0.45F * cage - 0.15F * moon;                                          // 檻: 前翅を前へ振る（左は正）
+        float beat = (Mth.sin(age * 0.22F) * 0.35F * (1.0F - swarm) + Mth.sin(age * 0.75F) * 0.6F * swarm) * calm;
+        float beatH = (Mth.sin(age * 0.22F - 0.5F) * 0.3F * (1.0F - swarm) + Mth.sin(age * 0.75F - 0.6F) * 0.55F * swarm) * calm;
+        float quiver = Mth.sin(age * 2.3F) * 0.04F * barrage;
+        // たたみ（後ろへ）と持ち上げ（先が上）。現れるときは閉じた翅を開く、檻は前へ構え、合図・月を納める瞬間に後ろへ打つ
+        float fold = 0.45F + 1.1F * intro - 0.3F * barrage - 0.4F * moon - 0.25F * cage + 0.9F * strike - 0.2F * awaken + 0.3F * defeat;
+        float lift = 0.05F + 0.15F * barrage + 0.12F * moon + 0.2F * awaken - 0.45F * defeat + quiver + Mth.sin(age * 1.7F) * 0.06F * defeat;
         boolean p2 = mori.isPhase2();
         boolean red = p2 && (stage != com.automatavalkyries.entity.chrono.MementoMoriEntity.STAGE_AWAKEN || st >= 10.0F);
         float big = p2 ? 1.0F + 0.2F * (stage == com.automatavalkyries.entity.chrono.MementoMoriEntity.STAGE_AWAKEN ? smooth((st - 6.0F) / 20.0F) : 1.0F) : 1.0F;
         for (String side : new String[]{"l", "r"}) {
-            float s = side.equals("l") ? -1.0F : 1.0F;                                     // 左は負で上がる
+            float s = side.equals("l") ? 1.0F : -1.0F;
             for (String kind : new String[]{"f", "h"}) {
-                float a = (kind.equals("f") ? beat : beatH) + lift + (kind.equals("h") ? -0.08F : 0.0F);
+                boolean fore = kind.equals("f");
+                float f = fold + (fore ? beat : beatH) + (fore ? 0.0F : 0.08F);
+                float l = fore ? lift : lift * 0.6F - 0.05F;
                 for (String suffix : new String[]{"", "_red"}) {
                     CoreGeoBone w = bone("wing_" + kind + side + suffix);
                     if (w == null) continue;
-                    w.setRotZ(s * a);
-                    w.setRotY(kind.equals("f") ? -s * sweep : -s * sweep * 0.4F);
+                    w.setRotY(s * f);
+                    w.setRotZ(-s * l * (fore ? 1.0F : -1.0F));
                     boolean show = suffix.isEmpty() != red;
                     scaleBone(w, show ? big : 0.0F);
                 }
             }
         }
+        // 腕: ふだんは少し開いてゆるく揺れる。乱舞は左右に大きく広げ、弾幕は右手で相手を指し、檻は前へ差し出して開き、月は頭の上へ掲げる
+        float idle = Mth.sin(age * 0.09F) * 0.06F;
+        float armOut = 0.22F + idle + 1.25F * swarm + 0.35F * cage + 0.4F * awaken + 0.5F * defeat - 0.2F * intro;
+        float armUp = 0.12F + 0.25F * swarm + 1.15F * cage - 0.8F * strike - 0.3F * defeat + 0.6F * intro;
+        float overhead = moon * (1.0F - Math.min(1.0F, strike));
+        float bend = 0.25F + idle + 0.3F * cage + 0.9F * intro;
+        for (String side : new String[]{"l", "r"}) {
+            float s = side.equals("l") ? -1.0F : 1.0F;                                     // 左は Z の負で外へ
+            boolean right = side.equals("r");
+            float point = right ? barrage : 0.0F;                                           // 右手で相手を指す
+            CoreGeoBone arm = bone("arm_" + side);
+            if (arm != null) {
+                arm.setRotX(armUp * (1.0F - point) + 1.05F * point + 0.2F * overhead);
+                arm.setRotZ(s * (armOut * (1.0F - overhead) * (1.0F - point) + 2.5F * overhead + 0.15F * point) - (right ? 0.0F : s * 0.5F * barrage));
+                arm.setRotY(-s * 0.3F * intro);
+            }
+            CoreGeoBone fore = bone("forearm_" + side);
+            if (fore != null) fore.setRotX(bend * (1.0F - point) * (1.0F - overhead) + (right ? 0.0F : 1.3F * barrage));
+        }
         CoreGeoBone body = bone("body");
         if (body != null) {
-            body.setPosY(-Mth.sin(age * 0.28F) * 0.8F * calm + 2.0F * strike);           // 翅を打ち下ろすと体が持ち上がる
-            body.setRotX(-0.6F * defeat + 0.15F * cage);
+            body.setPosY(-Mth.sin(age * 0.22F) * 0.6F * calm + 1.5F * strike);           // 翅を打つと体が持ち上がる
+            body.setRotX(0.06F + 0.5F * defeat + 0.12F * moon - 0.15F * cage + 0.2F * awaken + 0.25F * intro);
+            body.setRotZ(Mth.sin(age * 0.07F) * 0.03F);
+        }
+        float headX = -0.28F + 0.45F * moon + 0.4F * awaken + 0.5F * defeat - 0.3F * intro;      // 下の相手を見下ろす。月は空を仰ぐ
+        CoreGeoBone head = bone("head");
+        if (head != null) {
+            head.setRotX(headX);
+            head.setRotY(Mth.sin(age * 0.05F) * 0.08F);
+        }
+        // 頭の後ろの幾何学の光輪: 頭の傾きを半分打ち消して立て、3 つの層が別々に回る（外はゆっくり、六芒星は逆へ、内は速く）。
+        // 技の間は速く回り、黒死の月・目覚めでは大きく広がる
+        CoreGeoBone halo = bone("halo");
+        if (halo != null) {
+            halo.setRotX(-headX * 0.6F);
+            scaleBone(halo, 1.0F + 0.25F * moon + 0.2F * awaken + 0.08F * strike - 0.5F * intro - 0.3F * defeat);
+        }
+        float spin = Mth.lerp(pt, mori.haloSpinO, mori.haloSpin);
+        CoreGeoBone haloOuter = bone("halo_outer");
+        if (haloOuter != null) haloOuter.setRotZ(spin * 0.006F);
+        CoreGeoBone haloMid = bone("halo_mid");
+        if (haloMid != null) haloMid.setRotZ(-spin * 0.012F);
+        CoreGeoBone haloInner = bone("halo_inner");
+        if (haloInner != null) haloInner.setRotZ(spin * 0.025F);
+        // 宙に浮く装甲のドレスの裾（8 枚 × 3 段。板の間は開いている）: 段ごとの輪が逆向きに回り（下の段ほど速い。技の間は光輪と一緒に速く）、
+        // 板は前後に揺れ（打つ・乱舞・月で外へ広がる）、別々に上下に浮く
+        for (int t = 0; t < 3; t++) {
+            CoreGeoBone ring = bone("skirt_ring_" + t);
+            if (ring != null) ring.setRotY(spin * (t % 2 == 0 ? 1.0F : -1.0F) * (0.008F + t * 0.003F));
+            for (int k = 0; k < 8; k++) {
+                CoreGeoBone sk = bone("skirt_" + t + "_" + k);
+                if (sk == null) continue;
+                sk.setRotX(0.03F + Mth.sin(age * 0.12F + k * 0.8F + t) * 0.04F + 0.3F * strike + 0.15F * swarm + 0.1F * moon + 0.2F * defeat);
+                sk.setPosY(Mth.sin(age * 0.15F + k * 0.7F + t * 1.1F) * 0.25F * (1.0F + t * 0.3F) - 0.4F * t * strike);
+            }
+        }
+        // 脚: 揃えて下へ垂らし、ゆるく交互に揺れる。右の膝を少し曲げる。打つと先が後ろへ跳ね、撃破では両膝が曲がって垂れる
+        CoreGeoBone legs = bone("legs");
+        if (legs != null) legs.setRotX(Mth.sin(age * 0.1F) * 0.04F - 0.15F * strike + 0.1F * moon);
+        for (String side : new String[]{"l", "r"}) {
+            boolean right = side.equals("r");
+            float sway = Mth.sin(age * 0.12F + (right ? Mth.PI : 0.0F)) * 0.06F;
+            CoreGeoBone leg = bone("leg_" + side);
+            if (leg != null) {
+                leg.setRotX(sway + (right ? 0.12F : 0.02F) + 0.25F * swarm * (right ? 1.0F : 0.4F) + 0.3F * defeat);
+                leg.setRotZ((right ? 1.0F : -1.0F) * (0.03F + 0.08F * swarm + 0.06F * awaken));
+            }
+            CoreGeoBone shin = bone("shin_" + side);
+            if (shin != null) shin.setRotX(-(right ? 0.28F : 0.06F) - 0.2F * swarm * (right ? 1.0F : 0.3F) - 0.6F * defeat - 0.3F * strike + sway * 0.5F);
         }
     }
 

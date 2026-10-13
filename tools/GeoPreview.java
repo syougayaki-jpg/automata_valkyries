@@ -33,11 +33,13 @@ public class GeoPreview {
             if (o.has("cubes")) for (JsonElement ce : o.getAsJsonArray("cubes")) addCube(b, ce.getAsJsonObject());
             bones.put(b.name, b);
         }
-        // 任意の引数: [拡大率] [ポーズのカンマ区切り] [向き（度）のカンマ区切り]。兵姫のモデル（識別子に valkyrie）はスカートの無い姿勢で描く
+        // 任意の引数: [拡大率] [ポーズのカンマ区切り] [向き（度）のカンマ区切り] [1 枚の幅,高さ（px）]。兵姫のモデル（識別子に valkyrie）はスカートの無い姿勢で描く
         valkyrie = geo.getAsJsonObject("description").get("identifier").getAsString().contains("valkyrie");
         String[] poses = a.length > 4 ? a[4].split(",") : new String[]{"idle", "walk", "spread", "death"};
         double[] views = a.length > 5 ? Arrays.stream(a[5].split(",")).mapToDouble(Double::parseDouble).toArray() : new double[]{0, 35, 90, 180};
-        int s = a.length > 3 ? Integer.parseInt(a[3]) : 7, cw = 30 * s, ch = 40 * s;
+        int s = a.length > 3 ? Integer.parseInt(a[3]) : 7;
+        String[] canvas = a.length > 6 ? a[6].split(",") : new String[]{"30", "40"}; // 任意: 1 枚の大きさ（モデルの px。大きなボス用）
+        int cw = Integer.parseInt(canvas[0]) * s, ch = Integer.parseInt(canvas[1]) * s;
         BufferedImage out = new BufferedImage(cw * views.length, ch * poses.length, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = out.createGraphics();
         g.setColor(new Color(0x9fb8d6)); g.fillRect(0, 0, out.getWidth(), out.getHeight());

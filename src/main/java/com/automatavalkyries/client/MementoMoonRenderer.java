@@ -60,7 +60,7 @@ public class MementoMoonRenderer extends EntityRenderer<MementoMoonEntity> {
         }
         // 縁の赤い輪と冷たい青紫のにじみ、閉じていく白い数え輪
         GalliaSiegeBeamRenderer.ring(glow, m, up.scale(0.1), a, b, r * open - 0.5F, r * open, 255, 40, 60, (int) (230 * fade));
-        GalliaSiegeBeamRenderer.ring(glow, m, up.scale(0.1), a, b, r * open, r * open + 1.2F, 122, 140, 255, (int) (90 * fade));
+        GalliaSiegeBeamRenderer.ring(glow, m, up.scale(0.1), a, b, r * open, r * open + 1.2F, 164, 92, 255, (int) (90 * fade));
         if (after <= 0.0F) {
             float cr = r * left;
             GalliaSiegeBeamRenderer.ring(glow, m, up.scale(0.12), a, b, Math.max(0.0F, cr - 0.25F), cr, 255, 255, 255, 200);
@@ -88,7 +88,7 @@ public class MementoMoonRenderer extends EntityRenderer<MementoMoonEntity> {
                     40, 0, 12, (int) (220 * open * fade));
         }
         GalliaSiegeBeamRenderer.ring(glow, m, sky, a, b, mr * open - 0.4F, mr * open, 255, 40, 60, (int) (240 * fade));
-        GalliaSiegeBeamRenderer.ring(glow, m, sky, a, b, mr * open, mr * open + 2.0F, 122, 140, 255, (int) (80 * fade));
+        GalliaSiegeBeamRenderer.ring(glow, m, sky, a, b, mr * open, mr * open + 2.0F, 164, 92, 255, (int) (80 * fade));
         // 納める瞬間の赤い閃光
         if (after > 0.0F) {
             float f = 1.0F - after / 10.0F;

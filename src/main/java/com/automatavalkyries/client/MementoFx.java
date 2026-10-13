@@ -31,7 +31,7 @@ final class MementoFx {
         if (side.lengthSqr() < 1.0e-6) side = f.cross(new Vec3(1, 0, 0));
         side = side.normalize();
         Vec3 u = side.cross(f).normalize();                                          // 体の背の向き
-        int gr = red ? 255 : 122, gg = red ? 50 : 140, gb = red ? 70 : 255;
+        int gr = red ? 255 : 164, gg = red ? 50 : 92, gb = red ? 70 : 255;                 // 紫（第 2 形態は赤）
         int al = (int) (255 * Mth.clamp(alpha, 0.0F, 1.0F));
         VertexConsumer glow = buffers.getBuffer(RenderType.lightning());
         for (int s = -1; s <= 1; s += 2) {

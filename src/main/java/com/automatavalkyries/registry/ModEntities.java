@@ -107,7 +107,7 @@ public class ModEntities {
     public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.MementoMoriEntity>> MEMENTO_MORI =
             ENTITY_TYPES.register("memento_mori", () ->
                     EntityType.Builder.of(com.automatavalkyries.entity.chrono.MementoMoriEntity::new, MobCategory.MONSTER)
-                            .sized(3.0F, 1.6F).clientTrackingRange(12).fireImmune().build("memento_mori"));
+                            .sized(1.6F, 5.4F).clientTrackingRange(12).fireImmune().build("memento_mori"));
     /** メメントモリの黒死蝶ビット（壊せる。当たると最大 HP を削る） */
     public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.MementoBitEntity>> MEMENTO_BIT =
             ENTITY_TYPES.register("memento_bit", () ->
