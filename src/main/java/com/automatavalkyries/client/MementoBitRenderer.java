@@ -10,7 +10,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 
-/** 黒死蝶ビットの描き方: 黒い翅に冷たい青紫（第 2 形態は赤）の光る縁・菱形の放射口の機械の蝶が、飛ぶ向きを向いて羽ばたく。突っ込む間は翅をたたんで速く震わせる */
+/** 黒死蝶ビットの描き方: 黒い翅に紫（第 2 形態は光体の水色と桃色）の光る縁・菱形の放射口の機械の蝶が、飛ぶ向きを向いて羽ばたく。突っ込む間は翅をたたんで速く震わせる */
 public class MementoBitRenderer extends EntityRenderer<MementoBitEntity> {
 
     public MementoBitRenderer(EntityRendererProvider.Context context) {
@@ -25,7 +25,7 @@ public class MementoBitRenderer extends EntityRenderer<MementoBitEntity> {
         boolean charging = bit.isCharging();
         float flap = charging ? 0.9F + 0.15F * Mth.sin(age * 3.0F) : Mth.sin(age * 0.9F + bit.getId()) * 0.85F;
         float fadeIn = Math.min(1.0F, age / 5.0F);
-        MementoFx.butterfly(buffers, pose.last().pose(), new Vec3(0, 0.25, 0), fwd, new Vec3(0, 1, 0), 0.6F, flap, true, bit.isRed(), fadeIn);
+        MementoFx.butterfly(buffers, pose.last().pose(), new Vec3(0, 0.25, 0), fwd, new Vec3(0, 1, 0), 0.6F, flap, true, bit.isRadiant(), fadeIn);
         super.render(bit, yaw, partialTick, pose, buffers, light);
     }
 

@@ -9,6 +9,11 @@
 → 同日「ここから装甲を追加して」（質問で: 中くらい・紫がかった暗い金属・胸と肩と背・腕・脚と頭。腰は付けない）: armor()
 → 同日「八枚の装甲を三段にしてドレススカートのようにして腰から下に宙に浮かせる」: floating_skirt()
   →「スカート状は間隔を開けて回転するようにして」: 板の間を開け、段ごとの輪が逆向きに回る
+→ 2026-10-14「第二形態を赤くなるというより出力を上げほぼ幻想的な光体となる演出に」: 第 2 形態の翅（wing_*_p2）は骨組みも光る白に近い光の翅、
+  全身に重ねる光体の絵 memento_mori_lumen.png（lumen()）
+→ 2026-10-14「羽を紫ぴんく水色で幻想的に彩るようにして」: 第 1 形態の翅は付け根の紫から桃色、外の水色へ波打つ帯で混ざり、モザイクの四角も 3 色、きらめく光の粒（_tri）
+→ 2026-10-14「鎧のような装甲を独立した浮遊存在として着飾っていきましょう」: floating_armor()（今の装甲はそのまま、外に約 2px 離して大きく張り出す
+  浮く装甲を足す。肩鎧 3 枚・胸甲・襟・背の板・上腕・前腕の刃・脛・頭の冠。骨は fl_ で始まり、紫の光の粒で体とつなぐ）
 
   geo/entity/memento_mori.geo.json
   textures/entity/memento_mori.png（＋ _glowmask.png）… 512x512。塗り・詰め込みは gen_chrono_gazers.py の Atlas を使う
@@ -23,7 +28,7 @@
              > skirt_<段>_<枚>（板。前後に揺らし、上下に浮かせる）
          > legs（股 0,22.5,0）> leg_r / leg_l（股関節 ∓1.25,22.5,0）> shin_r / shin_l（膝 ∓1.25,12,0）… 長く細い脚、尖った先
          > wing_fl / wing_fr / wing_hl / wing_hr（前翅・後翅。l は +X 側。付け根 ±2.4,31,7）… 第 1 形態の紫
-         > wing_fl_red など（同じ形で赤く光る翅。第 2 形態で入れ替える）
+         > wing_fl_p2 など（同じ形で光体になった翅。第 2 形態で入れ替える）
   翅は背の後ろの縦の薄い板（厚み 0.3、XY の面）で、前後の面に翅の形の絵を描き、形の外は透けて抜く。
   膜は半透明（描画は entityTranslucent）で、黒い翅脈と縁の骨組みの間に、紫の膜と、外ほど多いデジタルのモザイクの四角（紫・桃色・淡い紫・黒）
 """
@@ -34,8 +39,7 @@ import gen_chrono_gazers as g
 g.TEX = 512
 VIO, VIO_L, VIO_D = 0xA45CFF, 0xE8D0FF, 0x4A2088                        # 紫の光（明るい所・暗い所）
 MAG = 0xFF4FD8                                                          # 桃色の光
-RED, RED_L, RED_D = 0xFF2A4A, 0xFFB0C0, 0xA0102A                        # 第 2 形態の赤
-RED_ACC = 0xFF7A3A                                                      # 第 2 形態の差し色
+CYAN, CYAN_L = 0x6FDCFF, 0xDDF8FF                                       # 翅の水色の光（2026-10-14）
 g.MAT.update({
     'vio': (VIO, VIO_L, VIO_D, 'glow', True),                    # 紫に光る
     'mag': (MAG, 0xFFC0F0, 0xA0207A, 'glow', True),             # 桃色に光る
@@ -122,9 +126,18 @@ def _hash(a, b, seed):
     return ((h ^ (h >> 16)) & 0xFFFF) / 65535.0
 
 
-def _paint_wing(atlas, u, v, w, h, kind, flip, red):
-    main, light, dark = (RED, RED_L, RED_D) if red else (VIO, VIO_L, VIO_D)
-    acc = RED_ACC if red else MAG
+def _tri(s):
+    """翅の幻想的な色の流れ（2026-10-14 ユーザー指定「羽を紫ぴんく水色で幻想的に彩る」）: 0 = 紫 → 0.5 = 桃色 → 1 = 水色"""
+    s = max(0.0, min(1.0, s))
+    if s < 0.5:
+        return _mix(VIO, MAG, _smoothstep(0.0, 1.0, s / 0.5))
+    return _mix(MAG, CYAN, _smoothstep(0.0, 1.0, (s - 0.5) / 0.5))
+
+
+def _paint_wing(atlas, u, v, w, h, kind, flip, radiant):
+    """翅の絵。第 1 形態は紫・桃色・水色の幻想的な膜と黒い骨組み（2026-10-14 ユーザー指定「羽を紫ぴんく水色で幻想的に彩るようにして」）。
+    radiant = 第 2 形態（2026-10-14 ユーザー指定「赤くなるというより出力を上げほぼ幻想的な光体となる演出に」）: 骨組みも翅脈も光になり、
+    膜は白に近い明るい光で濃く、モザイクの黒い四角は光の抜けに、きらめく粒が多い"""
     frame, frame_l = 0x0C0A12, 0x2A2238
 
     def coords(i, j):
@@ -141,54 +154,90 @@ def _paint_wing(atlas, u, v, w, h, kind, flip, red):
             if not inside(i, j):
                 continue
             x, t = coords(i, j)
+            r = math.hypot(x - root[0], (t - root[1]) * h / w)
+            outer = _smoothstep(0.25, 0.95, r)
+            # 色の流れ: 付け根の紫から桃色、外の水色へ。ゆるく波打つ帯で混ざる
+            flow = -0.1 + 1.45 * r + 0.16 * math.sin(7.0 * x + 5.0 * t + seed) + 0.07 * math.sin(17.0 * t - 3.0 * x)
+            main = _tri(flow)
+            light = _mix(main, 0xFFFFFF, 0.55)
+            acc = _tri(flow + 0.45 if flow < 0.55 else flow - 0.45)
+            dark = _mix(main, 0x120E1A, 0.65)
             # 縁からの近さ（texel）
             edge = 9
             for k in range(1, 9):
                 if not (inside(i - k, j) and inside(i + k, j) and inside(i, j - k) and inside(i, j + k)):
                     edge = k
                     break
-            if edge <= 2:                                                   # 縁の黒い骨組み（外の 1 texel は照り）
-                _put(atlas, u + i, v + j, frame_l if edge == 1 else frame)
+            if edge <= 2:                                                   # 縁の骨組み（第 2 形態は白く光る縁）
+                if radiant:
+                    c = 0xFFFFFF if edge == 1 else _mix(main, 0xFFFFFF, 0.7)
+                    _put(atlas, u + i, v + j, c, 255, c)
+                else:
+                    _put(atlas, u + i, v + j, frame_l if edge == 1 else frame)
                 continue
-            # 翅脈: 黒い細い骨組み（付け根に近いほど太い）。太い脈の芯は淡く光る
+            # 翅脈: 細い骨組み（付け根に近いほど太い）。第 1 形態は黒く、太い脈の芯が淡く光る。第 2 形態はすべて光る
             vein = False
             for n, (ex, et) in enumerate(ends):
                 d = _seg_dist(x * w, t * h, root[0] * w, root[1] * h, ex * w, et * h)
                 if d < 1.7 - 0.9 * x:
-                    core = n % 2 == 0 and d < 0.45 and 0.15 < x < 0.7
-                    _put(atlas, u + i, v + j, light if core else frame, 255, light if core else None)
+                    if radiant:
+                        c = _mix(light, 0xFFFFFF, 0.5 if d < 0.6 else 0.15)
+                        _put(atlas, u + i, v + j, c, 250, c)
+                    else:
+                        core = n % 2 == 0 and d < 0.45 and 0.15 < x < 0.7
+                        _put(atlas, u + i, v + j, light if core else frame, 255, light if core else None)
                     vein = True
                     break
             if vein:
                 continue
-            r = math.hypot(x - root[0], (t - root[1]) * h / w)
-            outer = _smoothstep(0.25, 0.95, r)
-            if edge <= 4 and x > 0.2:                                       # 縁の内の紫の光の線（ところどころ途切れる）
-                if _hash(i // 3, j // 3, seed + 7) > 0.25:
-                    _put(atlas, u + i, v + j, main, 230, main)
+            if edge <= 4 and x > 0.2:                                       # 縁の内の光の線（ところどころ途切れる。外ほど水色）
+                if _hash(i // 3, j // 3, seed + 7) > (0.05 if radiant else 0.25):
+                    c = _tri(flow + 0.25)
+                    if radiant:
+                        c = _mix(c, 0xFFFFFF, 0.4)
+                    _put(atlas, u + i, v + j, c, 240, c)
                     continue
-            # デジタルのモザイク: 外ほど多い。紫・桃色・淡い紫の光る四角と、黒い四角
+            if _hash(i, j, seed + 11) > (0.975 if radiant else 0.992) - 0.01 * outer:   # きらめく小さな光の粒
+                c = _mix(_tri(_hash(i, j, seed + 13)), 0xFFFFFF, 0.8 if radiant else 0.6)
+                _put(atlas, u + i, v + j, c, 255, c)
+                continue
+            # デジタルのモザイク: 外ほど多い。3 色の光る四角・淡い四角と、黒い四角（第 2 形態は光の抜け）
             ci, cj = i // cs, j // cs
             hv = _hash(ci, cj, seed)
             rim = (i % cs == 0 or j % cs == 0)
+            boost = 0.45 if radiant else 0.0
             if hv < 0.04 + 0.22 * outer:
-                c = _mix(main, light, _hash(ci, cj, seed + 3) * 0.4)
-                _put(atlas, u + i, v + j, _mix(c, dark, 0.35) if rim else c, 225, c)
+                c = _mix(_tri(flow + (_hash(ci, cj, seed + 3) - 0.5) * 0.7), 0xFFFFFF, boost)
+                _put(atlas, u + i, v + j, _mix(c, dark, 0.35) if rim and not radiant else c, 240 if radiant else 225, c)
                 continue
             if hv < 0.06 + 0.30 * outer:
-                _put(atlas, u + i, v + j, _mix(acc, dark, 0.3) if rim else acc, 215, acc)
+                c = _mix(acc, 0xFFFFFF, boost)
+                _put(atlas, u + i, v + j, _mix(c, dark, 0.3) if rim and not radiant else c, 235 if radiant else 215, c)
                 continue
             if hv < 0.07 + 0.34 * outer:
-                _put(atlas, u + i, v + j, light, 240, light)
+                c = CYAN_L if _hash(ci, cj, seed + 5) > 0.5 else _mix(MAG, 0xFFFFFF, 0.6)
+                if radiant:
+                    c = _mix(c, 0xFFFFFF, 0.5)
+                _put(atlas, u + i, v + j, c, 245, c)
                 continue
             if hv < 0.12 + 0.50 * outer:
-                _put(atlas, u + i, v + j, 0x120E1A if not rim else 0x1E1828, 215)
+                if radiant:                                                 # 光の抜け: 膜より淡く透ける光の四角
+                    c = _mix(main, 0xFFFFFF, 0.25)
+                    _put(atlas, u + i, v + j, c, 120, c)
+                else:
+                    _put(atlas, u + i, v + j, 0x120E1A if not rim else 0x1E1828, 215)
                 continue
-            # 膜: 付け根は暗く、外ほど紫に明るい半透明の光。細い横の走査線
-            col = _mix(_mix(dark, 0x120E1A, 0.5), main, 0.15 + 0.7 * r)
-            if j % 6 == 0:
-                col = _mix(col, light, 0.25)
-            a = int(80 + 80 * min(1.0, r))
+            # 膜: 半透明の光（付け根は暗く外ほど明るい。第 2 形態は白に近く濃い）。細い横の走査線
+            if radiant:
+                col = _mix(main, 0xFFFFFF, 0.3 + 0.25 * min(1.0, r))
+                if j % 6 == 0:
+                    col = _mix(col, 0xFFFFFF, 0.4)
+                a = int(160 + 70 * min(1.0, r))
+            else:
+                col = _mix(_mix(dark, 0x120E1A, 0.5), main, 0.3 + 0.65 * min(1.0, r))
+                if j % 6 == 0:
+                    col = _mix(col, light, 0.25)
+                a = int(95 + 85 * min(1.0, r))
             _put(atlas, u + i, v + j, col, a, col)
 
 
@@ -214,8 +263,8 @@ def _paint(self, mat, w, h):
         return self.alloc(w, h)
     painter = None
     if isinstance(mat, str) and mat.startswith('wing:'):
-        _, kind, flip, red = mat.split(':')
-        painter = lambda u, v: _paint_wing(self, u, v, w, h, kind, flip == '1', red == '1')
+        _, kind, flip, radiant = mat.split(':')
+        painter = lambda u, v: _paint_wing(self, u, v, w, h, kind, flip == '1', radiant == '1')
     elif mat in SMOOTH:
         painter = lambda u, v: _paint_smooth(self, u, v, w, h, mat)
     elif mat in HALO:
@@ -289,8 +338,29 @@ def write(m):
         json.dump(geo, fp, indent=1)
     atlas.base.save(os.path.join(g.ASSETS, 'textures', 'entity', m.ident + '.png'))
     atlas.glow.save(os.path.join(g.ASSETS, 'textures', 'entity', m.ident + '_glowmask.png'))
+    lumen(atlas.base).save(os.path.join(g.ASSETS, 'textures', 'entity', m.ident + '_lumen.png'))
     n = sum(len(b['cubes']) for b in m.bones)
     print(f'{m.ident}: {len(m.bones)} bones, {n} cubes, texture used to y={atlas.y + atlas.row}')
+
+
+def lumen(base):
+    """第 2 形態の光体の絵（client/MementoMoriRenderer が足し算の光で全身に重ねる。2026-10-14 ユーザー指定
+    「赤くなるというより出力を上げほぼ幻想的な光体となる演出に」）: 同じ並びで、点ごとに色合いはそのまま明るさを最大に上げて白へ寄せる
+    （黒い外装は淡い紫の光に）。足し算で描くので、透ける所は不透明度を掛けた分だけ光る"""
+    out = base.copy()
+    px = out.load()
+    for y in range(out.height):
+        for x in range(out.width):
+            r, gg, b, a = px[x, y]
+            if a == 0:
+                px[x, y] = (0, 0, 0, 0)
+                continue
+            mx = max(r, gg, b, 1)
+            c = [int(v * 255 / mx) for v in (r, gg, b)]
+            c = [int(v + (255 - v) * 0.45) for v in c]
+            k = a / 255.0
+            px[x, y] = (int(c[0] * k), int(c[1] * k), int(c[2] * k), 255)
+    return out
 
 
 # ------------------------------------------------------------------ 丸みの部品
@@ -443,7 +513,7 @@ NORTH_FLIP = '0'    # 正面の面の絵の左右の向き（+X の翅。プレ�
 HALO_C = (0.0, 44.6, 2.8)   # 光輪の中心（頭の後ろ、頭のてっぺんの少し上）
 
 
-def wing(m, name, sx, kind, red):
+def wing(m, name, sx, kind, radiant):
     """翅 1 枚: 背の後ろ（WING_Z）の縦の薄い板。前翅は付け根から外・上へ、後翅は外・下へ。前後の面に翅の絵"""
     m.bone(name, 'body', (sx * WING_X, WING_Y, WING_Z))
     length, height = (FORE_L, FORE_H) if kind == 'fore' else (HIND_L, HIND_H)
@@ -451,7 +521,7 @@ def wing(m, name, sx, kind, red):
     y0 = WING_Y - 3.0 if kind == 'fore' else WING_Y + 1.0 - height
     flip_n = NORTH_FLIP if sx > 0 else ('1' if NORTH_FLIP == '0' else '0')
     flip_s = '1' if flip_n == '0' else '0'
-    r = 1 if red else 0
+    r = 1 if radiant else 0
     m.box(name, (x0, y0, WING_Z - 0.15), (x1, y0 + height, WING_Z + 0.15), 'none',
           north='wing:%s:%s:%d' % (kind, flip_n, r), south='wing:%s:%s:%d' % (kind, flip_s, r))
 
@@ -542,6 +612,177 @@ def floating_skirt(m):
             m.box(sk, (-0.14, y0 + 0.3, z - 0.3), (0.14, y1 - 0.3, z - 0.16), 'armor_e', rot=flare, pivot=piv)              # 真ん中の稜
             if t == 2:
                 m.box(sk, (-0.22, y0 + 0.6, z - 0.36), (0.22, y0 + 1.2, z - 0.26), 'vio', rot=flare, pivot=piv)          # 裾の紫の点
+
+
+# ------------------------------------------------------------------ 宙に浮く装甲（2026-10-14）
+# ユーザー指定「鎧のような装甲を独立した浮遊存在として着飾っていきましょう」（質問で: 今の装甲はそのまま新しく足す・手足に付いていきながら小さく揺れる・
+# すき間ははっきり見えるくらい（約 2px = 0.25 ブロック）・紫の光の粒でつなぐ・肩・胸と襟と背・腕・脚と頭の冠のすべて・大きく張り出す）。
+# 板は 1 枚ずつ fl_ で始まる骨（Java の animateMemento が外へ広げ・上下に浮かせ・小さく傾ける）。つなぎの光の粒は動かない親の骨に置く
+
+
+def arc_plate(m, bone, axis, c, R, a0, a1, span, thick=0.32, mat='armor', sx=1, rim='vio', ridge='armor_e'):
+    """中心 c のまわりの半径 R の曲がった板（細い箱を向きを変えて並べる）。
+    axis 'z': 角 a は +Y から sx の側の外へ（度）。span(t) は Z の (lo, hi)（c からの差）。肩鎧
+    axis 'y': 角 a は前（-Z）から +X へ（度）。span(t) は Y の (lo, hi)（そのままの高さ）。胸甲・背・腕・脚
+    t は a0 → a1 で 0 → 1。縁（span の両端）に rim の光、外の面の真ん中の線に ridge の照り（axis 'z' のみ）"""
+    n = max(2, int(math.ceil(abs(a1 - a0) / 7.0)))
+    da = (a1 - a0) / n
+    L = R * math.radians(abs(da)) * 1.08 + 0.02
+    for i in range(n):
+        t = (i + 0.5) / n
+        am = a0 + da * (i + 0.5)
+        lo, hi = span(t)
+        if hi - lo < 0.08:
+            continue
+        if axis == 'z':
+            rot = (0, 0, sx * am)
+            r0, r1 = c[1] + R - thick / 2, c[1] + R + thick / 2
+            m.box(bone, (c[0] - L / 2, r0, c[2] + lo), (c[0] + L / 2, r1, c[2] + hi), mat, rot=rot, pivot=c)
+            if rim:
+                for z0, z1 in ((lo - 0.02, lo + 0.14), (hi - 0.14, hi + 0.02)):
+                    m.box(bone, (c[0] - L / 2, r0 - 0.04, c[2] + z0), (c[0] + L / 2, r1 + 0.04, c[2] + z1), rim, rot=rot, pivot=c)
+            if ridge:
+                zm = (lo + hi) / 2
+                m.box(bone, (c[0] - L / 2, r1, c[2] + zm - 0.1), (c[0] + L / 2, r1 + 0.12, c[2] + zm + 0.1), ridge, rot=rot, pivot=c)
+        else:
+            rot = (0, -am, 0)
+            z0, z1 = c[2] - R - thick / 2, c[2] - R + thick / 2
+            m.box(bone, (c[0] - L / 2, lo, z0), (c[0] + L / 2, hi, z1), mat, rot=rot, pivot=c)
+            if rim:
+                for y0, y1 in ((lo - 0.02, lo + 0.14), (hi - 0.14, hi + 0.02)):
+                    m.box(bone, (c[0] - L / 2, y0, z0 - 0.04), (c[0] + L / 2, y1, z1 + 0.04), rim, rot=rot, pivot=c)
+
+
+def tether(m, bone, p0, p1, mat='vio', s=0.09, gap=0.45):
+    """装甲と体をつなぐ紫の光の粒の列（p0 → p1。両端は少し空ける）"""
+    d = math.dist(p0, p1)
+    n = max(1, int(d / gap))
+    for k in range(1, n):
+        t = k / n
+        p = [p0[i] + (p1[i] - p0[i]) * t for i in range(3)]
+        sz = s * (1.25 if k % 2 else 0.85)
+        m.box(bone, (p[0] - sz, p[1] - sz, p[2] - sz), (p[0] + sz, p[1] + sz, p[2] + sz), mat)
+
+
+def node(m, bone, p, s=0.16, mat='mag'):
+    """板の内側の光の点（つなぎの粒の着く所）"""
+    m.box(bone, (p[0] - s, p[1] - s, p[2] - s), (p[0] + s, p[1] + s, p[2] + s), mat)
+
+
+def _lens(t, peak, wmax, wend0, wend1):
+    """t（0〜1）で幅が peak で最大 wmax、両端で wend0・wend1 へ丸く細る半幅"""
+    if t < peak:
+        e = (peak - t) / peak
+        return wend0 + (wmax - wend0) * math.sqrt(max(0.0, 1 - e * e))
+    e = (t - peak) / (1 - peak)
+    return wend1 + (wmax - wend1) * math.sqrt(max(0.0, 1 - e * e))
+
+
+PAULDRON_C = 4.3, 32.6              # 浮く肩鎧の弧の中心（x の大きさ, y）
+PAULDRONS = (   # 半径, 角の始め・終わり（度。+Y から外へ）, 最大の半幅, 最大の所
+    (4.6, -18.0, 70.0, 1.9, 0.35),
+    (5.0, 35.0, 98.0, 1.6, 0.3),
+    (5.4, 80.0, 124.0, 1.25, 0.3),
+)
+CHEST_R, BACK_R = 5.2, 4.4
+COLLAR_C, COLLAR_R, COLLAR_TILT = (0.0, 34.4, 0.2), 3.0, 18.0
+COLLAR_ANG = (75.0, 120.0, 165.0, 195.0, 240.0, 285.0)
+CROWN_C, CROWN_R, CROWN_TILT = (0.0, 41.8, -0.2), 3.8, 14.0
+CROWN = ((0.0, 4.2), (35.0, 3.0), (-35.0, 3.0), (70.0, 2.2), (-70.0, 2.2), (105.0, 1.6), (-105.0, 1.6))   # 向き（度。前から +X へ）, 高さ
+
+
+def floating_armor(m):
+    """宙に浮く大きな装甲（体の装甲から約 2px 離す）。肩鎧 3 枚・胸甲・襟 6 枚・背の板・上腕の板・前腕の刃の板・脛の板・頭の冠 7 本。
+    骨はすべて fl_ で始まる（Java が浮かせて動かす）。襟と冠は向きの骨 fl_*_dir_<k>（Y）> 傾きの骨 fl_*_tilt_<k>（X。外へ開く）> 板 fl_*_<k>"""
+    for side, sx in (('r', -1), ('l', 1)):
+        arm, fore, shin = 'arm_' + side, 'forearm_' + side, 'shin_' + side
+        x = sx * 3.9
+        # 肩鎧: 肩の上を外へ回り込む 3 枚の曲がった板（下の板ほど大きな半径で外に重なる）。外の端は尖り、上の板に外へ反る角
+        pc = (sx * PAULDRON_C[0], PAULDRON_C[1], 0.0)
+        for k, (R, a0, a1, w, peak) in enumerate(PAULDRONS):
+            b = m.bone('fl_pauldron_%s_%d' % (side, k), arm, pc)
+            arc_plate(m, b, 'z', pc, R, a0, a1, lambda t, w=w, peak=peak: (-_lens(t, peak, w, w * 0.4, 0.08), _lens(t, peak, w, w * 0.4, 0.08)), sx=sx)
+            am = math.radians((a0 + a1) / 2 - 8)
+            node(m, b, (pc[0] + sx * (R - 0.35) * math.sin(am), pc[1] + (R - 0.35) * math.cos(am), 0.0))
+        b0 = 'fl_pauldron_%s_0' % side
+        th = math.radians(18.0)
+        hx, hy = pc[0] + sx * 4.75 * math.sin(th), pc[1] + 4.75 * math.cos(th)
+        prism(m, b0, 'y', (hx, 0, 0), hy - 0.3, hy + 4.0, (0.55, 0.4), (0.03, 0.03), 'armor', step=0.3,
+              bend=lambda t, sx=sx: (sx * 2.0 * t * t, 0.4 * t))                                        # 外へ反る角
+        prism(m, b0, 'y', (hx, 0, -0.42), hy, hy + 2.6, (0.08, 0.06), (0.02, 0.02), 'vio', step=0.3,
+              bend=lambda t, sx=sx: (sx * 1.0 * t * t, 0.2 * t))                                        # 角の前の紫の線
+        for a in (14.0, 50.0, 88.0):
+            ar = math.radians(a)
+            tether(m, arm, (pc[0] + sx * 2.55 * math.sin(ar), pc[1] + 2.55 * math.cos(ar), 0.0),
+                   (pc[0] + sx * 4.25 * math.sin(ar), pc[1] + 4.25 * math.cos(ar), 0.0))
+        # 上腕の外の板
+        b = m.bone('fl_upperarm_' + side, arm, (x, 30.2, 0))
+        arc_plate(m, b, 'y', (x, 0, 0), 2.0, sx * 45.0, sx * 135.0,
+                  lambda t: (28.6 + 0.6 * abs(2 * t - 1), 31.8 - 0.8 * abs(2 * t - 1) ** 2))
+        node(m, b, (x + sx * 1.7, 30.2, 0.0))
+        tether(m, arm, (x + sx * 0.8, 30.2, 0.0), (x + sx * 1.75, 30.2, 0.0))
+        # 前腕の刃の板: 前腕の外を包む長い板。外の真ん中ほど上下に長く、肘の上・手首の下へ尖る
+        b = m.bone('fl_forearm_' + side, fore, (x, 24.0, 0))
+        arc_plate(m, b, 'y', (x, 0, 0), 2.3, sx * 40.0, sx * 140.0,
+                  lambda t: (18.0 + 3.5 * abs(2 * t - 1), 29.0 - 3.0 * abs(2 * t - 1) ** 1.2))
+        arc_plate(m, b, 'y', (x, 0, 0), 2.62, sx * 84.0, sx * 96.0,
+                  lambda t: (19.0, 28.0), thick=0.12, mat='armor_e', rim=None)                         # 外の稜
+        for yy in (25.0, 22.0):
+            node(m, b, (x + sx * 2.0, yy, 0.0))
+            tether(m, fore, (x + sx * 0.8, yy, 0.0), (x + sx * 2.05, yy, 0.0))
+        # 脛の板: 脛の前と外を包み、前は膝の上まで尖る膝当て、下も尖る
+        xl = sx * 1.25
+
+        def greave(t, sx=sx):
+            ph = math.radians(sx * (-10.0 + 120.0 * t))
+            f = max(0.0, math.cos(ph))
+            return 4.2 - 2.4 * f ** 2, 8.6 + 4.0 * f ** 3
+        b = m.bone('fl_greave_' + side, shin, (xl, 7.0, 0))
+        arc_plate(m, b, 'y', (xl, 0, 0), 2.1, sx * -10.0, sx * 95.0, greave)
+        for a, yy in ((20.0, 7.0), (70.0, 6.0)):
+            ar = math.radians(sx * a)
+            node(m, b, (xl + 1.8 * math.sin(ar), yy, -1.8 * math.cos(ar)))
+            tether(m, shin, (xl + 0.85 * math.sin(ar), yy, -0.85 * math.cos(ar)), (xl + 1.85 * math.sin(ar), yy, -1.85 * math.cos(ar)))
+    # 胸甲: 胸の前に浮く曲がった板。下の縁は真ん中へ尖る V、真ん中に稜と菱形の核
+    b = m.bone('fl_chest', 'body', (0, 31.0, -4.6))
+    cc = (0.0, 0, 0.6)
+    arc_plate(m, b, 'y', cc, CHEST_R, -36.0, 36.0, lambda t: (27.6 + 1.6 * abs(2 * t - 1), 33.4 - 0.9 * abs(2 * t - 1) ** 2))
+    fz = cc[2] - CHEST_R - 0.16
+    m.box(b, (-0.13, 28.0, fz - 0.14), (0.13, 33.0, fz), 'armor_e')
+    for d in range(4):
+        hw, hh = 0.18 + d * 0.13, 0.75 - d * 0.17
+        m.box(b, (-hw, 31.0 - hh, fz - 0.26), (hw, 31.0 + hh, fz - 0.14), 'mag' if d == 0 else 'vio')
+    for p in ((-1.6, 31.6), (1.6, 31.6), (0.0, 29.4)):
+        node(m, b, (p[0], p[1], fz + 0.45))
+        tether(m, 'body', (p[0], p[1], -2.55), (p[0], p[1], fz + 0.35))
+    # 背の板: 翅の付け根の間に縦に長い菱形の板
+    b = m.bone('fl_back', 'body', (0, 30.0, 4.4))
+    arc_plate(m, b, 'y', (0.0, 0, 0.0), BACK_R, 162.0, 198.0, lambda t: (24.0 + 4.0 * abs(2 * t - 1), 35.0 - 2.5 * abs(2 * t - 1)))
+    m.box(b, (-0.12, 25.0, BACK_R + 0.16), (0.12, 34.4, BACK_R + 0.3), 'vio')
+    for yy in (31.0, 27.0):
+        node(m, b, (0.0, yy, BACK_R - 0.4))
+        tether(m, 'body', (0.0, yy, 2.45), (0.0, yy, BACK_R - 0.3))
+    # 襟: 首のまわりに立つ 6 枚の板（前は開ける）。上ほど外へ開き、上の縁が光る
+    for k, a in enumerate(COLLAR_ANG):
+        d = m.bone('fl_collar_dir_%d' % k, 'body', COLLAR_C, rot=(0, -a, 0))
+        tl = m.bone('fl_collar_tilt_%d' % k, d, (0, COLLAR_C[1], COLLAR_C[2] - COLLAR_R), rot=(COLLAR_TILT, 0, 0))
+        b = m.bone('fl_collar_%d' % k, tl, (0, COLLAR_C[1], COLLAR_C[2] - COLLAR_R))
+        arc_plate(m, b, 'y', COLLAR_C, COLLAR_R, -15.0, 15.0, lambda t: (34.2 + 0.4 * abs(2 * t - 1), 36.4 + 0.5 * (1 - abs(2 * t - 1))))
+    # 冠: 頭のまわりに浮く 7 本の菱形の尖塔（前ほど高い）。外へ少し開き、いちばん太い所に桃色の点
+    for k, (a, h) in enumerate(CROWN):
+        base = (0, CROWN_C[1], CROWN_C[2] - CROWN_R)
+        d = m.bone('fl_crown_dir_%d' % k, 'head', CROWN_C, rot=(0, -a, 0))
+        tl = m.bone('fl_crown_tilt_%d' % k, d, base, rot=(CROWN_TILT, 0, 0))
+        b = m.bone('fl_crown_%d' % k, tl, base)
+        y0, y1, ym = base[1] - 0.9, base[1] + h, base[1]
+        steps = 14
+        for i in range(steps):
+            ya, yb = y0 + (y1 - y0) * i / steps, y0 + (y1 - y0) * (i + 1) / steps
+            yc = (ya + yb) / 2
+            w = 0.55 * ((yc - y0) / (ym - y0) if yc < ym else (y1 - yc) / (y1 - ym)) + 0.03
+            m.box(b, (-w, ya, base[2] - 0.13), (w, yb, base[2] + 0.13), 'armor')
+            m.box(b, (-0.06, ya, base[2] - 0.2), (0.06, yb, base[2] - 0.13), 'vio' if yc < ym else 'armor_e')
+        node(m, b, (0.0, ym, base[2] - 0.05), s=0.2)
 
 
 TORSO = (   # 胴の輪切り（y, 横の半径, 前後の半径, 前後の中心）: 腰の張り・細いくびれ・肋・胸・肩の丸み
@@ -654,12 +895,13 @@ def mementomori():
         _slice(m, shin, 'y', (x, 0, 0), 0.5, 0.5, 1.5, 1.7, 'mag')
     armor(m)
     floating_skirt(m)
-    # 翅（紫の翅と、同じ形で赤く光る翅）
-    for red in (False, True):
-        suffix = '_red' if red else ''
+    floating_armor(m)
+    # 翅（第 1 形態の翅と、同じ形で光体になった第 2 形態の翅）
+    for radiant in (False, True):
+        suffix = '_p2' if radiant else ''
         for sx, side in ((1, 'l'), (-1, 'r')):
-            wing(m, 'wing_f' + side + suffix, sx, 'fore', red)
-            wing(m, 'wing_h' + side + suffix, sx, 'hind', red)
+            wing(m, 'wing_f' + side + suffix, sx, 'fore', radiant)
+            wing(m, 'wing_h' + side + suffix, sx, 'hind', radiant)
     return m
 
 

@@ -18,11 +18,12 @@ import org.joml.Matrix4f;
 /**
  * 黒死の月の描き方（2026-10-10 ユーザー指定「翼で広い円を覆い、数秒後に光の当たる安全地帯以外を死の鱗粉で納める」）:
  * <ul>
- *   <li>範囲: 地面に影の円（黒い半透明）と、縁の太い赤い輪・冷たい青紫のにじみ。残りの時間に合わせて縁から中へ閉じていく白い数え輪</li>
+ *   <li>範囲: 地面に影の円（黒い半透明）と、縁の太い桃色の光の輪・水色のにじみ。残りの時間に合わせて縁から中へ閉じていく白い数え輪</li>
  *   <li>安全地帯: 影の上に明るい光の円と金の縁、空から差す光の柱（白金）。光の柱は脈打つ</li>
- *   <li>空の月: 範囲の上 20 ブロックに赤黒い円盤と赤い縁・冷たい青紫のにじみ（だんだん大きく近づく）</li>
- *   <li>納める瞬間: 範囲いっぱいの赤い閃光が広がって消える</li>
+ *   <li>空の月: 範囲の上 20 ブロックに紫黒い円盤と桃色の縁・水色のにじみ（だんだん大きく近づく）</li>
+ *   <li>納める瞬間: 範囲いっぱいの桃色の閃光が広がって消える</li>
  * </ul>
+ * 色は第 2 形態の光体に合わせて赤から桃色・水色へ（2026-10-14 ユーザー指定「赤くなるというより出力を上げほぼ幻想的な光体となる演出に」）
  */
 public class MementoMoonRenderer extends EntityRenderer<MementoMoonEntity> {
 
@@ -58,9 +59,9 @@ public class MementoMoonRenderer extends EntityRenderer<MementoMoonEntity> {
             MementoFx.quad(dark, m, c, c.add(GalliaSiegeBeamRenderer.around(a, b, a0, r * open)), c.add(GalliaSiegeBeamRenderer.around(a, b, a1, r * open)), c,
                     12, 4, 16, (int) (130 * open * fade));
         }
-        // 縁の赤い輪と冷たい青紫のにじみ、閉じていく白い数え輪
-        GalliaSiegeBeamRenderer.ring(glow, m, up.scale(0.1), a, b, r * open - 0.5F, r * open, 255, 40, 60, (int) (230 * fade));
-        GalliaSiegeBeamRenderer.ring(glow, m, up.scale(0.1), a, b, r * open, r * open + 1.2F, 164, 92, 255, (int) (90 * fade));
+        // 縁の桃色の光の輪と水色のにじみ、閉じていく白い数え輪
+        GalliaSiegeBeamRenderer.ring(glow, m, up.scale(0.1), a, b, r * open - 0.5F, r * open, 255, 90, 220, (int) (230 * fade));
+        GalliaSiegeBeamRenderer.ring(glow, m, up.scale(0.1), a, b, r * open, r * open + 1.2F, 143, 230, 255, (int) (90 * fade));
         if (after <= 0.0F) {
             float cr = r * left;
             GalliaSiegeBeamRenderer.ring(glow, m, up.scale(0.12), a, b, Math.max(0.0F, cr - 0.25F), cr, 255, 255, 255, 200);
@@ -85,14 +86,14 @@ public class MementoMoonRenderer extends EntityRenderer<MementoMoonEntity> {
         for (int i = 0; i < seg; i++) {
             float a0 = Mth.TWO_PI * i / seg, a1 = Mth.TWO_PI * (i + 1) / seg;
             MementoFx.quad(dark, m, sky, sky.add(GalliaSiegeBeamRenderer.around(a, b, a0, mr * open)), sky.add(GalliaSiegeBeamRenderer.around(a, b, a1, mr * open)), sky,
-                    40, 0, 12, (int) (220 * open * fade));
+                    30, 8, 40, (int) (220 * open * fade));
         }
-        GalliaSiegeBeamRenderer.ring(glow, m, sky, a, b, mr * open - 0.4F, mr * open, 255, 40, 60, (int) (240 * fade));
-        GalliaSiegeBeamRenderer.ring(glow, m, sky, a, b, mr * open, mr * open + 2.0F, 164, 92, 255, (int) (80 * fade));
-        // 納める瞬間の赤い閃光
+        GalliaSiegeBeamRenderer.ring(glow, m, sky, a, b, mr * open - 0.4F, mr * open, 255, 90, 220, (int) (240 * fade));
+        GalliaSiegeBeamRenderer.ring(glow, m, sky, a, b, mr * open, mr * open + 2.0F, 143, 230, 255, (int) (80 * fade));
+        // 納める瞬間の桃色の閃光
         if (after > 0.0F) {
             float f = 1.0F - after / 10.0F;
-            GalliaSiegeBeamRenderer.ring(glow, m, up.scale(0.2), a, b, 0.0F, r * (0.6F + 0.4F * (after / 10.0F)), 255, 60, 80, (int) (200 * f));
+            GalliaSiegeBeamRenderer.ring(glow, m, up.scale(0.2), a, b, 0.0F, r * (0.6F + 0.4F * (after / 10.0F)), 255, 120, 230, (int) (200 * f));
         }
         super.render(moon, yaw, partialTick, pose, buffers, light);
     }

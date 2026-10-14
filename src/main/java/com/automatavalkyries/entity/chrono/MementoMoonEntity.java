@@ -19,7 +19,7 @@ import java.util.List;
 /**
  * 黒死の月の見た目（2026-10-10 ユーザー指定。当たり判定はメメントモリの側 {@link MementoMoriEntity#moonFall}）。見た目だけ:
  * 地面の中心から半径 radius の範囲と、光の当たる安全地帯 {@value MementoMoriEntity#MOON_SAFE} つ（まわりより明るい光の柱）を、life Tick の間描く
- * （client/MementoMoonRenderer。範囲の縁の赤い輪・閉じていく数え輪・空の赤黒い月・降る鱗粉）。保存しない
+ * （client/MementoMoonRenderer。範囲の縁の桃色の光の輪・閉じていく数え輪・空の紫黒い月・降る鱗粉）。保存しない
  */
 public class MementoMoonEntity extends Entity {
 

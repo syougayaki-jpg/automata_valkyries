@@ -2176,7 +2176,7 @@
   "item.automata_valkyries.signal_memento_mori.desc": "Use on the ground: the hero unit Memento Mori descends 5 seconds later (consumed)",
   "message.automata_valkyries.memento_mori.incoming": "Black scales are falling... the death butterfly is coming",
   "message.automata_valkyries.memento_mori.arrive": "Memento Mori has arrived",
-  "message.automata_valkyries.memento_mori.phase2": "The death butterfly's wings turn crimson——!",
+  "message.automata_valkyries.memento_mori.phase2": "The death butterfly overloads and ascends into a being of dream-light——!",
   "message.automata_valkyries.memento_mori.cage": "Butterfly cage — find a way out!",
   "message.automata_valkyries.memento_mori.moon": "Black Death Moon — get under the light!",
   "entity.automata_valkyries.gallia_missile": "Galliafort Missile",

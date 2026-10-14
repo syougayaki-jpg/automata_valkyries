@@ -685,6 +685,45 @@ public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntity
      * 向き（プレビューで確かめた）: 左（+X、l）の翅は Y の正で後ろへたたみ、Z の負で先が上がる。右は逆。
      * 腕は X の正で前へ上がり、左は Z の負で外へ開く（右は正）。体・頭は X の正で後ろへ反る。脚は X の正で先が前へ出る（膝は負で曲がる）
      */
+    /**
+     * メメントモリの宙に浮く装甲の骨（tools/gen_memento_mori.py の floating_armor）と、外へ広がる向き（親の骨の向きの中。l は +X 側）。
+     * 襟・冠は向きの骨の中なので前（-Z）が外
+     */
+    private static final String[] M_FLOAT;
+    private static final float[][] M_FLOAT_OUT;
+
+    static {
+        java.util.List<String> names = new java.util.ArrayList<>();
+        java.util.List<float[]> outs = new java.util.ArrayList<>();
+        for (String side : new String[]{"l", "r"}) {
+            float s = side.equals("l") ? 1.0F : -1.0F;
+            for (int k = 0; k < 3; k++) {
+                names.add("fl_pauldron_" + side + "_" + k);
+                outs.add(new float[]{s * 0.75F, 0.65F, 0.0F});
+            }
+            names.add("fl_upperarm_" + side);
+            outs.add(new float[]{s, 0.0F, 0.0F});
+            names.add("fl_forearm_" + side);
+            outs.add(new float[]{s, 0.0F, 0.0F});
+            names.add("fl_greave_" + side);
+            outs.add(new float[]{s * 0.5F, 0.0F, -0.85F});
+        }
+        names.add("fl_chest");
+        outs.add(new float[]{0.0F, 0.0F, -1.0F});
+        names.add("fl_back");
+        outs.add(new float[]{0.0F, 0.0F, 1.0F});
+        for (int k = 0; k < 6; k++) {
+            names.add("fl_collar_" + k);
+            outs.add(new float[]{0.0F, 0.3F, -1.0F});
+        }
+        for (int k = 0; k < 7; k++) {
+            names.add("fl_crown_" + k);
+            outs.add(new float[]{0.0F, 0.4F, -1.0F});
+        }
+        M_FLOAT = names.toArray(new String[0]);
+        M_FLOAT_OUT = outs.toArray(new float[0][]);
+    }
+
     private void animateMemento(com.automatavalkyries.entity.chrono.MementoMoriEntity mori, float pt, float age) {
         boolean defeated = mori.isDefeatedSynced();
         float defeat = defeated ? Mth.clamp((mori.defeatTicks + pt) / com.automatavalkyries.entity.chrono.MementoMoriEntity.DEFEAT_TICKS, 0.0F, 1.0F) : 0.0F;
@@ -706,7 +745,8 @@ public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntity
         float fold = 0.45F + 1.1F * intro - 0.3F * barrage - 0.4F * moon - 0.25F * cage + 0.9F * strike - 0.2F * awaken + 0.3F * defeat;
         float lift = 0.05F + 0.15F * barrage + 0.12F * moon + 0.2F * awaken - 0.45F * defeat + quiver + Mth.sin(age * 1.7F) * 0.06F * defeat;
         boolean p2 = mori.isPhase2();
-        boolean red = p2 && (stage != com.automatavalkyries.entity.chrono.MementoMoriEntity.STAGE_AWAKEN || st >= 10.0F);
+        // 第 2 形態は光体になった翅（wing_*_p2。2026-10-14 ユーザー指定「赤くなるというより出力を上げほぼ幻想的な光体となる演出に」）へ入れ替える
+        boolean radiant = p2 && (stage != com.automatavalkyries.entity.chrono.MementoMoriEntity.STAGE_AWAKEN || st >= 10.0F);
         float big = p2 ? 1.0F + 0.2F * (stage == com.automatavalkyries.entity.chrono.MementoMoriEntity.STAGE_AWAKEN ? smooth((st - 6.0F) / 20.0F) : 1.0F) : 1.0F;
         for (String side : new String[]{"l", "r"}) {
             float s = side.equals("l") ? 1.0F : -1.0F;
@@ -714,12 +754,12 @@ public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntity
                 boolean fore = kind.equals("f");
                 float f = fold + (fore ? beat : beatH) + (fore ? 0.0F : 0.08F);
                 float l = fore ? lift : lift * 0.6F - 0.05F;
-                for (String suffix : new String[]{"", "_red"}) {
+                for (String suffix : new String[]{"", "_p2"}) {
                     CoreGeoBone w = bone("wing_" + kind + side + suffix);
                     if (w == null) continue;
                     w.setRotY(s * f);
                     w.setRotZ(-s * l * (fore ? 1.0F : -1.0F));
-                    boolean show = suffix.isEmpty() != red;
+                    boolean show = suffix.isEmpty() != radiant;
                     scaleBone(w, show ? big : 0.0F);
                 }
             }
@@ -780,6 +820,21 @@ public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntity
                 sk.setRotX(0.03F + Mth.sin(age * 0.12F + k * 0.8F + t) * 0.04F + 0.3F * strike + 0.15F * swarm + 0.1F * moon + 0.2F * defeat);
                 sk.setPosY(Mth.sin(age * 0.15F + k * 0.7F + t * 1.1F) * 0.25F * (1.0F + t * 0.3F) - 0.4F * t * strike);
             }
+        }
+        // 宙に浮く装甲（2026-10-14 ユーザー指定「鎧のような装甲を独立した浮遊存在として着飾っていきましょう」）: 手足の骨に付いていきながら、
+        // 1 枚ずつ別の速さで上下に浮き、小さく傾く。技・月・目覚めでは外へ広がり、現れるときは遠くから集まり、撃破では散って垂れる
+        float spreadOut = 0.4F * swarm + 0.9F * strike + 0.6F * moon + 1.0F * awaken + 2.0F * defeat + 6.0F * intro;
+        for (int i = 0; i < M_FLOAT.length; i++) {
+            CoreGeoBone fl = bone(M_FLOAT[i]);
+            if (fl == null) continue;
+            float[] o = M_FLOAT_OUT[i];
+            float ph = i * 1.7F;
+            float bob = Mth.sin(age * 0.13F + ph) * 0.22F;
+            fl.setPosX(o[0] * spreadOut);
+            fl.setPosY(o[1] * spreadOut + bob - 1.5F * defeat);
+            fl.setPosZ(o[2] * spreadOut);
+            fl.setRotX(Mth.sin(age * 0.09F + ph * 1.3F) * 0.035F + 0.3F * defeat * Mth.sin(ph));
+            fl.setRotZ(Mth.sin(age * 0.11F + ph * 0.7F) * 0.035F);
         }
         // 脚: 揃えて下へ垂らし、ゆるく交互に揺れる。右の膝を少し曲げる。打つと先が後ろへ跳ね、撃破では両膝が曲がって垂れる
         CoreGeoBone legs = bone("legs");

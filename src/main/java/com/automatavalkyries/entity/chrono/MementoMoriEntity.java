@@ -41,7 +41,7 @@ import java.util.List;
 /**
  * AEC 級英雄機「弾幕特化【黒死蝶 / メメントモリ】」（全体仕様書 §4.1。2026-10-10 ユーザーへの質問で決定。数値は【仮】）。
  * 背に蝶の翅を持つ細身の巨大な女性型のアンドロイド（身長約 5.5 ブロック、紫の半透明の翅を広げて約 10 ブロック。2026-10-13 ユーザー指定で蝶の姿から作り直し、同日ユーザーの参考画像を元に）。いつも相手の上空 {@link #HOVER_HEIGHT} ブロックをゆらゆらと円を描いて舞う（飛び道具・射撃で戦う相手）。
- * HP {@value #MAX_HP}、HP 50% で第 2 形態（翼が大きく開き、紋様が赤く光る。弾幕が激しくなり、大技が増える）。
+ * HP {@value #MAX_HP}、HP 50% で第 2 形態（出力を上げ、翼が大きく開いて全身が紫・桃色・水色の光体になる。弾幕が激しくなり、大技が増える）。
  * 技:
  * <ul>
  *   <li>黒死蝶の乱舞: 翼から蝶ビットを次々に放ち、群れでゆるく追わせる（{@link MementoBitEntity}。当たると {@value MementoBitEntity#DAMAGE} と最大 HP を 5% 削る呪い）</li>
@@ -66,7 +66,9 @@ public class MementoMoriEntity extends Monster implements GeoEntity, ChronoGazer
     public static final int INTRO_TICKS = 50, AWAKEN_TICKS = 40, RETREAT_TICKS = 50, DEFEAT_TICKS = 70;
     /** 動きの合図（描画）: 乱舞・弾幕・檻・檻の突撃・月の構え・月の納め */
     public static final byte EVENT_SWARM = 70, EVENT_BARRAGE = 71, EVENT_CAGE = 72, EVENT_CAGE_RELEASE = 73, EVENT_MOON = 74, EVENT_MOON_FALL = 75;
-    static final int C_VIOLET = 0xA45CFF, C_CRIMSON = 0xFF2A4A, C_PALE = 0xE8D0FF, C_WHITE = 0xFFFFFF;   // 紫と淡い紫（2026-10-13 に参考画像に合わせて青紫から）
+    static final int C_VIOLET = 0xA45CFF, C_PALE = 0xE8D0FF, C_WHITE = 0xFFFFFF;   // 紫と淡い紫（2026-10-13 に参考画像に合わせて青紫から）
+    /** 第 2 形態の光体の光（2026-10-14 ユーザー指定「赤くなるというより出力を上げほぼ幻想的な光体となる演出に」。赤の代わりに明るい桃色と水色） */
+    static final int C_PINK = 0xFF8CEB, C_CYAN = 0x8FE6FF;
 
     static com.automatavalkyries.particle.FxOptions glow(int color, float size, int life) {
         return Fx.opt(com.automatavalkyries.registry.ModParticles.GLOW.get(), color, size, life);
@@ -278,12 +280,12 @@ public class MementoMoriEntity extends Monster implements GeoEntity, ChronoGazer
         double a = deathTime * 0.25;
         setDeltaMovement(Math.cos(a) * 0.15, getY() > ground + 1.0 ? -0.08 : 0.0, Math.sin(a) * 0.15);
         move(net.minecraft.world.entity.MoverType.SELF, getDeltaMovement());
-        if (deathTime % 5 == 0) Fx.burst(server, glow(random.nextBoolean() ? C_VIOLET : C_CRIMSON, 0.6F, 18), position().add(0, CHEST, 0), 8, 0.2);
+        if (deathTime % 5 == 0) Fx.burst(server, glow(random.nextBoolean() ? C_VIOLET : C_PINK, 0.6F, 18), position().add(0, CHEST, 0), 8, 0.2);
         if (deathTime >= DEFEAT_TICKS && !DirectRead.isRemoved(this)) {
             Vec3 c = position().add(0, CHEST, 0);
             server.sendParticles(ParticleTypes.SQUID_INK, c.x, c.y, c.z, 120, 2.0, 2.5, 2.0, 0.25);
             Fx.burst(server, glow(C_VIOLET, 1.0F, 30), c, 60, 0.45);
-            Fx.burst(server, glow(C_CRIMSON, 0.8F, 30), c, 40, 0.35);
+            Fx.burst(server, glow(C_CYAN, 0.8F, 30), c, 40, 0.35);
             Fx.shockwave(server, c, C_VIOLET, 12.0F, 26);
             server.sendParticles(ParticleTypes.FLASH, c.x, c.y, c.z, 2, 0.5, 0.5, 0.5, 0);
             GalliaRiftEntity.spawn(server, c, 9.0F);
@@ -336,12 +338,12 @@ public class MementoMoriEntity extends Monster implements GeoEntity, ChronoGazer
         tickStage();
         if (!isPhase2() && ratio <= 0.5F && isAlive() && !defeatedNow()) {
             entityData.set(PHASE2, true);
-            startStage(STAGE_AWAKEN); // 翼が大きく開き、紋様が赤く光る（2 秒、攻撃を受けない）
-            bossEvent.setColor(BossEvent.BossBarColor.RED);
+            startStage(STAGE_AWAKEN); // 出力を上げ、翅が大きく開いて全身が光体になる（2 秒、攻撃を受けない）
+            bossEvent.setColor(BossEvent.BossBarColor.PINK);
             playSound(SoundEvents.PHANTOM_AMBIENT, 3.0F, 0.4F);
             if (level() instanceof ServerLevel server) {
                 for (ServerPlayer p : server.getPlayers(p -> p.distanceToSqr(this) < 64 * 64)) {
-                    p.displayClientMessage(Component.translatable("message.automata_valkyries.memento_mori.phase2").withStyle(ChatFormatting.RED, ChatFormatting.BOLD), true);
+                    p.displayClientMessage(Component.translatable("message.automata_valkyries.memento_mori.phase2").withStyle(ChatFormatting.LIGHT_PURPLE, ChatFormatting.BOLD), true);
                 }
             }
         }
@@ -369,11 +371,14 @@ public class MementoMoriEntity extends Monster implements GeoEntity, ChronoGazer
             setDeltaMovement(0, 0.18, 0);                                           // 舞い上がる
             move(net.minecraft.world.entity.MoverType.SELF, getDeltaMovement());
             if (t >= INTRO_TICKS) startStage(STAGE_NONE);
-        } else if (stage == STAGE_AWAKEN) { // 翼が大きく開き、紋様が赤く光る
+        } else if (stage == STAGE_AWAKEN) { // 出力を上げ、翅が大きく開いて全身が光体になる
             setDeltaMovement(Vec3.ZERO);
             if (t == 10) {
-                Fx.burst(server, glow(C_CRIMSON, 1.0F, 30), position().add(0, CHEST, 0), 60, 0.4);
-                Fx.shockwave(server, position().add(0, CHEST, 0), C_CRIMSON, 12.0F, 24);
+                Fx.burst(server, glow(C_WHITE, 1.0F, 30), position().add(0, CHEST, 0), 40, 0.4);
+                Fx.burst(server, glow(C_PINK, 1.0F, 30), position().add(0, CHEST, 0), 40, 0.5);
+                Fx.burst(server, glow(C_CYAN, 1.0F, 30), position().add(0, CHEST, 0), 40, 0.6);
+                Fx.shockwave(server, position().add(0, CHEST, 0), C_PINK, 12.0F, 24);
+                Fx.shockwave(server, position().add(0, CHEST, 0), C_CYAN, 16.0F, 30);
                 server.sendParticles(ParticleTypes.FLASH, getX(), getY() + CHEST, getZ(), 1, 0, 0, 0, 0);
                 playSound(SoundEvents.WARDEN_SONIC_BOOM, 2.0F, 1.2F);
             }
@@ -517,7 +522,7 @@ public class MementoMoriEntity extends Monster implements GeoEntity, ChronoGazer
         Vec3 side = new Vec3(-f.z, 0, f.x).scale(left ? 1 : -1);
         Vec3 vel = side.scale(0.35).add(0, 0.25, 0).add(f.scale(0.15)).add(random.nextGaussian() * 0.08, random.nextGaussian() * 0.08, random.nextGaussian() * 0.08);
         MementoBitEntity.swarm(server, this, t, from, vel, MementoBitEntity.DAMAGE, isPhase2());
-        Fx.burst(server, glow(isPhase2() ? C_CRIMSON : C_VIOLET, 0.35F, 10), from, 4, 0.08);
+        Fx.burst(server, glow(isPhase2() ? C_CYAN : C_VIOLET, 0.35F, 10), from, 4, 0.08);
     }
 
     /** 死蝶の幾何弾幕の 1 波: 相手を指す右手の先から、相手の方への円錐に count 発。pattern 0 = 輪（まっすぐ）、1 = 花（交互に逆へ曲がる）、2 = 渦巻きの 1 本（ang の向きの 1 発） */
@@ -527,12 +532,12 @@ public class MementoMoriEntity extends Monster implements GeoEntity, ChronoGazer
         Vec3 d = t.position().add(0, t.getBbHeight() * 0.5, 0).subtract(from).normalize();
         Vec3 up = Math.abs(d.y) > 0.95 ? new Vec3(1, 0, 0) : new Vec3(0, 1, 0);
         Vec3 u = d.cross(up).normalize(), v = d.cross(u).normalize();
-        boolean red = isPhase2();
+        boolean radiant = isPhase2();
         for (int i = 0; i < count; i++) {
             double th = rot + Math.PI * 2 * i / count;
             Vec3 dir = d.scale(Math.cos(cone)).add(u.scale(Math.cos(th) * Math.sin(cone))).add(v.scale(Math.sin(th) * Math.sin(cone))).normalize();
             float curl = pattern == 1 ? (i % 2 == 0 ? 0.045F : -0.045F) : 0.0F;
-            MementoBulletEntity.fire(server, this, from, dir.scale(speed), d, curl, BULLET, red);
+            MementoBulletEntity.fire(server, this, from, dir.scale(speed), d, curl, BULLET, radiant);
         }
     }
 
@@ -563,7 +568,7 @@ public class MementoMoriEntity extends Monster implements GeoEntity, ChronoGazer
             MementoCurse.add(e, 2);
         }
         server.sendParticles(ParticleTypes.SQUID_INK, center.x, center.y + 1.0, center.z, 300, MOON_RADIUS * 0.6, 1.5, MOON_RADIUS * 0.6, 0.05);
-        Fx.shockwave(server, center.add(0, 0.2, 0), C_CRIMSON, MOON_RADIUS, 30);
+        Fx.shockwave(server, center.add(0, 0.2, 0), C_PINK, MOON_RADIUS, 30);
         Fx.shockwave(server, center.add(0, 0.3, 0), C_VIOLET, MOON_RADIUS * 0.7F, 24);
         playSound(SoundEvents.WARDEN_SONIC_BOOM, 3.0F, 0.6F);
         playSound(SoundEvents.GENERIC_EXPLODE, 3.0F, 0.5F);
@@ -744,7 +749,7 @@ public class MementoMoriEntity extends Monster implements GeoEntity, ChronoGazer
                     }
                     if (at > 20 && at < 60 && at % 4 == 0) { // 予告: 檻から相手へ紫の線
                         for (MementoBitEntity b : cageBits) {
-                            if (b.isAlive()) Fx.line(server, glow(p2 ? C_CRIMSON : C_VIOLET, 0.2F, 5), b.position(), t.position().add(0, t.getBbHeight() * 0.5, 0), 1.2);
+                            if (b.isAlive()) Fx.line(server, glow(p2 ? C_CYAN : C_VIOLET, 0.2F, 5), b.position(), t.position().add(0, t.getBbHeight() * 0.5, 0), 1.2);
                         }
                     }
                     if (at == 60) {

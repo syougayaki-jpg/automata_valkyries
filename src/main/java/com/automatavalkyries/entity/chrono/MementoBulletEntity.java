@@ -28,7 +28,7 @@ public class MementoBulletEntity extends Entity {
     private static final EntityDataAccessor<Vector3f> AXIS = SynchedEntityData.defineId(MementoBulletEntity.class, EntityDataSerializers.VECTOR3);
     private static final EntityDataAccessor<Float> CURL = SynchedEntityData.defineId(MementoBulletEntity.class, EntityDataSerializers.FLOAT);
     private static final EntityDataAccessor<Vector3f> VEL = SynchedEntityData.defineId(MementoBulletEntity.class, EntityDataSerializers.VECTOR3);
-    private static final EntityDataAccessor<Boolean> RED = SynchedEntityData.defineId(MementoBulletEntity.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Boolean> RADIANT = SynchedEntityData.defineId(MementoBulletEntity.class, EntityDataSerializers.BOOLEAN);
 
     @Nullable
     private LivingEntity owner;
@@ -42,7 +42,7 @@ public class MementoBulletEntity extends Entity {
     }
 
     /** from から velocity で撃つ。axis のまわりに 1 Tick に curl ラジアン曲がる（0 ならまっすぐ） */
-    public static void fire(ServerLevel level, LivingEntity owner, Vec3 from, Vec3 velocity, Vec3 axis, float curl, float damage, boolean red) {
+    public static void fire(ServerLevel level, LivingEntity owner, Vec3 from, Vec3 velocity, Vec3 axis, float curl, float damage, boolean radiant) {
         MementoBulletEntity b = new MementoBulletEntity(ModEntities.MEMENTO_BULLET.get(), level);
         b.owner = owner;
         b.damage = damage;
@@ -50,13 +50,13 @@ public class MementoBulletEntity extends Entity {
         b.entityData.set(VEL, velocity.toVector3f());
         b.entityData.set(AXIS, axis.toVector3f());
         b.entityData.set(CURL, curl);
-        b.entityData.set(RED, red);
+        b.entityData.set(RADIANT, radiant);
         b.setPos(from.x, from.y, from.z);
         level.addFreshEntity(b);
     }
 
-    public boolean isRed() {
-        return entityData.get(RED);
+    public boolean isRadiant() {
+        return entityData.get(RADIANT);
     }
 
     /** 今の飛ぶ向き（描画で蝶の向きに使う） */
@@ -69,7 +69,7 @@ public class MementoBulletEntity extends Entity {
         entityData.define(AXIS, new Vector3f(0, 1, 0));
         entityData.define(CURL, 0.0F);
         entityData.define(VEL, new Vector3f());
-        entityData.define(RED, false);
+        entityData.define(RADIANT, false);
     }
 
     @Override

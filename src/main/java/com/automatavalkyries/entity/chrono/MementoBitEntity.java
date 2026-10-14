@@ -34,7 +34,7 @@ public class MementoBitEntity extends Entity {
     public static final float DAMAGE = 8.0F;
     public static final double SWARM_SPEED = 0.55, SWARM_TURN = 6.0, CHARGE_SPEED = 1.1;
     public static final int LIFE = 160, SWARM_RISE = 14;
-    private static final EntityDataAccessor<Boolean> RED = SynchedEntityData.defineId(MementoBitEntity.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Boolean> RADIANT = SynchedEntityData.defineId(MementoBitEntity.class, EntityDataSerializers.BOOLEAN);
     private static final EntityDataAccessor<Boolean> CHARGING = SynchedEntityData.defineId(MementoBitEntity.class, EntityDataSerializers.BOOLEAN);
 
     @Nullable
@@ -50,8 +50,8 @@ public class MementoBitEntity extends Entity {
     }
 
     /** 乱舞の 1 匹: from から velocity で飛び出し、舞い上がってから target をゆるく追う */
-    public static MementoBitEntity swarm(ServerLevel level, LivingEntity owner, LivingEntity target, Vec3 from, Vec3 velocity, float damage, boolean red) {
-        MementoBitEntity b = create(level, owner, target, from, damage, red);
+    public static MementoBitEntity swarm(ServerLevel level, LivingEntity owner, LivingEntity target, Vec3 from, Vec3 velocity, float damage, boolean radiant) {
+        MementoBitEntity b = create(level, owner, target, from, damage, radiant);
         b.mode = SWARM;
         b.setDeltaMovement(velocity);
         level.addFreshEntity(b);
@@ -59,20 +59,20 @@ public class MementoBitEntity extends Entity {
     }
 
     /** 檻の 1 匹: from から相手のまわりの slot（世界の位置）へ飛んで並ぶ */
-    public static MementoBitEntity cage(ServerLevel level, LivingEntity owner, LivingEntity target, Vec3 from, Vec3 slot, float damage, boolean red) {
-        MementoBitEntity b = create(level, owner, target, from, damage, red);
+    public static MementoBitEntity cage(ServerLevel level, LivingEntity owner, LivingEntity target, Vec3 from, Vec3 slot, float damage, boolean radiant) {
+        MementoBitEntity b = create(level, owner, target, from, damage, radiant);
         b.mode = CAGE;
         b.slot = slot;
         level.addFreshEntity(b);
         return b;
     }
 
-    private static MementoBitEntity create(ServerLevel level, LivingEntity owner, LivingEntity target, Vec3 from, float damage, boolean red) {
+    private static MementoBitEntity create(ServerLevel level, LivingEntity owner, LivingEntity target, Vec3 from, float damage, boolean radiant) {
         MementoBitEntity b = new MementoBitEntity(ModEntities.MEMENTO_BIT.get(), level);
         b.owner = owner;
         b.target = target;
         b.damage = damage;
-        b.entityData.set(RED, red);
+        b.entityData.set(RADIANT, radiant);
         b.setPos(from.x, from.y, from.z);
         return b;
     }
@@ -89,8 +89,8 @@ public class MementoBitEntity extends Entity {
         tickCount = Math.min(tickCount, LIFE - 40); // 突っ込んでから少しは飛ぶ
     }
 
-    public boolean isRed() {
-        return entityData.get(RED);
+    public boolean isRadiant() {
+        return entityData.get(RADIANT);
     }
 
     public boolean isCharging() {
@@ -99,7 +99,7 @@ public class MementoBitEntity extends Entity {
 
     @Override
     protected void defineSynchedData() {
-        entityData.define(RED, false);
+        entityData.define(RADIANT, false);
         entityData.define(CHARGING, false);
     }
 
@@ -150,7 +150,7 @@ public class MementoBitEntity extends Entity {
     /** 壊れる（地形に当たった・撃ち落とされた）: 黒い鱗粉と紫の光 */
     private void burst(ServerLevel server) {
         server.sendParticles(ParticleTypes.SQUID_INK, getX(), getY(), getZ(), 6, 0.2, 0.2, 0.2, 0.02);
-        Fx.burst(server, MementoMoriEntity.glow(isRed() ? MementoMoriEntity.C_CRIMSON : MementoMoriEntity.C_VIOLET, 0.4F, 10), position(), 6, 0.12);
+        Fx.burst(server, MementoMoriEntity.glow(isRadiant() ? MementoMoriEntity.C_CYAN : MementoMoriEntity.C_VIOLET, 0.4F, 10), position(), 6, 0.12);
         discard();
     }
 
