@@ -2200,5 +2200,18 @@
   "death.attack.automata_valkyries.galliafort_siege_cannon": "%1$s was pierced by the Piercing Siege Cannon",
   "death.attack.automata_valkyries.galliafort_siege_cannon.player": "%1$s was pierced by %2$s's Piercing Siege Cannon",
   "message.automata_valkyries.galliafort.ultimate": "Rift Breaker Cannon, full power——! The barrier is down!",
-  "bossbar.automata_valkyries.galliafort.barrier_off": "Distortion Barrier: diverted to the Rift Breaker Cannon (all damage passes)"
+  "bossbar.automata_valkyries.galliafort.barrier_off": "Distortion Barrier: diverted to the Rift Breaker Cannon (all damage passes)",
+  "subtitles.automata_valkyries.memento.gather": "Butterflies of light gather",
+  "subtitles.automata_valkyries.memento.form": "Memento Mori takes form",
+  "subtitles.automata_valkyries.memento.charge": "Light gathers into a core",
+  "subtitles.automata_valkyries.memento.ascend": "Memento Mori ascends into light",
+  "subtitles.automata_valkyries.memento.cast": "A magic circle opens",
+  "subtitles.automata_valkyries.memento.bit": "A butterfly bit takes flight",
+  "subtitles.automata_valkyries.memento.shot": "Butterfly bullet chimes",
+  "subtitles.automata_valkyries.memento.cage_lock": "Butterfly cage closes",
+  "subtitles.automata_valkyries.memento.cage_release": "Butterflies charge",
+  "subtitles.automata_valkyries.memento.moon_bell": "The death moon tolls",
+  "subtitles.automata_valkyries.memento.moon_fall": "The death moon descends",
+  "subtitles.automata_valkyries.memento.shatter": "The halo shatters",
+  "subtitles.automata_valkyries.memento.scatter": "Memento Mori scatters into butterflies"
 }

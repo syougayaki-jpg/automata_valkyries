@@ -1,7 +1,6 @@
 package com.automatavalkyries.entity.chrono;
 
 import com.automatavalkyries.registry.ModEntities;
-import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
@@ -75,7 +74,8 @@ public class MementoMoonEntity extends Entity {
             float r = radius();
             for (int i = 0; i < 6; i++) {
                 double a = random.nextDouble() * Math.PI * 2, d = Math.sqrt(random.nextDouble()) * r;
-                level().addParticle(ParticleTypes.SQUID_INK, getX() + Math.cos(a) * d, getY() + 6 + random.nextDouble() * 6, getZ() + Math.sin(a) * d, 0, -0.15, 0);
+                int c = random.nextInt(3) == 0 ? MementoMoriEntity.C_CYAN : random.nextBoolean() ? MementoMoriEntity.C_PINK : MementoMoriEntity.C_VIOLET;   // 降る光の鱗粉（2026-10-14 ユーザー指定「黒いもやを全部幻想的な光にして」）
+                level().addParticle(MementoMoriEntity.glow(c, 0.35F, 40), getX() + Math.cos(a) * d, getY() + 6 + random.nextDouble() * 6, getZ() + Math.sin(a) * d, 0, -0.15, 0);
             }
             return;
         }

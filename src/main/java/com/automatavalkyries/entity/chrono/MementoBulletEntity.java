@@ -1,7 +1,6 @@
 package com.automatavalkyries.entity.chrono;
 
 import com.automatavalkyries.registry.ModEntities;
-import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
@@ -84,7 +83,8 @@ public class MementoBulletEntity extends Entity {
         Vec3 next = position().add(vel);
         if (level().isClientSide) {
             setPos(next.x, next.y, next.z);
-            if (tickCount % 4 == 0) level().addParticle(ParticleTypes.SQUID_INK, getX(), getY(), getZ(), 0, 0, 0);
+            // 光の尾（2026-10-14 ユーザー指定の演出「光の軌跡・粒を濃く」）
+            if (tickCount % 2 == 0) level().addParticle(MementoMoriEntity.glow(isRadiant() ? MementoMoriEntity.C_CYAN : MementoMoriEntity.C_PALE, 0.14F, 8), getX(), getY() + 0.1, getZ(), 0, 0, 0);
             return;
         }
         if (!(level() instanceof ServerLevel server) || tickCount > LIFE) {
@@ -93,7 +93,7 @@ public class MementoBulletEntity extends Entity {
         }
         HitResult hit = level().clip(new ClipContext(position(), next, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, this));
         if (hit.getType() != HitResult.Type.MISS) {
-            server.sendParticles(ParticleTypes.SQUID_INK, hit.getLocation().x, hit.getLocation().y, hit.getLocation().z, 3, 0.1, 0.1, 0.1, 0.02);
+            com.automatavalkyries.weapon.Fx.burst(server, MementoMoriEntity.glow(isRadiant() ? MementoMoriEntity.C_CYAN : MementoMoriEntity.C_PALE, 0.25F, 10), hit.getLocation(), 3, 0.06); // 光の粒（2026-10-14 ユーザー指定「黒いもやを全部幻想的な光にして」）
             discard();
             return;
         }

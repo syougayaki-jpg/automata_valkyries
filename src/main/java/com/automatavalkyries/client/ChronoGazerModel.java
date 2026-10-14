@@ -730,12 +730,13 @@ public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntity
         byte stage = mori.stage();
         float st = age - mori.stageStart;
         float swarm = envelope(age - mori.swarmTick, 4.0F, 30.0F, 40.0F);
-        float barrage = envelope(age - mori.barrageTick, 6.0F, 40.0F, 50.0F);
+        float barrage = envelope(age - mori.barrageTick, 6.0F, 50.0F, 60.0F);              // 10 Tick の構え（魔法陣）の後に撃つ（2026-10-14）
         float cage = envelope(age - mori.cageTick, 8.0F, 60.0F, 75.0F);
         float strike = envelope(age - mori.cageReleaseTick, 1.0F, 4.0F, 14.0F) + impact(age - mori.moonFallTick, 4.0F);
         float moon = envelope(age - mori.moonTick, 15.0F, 120.0F, 140.0F);
-        float awaken = stage == com.automatavalkyries.entity.chrono.MementoMoriEntity.STAGE_AWAKEN ? envelope(st, 6.0F, 30.0F, 40.0F) : 0.0F;
-        float intro = stage == com.automatavalkyries.entity.chrono.MementoMoriEntity.STAGE_INTRO ? 1.0F - smooth(st / 30.0F) : 0.0F;
+        // 登場・昇華の長さは MementoShow の時間割（2026-10-14）。登場は 40 Tick まで翅を閉じた姿で集まる
+        float awaken = stage == com.automatavalkyries.entity.chrono.MementoMoriEntity.STAGE_AWAKEN ? envelope(st, 10.0F, 85.0F, 100.0F) : 0.0F;
+        float intro = stage == com.automatavalkyries.entity.chrono.MementoMoriEntity.STAGE_INTRO ? 1.0F - smooth((st - 40.0F) / 35.0F) : 0.0F;
         // 羽ばたき（ふだんはゆっくり大きく、乱舞は速く強く）。弾幕・月・撃破では小さく
         float calm = (1.0F - 0.7F * barrage) * (1.0F - 0.85F * moon) * (1.0F - 0.6F * defeat) * (1.0F - cage * 0.5F);
         float beat = (Mth.sin(age * 0.22F) * 0.35F * (1.0F - swarm) + Mth.sin(age * 0.75F) * 0.6F * swarm) * calm;
@@ -746,8 +747,8 @@ public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntity
         float lift = 0.05F + 0.15F * barrage + 0.12F * moon + 0.2F * awaken - 0.45F * defeat + quiver + Mth.sin(age * 1.7F) * 0.06F * defeat;
         boolean p2 = mori.isPhase2();
         // 第 2 形態は光体になった翅（wing_*_p2。2026-10-14 ユーザー指定「赤くなるというより出力を上げほぼ幻想的な光体となる演出に」）へ入れ替える
-        boolean radiant = p2 && (stage != com.automatavalkyries.entity.chrono.MementoMoriEntity.STAGE_AWAKEN || st >= 10.0F);
-        float big = p2 ? 1.0F + 0.2F * (stage == com.automatavalkyries.entity.chrono.MementoMoriEntity.STAGE_AWAKEN ? smooth((st - 6.0F) / 20.0F) : 1.0F) : 1.0F;
+        boolean radiant = MementoShow.radiantWings(mori, pt);
+        float big = p2 ? 1.0F + 0.2F * (stage == com.automatavalkyries.entity.chrono.MementoMoriEntity.STAGE_AWAKEN ? smooth((st - 60.0F) / 20.0F) : 1.0F) : 1.0F;
         for (String side : new String[]{"l", "r"}) {
             float s = side.equals("l") ? 1.0F : -1.0F;
             for (String kind : new String[]{"f", "h"}) {
@@ -800,15 +801,24 @@ public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntity
         CoreGeoBone halo = bone("halo");
         if (halo != null) {
             halo.setRotX(-headX * 0.6F);
-            scaleBone(halo, 1.0F + 0.25F * moon + 0.2F * awaken + 0.08F * strike - 0.5F * intro - 0.3F * defeat);
+            scaleBone(halo, 1.0F + 0.25F * moon + 0.2F * awaken + 0.08F * strike);
         }
         float spin = Mth.lerp(pt, mori.haloSpinO, mori.haloSpin);
         CoreGeoBone haloOuter = bone("halo_outer");
-        if (haloOuter != null) haloOuter.setRotZ(spin * 0.006F);
+        if (haloOuter != null) {
+            haloOuter.setRotZ(spin * 0.006F);
+            scaleBone(haloOuter, MementoShow.haloLayer(mori, pt, 0));                    // 登場で 1 層ずつ組み上がり、撃破で広がって割れる
+        }
         CoreGeoBone haloMid = bone("halo_mid");
-        if (haloMid != null) haloMid.setRotZ(-spin * 0.012F);
+        if (haloMid != null) {
+            haloMid.setRotZ(-spin * 0.012F);
+            scaleBone(haloMid, MementoShow.haloLayer(mori, pt, 1));
+        }
         CoreGeoBone haloInner = bone("halo_inner");
-        if (haloInner != null) haloInner.setRotZ(spin * 0.025F);
+        if (haloInner != null) {
+            haloInner.setRotZ(spin * 0.025F);
+            scaleBone(haloInner, MementoShow.haloLayer(mori, pt, 2));
+        }
         // 宙に浮く装甲のドレスの裾（8 枚 × 3 段。板の間は開いている）: 段ごとの輪が逆向きに回り（下の段ほど速い。技の間は光輪と一緒に速く）、
         // 板は前後に揺れ（打つ・乱舞・月で外へ広がる）、別々に上下に浮く
         for (int t = 0; t < 3; t++) {
@@ -822,19 +832,36 @@ public class ChronoGazerModel<T extends Mob & GeoEntity> extends DefaultedEntity
             }
         }
         // 宙に浮く装甲（2026-10-14 ユーザー指定「鎧のような装甲を独立した浮遊存在として着飾っていきましょう」）: 手足の骨に付いていきながら、
-        // 1 枚ずつ別の速さで上下に浮き、小さく傾く。技・月・目覚めでは外へ広がり、現れるときは遠くから集まり、撃破では散って垂れる
-        float spreadOut = 0.4F * swarm + 0.9F * strike + 0.6F * moon + 1.0F * awaken + 2.0F * defeat + 6.0F * intro;
+        // 1 枚ずつ別の速さで上下に浮き、小さく傾く。技・月・目覚めでは外へ広がる。
+        // 演出（2026-10-14、MementoShow）: 登場では遠くから 1 枚ずつ集まり、昇華では外へ弾かれて戻り、撃破では 1 枚ずつ光を失って落ちて消える。
+        // 技に加わる: 乱舞は肩鎧が翅のように外・上へ開き、弾幕は右の前腕の刃が手の先へ滑り出て砲身になり、檻は胸甲・背の板が開いて冠が上がり、月は全部が大きく開いて冠が高く上がる
+        float spreadOut = 0.4F * swarm + 0.9F * strike + 0.6F * moon + 1.0F * awaken + 2.0F * defeat + MementoShow.armorBurst(mori, pt);
         for (int i = 0; i < M_FLOAT.length; i++) {
             CoreGeoBone fl = bone(M_FLOAT[i]);
             if (fl == null) continue;
+            String name = M_FLOAT[i];
             float[] o = M_FLOAT_OUT[i];
             float ph = i * 1.7F;
             float bob = Mth.sin(age * 0.13F + ph) * 0.22F;
-            fl.setPosX(o[0] * spreadOut);
-            fl.setPosY(o[1] * spreadOut + bob - 1.5F * defeat);
-            fl.setPosZ(o[2] * spreadOut);
-            fl.setRotX(Mth.sin(age * 0.09F + ph * 1.3F) * 0.035F + 0.3F * defeat * Mth.sin(ph));
-            fl.setRotZ(Mth.sin(age * 0.11F + ph * 0.7F) * 0.035F);
+            float out = spreadOut + MementoShow.armorGather(mori, pt, i, M_FLOAT.length) + 2.5F * moon;
+            float up = 0.0F, along = 0.0F;
+            if (name.startsWith("fl_pauldron")) {
+                out += 3.0F * swarm;
+                up += 1.5F * swarm;
+            } else if (name.equals("fl_forearm_r")) {
+                along -= 5.0F * barrage;                                                    // 手の先へ（前腕の向きの下）
+            } else if (name.equals("fl_chest") || name.equals("fl_back")) {
+                out += 3.0F * cage;
+            } else if (name.startsWith("fl_crown")) {
+                up += 2.0F * cage + 4.0F * moon + 1.5F * awaken;
+            }
+            float fall = MementoShow.armorFall(mori, pt, i, M_FLOAT.length);
+            fl.setPosX(o[0] * out);
+            fl.setPosY(o[1] * out + bob + up + along - 1.5F * defeat - 40.0F * fall * fall);
+            fl.setPosZ(o[2] * out);
+            fl.setRotX(Mth.sin(age * 0.09F + ph * 1.3F) * 0.035F + 0.3F * defeat * Mth.sin(ph) + 1.2F * fall * Mth.sin(ph * 2.3F));
+            fl.setRotZ(Mth.sin(age * 0.11F + ph * 0.7F) * 0.035F + 0.8F * fall * Mth.cos(ph * 1.9F));
+            scaleBone(fl, 1.0F - smooth((fall - 0.6F) / 0.4F));
         }
         // 脚: 揃えて下へ垂らし、ゆるく交互に揺れる。右の膝を少し曲げる。打つと先が後ろへ跳ね、撃破では両膝が曲がって垂れる
         CoreGeoBone legs = bone("legs");

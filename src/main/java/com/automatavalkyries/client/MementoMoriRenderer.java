@@ -11,6 +11,9 @@ import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
+import net.minecraft.world.phys.Vec3;
+import org.joml.Matrix4f;
+import software.bernie.geckolib.core.object.Color;
 import software.bernie.geckolib.cache.object.BakedGeoModel;
 import software.bernie.geckolib.renderer.layer.GeoRenderLayer;
 
@@ -41,7 +44,19 @@ public class MementoMoriRenderer extends ChronoGazerRenderer<MementoMoriEntity> 
 
     @Override
     public boolean shouldRender(MementoMoriEntity mori, Frustum frustum, double x, double y, double z) {
-        return mori.isAlive() || mori.isDefeatedSynced() ? frustum.isVisible(mori.getBoundingBox().inflate(6.0)) : super.shouldRender(mori, frustum, x, y, z);
+        return mori.isAlive() || mori.isDefeatedSynced() ? frustum.isVisible(mori.getBoundingBox().inflate(mori.stage() != MementoMoriEntity.STAGE_NONE || mori.isDefeatedSynced() ? 18.0 : 6.0))
+                : super.shouldRender(mori, frustum, x, y, z);                              // 登場・撃破の蝶の群れは遠くまで広がる
+    }
+
+    /** 体の不透明度（登場で現れ、撃破・退場で透けて消える。{@link MementoShow#bodyAlpha}） */
+    @Override
+    public Color getRenderColor(MementoMoriEntity mori, float partialTick, int packedLight) {
+        return Color.ofRGBA(1.0F, 1.0F, 1.0F, MementoShow.bodyAlpha(mori, partialTick));
+    }
+
+    @Override
+    protected float glowAlpha(MementoMoriEntity mori, float partialTick) {
+        return MementoShow.bodyAlpha(mori, partialTick);
     }
 
     @Override
@@ -50,9 +65,48 @@ public class MementoMoriRenderer extends ChronoGazerRenderer<MementoMoriEntity> 
         pose.scale(MementoMoriEntity.SIZE, MementoMoriEntity.SIZE, MementoMoriEntity.SIZE);
         super.render(mori, entityYaw, partialTick, pose, buffers, light);
         pose.popPose();
+        MementoSwarm.render(mori, partialTick, pose, buffers);
+        renderAscension(mori, partialTick, pose, buffers);
     }
 
-    /** 第 2 形態の光体の重ね描き */
+    /**
+     * 第 2 形態への昇華（{@link MementoShow}）: 0〜60 は胸の核へ縮んでいく光の輪、30〜75 は足元から空への光の柱（外は水色、芯は白）、
+     * 60 の閃光で横へ広がる桃色と水色の光の輪
+     */
+    private static void renderAscension(MementoMoriEntity mori, float pt, PoseStack pose, MultiBufferSource buffers) {
+        float aw = MementoShow.stageT(mori, MementoMoriEntity.STAGE_AWAKEN, pt);
+        if (aw < 0.0F) return;
+        Matrix4f m = pose.last().pose();
+        Vec3 up = new Vec3(0, 1, 0);
+        Vec3[] ab = GalliaSiegeBeamRenderer.basis(up);
+        com.mojang.blaze3d.vertex.VertexConsumer glow = buffers.getBuffer(RenderType.lightning());
+        Vec3 chest = up.scale(3.6);
+        if (aw < 60.0F) { // 核へ縮んでいく光の輪（3 本ずつずらして）
+            for (int k = 0; k < 3; k++) {
+                float u = ((aw + k * 5.0F) % 15.0F) / 15.0F;
+                float r = 5.0F * (1.0F - u);
+                int al = (int) (200 * u * MementoShow.smooth(aw / 10.0F));
+                boolean pink = k % 2 == 0;
+                GalliaSiegeBeamRenderer.ring(glow, m, chest.add(0, (k - 1) * 0.6, 0), ab[0], ab[1], Math.max(0.0F, r - 0.15F), r, pink ? 255 : 143, pink ? 140 : 230, 255, al);
+            }
+        }
+        if (aw >= 30.0F && aw < 80.0F) { // 空への光の柱
+            float grow = MementoShow.smooth((aw - 30.0F) / 8.0F), fade = 1.0F - MementoShow.smooth((aw - 62.0F) / 18.0F);
+            float pulse = 0.85F + 0.15F * Mth.sin(aw * 1.3F);
+            GalliaSiegeBeamRenderer.tube(glow, m, up, ab[0], ab[1], -8.0F, 120.0F * grow, 1.8F * pulse, 143, 230, 255, (int) (110 * fade));
+            GalliaSiegeBeamRenderer.tube(glow, m, up, ab[0], ab[1], -8.0F, 120.0F * grow, 0.7F, 255, 255, 255, (int) (220 * fade));
+            GalliaSiegeBeamRenderer.tube(glow, m, up, ab[0], ab[1], -8.0F, 120.0F * grow, 2.8F * pulse, 255, 140, 235, (int) (50 * fade));
+        }
+        if (aw >= 60.0F && aw < 78.0F) { // 閃光の光の輪
+            float u = (aw - 60.0F) / 18.0F;
+            float r = 3.0F + 18.0F * MementoShow.smooth(u);
+            int al = (int) (230 * (1.0F - u));
+            GalliaSiegeBeamRenderer.ring(glow, m, chest, ab[0], ab[1], r - 0.6F, r, 255, 140, 235, al);
+            GalliaSiegeBeamRenderer.ring(glow, m, chest, ab[0], ab[1], r * 0.8F - 0.4F, r * 0.8F, 143, 230, 255, al);
+        }
+    }
+
+    /** 光体の重ね描き（第 2 形態のふだんの光と、登場・昇華・撃破・退場の光） */
     private static final class LumenLayer extends GeoRenderLayer<MementoMoriEntity> {
         private static final ResourceLocation LUMEN = ResourceLocation.fromNamespaceAndPath("automata_valkyries", "textures/entity/memento_mori_lumen.png");
 
@@ -63,13 +117,12 @@ public class MementoMoriRenderer extends ChronoGazerRenderer<MementoMoriEntity> 
         @Override
         public void render(PoseStack pose, MementoMoriEntity mori, BakedGeoModel model, RenderType renderType, MultiBufferSource buffers, VertexConsumer buffer,
                            float partialTick, int light, int overlay) {
-            if (!mori.isPhase2()) return;
             float age = mori.tickCount + partialTick;
-            float power = 1.0F;
-            if (mori.stage() == MementoMoriEntity.STAGE_AWAKEN) power = Mth.clamp((age - mori.stageStart - 4.0F) / 16.0F, 0.0F, 1.0F);   // 光が満ちていく
-            if (mori.isDefeatedSynced()) power *= 1.0F - Mth.clamp((mori.defeatTicks + partialTick) / MementoMoriEntity.DEFEAT_TICKS, 0.0F, 1.0F);
-            if (power <= 0.0F) return;
-            float k = power * (0.62F + 0.14F * Mth.sin(age * 0.15F) + 0.08F * Mth.sin(age * 0.37F + 1.0F));      // 脈打つ出力
+            // 第 2 形態のふだんの脈打つ出力と、演出（登場・昇華・撃破・退場。どちらの形態でも）の光（MementoShow）
+            float k = MementoShow.radiantPower(mori, partialTick) * (0.62F + 0.14F * Mth.sin(age * 0.15F) + 0.08F * Mth.sin(age * 0.37F + 1.0F))
+                    + MementoShow.showLight(mori, partialTick);
+            if (k <= 0.01F) return;
+            k = Math.min(1.0F, k);
             float hue = age * 0.03F;                                                                              // 紫 → 桃色 → 水色へゆっくり移る
             float r = 0.8F + 0.2F * Mth.sin(hue), g = 0.72F + 0.28F * Mth.sin(hue + 2.1F), b = 0.9F + 0.1F * Mth.sin(hue + 4.2F);
             RenderType lumen = RenderType.eyes(LUMEN);

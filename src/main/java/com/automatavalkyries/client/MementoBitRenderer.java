@@ -10,7 +10,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 
-/** 黒死蝶ビットの描き方: 黒い翅に紫（第 2 形態は光体の水色と桃色）の光る縁・菱形の放射口の機械の蝶が、飛ぶ向きを向いて羽ばたく。突っ込む間は翅をたたんで速く震わせる */
+/** 黒死蝶ビットの描き方: 淡い紫の光の翅（2026-10-14 に黒から）に紫（第 2 形態は光体の水色と桃色）の光る縁・菱形の放射口の機械の蝶が、飛ぶ向きを向いて羽ばたく。突っ込む間は翅をたたんで速く震わせる */
 public class MementoBitRenderer extends EntityRenderer<MementoBitEntity> {
 
     public MementoBitRenderer(EntityRendererProvider.Context context) {

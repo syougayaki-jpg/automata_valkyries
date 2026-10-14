@@ -570,5 +570,83 @@
     "sounds": [
       "automata_valkyries:valkyrie/wake_c"
     ]
+  },
+  "memento.gather": {
+    "subtitle": "subtitles.automata_valkyries.memento.gather",
+    "sounds": [
+      "automata_valkyries:memento/gather"
+    ]
+  },
+  "memento.form": {
+    "subtitle": "subtitles.automata_valkyries.memento.form",
+    "sounds": [
+      "automata_valkyries:memento/form"
+    ]
+  },
+  "memento.charge": {
+    "subtitle": "subtitles.automata_valkyries.memento.charge",
+    "sounds": [
+      "automata_valkyries:memento/charge"
+    ]
+  },
+  "memento.ascend": {
+    "subtitle": "subtitles.automata_valkyries.memento.ascend",
+    "sounds": [
+      "automata_valkyries:memento/ascend"
+    ]
+  },
+  "memento.cast": {
+    "subtitle": "subtitles.automata_valkyries.memento.cast",
+    "sounds": [
+      "automata_valkyries:memento/cast"
+    ]
+  },
+  "memento.bit": {
+    "subtitle": "subtitles.automata_valkyries.memento.bit",
+    "sounds": [
+      "automata_valkyries:memento/bit"
+    ]
+  },
+  "memento.shot": {
+    "subtitle": "subtitles.automata_valkyries.memento.shot",
+    "sounds": [
+      "automata_valkyries:memento/shot"
+    ]
+  },
+  "memento.cage_lock": {
+    "subtitle": "subtitles.automata_valkyries.memento.cage_lock",
+    "sounds": [
+      "automata_valkyries:memento/cage_lock"
+    ]
+  },
+  "memento.cage_release": {
+    "subtitle": "subtitles.automata_valkyries.memento.cage_release",
+    "sounds": [
+      "automata_valkyries:memento/cage_release"
+    ]
+  },
+  "memento.moon_bell": {
+    "subtitle": "subtitles.automata_valkyries.memento.moon_bell",
+    "sounds": [
+      "automata_valkyries:memento/moon_bell"
+    ]
+  },
+  "memento.moon_fall": {
+    "subtitle": "subtitles.automata_valkyries.memento.moon_fall",
+    "sounds": [
+      "automata_valkyries:memento/moon_fall"
+    ]
+  },
+  "memento.shatter": {
+    "subtitle": "subtitles.automata_valkyries.memento.shatter",
+    "sounds": [
+      "automata_valkyries:memento/shatter"
+    ]
+  },
+  "memento.scatter": {
+    "subtitle": "subtitles.automata_valkyries.memento.scatter",
+    "sounds": [
+      "automata_valkyries:memento/scatter"
+    ]
   }
 }

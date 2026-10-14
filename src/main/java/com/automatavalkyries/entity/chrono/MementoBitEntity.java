@@ -2,7 +2,6 @@ package com.automatavalkyries.entity.chrono;
 
 import com.automatavalkyries.registry.ModEntities;
 import com.automatavalkyries.weapon.Fx;
-import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
@@ -108,7 +107,10 @@ public class MementoBitEntity extends Entity {
         super.tick();
         Vec3 v = getDeltaMovement();
         if (level().isClientSide) {
-            if (tickCount % 3 == 0) level().addParticle(ParticleTypes.SQUID_INK, getX(), getY(), getZ(), 0, -0.01, 0); // 黒い鱗粉
+            // 光の尾（2026-10-14 ユーザー指定の演出「光の軌跡・粒を濃く」）: 紫（第 2 形態は水色と桃色）の光の粒を毎 Tick 残す
+            int c = isRadiant() ? (tickCount % 2 == 0 ? MementoMoriEntity.C_CYAN : MementoMoriEntity.C_PINK) : MementoMoriEntity.C_VIOLET;
+            level().addParticle(MementoMoriEntity.glow(c, 0.22F, 12), getX(), getY() + 0.25, getZ(), 0, 0, 0);
+            if (tickCount % 4 == 0) level().addParticle(MementoMoriEntity.glow(MementoMoriEntity.C_PALE, 0.18F, 20), getX(), getY(), getZ(), 0, -0.01, 0); // 光の鱗粉（2026-10-14 ユーザー指定「黒いもやを全部幻想的な光にして」）
             return;
         }
         if (!(level() instanceof ServerLevel server) || tickCount > LIFE || owner == null || !owner.isAlive()) {
@@ -149,7 +151,7 @@ public class MementoBitEntity extends Entity {
 
     /** 壊れる（地形に当たった・撃ち落とされた）: 黒い鱗粉と紫の光 */
     private void burst(ServerLevel server) {
-        server.sendParticles(ParticleTypes.SQUID_INK, getX(), getY(), getZ(), 6, 0.2, 0.2, 0.2, 0.02);
+        Fx.burst(server, MementoMoriEntity.glow(MementoMoriEntity.C_PALE, 0.3F, 14), position(), 6, 0.1);             // 光の鱗粉（2026-10-14 ユーザー指定「黒いもやを全部幻想的な光にして」）
         Fx.burst(server, MementoMoriEntity.glow(isRadiant() ? MementoMoriEntity.C_CYAN : MementoMoriEntity.C_VIOLET, 0.4F, 10), position(), 6, 0.12);
         discard();
     }

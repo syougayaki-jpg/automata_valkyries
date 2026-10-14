@@ -2200,5 +2200,18 @@
   "death.attack.automata_valkyries.galliafort_siege_cannon": "%1$s は穿孔破城砲に撃ち抜かれた",
   "death.attack.automata_valkyries.galliafort_siege_cannon.player": "%1$s は %2$s の穿孔破城砲に撃ち抜かれた",
   "message.automata_valkyries.galliafort.ultimate": "歪曲破界砲、全開――！ 障壁が消えた！",
-  "bossbar.automata_valkyries.galliafort.barrier_off": "歪曲障壁 歪曲破界砲へ転送中（全ダメージが通る）"
+  "bossbar.automata_valkyries.galliafort.barrier_off": "歪曲障壁 歪曲破界砲へ転送中（全ダメージが通る）",
+  "subtitles.automata_valkyries.memento.gather": "光の蝶が集まる",
+  "subtitles.automata_valkyries.memento.form": "メメントモリが形になる",
+  "subtitles.automata_valkyries.memento.charge": "核に光が集まる",
+  "subtitles.automata_valkyries.memento.ascend": "メメントモリが光体へ昇華する",
+  "subtitles.automata_valkyries.memento.cast": "魔法陣が開く",
+  "subtitles.automata_valkyries.memento.bit": "蝶ビットが飛び立つ",
+  "subtitles.automata_valkyries.memento.shot": "蝶弾が鳴る",
+  "subtitles.automata_valkyries.memento.cage_lock": "蝶の檻が閉じる",
+  "subtitles.automata_valkyries.memento.cage_release": "蝶が一斉に突っ込む",
+  "subtitles.automata_valkyries.memento.moon_bell": "黒死の月が鳴る",
+  "subtitles.automata_valkyries.memento.moon_fall": "黒死の月が納める",
+  "subtitles.automata_valkyries.memento.shatter": "光輪が割れる",
+  "subtitles.automata_valkyries.memento.scatter": "メメントモリが光の蝶になって散る"
 }

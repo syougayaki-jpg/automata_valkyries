@@ -18,9 +18,9 @@ import org.joml.Matrix4f;
 /**
  * 黒死の月の描き方（2026-10-10 ユーザー指定「翼で広い円を覆い、数秒後に光の当たる安全地帯以外を死の鱗粉で納める」）:
  * <ul>
- *   <li>範囲: 地面に影の円（黒い半透明）と、縁の太い桃色の光の輪・水色のにじみ。残りの時間に合わせて縁から中へ閉じていく白い数え輪</li>
+ *   <li>範囲: 地面に淡い紫の光の円（2026-10-14 ユーザー指定「黒いもやを全部幻想的な光にして」で黒い影から）と、縁の太い桃色の光の輪・水色のにじみ。残りの時間に合わせて縁から中へ閉じていく白い数え輪</li>
  *   <li>安全地帯: 影の上に明るい光の円と金の縁、空から差す光の柱（白金）。光の柱は脈打つ</li>
- *   <li>空の月: 範囲の上 20 ブロックに紫黒い円盤と桃色の縁・水色のにじみ（だんだん大きく近づく）</li>
+ *   <li>空の月: 範囲の上 20 ブロックに淡い桃色に光る円盤と桃色の縁・水色のにじみ（だんだん大きく近づく）</li>
  *   <li>納める瞬間: 範囲いっぱいの桃色の閃光が広がって消える</li>
  * </ul>
  * 色は第 2 形態の光体に合わせて赤から桃色・水色へ（2026-10-14 ユーザー指定「赤くなるというより出力を上げほぼ幻想的な光体となる演出に」）
@@ -50,14 +50,14 @@ public class MementoMoonRenderer extends EntityRenderer<MementoMoonEntity> {
         Vec3[] ab = GalliaSiegeBeamRenderer.basis(up);
         Vec3 a = ab[0], b = ab[1];
         VertexConsumer glow = buffers.getBuffer(RenderType.lightning());
-        // 影の円（黒い半透明）
+        // 淡い紫の光の円（範囲）
         VertexConsumer dark = buffers.getBuffer(RenderType.debugQuads());
         int seg = 48;
         for (int i = 0; i < seg; i++) {
             float a0 = Mth.TWO_PI * i / seg, a1 = Mth.TWO_PI * (i + 1) / seg;
             Vec3 c = new Vec3(0, 0.06, 0);
             MementoFx.quad(dark, m, c, c.add(GalliaSiegeBeamRenderer.around(a, b, a0, r * open)), c.add(GalliaSiegeBeamRenderer.around(a, b, a1, r * open)), c,
-                    12, 4, 16, (int) (130 * open * fade));
+                    150, 100, 230, (int) (55 * open * fade));
         }
         // 縁の桃色の光の輪と水色のにじみ、閉じていく白い数え輪
         GalliaSiegeBeamRenderer.ring(glow, m, up.scale(0.1), a, b, r * open - 0.5F, r * open, 255, 90, 220, (int) (230 * fade));
@@ -86,7 +86,7 @@ public class MementoMoonRenderer extends EntityRenderer<MementoMoonEntity> {
         for (int i = 0; i < seg; i++) {
             float a0 = Mth.TWO_PI * i / seg, a1 = Mth.TWO_PI * (i + 1) / seg;
             MementoFx.quad(dark, m, sky, sky.add(GalliaSiegeBeamRenderer.around(a, b, a0, mr * open)), sky.add(GalliaSiegeBeamRenderer.around(a, b, a1, mr * open)), sky,
-                    30, 8, 40, (int) (220 * open * fade));
+                    255, 190, 240, (int) (110 * open * fade));
         }
         GalliaSiegeBeamRenderer.ring(glow, m, sky, a, b, mr * open - 0.4F, mr * open, 255, 90, 220, (int) (240 * fade));
         GalliaSiegeBeamRenderer.ring(glow, m, sky, a, b, mr * open, mr * open + 2.0F, 143, 230, 255, (int) (80 * fade));
