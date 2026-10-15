@@ -48,7 +48,7 @@ public class ModCreativeTabs {
             return Group.SPECIAL;
         }
         if (item instanceof com.automatavalkyries.item.ChronoTunerItem) return Group.MACHINES; // マシンの調整に使うのでマシンのタブへ（2026-10-07 ユーザー指定）
-        if (item instanceof TacticalWeaponItem || item instanceof LuminalCoreItem || id.startsWith("ammo_") || id.equals("nano_solution")
+        if (item instanceof TacticalWeaponItem || item instanceof com.automatavalkyries.item.FlightWingItem || item instanceof LuminalCoreItem || id.startsWith("ammo_") || id.equals("nano_solution")
                 || item instanceof com.automatavalkyries.item.unit.ValkyrieUnits.FrameItem || item instanceof com.automatavalkyries.item.unit.ValkyrieUnits.BackpackItem
                 || item instanceof com.automatavalkyries.item.unit.ValkyrieUnits.ChipItem
                 || id.equals("backpack_steam_thruster") || id.equals("upgrade_station") || item instanceof com.automatavalkyries.item.armor.MetalArmorItem) {
@@ -67,6 +67,7 @@ public class ModCreativeTabs {
     /** 置く物（兵装・ルミナルコアは満充電、クロノリンク・マシンは T2〜T4 も） */
     static void accept(CreativeModeTab.Output output, Item item) {
         if (item instanceof TacticalWeaponItem weapon) output.accept(weapon.charged());
+        else if (item instanceof com.automatavalkyries.item.FlightWingItem wing) output.accept(wing.charged());
         else if (item instanceof LuminalCoreItem core) output.accept(core.charged());
         else output.accept(item);
         if (item instanceof ChronoMachineItem) {
@@ -84,6 +85,7 @@ public class ModCreativeTabs {
             int kind = id.startsWith("module_") ? 1 : id.startsWith("tool_") ? 2 : 0;
             return 100 + WeaponTiers.of(item) * 10 + kind;
         }
+        if (item instanceof com.automatavalkyries.item.FlightWingItem) return 132; // T3 の道具の並び
         if (item instanceof LuminalCoreItem) return 200;
         if (id.startsWith("ammo_") || id.equals("nano_solution")) return 300;
         return 400;

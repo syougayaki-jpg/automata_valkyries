@@ -566,6 +566,8 @@
   "item.automata_valkyries.backpack_steam_thruster": "Steam Thruster",
   "item.automata_valkyries.backpack_steam_thruster.steam": "Steam: %s / %s",
   "item.automata_valkyries.backpack_steam_thruster.desc": "Sneak + right-click to load a water bottle and coal. Jump again in mid-air for an emergency step",
+  "item.automata_valkyries.tool_flight_wing": "Luminal Flight Wing",
+  "item.automata_valkyries.tool_flight_wing.desc": "While held in either hand, fly like in Creative using power (double-jump). 4,000 FE/s while flying (half while hovering). Slow Falling when it runs out",
   "item.automata_valkyries.backpack_steam_thruster.need": "Needs a water bottle and coal (or charcoal)",
   "block.automata_valkyries.improved_generator": "Improved Fuel Generator",
   "block.automata_valkyries.improved_battery": "Improved Battery Box",

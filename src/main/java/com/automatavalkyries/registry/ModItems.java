@@ -77,6 +77,9 @@ public class ModItems {
             new com.automatavalkyries.item.MotorBladeItem(new Item.Properties()));
     public static final RegistryObject<Item> BACKPACK_STEAM_THRUSTER = ITEMS.register("backpack_steam_thruster", () ->
             new com.automatavalkyries.item.SteamThrusterItem(new Item.Properties()));
+    /** 光翼の飛翔機（T3。手に持っている間、電力でクリエイティブのように飛べる。2026-10-15） */
+    public static final RegistryObject<Item> TOOL_FLIGHT_WING = ITEMS.register("tool_flight_wing", () ->
+            new com.automatavalkyries.item.FlightWingItem(new Item.Properties().rarity(Rarity.EPIC)));
 
     // ---- スポーンエッグ ----
     public static final RegistryObject<Item> ELENOR_SPAWN_EGG = ITEMS.register("elenor_spawn_egg", () ->

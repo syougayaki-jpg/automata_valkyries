@@ -566,6 +566,8 @@
   "item.automata_valkyries.backpack_steam_thruster": "蒸気スラスター",
   "item.automata_valkyries.backpack_steam_thruster.steam": "蒸気: %s / %s",
   "item.automata_valkyries.backpack_steam_thruster.desc": "スニーク＋右クリックで水入り瓶と石炭を装填。空中でもう一度ジャンプで緊急ステップ",
+  "item.automata_valkyries.tool_flight_wing": "光翼の飛翔機",
+  "item.automata_valkyries.tool_flight_wing.desc": "手に持っている間（どちらの手でも）、電力でクリエイティブのように飛べる（ジャンプ 2 回）。飛行中 毎秒 4,000 FE（浮いているだけなら半分）。切れると低速落下",
   "item.automata_valkyries.backpack_steam_thruster.need": "水入り瓶と石炭（木炭）が要ります",
   "block.automata_valkyries.improved_generator": "改良型燃料発電機",
   "block.automata_valkyries.improved_battery": "改良型蓄電器",
