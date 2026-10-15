@@ -146,15 +146,22 @@ public class MementoBitEntity extends Entity {
         // 当たり: 攻撃してよい生き物（持ち主の仲間は除く）
         for (LivingEntity e : server.getEntitiesOfClass(LivingEntity.class, getBoundingBox().inflate(0.3), ChronoGazer::canHurt)) {
             if (e == owner) continue;
-            DamageSource src = damageSources().indirectMagic(this, owner);
-            e.hurt(src, owner instanceof MementoMoriEntity m ? m.damageFor(e, damage) : damage);
-            MementoCurse.add(e, MementoCurse.BIT);
-            Fx.burst(server, MementoMoriEntity.glow(MementoMoriEntity.C_VIOLET, 0.5F, 12), position(), 10, 0.15);
-            server.playSound(null, getX(), getY(), getZ(), SoundEvents.PHANTOM_BITE, SoundSource.HOSTILE, 0.8F, 1.4F);
-            discard();
+            strike(e);
             return;
         }
         if (!phasing && !level().noCollision(this, getBoundingBox()) && (mode == SWARM ? tickCount > SWARM_RISE : released)) burst(server);
+    }
+
+    /** 当てる: ダメージと死蝶の呪い（最大 HP 5%）を与えて消える */
+    public void strike(LivingEntity e) {
+        DamageSource src = damageSources().indirectMagic(this, owner);
+        e.hurt(src, owner instanceof MementoMoriEntity m ? m.damageFor(e, damage) : damage);
+        MementoCurse.add(e, MementoCurse.BIT);
+        if (level() instanceof ServerLevel server) {
+            Fx.burst(server, MementoMoriEntity.glow(MementoMoriEntity.C_VIOLET, 0.5F, 12), position(), 10, 0.15);
+            server.playSound(null, getX(), getY(), getZ(), SoundEvents.PHANTOM_BITE, SoundSource.HOSTILE, 0.8F, 1.4F);
+        }
+        discard();
     }
 
     /** 壊れる（地形に当たった・撃ち落とされた）: 黒い鱗粉と紫の光 */

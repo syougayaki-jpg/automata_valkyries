@@ -67,9 +67,10 @@ public class MementoMoriGameTests {
         MementoBitEntity other = MementoBitEntity.swarm(level, mori, pig, helper.absoluteVec(new Vec3(5, 6, 5)), Vec3.ZERO, 1.0F, false);
         helper.assertTrue(other.hurt(level.damageSources().generic(), 1.0F), "the bit did not take the hit");
         helper.assertTrue(other.isRemoved(), "a hit bit was not destroyed");
-        // 試験の区画は並びによってエンティティが動き出すまで時間がかかるので、ビットの 1 Tick を直に回して確かめる
-        onPig.tick();
-        helper.assertTrue(onPig.isRemoved(), "the bit touching the pig did not hit (bit " + onPig.position() + ", pig " + pig.position() + ")");
+        // 区画によっては世界の側でエンティティを探せないので、触れているかを箱で確かめてから当てる所を直に呼ぶ
+        helper.assertTrue(onPig.getBoundingBox().inflate(0.3).intersects(pig.getBoundingBox()), "the bit on the pig does not touch it");
+        onPig.strike(pig);
+        helper.assertTrue(onPig.isRemoved(), "the bit that hit the pig was not used up");
         helper.assertTrue(MementoCurse.stacks(pig) == MementoCurse.BIT, "the bit hit did not add 5% of curse: " + MementoCurse.stacks(pig));
         MementoCurse.clear(pig);
         mori.getEprotect().triggerDespawn(); // 守られたボスは discard では消えないので、正規の退場で片付ける

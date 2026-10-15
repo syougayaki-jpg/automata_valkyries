@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "SSS",
+    "SCS",
+    "SSS"
+  ],
+  "key": {
+    "S": {
+      "item": "minecraft:smooth_stone"
+    },
+    "C": {
+      "item": "automata_valkyries:drop_chrono_scrap"
+    }
+  },
+  "result": {
+    "item": "automata_valkyries:tech_panel_white",
+    "count": 8
+  }
+}

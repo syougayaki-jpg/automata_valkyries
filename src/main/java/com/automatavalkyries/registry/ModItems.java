@@ -86,6 +86,25 @@ public class ModItems {
             new ForgeSpawnEggItem(ModEntities.ELENOR, 0x512da8, 0xe040fb, new Item.Properties()));
     public static final RegistryObject<Item> VALKYRIE_SPAWN_EGG = ITEMS.register("valkyrie_spawn_egg", () ->
             new ForgeSpawnEggItem(ModEntities.VALKYRIE, 0xf4f6fa, 0x3be8ff, new Item.Properties()));
+    // 侵食基地の雑魚・中ボス（2026-10-15）
+    public static final RegistryObject<Item> PULSE_PHALANX_SPAWN_EGG = ITEMS.register("pulse_phalanx_spawn_egg", () ->
+            new ForgeSpawnEggItem(ModEntities.PULSE_PHALANX, 0x474c59, 0xff2a4a, new Item.Properties()));
+    public static final RegistryObject<Item> SIEGE_CANNON_SPAWN_EGG = ITEMS.register("siege_cannon_spawn_egg", () ->
+            new ForgeSpawnEggItem(ModEntities.SIEGE_CANNON, 0x2c3038, 0xff8040, new Item.Properties()));
+    public static final RegistryObject<Item> SIREN_EYE_SPAWN_EGG = ITEMS.register("siren_eye_spawn_egg", () ->
+            new ForgeSpawnEggItem(ModEntities.SIREN_EYE, 0x23262e, 0xff2030, new Item.Properties()));
+    public static final RegistryObject<Item> CHRONO_GUARDIAN_SPAWN_EGG = ITEMS.register("chrono_guardian_spawn_egg", () ->
+            new ForgeSpawnEggItem(ModEntities.CHRONO_GUARDIAN, 0x474c59, 0x5b2a9a, new Item.Properties()));
+    public static final RegistryObject<Item> MIMIC_CONTAINER_SPAWN_EGG = ITEMS.register("mimic_container_spawn_egg", () ->
+            new ForgeSpawnEggItem(ModEntities.MIMIC_CONTAINER, 0x6a5030, 0xff2a4a, new Item.Properties()));
+    public static final RegistryObject<Item> CRANE_LOADER_SPAWN_EGG = ITEMS.register("crane_loader_spawn_egg", () ->
+            new ForgeSpawnEggItem(ModEntities.CRANE_LOADER, 0xd0a020, 0x23262e, new Item.Properties()));
+    public static final RegistryObject<Item> OUTPOST_WATCHER_SPAWN_EGG = ITEMS.register("outpost_watcher_spawn_egg", () ->
+            new ForgeSpawnEggItem(ModEntities.OUTPOST_WATCHER, 0x2c3038, 0xe8e4dc, new Item.Properties()));
+    public static final RegistryObject<Item> FOUNDRY_MASTER_SPAWN_EGG = ITEMS.register("foundry_master_spawn_egg", () ->
+            new ForgeSpawnEggItem(ModEntities.FOUNDRY_MASTER, 0x23262e, 0xb060ff, new Item.Properties()));
+    public static final RegistryObject<Item> PHASE_CONDENSER_SPAWN_EGG = ITEMS.register("phase_condenser_spawn_egg", () ->
+            new ForgeSpawnEggItem(ModEntities.PHASE_CONDENSER, 0x23262e, 0xb060ff, new Item.Properties()));
     public static final RegistryObject<Item> CHRONO_SCOUT_DRONE_SPAWN_EGG = ITEMS.register("chrono_scout_drone_spawn_egg", () ->
             new ForgeSpawnEggItem(ModEntities.CHRONO_SCOUT_DRONE, 0x23262e, 0xff2a4a, new Item.Properties()));
     public static final RegistryObject<Item> CHRONO_SPIDER_BOT_SPAWN_EGG = ITEMS.register("chrono_spider_bot_spawn_egg", () ->
@@ -117,16 +136,23 @@ public class ModItems {
             new com.automatavalkyries.item.HeroSignalItem(new Item.Properties().stacksTo(16).rarity(Rarity.EPIC), ModEntities.GALLIAFORT, "galliafort",
                     new org.joml.Vector3f(0.29F, 0.48F, 1.0F)));
     /** フォトン剣の欠片（クロノ・トルーパーがまれに落とす。ルクシオンの呼び出しのアイテムの材料。2026-10-07、2026-10-09 にフレーバーを足した） */
-    public static final RegistryObject<Item> PHOTON_BLADE_SHARD = ITEMS.register("photon_blade_shard", () ->
-            new Item(new Item.Properties()) {
-                @Override
-                public void appendHoverText(net.minecraft.world.item.ItemStack stack, @org.jetbrains.annotations.Nullable net.minecraft.world.level.Level level,
-                                            java.util.List<net.minecraft.network.chat.Component> tooltip, net.minecraft.world.item.TooltipFlag flag) {
-                    tooltip.add(net.minecraft.network.chat.Component.translatable("item.automata_valkyries.photon_blade_shard.desc").withStyle(net.minecraft.ChatFormatting.GRAY));
-                    tooltip.add(net.minecraft.network.chat.Component.translatable("item.automata_valkyries.photon_blade_shard.flavor")
-                            .withStyle(net.minecraft.ChatFormatting.DARK_AQUA, net.minecraft.ChatFormatting.ITALIC)); // フレーバー（2026-10-09 ユーザー指定）
-                }
-            });
+    public static final RegistryObject<Item> PHOTON_BLADE_SHARD = signalDrop("photon_blade_shard", net.minecraft.ChatFormatting.DARK_AQUA);
+    /** 歪曲障壁の核片（重歩行戦車がまれに落とす。ガリアフォートの呼び出しのアイテムの材料。2026-10-15 ユーザー指定） */
+    public static final RegistryObject<Item> DISTORTION_CORE_SHARD = signalDrop("distortion_core_shard", net.minecraft.ChatFormatting.AQUA);
+    /** 黒死蝶の繭（仮面の観測機がまれに落とす。メメントモリの呼び出しのアイテムの材料。2026-10-15 ユーザー指定） */
+    public static final RegistryObject<Item> BLACK_DEATH_COCOON = signalDrop("black_death_cocoon", net.minecraft.ChatFormatting.LIGHT_PURPLE);
+
+    /** 英雄機の呼び出しの材料になる、雑魚のまれなドロップ: 説明（.desc）とフレーバー（.flavor、flavor の色の斜体）を出す素材 */
+    private static RegistryObject<Item> signalDrop(String name, net.minecraft.ChatFormatting flavor) {
+        return ITEMS.register(name, () -> new Item(new Item.Properties()) {
+            @Override
+            public void appendHoverText(net.minecraft.world.item.ItemStack stack, @org.jetbrains.annotations.Nullable net.minecraft.world.level.Level level,
+                                        java.util.List<net.minecraft.network.chat.Component> tooltip, net.minecraft.world.item.TooltipFlag flag) {
+                tooltip.add(net.minecraft.network.chat.Component.translatable("item.automata_valkyries." + name + ".desc").withStyle(net.minecraft.ChatFormatting.GRAY));
+                tooltip.add(net.minecraft.network.chat.Component.translatable("item.automata_valkyries." + name + ".flavor").withStyle(flavor, net.minecraft.ChatFormatting.ITALIC));
+            }
+        });
+    }
     public static final RegistryObject<Item> SKY_BOSS_SKELETON_SPAWN_EGG = ITEMS.register("sky_boss_skeleton_spawn_egg", () ->
             new ForgeSpawnEggItem(ModEntities.SKY_BOSS_SKELETON, 0xc1c1c1, 0x7b2cbf, new Item.Properties()));
     public static final RegistryObject<Item> FARTHEST_ELENOR_SPAWN_EGG = ITEMS.register("farthest_elenor_spawn_egg", () ->

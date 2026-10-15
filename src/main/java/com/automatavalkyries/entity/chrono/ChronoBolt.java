@@ -73,14 +73,26 @@ public class ChronoBolt extends ThrowableProjectile {
 
     /** 作った弾 bolt（見た目だけ違う派生の弾も）を、from から向き dir へまっすぐ撃つ */
     protected static <B extends ChronoBolt> B init(B bolt, LivingEntity shooter, Vec3 from, Vec3 dir, float damage, float speed, float inaccuracy, boolean pierce) {
+        prepare(bolt, shooter, from, dir, damage, speed, inaccuracy, pierce);
+        shooter.level().addFreshEntity(bolt);
+        return bolt;
+    }
+
+    /** {@link #init} の世界に出す前まで（出す前に速さなどを変える派生の弾が使う） */
+    protected static <B extends ChronoBolt> B prepare(B bolt, LivingEntity shooter, Vec3 from, Vec3 dir, float damage, float speed, float inaccuracy, boolean pierce) {
         ChronoBolt base = bolt;                                                  // 派生の型からは private の値に触れないので、この型で
         base.setOwner(shooter);
         base.damage = damage;
         base.pierce = pierce;
         base.setPos(from.x, from.y, from.z);
         base.shoot(dir.x, dir.y, dir.z, speed, inaccuracy);
-        shooter.level().addFreshEntity(base);
         return bolt;
+    }
+
+    /** 炸裂の半径を変える（派生の弾: 山なりの砲弾・投げるコンテナ。2026-10-15） */
+    protected void setBlast(float radius) {
+        blastRadius = radius;
+        entityData.set(SHELL, radius > 0.0F);
     }
 
     public boolean isShell() {

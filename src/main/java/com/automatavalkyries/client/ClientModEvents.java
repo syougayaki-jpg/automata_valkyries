@@ -59,6 +59,19 @@ public class ClientModEvents {
         event.registerEntityRenderer(ModEntities.MEMENTO_BIT.get(), MementoBitRenderer::new);
         event.registerEntityRenderer(ModEntities.MEMENTO_BULLET.get(), MementoBulletRenderer::new);
         event.registerEntityRenderer(ModEntities.MEMENTO_MOON.get(), MementoMoonRenderer::new);
+        // 侵食基地の雑魚・中ボス・コンデンサーと弾（2026-10-15）
+        event.registerEntityRenderer(ModEntities.PULSE_PHALANX.get(), c -> new ChronoBaseRenderer<>(c, "pulse_phalanx", 0.6F));
+        event.registerEntityRenderer(ModEntities.SIEGE_CANNON.get(), c -> new ChronoBaseRenderer<>(c, "siege_cannon", 0.8F));
+        event.registerEntityRenderer(ModEntities.SIREN_EYE.get(), c -> new ChronoBaseRenderer<>(c, "siren_eye", 0.4F));
+        event.registerEntityRenderer(ModEntities.CHRONO_GUARDIAN.get(), c -> new ChronoBaseRenderer<>(c, "chrono_guardian", 1.0F));
+        event.registerEntityRenderer(ModEntities.MIMIC_CONTAINER.get(), c -> new ChronoBaseRenderer<>(c, "mimic_container", 0.6F));
+        event.registerEntityRenderer(ModEntities.PHASE_CONDENSER.get(), c -> new ChronoBaseRenderer<>(c, "phase_condenser", 0.5F));
+        event.registerEntityRenderer(ModEntities.CRANE_LOADER.get(), c -> new ChronoBaseRenderer<>(c, "crane_loader", 1.6F));
+        event.registerEntityRenderer(ModEntities.OUTPOST_WATCHER.get(), c -> new ChronoBaseRenderer<>(c, "outpost_watcher", 1.2F));
+        event.registerEntityRenderer(ModEntities.FOUNDRY_MASTER.get(), c -> new ChronoBaseRenderer<>(c, "foundry_master", 1.6F));
+        event.registerEntityRenderer(ModEntities.SHIELD_DRONE.get(), c -> new ChronoGazerRenderer<>(c, "chrono_scout_drone", 0.3F));
+        event.registerEntityRenderer(ModEntities.MORTAR_SHELL.get(), ChronoBoltRenderer::new);
+        event.registerEntityRenderer(ModEntities.CARGO_CONTAINER.get(), CargoContainerRenderer::new);
         event.registerEntityRenderer(ModEntities.GALLIA_MISSILE.get(), c -> new GalliaAmmoRenderer<>(c, "gallia_missile"));   // 3D のミサイル（2026-10-10「副砲とミサイルの弾を自作して搭載」）
         event.registerEntityRenderer(ModEntities.GALLIA_SHELL.get(), c -> new GalliaAmmoRenderer<>(c, "gallia_shell"));
         event.registerEntityRenderer(ModEntities.GALLIA_SIEGE_BEAM.get(), GalliaSiegeBeamRenderer::new);

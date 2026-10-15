@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:stonecutting",
+  "ingredient": {
+    "item": "automata_valkyries:tech_panel_dark"
+  },
+  "result": "automata_valkyries:tech_grating",
+  "count": 1
+}

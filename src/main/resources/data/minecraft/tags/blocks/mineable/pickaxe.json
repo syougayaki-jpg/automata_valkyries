@@ -87,6 +87,16 @@
     "automata_valkyries:crashed_pod_hull",
     "automata_valkyries:damaged_interface",
     "automata_valkyries:charging_dock",
-    "automata_valkyries:valkyrie_storage"
+    "automata_valkyries:valkyrie_storage",
+    "automata_valkyries:tech_panel_white",
+    "automata_valkyries:tech_panel_dark",
+    "automata_valkyries:tech_grating",
+    "automata_valkyries:tech_hazard",
+    "automata_valkyries:tech_glass",
+    "automata_valkyries:tech_light_line",
+    "automata_valkyries:tech_light_panel",
+    "automata_valkyries:tech_phase_panel",
+    "automata_valkyries:tech_sky_panel",
+    "automata_valkyries:chrono_gate"
   ]
 }

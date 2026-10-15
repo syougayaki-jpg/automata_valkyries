@@ -154,6 +154,67 @@ public class ModEntities {
                     EntityType.Builder.<com.automatavalkyries.entity.chrono.ChronoBolt>of(com.automatavalkyries.entity.chrono.ChronoBolt::new, MobCategory.MISC)
                             .sized(0.3F, 0.3F).clientTrackingRange(8).updateInterval(2).build("chrono_bolt"));
 
+    /** 侵食基地の対空タレット（拡張仕様書 §10.2。2026-10-15） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.PulsePhalanxEntity>> PULSE_PHALANX =
+            ENTITY_TYPES.register("pulse_phalanx", () ->
+                    EntityType.Builder.of(com.automatavalkyries.entity.chrono.PulsePhalanxEntity::new, MobCategory.MONSTER)
+                            .sized(1.2F, 1.6F).clientTrackingRange(10).build("pulse_phalanx"));
+    /** 侵食基地の曲射砲（§10.2） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.SiegeCannonEntity>> SIEGE_CANNON =
+            ENTITY_TYPES.register("siege_cannon", () ->
+                    EntityType.Builder.of(com.automatavalkyries.entity.chrono.SiegeCannonEntity::new, MobCategory.MONSTER)
+                            .sized(1.6F, 1.8F).clientTrackingRange(10).build("siege_cannon"));
+    /** 侵食基地の警報ドローン（§10.2） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.SirenEyeEntity>> SIREN_EYE =
+            ENTITY_TYPES.register("siren_eye", () ->
+                    EntityType.Builder.of(com.automatavalkyries.entity.chrono.SirenEyeEntity::new, MobCategory.MONSTER)
+                            .sized(0.9F, 0.9F).clientTrackingRange(12).build("siren_eye"));
+    /** 侵食基地を巡回する 4 本脚の大型機（§10.2） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.ChronoGuardianEntity>> CHRONO_GUARDIAN =
+            ENTITY_TYPES.register("chrono_guardian", () ->
+                    EntityType.Builder.of(com.automatavalkyries.entity.chrono.ChronoGuardianEntity::new, MobCategory.MONSTER)
+                            .sized(1.8F, 2.4F).clientTrackingRange(10).build("chrono_guardian"));
+    /** 物資のコンテナに化ける罠（2026-10-15 ユーザー指定） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.MimicContainerEntity>> MIMIC_CONTAINER =
+            ENTITY_TYPES.register("mimic_container", () ->
+                    EntityType.Builder.of(com.automatavalkyries.entity.chrono.MimicContainerEntity::new, MobCategory.MONSTER)
+                            .sized(1.2F, 1.2F).clientTrackingRange(10).build("mimic_container"));
+    /** 物資倉庫の中ボス（2026-10-15） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.CraneLoaderEntity>> CRANE_LOADER =
+            ENTITY_TYPES.register("crane_loader", () ->
+                    EntityType.Builder.of(com.automatavalkyries.entity.chrono.CraneLoaderEntity::new, MobCategory.MONSTER)
+                            .sized(2.6F, 3.4F).clientTrackingRange(12).build("crane_loader"));
+    /** 基地（クロノ・アウトリポスト）の中ボス（2026-10-15） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.OutpostWatcherEntity>> OUTPOST_WATCHER =
+            ENTITY_TYPES.register("outpost_watcher", () ->
+                    EntityType.Builder.of(com.automatavalkyries.entity.chrono.OutpostWatcherEntity::new, MobCategory.MONSTER)
+                            .sized(2.0F, 4.2F).clientTrackingRange(12).build("outpost_watcher"));
+    /** 工場（ディメンション・ファウンドリ）の中ボス（2026-10-15） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.FoundryMasterEntity>> FOUNDRY_MASTER =
+            ENTITY_TYPES.register("foundry_master", () ->
+                    EntityType.Builder.of(com.automatavalkyries.entity.chrono.FoundryMasterEntity::new, MobCategory.MONSTER)
+                            .sized(3.0F, 4.0F).clientTrackingRange(12).build("foundry_master"));
+    /** 前哨司令機の盾ドローン（2026-10-15） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.ShieldDroneEntity>> SHIELD_DRONE =
+            ENTITY_TYPES.register("shield_drone", () ->
+                    EntityType.Builder.of(com.automatavalkyries.entity.chrono.ShieldDroneEntity::new, MobCategory.MONSTER)
+                            .sized(0.8F, 0.6F).clientTrackingRange(10).build("shield_drone"));
+    /** 位相アンカーのサブ・コンデンサー（§10.2。工場長機のバリアの供給源） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.PhaseCondenserEntity>> PHASE_CONDENSER =
+            ENTITY_TYPES.register("phase_condenser", () ->
+                    EntityType.Builder.of(com.automatavalkyries.entity.chrono.PhaseCondenserEntity::new, MobCategory.MONSTER)
+                            .sized(1.0F, 3.0F).clientTrackingRange(10).build("phase_condenser"));
+    /** 山なりの砲弾（曲射砲・前哨司令機の砲撃要請。2026-10-15） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.MortarShellEntity>> MORTAR_SHELL =
+            ENTITY_TYPES.register("mortar_shell", () ->
+                    EntityType.Builder.<com.automatavalkyries.entity.chrono.MortarShellEntity>of(com.automatavalkyries.entity.chrono.MortarShellEntity::new, MobCategory.MISC)
+                            .sized(0.5F, 0.5F).clientTrackingRange(10).updateInterval(2).build("mortar_shell"));
+    /** 荷役機が投げる・落とすコンテナ（2026-10-15） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.CargoContainerEntity>> CARGO_CONTAINER =
+            ENTITY_TYPES.register("cargo_container", () ->
+                    EntityType.Builder.<com.automatavalkyries.entity.chrono.CargoContainerEntity>of(com.automatavalkyries.entity.chrono.CargoContainerEntity::new, MobCategory.MISC)
+                            .sized(1.0F, 1.0F).clientTrackingRange(10).updateInterval(2).build("cargo_container"));
+
     /** クロノゲイザーは夜の地上に湧く（暗い所・地面の上。2026-10-07 ユーザー指定。湧く場所と重みは forge/biome_modifier/add_chrono_gazers.json） */
     @SubscribeEvent
     public static void registerSpawnPlacements(net.minecraftforge.event.entity.SpawnPlacementRegisterEvent event) {
@@ -165,6 +226,9 @@ public class ModEntities {
         event.register(CHRONO_HEAVY_WALKER.get(), ground, height, net.minecraft.world.entity.monster.Monster::checkMonsterSpawnRules, op);
         event.register(CHRONO_MASK_DRONE.get(), ground, height, net.minecraft.world.entity.monster.Monster::checkMonsterSpawnRules, op);
         event.register(CHRONO_TROOPER.get(), ground, height, net.minecraft.world.entity.monster.Monster::checkMonsterSpawnRules, op);
+        // 侵食基地の中に湧く物（構造物の湧きの上書き。worldgen/structure/*.json の spawn_overrides）
+        event.register(CHRONO_GUARDIAN.get(), ground, height, net.minecraft.world.entity.monster.Monster::checkMonsterSpawnRules, op);
+        event.register(SIREN_EYE.get(), ground, height, net.minecraft.world.entity.monster.Monster::checkMonsterSpawnRules, op);
     }
 
     @SubscribeEvent
@@ -183,5 +247,15 @@ public class ModEntities {
         event.put(ELENOR.get(), ElenorEntity.createAttributes().build());
         event.put(FARTHEST_ELENOR.get(), ElenorEntity.createAttributes().build());
         event.put(PROTECT_DUMMY_ZOMBIE.get(), com.automatavalkyries.entity.ProtectDummyZombieEntity.createAttributes().build());
+        event.put(PULSE_PHALANX.get(), com.automatavalkyries.entity.chrono.PulsePhalanxEntity.createAttributes().build());
+        event.put(SIEGE_CANNON.get(), com.automatavalkyries.entity.chrono.SiegeCannonEntity.createAttributes().build());
+        event.put(SIREN_EYE.get(), com.automatavalkyries.entity.chrono.SirenEyeEntity.createAttributes().build());
+        event.put(CHRONO_GUARDIAN.get(), com.automatavalkyries.entity.chrono.ChronoGuardianEntity.createAttributes().build());
+        event.put(MIMIC_CONTAINER.get(), com.automatavalkyries.entity.chrono.MimicContainerEntity.createAttributes().build());
+        event.put(CRANE_LOADER.get(), com.automatavalkyries.entity.chrono.CraneLoaderEntity.createAttributes().build());
+        event.put(OUTPOST_WATCHER.get(), com.automatavalkyries.entity.chrono.OutpostWatcherEntity.createAttributes().build());
+        event.put(FOUNDRY_MASTER.get(), com.automatavalkyries.entity.chrono.FoundryMasterEntity.createAttributes().build());
+        event.put(SHIELD_DRONE.get(), com.automatavalkyries.entity.chrono.ShieldDroneEntity.createAttributes().build());
+        event.put(PHASE_CONDENSER.get(), com.automatavalkyries.entity.chrono.PhaseCondenserEntity.createAttributes().build());
     }
 }

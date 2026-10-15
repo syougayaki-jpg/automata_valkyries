@@ -1,0 +1,14 @@
+{
+  "structures": [
+    {
+      "structure": "automata_valkyries:chrono_outpost",
+      "weight": 1
+    }
+  ],
+  "placement": {
+    "type": "minecraft:random_spread",
+    "spacing": 56,
+    "separation": 20,
+    "salt": 620151016
+  }
+}

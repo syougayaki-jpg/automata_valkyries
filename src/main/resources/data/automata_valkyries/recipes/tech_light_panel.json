@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    " P ",
+    "PLP",
+    " P "
+  ],
+  "key": {
+    "P": {
+      "item": "automata_valkyries:tech_panel_white"
+    },
+    "L": {
+      "item": "minecraft:glowstone"
+    }
+  },
+  "result": {
+    "item": "automata_valkyries:tech_light_panel",
+    "count": 4
+  }
+}

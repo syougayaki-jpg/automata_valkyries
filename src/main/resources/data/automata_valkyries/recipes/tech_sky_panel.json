@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    " P ",
+    "PBP",
+    " P "
+  ],
+  "key": {
+    "P": {
+      "item": "automata_valkyries:tech_light_panel"
+    },
+    "B": {
+      "item": "minecraft:light_blue_dye"
+    }
+  },
+  "result": {
+    "item": "automata_valkyries:tech_sky_panel",
+    "count": 4
+  }
+}

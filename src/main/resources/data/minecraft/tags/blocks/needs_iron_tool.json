@@ -34,6 +34,7 @@
     "automata_valkyries:tactical_armory",
     "automata_valkyries:upgrade_station",
     "automata_valkyries:crashed_pod_hull",
-    "automata_valkyries:charging_dock"
+    "automata_valkyries:charging_dock",
+    "automata_valkyries:chrono_gate"
   ]
 }

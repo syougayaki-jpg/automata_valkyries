@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:stonecutting",
+  "ingredient": {
+    "item": "automata_valkyries:tech_panel_white"
+  },
+  "result": "automata_valkyries:tech_hazard",
+  "count": 1
+}

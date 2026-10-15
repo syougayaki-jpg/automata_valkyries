@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    " P ",
+    "PLP",
+    " P "
+  ],
+  "key": {
+    "P": {
+      "item": "automata_valkyries:tech_panel_dark"
+    },
+    "L": {
+      "item": "automata_valkyries:crystal_luminal"
+    }
+  },
+  "result": {
+    "item": "automata_valkyries:tech_phase_panel",
+    "count": 4
+  }
+}

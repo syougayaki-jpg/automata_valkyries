@@ -32,11 +32,14 @@ public class AutomataValkyries {
         // ブロックを先に読み込む（ブロックアイテムを ModItems.ITEMS に足すので、ITEMS より前に登録する）
         com.automatavalkyries.registry.ModBlocks.BLOCKS.register(modEventBus);
         com.automatavalkyries.registry.ModWorldgen.FEATURES.register(modEventBus); // 墜落ポッド
+        com.automatavalkyries.registry.ModStructures.STRUCTURE_TYPES.register(modEventBus); // 侵食基地のダンジョン（2026-10-15）
+        com.automatavalkyries.registry.ModStructures.PIECES.register(modEventBus);
         com.automatavalkyries.registry.IndustrialMetals.init(); // 工業 MOD 連携の金属（アイテム・ブロックを ITEMS / BLOCKS に足す）
         com.automatavalkyries.world.ConfigurableOresBiomeModifier.SERIALIZERS.register(modEventBus);
         // 基礎文明マシン（ブロック・アイテムを BLOCKS / ITEMS に足すので、ITEMS より前に読み込む）
         com.automatavalkyries.registry.ModMachines.init();
         com.automatavalkyries.registry.ModChrono.init();
+        com.automatavalkyries.registry.ModTechBlocks.init(); // 近未来的な建材と侵食基地の転送ゲート（2026-10-15）
         com.automatavalkyries.registry.ModCompression.init(); // 金属の圧縮・Tier 4 コア・ティアごとの中間素材
         com.automatavalkyries.registry.ModBossDrops.init(); // ボス素材（クリエイティブ限定。兵装のレシピで要求する）
         com.automatavalkyries.registry.ModWeapons.init(); // ルミナルコア・兵装・弾薬（兵器ユニット設計書）

@@ -1,0 +1,8 @@
+{
+  "type": "automata_valkyries:corrupted_base",
+  "kind": "chrono_outpost",
+  "biomes": "#automata_valkyries:has_structure/chrono_outpost",
+  "step": "surface_structures",
+  "terrain_adaptation": "beard_thin",
+  "spawn_overrides": {}
+}

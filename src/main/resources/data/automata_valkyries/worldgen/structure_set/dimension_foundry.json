@@ -1,0 +1,14 @@
+{
+  "structures": [
+    {
+      "structure": "automata_valkyries:dimension_foundry",
+      "weight": 1
+    }
+  ],
+  "placement": {
+    "type": "minecraft:random_spread",
+    "spacing": 72,
+    "separation": 24,
+    "salt": 620151017
+  }
+}
