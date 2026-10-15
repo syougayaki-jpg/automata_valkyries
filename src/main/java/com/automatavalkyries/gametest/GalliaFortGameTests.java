@@ -77,6 +77,8 @@ public class GalliaFortGameTests {
     /** 戦車の姿のロードキルの見極め: 突進の道に 2 体いれば 2、横にずれた 1 体だけなら 1（2026-10-10「戦車状態でも複数体巻き込めそうならロードキルを狙って」） */
     @GameTest(template = TEMPLATE, batch = "galliafort", timeoutTicks = 20)
     public static void galliaRoadkillCountsTargetsInLane(GameTestHelper helper) {
+        // 試験の世界は Tick ごとに保存されて前の回の生き物が残ることがあるので、数える前に区画のまわりの残りを片付ける
+        helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.animal.Animal.class, new net.minecraft.world.phys.AABB(helper.absoluteVec(new net.minecraft.world.phys.Vec3(-4, -2, -4)), helper.absoluteVec(new net.minecraft.world.phys.Vec3(24, 8, 28)))).forEach(net.minecraft.world.entity.Entity::discard);
         GalliaFortEntity fort = helper.spawn(ModEntities.GALLIAFORT.get(), 3, 2, 3);
         fort.setNoAi(true);
         var near = helper.spawn(net.minecraft.world.entity.EntityType.PIG, 3, 2, 10);

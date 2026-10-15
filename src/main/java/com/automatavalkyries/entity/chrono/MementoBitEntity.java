@@ -42,6 +42,8 @@ public class MementoBitEntity extends Entity {
     private Vec3 slot = Vec3.ZERO;
     private float damage = DAMAGE;
     private boolean released;
+    /** 壁を抜ける（隠れた相手をいぶり出す蝶。2026-10-15「AI 強化」） */
+    private boolean phasing;
 
     public MementoBitEntity(EntityType<? extends MementoBitEntity> type, Level level) {
         super(type, level);
@@ -74,6 +76,12 @@ public class MementoBitEntity extends Entity {
         b.entityData.set(RADIANT, radiant);
         b.setPos(from.x, from.y, from.z);
         return b;
+    }
+
+    /** 壁を抜けるようにする（地形に当たっても壊れない） */
+    public MementoBitEntity phase() {
+        this.phasing = true;
+        return this;
     }
 
     /** 檻: 今の相手の所へ一斉に突っ込む */
@@ -140,13 +148,13 @@ public class MementoBitEntity extends Entity {
             if (e == owner) continue;
             DamageSource src = damageSources().indirectMagic(this, owner);
             e.hurt(src, owner instanceof MementoMoriEntity m ? m.damageFor(e, damage) : damage);
-            MementoCurse.add(e, 1);
+            MementoCurse.add(e, MementoCurse.BIT);
             Fx.burst(server, MementoMoriEntity.glow(MementoMoriEntity.C_VIOLET, 0.5F, 12), position(), 10, 0.15);
             server.playSound(null, getX(), getY(), getZ(), SoundEvents.PHANTOM_BITE, SoundSource.HOSTILE, 0.8F, 1.4F);
             discard();
             return;
         }
-        if (!level().noCollision(this, getBoundingBox()) && (mode == SWARM ? tickCount > SWARM_RISE : released)) burst(server);
+        if (!phasing && !level().noCollision(this, getBoundingBox()) && (mode == SWARM ? tickCount > SWARM_RISE : released)) burst(server);
     }
 
     /** 壊れる（地形に当たった・撃ち落とされた）: 黒い鱗粉と紫の光 */

@@ -19,14 +19,17 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * メメントモリの死蝶の呪い（2026-10-10 ユーザー指定「蝶ビットに当たるたびに最大 HP が 1 回 5%・下限 40%」「戦闘中だけ減り、倒すと戻る」）。
+ * メメントモリの死蝶の呪い（2026-10-10 ユーザー指定「蝶ビットに当たるたびに最大 HP が 1 回 5%・下限 40%」「戦闘中だけ減り、倒すと戻る」。
+ * 2026-10-15 ユーザー指定で弾も 1 発 1% 削るようにしたので、重なりの 1 つを 1% にした。蝶ビットは {@link #BIT} つ＝5%）。
  * 当たるたびに最大 HP を元（ほかの効果を入れた値）の {@link #STEP} ずつ減らし（掛け算の修飾子。保存されない一時のもの）、元の {@link #FLOOR} より下にはしない。
  * メメントモリを倒す・メメントモリから {@link #RELEASE_RANGE} ブロックより離れる・死ぬ・ログアウトすると元に戻る
  */
 @Mod.EventBusSubscriber(modid = AutomataValkyries.MODID)
 public final class MementoCurse {
 
-    public static final double STEP = 0.05, FLOOR = 0.40, RELEASE_RANGE = 96.0;
+    public static final double STEP = 0.01, FLOOR = 0.40, RELEASE_RANGE = 96.0;
+    /** 蝶ビット 1 匹・弾 1 発で重ねる数（5% と 1%） */
+    public static final int BIT = 5, BULLET = 1;
     public static final int MAX_STACKS = (int) Math.round((1.0 - FLOOR) / STEP);
     private static final UUID ID = UUID.fromString("6b1f3c52-9e4d-4a7a-8c21-d0f5e7a9b3c4");
     /** 呪いを受けている生き物（UUID → いた世界）。毎秒、近くにメメントモリがいるか確かめる */

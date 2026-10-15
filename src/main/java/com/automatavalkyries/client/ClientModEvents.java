@@ -39,6 +39,7 @@ public class ClientModEvents {
     @SubscribeEvent
     public static void registerOverlays(net.minecraftforge.client.event.RegisterGuiOverlaysEvent event) {
         ValkyrieHud.register(event);
+        MementoSpellLogo.register(event); // 死蝶終葬『メメント・モリ』の専用ロゴ
     }
 
     @SubscribeEvent
