@@ -6,7 +6,7 @@
       "entries": [
         {
           "type": "minecraft:item",
-          "name": "automata_valkyries:composite_plate",
+          "name": "automata_valkyries:block_chrono_metal",
           "weight": 1,
           "functions": [
             {
@@ -14,7 +14,67 @@
               "count": {
                 "type": "minecraft:uniform",
                 "min": 2,
-                "max": 4
+                "max": 3
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "automata_valkyries:block_luminal_gem",
+          "weight": 1,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 2,
+                "max": 3
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "automata_valkyries:block_nano_mesh",
+          "weight": 1,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 2,
+                "max": 3
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "automata_valkyries:composite_plate",
+          "weight": 1,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 3,
+                "max": 5
               }
             }
           ]
@@ -28,6 +88,21 @@
           "type": "minecraft:item",
           "name": "automata_valkyries:orb_astrite",
           "weight": 1
+        },
+        {
+          "type": "minecraft:item",
+          "name": "automata_valkyries:orb_chronos",
+          "weight": 1
+        },
+        {
+          "type": "minecraft:item",
+          "name": "automata_valkyries:orb_luminal",
+          "weight": 1
+        },
+        {
+          "type": "minecraft:item",
+          "name": "automata_valkyries:orb_nano",
+          "weight": 1
         }
       ]
     },
@@ -35,7 +110,7 @@
       "rolls": {
         "type": "minecraft:uniform",
         "min": 3,
-        "max": 5
+        "max": 4
       },
       "entries": [
         {
@@ -48,7 +123,7 @@
               "count": {
                 "type": "minecraft:uniform",
                 "min": 1,
-                "max": 2
+                "max": 3
               }
             }
           ]
@@ -64,21 +139,6 @@
                 "type": "minecraft:uniform",
                 "min": 2,
                 "max": 4
-              }
-            }
-          ]
-        },
-        {
-          "type": "minecraft:item",
-          "name": "automata_valkyries:crystal_luminal",
-          "weight": 8,
-          "functions": [
-            {
-              "function": "minecraft:set_count",
-              "count": {
-                "type": "minecraft:uniform",
-                "min": 2,
-                "max": 3
               }
             }
           ]
@@ -112,7 +172,7 @@
               "function": "minecraft:set_count",
               "count": {
                 "type": "minecraft:uniform",
-                "min": 1,
+                "min": 2,
                 "max": 3
               }
             }

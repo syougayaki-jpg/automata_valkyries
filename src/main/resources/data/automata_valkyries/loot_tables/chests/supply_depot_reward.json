@@ -6,6 +6,66 @@
       "entries": [
         {
           "type": "minecraft:item",
+          "name": "automata_valkyries:drop_chrono_scrap",
+          "weight": 1,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 12,
+                "max": 24
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "automata_valkyries:crystal_luminal",
+          "weight": 1,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 6,
+                "max": 12
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "automata_valkyries:drop_nanomachine",
+          "weight": 1,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 6,
+                "max": 12
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "minecraft:item",
           "name": "automata_valkyries:circuit_advanced",
           "weight": 1,
           "functions": [
@@ -26,26 +86,26 @@
       "entries": [
         {
           "type": "minecraft:item",
-          "name": "automata_valkyries:block_steel",
-          "weight": 1,
-          "functions": [
-            {
-              "function": "minecraft:set_count",
-              "count": {
-                "type": "minecraft:uniform",
-                "min": 1,
-                "max": 2
-              }
-            }
-          ]
+          "name": "automata_valkyries:block_chrono_metal",
+          "weight": 1
+        },
+        {
+          "type": "minecraft:item",
+          "name": "automata_valkyries:block_luminal_gem",
+          "weight": 1
+        },
+        {
+          "type": "minecraft:item",
+          "name": "automata_valkyries:block_nano_mesh",
+          "weight": 1
         }
       ]
     },
     {
       "rolls": {
         "type": "minecraft:uniform",
-        "min": 3,
-        "max": 4
+        "min": 2,
+        "max": 3
       },
       "entries": [
         {
@@ -57,41 +117,16 @@
               "function": "minecraft:set_count",
               "count": {
                 "type": "minecraft:uniform",
-                "min": 2,
-                "max": 5
+                "min": 3,
+                "max": 6
               }
             }
           ]
         },
         {
           "type": "minecraft:item",
-          "name": "automata_valkyries:crystal_luminal",
-          "weight": 6,
-          "functions": [
-            {
-              "function": "minecraft:set_count",
-              "count": {
-                "type": "minecraft:uniform",
-                "min": 1,
-                "max": 2
-              }
-            }
-          ]
-        },
-        {
-          "type": "minecraft:item",
-          "name": "automata_valkyries:drop_nanomachine",
-          "weight": 6,
-          "functions": [
-            {
-              "function": "minecraft:set_count",
-              "count": {
-                "type": "minecraft:uniform",
-                "min": 2,
-                "max": 4
-              }
-            }
-          ]
+          "name": "automata_valkyries:block_steel",
+          "weight": 4
         },
         {
           "type": "minecraft:item",
