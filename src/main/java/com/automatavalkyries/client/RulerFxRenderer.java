@@ -53,18 +53,25 @@ public class RulerFxRenderer extends EntityRenderer<RulerFxEntity> {
 
     // ------------------------------------------------------------------ 光の文字盤
 
-    /** 光の文字盤: 外の 2 重の輪（切れ目つき）・12 の時の目盛り（3・6・9・12 は太い）・60 の分の刻み・回る文字の輪・針・真ん中の光 */
+    /**
+     * 光の文字盤: 外の 2 重の輪（切れ目つき）・12 の時の目盛り（3・6・9・12 は太い）・60 の分の刻み・ローマ数字の文字盤（XII〜XI、4 は時計の慣わしの IIII）・
+     * 外を逆へ回る I〜XXIV の小さな数字の帯・内を回る数字の輪・針・真ん中の光（ローマ数字は 2026-10-19 ユーザー指定「ローマ数字もふんだんに使って」）。
+     * 面は見る側から右回りになるように (u, v, n) を右手系に取る（床は上から、縦は yaw の向きから見る）
+     */
     private static void clock(VertexConsumer vc, Matrix4f m, RulerFxEntity fx, Vec3 cam, float age, float grow, float fade, int r, int g, int b) {
         int mode = fx.mode();
         float R = fx.size() * (0.6F + 0.4F * grow);
-        Vec3 u, v;
-        if ((mode & RulerFxEntity.FACING) != 0) {                                     // 向きの面（yaw の向きを向く縦の文字盤）
+        Vec3 u, v, n;
+        boolean facing = (mode & RulerFxEntity.FACING) != 0;
+        if (facing) {                                                                 // 縦の文字盤（yaw の向きへ面を向ける）
             float y = fx.yaw();
-            u = new Vec3(Math.cos(y), 0, Math.sin(y));
+            n = new Vec3(Math.cos(y), 0, Math.sin(y));
             v = new Vec3(0, 1, 0);
-        } else {                                                                      // 床の文字盤
+            u = v.cross(n);
+        } else {                                                                      // 床の文字盤（上から見る）
+            n = new Vec3(0, 1, 0);
             u = new Vec3(1, 0, 0);
-            v = new Vec3(0, 0, 1);
+            v = new Vec3(0, 0, -1);
         }
         float rot = age * 0.01F;
         int a = (int) (200 * fade * grow);
@@ -82,16 +89,30 @@ public class RulerFxRenderer extends EntityRenderer<RulerFxEntity> {
             double ang = Math.PI * 2 * k / 60 + rot;
             radial(vc, m, u, v, ang, R * 0.89F, R * 0.93F, R * 0.006F, r, g, b, (int) (a * 0.7F));
         }
-        for (int k = 0; k < 24; k++) {                                               // 回る文字の輪（光の点と線）
-            double ang = Math.PI * 2 * k / 24 - age * 0.02F;
-            float len = k % 2 == 0 ? 0.05F : 0.025F;
-            radial(vc, m, u, v, ang, R * (0.66F - len), R * (0.66F + len), R * 0.012F, 255, 240, 200, (int) (a * 0.75F));
+        for (int k = 0; k < 12; k++) {                                               // ローマ数字の文字盤（XII が上、右回り。床は外向き、縦は立てて）
+            double ang = Math.PI / 2 - Math.PI * 2 * k / 12 + rot;
+            Vec3 at = dir(u, v, ang).scale(R * 0.665F);
+            Vec3 up = facing ? v : dir(u, v, ang);
+            numeral(vc, m, HOURS[k], at, up, n, R * 0.105F, r, g, b, a);
+        }
+        if (R >= 6.0F) {
+            annulus(vc, m, u, v, R * 1.035F, R * 1.045F, 96, -rot, 0, r, g, b, (int) (a * 0.6F));
+            annulus(vc, m, u, v, R * 1.125F, R * 1.135F, 96, -rot, 0, r, g, b, (int) (a * 0.6F));
+            for (int k = 0; k < 24; k++) {                                           // 外を逆へ回る I〜XXIV の帯
+                double ang = Math.PI / 2 - Math.PI * 2 * k / 24 - age * 0.004F;
+                numeral(vc, m, roman(k + 1), dir(u, v, ang).scale(R * 1.085F), dir(u, v, ang), n, R * 0.04F, 255, 240, 200, (int) (a * 0.8F));
+            }
+            for (int k = 0; k < 12; k++) {                                           // 内を回る数字の輪
+                double ang = Math.PI / 2 - Math.PI * 2 * k / 12 + age * 0.012F;
+                numeral(vc, m, HOURS[k], dir(u, v, ang).scale(R * 0.43F), dir(u, v, ang), n, R * 0.045F, 255, 255, 255, (int) (a * 0.5F));
+            }
+            annulus(vc, m, u, v, R * 0.47F, R * 0.478F, 64, rot, 3, 255, 255, 255, (int) (a * 0.5F));
         }
         // 針
         double minute, hour;
         if ((mode & RulerFxEntity.HANDS_FINALE) != 0) {                              // 刻の終焉: 当たりと同じ角度（短針 0.02・長針 0.06 rad / Tick）
-            hour = age * 0.02;
-            minute = age * 0.06;
+            hour = -age * 0.02;                                                       // 当たりの (cos, 0, sin) は床の (u, v) では角度が逆
+            minute = -age * 0.06;
             float len = fx.size();
             hand(vc, m, u, v, hour, len * 18.0F / 28.0F, len * 0.035F, cam, 255, 240, 200, (int) (230 * fade));
             hand(vc, m, u, v, minute, len, len * 0.03F, cam, r, g, b, (int) (230 * fade));
@@ -109,6 +130,75 @@ public class RulerFxRenderer extends EntityRenderer<RulerFxEntity> {
             hand(vc, m, u, v, minute, R * 0.74F, R * 0.025F, cam, r, g, b, a);
         }
         annulus(vc, m, u, v, 0.0F, R * 0.06F, 16, 0, 0, 255, 255, 255, a);           // 真ん中の光
+    }
+
+    // ------------------------------------------------------------------ ローマ数字
+
+    static final String[] HOURS = {"XII", "I", "II", "III", "IIII", "V", "VI", "VII", "VIII", "IX", "X", "XI"};
+
+    static String roman(int k) {
+        StringBuilder sb = new StringBuilder();
+        for (; k >= 10; k -= 10) sb.append('X');
+        if (k == 9) return sb.append("IX").toString();
+        if (k >= 5) { sb.append('V'); k -= 5; }
+        if (k == 4) return sb.append("IV").toString();
+        for (; k > 0; k--) sb.append('I');
+        return sb.toString();
+    }
+
+    /**
+     * 光の線で書くローマ数字（I・V・X。上と下に字全体の幅の横線＝時計の字の飾り）。at が字の真ん中、up が字の上、n が見る側（右 = up × n）、h が字の高さ。
+     * にじみの太い線と明るい芯の 2 重
+     */
+    static void numeral(VertexConsumer vc, Matrix4f m, String text, Vec3 at, Vec3 up, Vec3 n, float h, int r, int g, int b, int a) {
+        if (a <= 0 || h <= 0.01F) return;
+        Vec3 right = up.cross(n).normalize();
+        Vec3 gu = up.normalize();
+        float wI = 0.16F * h, wV = 0.58F * h, gap = 0.1F * h;
+        float total = -gap;
+        for (char c : text.toCharArray()) total += (c == 'I' ? wI : wV) + gap;
+        float t = 0.075F * h;
+        for (int pass = 0; pass < 2; pass++) {
+            float th = pass == 0 ? t * 2.6F : t;
+            int cr = pass == 0 ? r : Math.min(255, r / 2 + 128), cg = pass == 0 ? g : Math.min(255, g / 2 + 128), cb = pass == 0 ? b : Math.min(255, b / 2 + 128);
+            int ca = pass == 0 ? a / 3 : a;
+            float x = -total / 2;
+            float top = h / 2, bot = -h / 2;
+            for (char c : text.toCharArray()) {
+                if (c == 'I') {
+                    stroke(vc, m, at, right, gu, x + wI / 2, bot, x + wI / 2, top, th, cr, cg, cb, ca);
+                    x += wI + gap;
+                } else if (c == 'V') {
+                    stroke(vc, m, at, right, gu, x, top, x + wV / 2, bot, th, cr, cg, cb, ca);
+                    stroke(vc, m, at, right, gu, x + wV, top, x + wV / 2, bot, th * 0.6F, cr, cg, cb, ca);
+                    x += wV + gap;
+                } else {
+                    stroke(vc, m, at, right, gu, x, top, x + wV, bot, th, cr, cg, cb, ca);
+                    stroke(vc, m, at, right, gu, x + wV, top, x, bot, th * 0.6F, cr, cg, cb, ca);
+                    x += wV + gap;
+                }
+            }
+            float half = total / 2 + 0.06F * h;
+            stroke(vc, m, at, right, gu, -half, top, half, top, th * 0.7F, cr, cg, cb, ca);   // 上下の飾りの横線
+            stroke(vc, m, at, right, gu, -half, bot, half, bot, th * 0.7F, cr, cg, cb, ca);
+        }
+    }
+
+    /** 字の面の (x0, y0) から (x1, y1) への太さ th の線 */
+    private static void stroke(VertexConsumer vc, Matrix4f m, Vec3 at, Vec3 right, Vec3 up, float x0, float y0, float x1, float y1, float th, int r, int g, int b, int a) {
+        float dx = x1 - x0, dy = y1 - y0;
+        float len = Mth.sqrt(dx * dx + dy * dy);
+        if (len < 1.0e-5F) return;
+        float sx = -dy / len * th / 2, sy = dx / len * th / 2;
+        Vec3 p0 = at.add(right.scale(x0 + sx)).add(up.scale(y0 + sy)), p1 = at.add(right.scale(x1 + sx)).add(up.scale(y1 + sy));
+        Vec3 p2 = at.add(right.scale(x1 - sx)).add(up.scale(y1 - sy)), p3 = at.add(right.scale(x0 - sx)).add(up.scale(y0 - sy));
+        quad(vc, m, p0, p1, p2, p3, r, g, b, a);
+    }
+
+    /** カメラの方を水平に向いた見る側（立てた字の n） */
+    private static Vec3 toCam(Vec3 from, Vec3 cam) {
+        Vec3 d = cam.subtract(from).multiply(1, 0, 1);
+        return d.lengthSqr() < 1.0e-6 ? new Vec3(0, 0, 1) : d.normalize();
     }
 
     /** 輪（r0〜r1。gapEvery があれば切れ目を作る） */
@@ -156,11 +246,14 @@ public class RulerFxRenderer extends EntityRenderer<RulerFxEntity> {
             double ang = base + k * Math.PI / 6;
             Vec3 d = new Vec3(Math.cos(ang), 0, Math.sin(ang));
             Vec3 end = d.scale(len);
+            Vec3 floorUp = new Vec3(0, 1, 0);
             if (warn) {
                 float blink = (int) (age / 3) % 2 == 0 ? 1.0F : 0.5F;
                 ribbon(vc, m, Vec3.ZERO, end, cam, 0.08F, 255, 64, 96, (int) (200 * blink));
+                numeral(vc, m, HOURS[k], d.scale(len + 1.4), d, floorUp, 1.5F, 255, 64, 96, (int) (220 * blink));   // 刃の先のローマ数字
                 continue;
             }
+            numeral(vc, m, HOURS[k], d.scale(len + 1.4).add(0, 0.6, 0), new Vec3(0, 1, 0), toCam(d.scale(len + 1.4), cam), 1.6F, 255, 236, 170, (int) (255 * fade));
             int a = (int) (255 * fade);
             ribbon(vc, m, Vec3.ZERO, end, cam, 1.4F, 255, 200, 90, a / 3);                  // 金のにじみ
             ribbon(vc, m, Vec3.ZERO, end, cam, 0.55F, 255, 236, 170, (int) (a * 0.75F));
@@ -191,6 +284,12 @@ public class RulerFxRenderer extends EntityRenderer<RulerFxEntity> {
             float y = (age * 0.6F + i * 2.0F) % 8.0F;
             float rr = w * (1.6F + 0.4F * i) * k;
             annulus(vc, m, new Vec3(0, y, 0), ux, uz, rr, rr + 0.15F, 24, age * 0.2F + i, 4, r, g, b, (int) (200 * k * (1 - y / 8.0F)));
+        }
+        for (int i = 0; i < 3; i++) {                                                     // 柱のまわりを昇るローマ数字
+            double ang = age * 0.18 + i * Math.PI * 2 / 3;
+            float rr = w * 2.2F + 0.8F;
+            Vec3 at = new Vec3(Math.cos(ang) * rr, 0.8 + (age * 0.25F + i * 1.5F) % 5.0F, Math.sin(ang) * rr);
+            numeral(vc, m, HOURS[(fx.getId() + i * 4) % 12], at, new Vec3(0, 1, 0), toCam(at, cam), 0.5F + w * 0.35F, Math.min(255, r + 40), Math.min(255, g + 40), Math.min(255, b + 40), (int) (230 * k));
         }
         float ring = w * 3.0F * (1 - k) + 0.5F;                                           // 着いた所から広がる輪
         annulus(vc, m, new Vec3(0, 0.05, 0), ux, uz, ring, ring + 0.3F, 32, 0, 0, 255, 255, 255, (int) (160 * k));
@@ -230,6 +329,14 @@ public class RulerFxRenderer extends EntityRenderer<RulerFxEntity> {
             ribbon(vc, m, pts[k], bot, cam, 0.05F, 190, 120, 255, a);
         }
         annulus(vc, m, new Vec3(1, 0, 0), new Vec3(0, 0, 1), h * 1.3F, h * 1.38F, 32, -age * 0.1F, 4, 255, 64, 96, (int) (160 * pulse));   // 床の輪
+        int count = Mth.clamp((int) Math.ceil((life - age) * 3.0F / life), 1, 3);         // 消えるまでの数え（III → II → I）
+        Vec3 over = c.add(0, h + 0.9, 0);
+        numeral(vc, m, roman(count), over, new Vec3(0, 1, 0), toCam(over, cam), 0.8F, 255, 80, 110, 255);
+        for (int k = 0; k < 4; k++) {                                                     // 4 つの側の面に XII
+            double ang = k * Math.PI / 2;
+            Vec3 out = new Vec3(Math.cos(ang), 0, Math.sin(ang));
+            numeral(vc, m, "XII", c.add(out.scale(h * 1.01F)), new Vec3(0, 1, 0), out, h * 0.7F, 190, 120, 255, (int) (200 * pulse));
+        }
     }
 
     // ------------------------------------------------------------------ 一閃
@@ -252,6 +359,12 @@ public class RulerFxRenderer extends EntityRenderer<RulerFxEntity> {
             Vec3 c0 = dir(u, v, a0).scale(R * 0.97F), c1 = dir(u, v, a1).scale(R * 0.97F);
             ribbon(vc, m, c0, c1, cam, 0.12F * t, 255, 255, 255, (int) (255 * k * t));
             quad(vc, m, Vec3.ZERO, o0, o1, Vec3.ZERO, r, g, b, (int) (40 * k));              // 跡の光の扇
+        }
+        for (int i = 0; i < 7; i++) {                                                       // 刃の通った所に立つローマ数字（外へ散る）
+            double ang = center - Math.PI * 0.55 + Math.PI * 1.1 * (i + 0.5) / 7;
+            if (ang > to) break;
+            Vec3 out = dir(u, v, ang);
+            numeral(vc, m, HOURS[(i * 2 + 1) % 12], out.scale(R * (1.08F + 0.25F * (1 - k))).add(0, 0.5 + 0.6 * (1 - k), 0), new Vec3(0, 1, 0), out, 0.9F, 255, 240, 200, (int) (255 * k));
         }
     }
 

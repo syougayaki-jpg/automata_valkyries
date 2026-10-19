@@ -516,7 +516,7 @@ public class TimeRulerEntity extends Monster implements GeoEntity, ChronoGazer, 
         for (int i = 0; i < 3; i++) playSound(SoundEvents.BELL_BLOCK, 4.0F, 0.5F);
         if (level() instanceof ServerLevel server) {
             LivingEntity t = getTarget();
-            float face = t == null ? 0 : (float) (Math.atan2(t.getZ() - getZ(), t.getX() - getX()) + Math.PI / 2); // 文字盤の面を相手へ向ける
+            float face = facing(t); // 文字盤の面を相手へ向ける
             RulerFxEntity.spawn(server, RulerFxEntity.CLOCK, RulerFxEntity.FACING | RulerFxEntity.HANDS_TO_TWELVE, position().add(0, 13.0, 0), 9.0F, face, 0, STOP_WARN + 10, RulerFxEntity.GOLD);
         }
         level().broadcastEntityEvent(this, EVENT_STOP);
@@ -544,10 +544,17 @@ public class TimeRulerEntity extends Monster implements GeoEntity, ChronoGazer, 
         }
     }
 
+    /** 縦の文字盤のエフェクトの面を t へ向ける角度（RulerFxEntity の yaw。t が無ければ向いている方） */
+    float facing(LivingEntity t) {
+        if (t != null) return (float) Math.atan2(t.getZ() - getZ(), t.getX() - getX());
+        Vec3 f = Vec3.directionFromRotation(0, getYRot());
+        return (float) Math.atan2(f.z, f.x);
+    }
+
     /** 時間跳躍: その場から消えて at に現れる */
     void blink(ServerLevel server, Vec3 at) {
         Fx.burst(server, MementoMoriEntity.glow(GOLD, 0.4F, 14), position().add(0, 3.0, 0), 24, 0.25);
-        float face = (float) Math.toRadians(getYRot());
+        float face = facing(getTarget());
         RulerFxEntity.spawn(server, RulerFxEntity.CLOCK, RulerFxEntity.FACING, position().add(0, 0.5, 0), 3.2F, face, 0, 16, RulerFxEntity.GOLD);
         RulerFxEntity.spawn(server, RulerFxEntity.CLOCK, RulerFxEntity.FACING | RulerFxEntity.HANDS_REVERSE, at.add(0, 0.5, 0), 3.2F, face, 0, 16, RulerFxEntity.VIOLET);
         moveTo(at.x, at.y, at.z, getYRot(), getXRot());
@@ -623,7 +630,7 @@ public class TimeRulerEntity extends Monster implements GeoEntity, ChronoGazer, 
         finaleCenter = new Vec3(getX(), floorY + 0.4, getZ());
         if (level() instanceof ServerLevel server) {
             RulerFxEntity.spawn(server, RulerFxEntity.CLOCK, RulerFxEntity.FLAT | RulerFxEntity.HANDS_FINALE, finaleCenter.add(0, 0.05, 0), 28.0F, 0, 0, FINALE_TICKS, RulerFxEntity.GOLD);
-            RulerFxEntity.spawn(server, RulerFxEntity.CLOCK, RulerFxEntity.FACING, position().add(0, 16.0, 0), 12.0F, (float) Math.toRadians(getYRot()), 0, FINALE_TICKS, RulerFxEntity.VIOLET);
+            RulerFxEntity.spawn(server, RulerFxEntity.CLOCK, RulerFxEntity.FACING, position().add(0, 16.0, 0), 12.0F, facing(t), 0, FINALE_TICKS, RulerFxEntity.VIOLET);
         }
         say("finale", ChatFormatting.GOLD, ChatFormatting.BOLD);
         playSound(SoundEvents.BELL_RESONATE, 5.0F, 0.4F);
