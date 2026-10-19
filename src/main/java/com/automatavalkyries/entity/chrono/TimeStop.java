@@ -109,8 +109,18 @@ public final class TimeStop {
 
     /** 特異点コア以上を持ち物（手・オフハンド・インベントリ）に持っているか（2026-10-19 ユーザー指定「特異点励起コアを持っても停止する」で、持つだけで動けるように） */
     public static boolean carriesSingularityCore(Player player) {
-        return player.getInventory().hasAnyMatching(stack -> stack.getItem() instanceof LuminalCoreItem core
-                && core.grade().ordinal() >= LuminalCoreItem.Grade.SINGULARITY.ordinal());
+        return player.getInventory().hasAnyMatching(TimeStop::isTimeCore);
+    }
+
+    /**
+     * 時間停止を受けなくなるコアか: 兵姫のコアは特異点励起コア以上（特異点・クロノ・ジェネシス・ステラ・ジェネシス・オメガ）、
+     * それと Tier 4 の圧縮コア（時空特異点クロノコア・創世ルミナルコア・終焉再生ナノコア。2026-10-19 ユーザー指定「上位のコアにも同じ効果を」）
+     */
+    public static boolean isTimeCore(net.minecraft.world.item.ItemStack stack) {
+        if (stack.getItem() instanceof LuminalCoreItem core) return core.grade().ordinal() >= LuminalCoreItem.Grade.SINGULARITY.ordinal();
+        return stack.is(com.automatavalkyries.registry.ModCompression.CORE_SINGULARITY_CHRONOS.get())
+                || stack.is(com.automatavalkyries.registry.ModCompression.CORE_GENESIS_LUMINAL.get())
+                || stack.is(com.automatavalkyries.registry.ModCompression.CORE_CATASTROPHE_NANO.get());
     }
 
     /** 動ける者（特異点コアを持つプレイヤー、特異点コアの兵姫とその持ち主）を数え直す */
