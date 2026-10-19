@@ -2326,7 +2326,7 @@
   "entity.automata_valkyries.time_ruler.rewound": "時が巻き戻った",
   "entity.automata_valkyries.time_ruler.finale": "刻の終焉――盤上の全てを刻め",
   "entity.automata_valkyries.time_ruler.retreat": "……剪定は済んだ。お前たちの時は、ここで止まったままでいい",
-  "entity.automata_valkyries.time_ruler.defeat": "……見事だ。止まっていた時が、再び刻み始める。――行け。お前たちの未来へ",
+  "entity.automata_valkyries.time_ruler.defeat": "終末の時は止まった",
   "death.attack.automata_valkyries.time_erasure": "%1$s はその座標ごと消去された",
   "death.attack.automata_valkyries.time_erasure.player": "%1$s は %2$s にその座標ごと消去された",
   "message.automata_valkyries.ruler_portal.keeper": "門は要塞の守護機に守られている――先に守護機を倒せ",

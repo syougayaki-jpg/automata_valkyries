@@ -2326,7 +2326,7 @@
   "entity.automata_valkyries.time_ruler.rewound": "Time has been rewound",
   "entity.automata_valkyries.time_ruler.finale": "The End of All Hours - every soul on the dial shall be marked",
   "entity.automata_valkyries.time_ruler.retreat": "...The pruning is done. Let your time remain stopped here",
-  "entity.automata_valkyries.time_ruler.defeat": "...Well done. The stopped hours begin to tick again. Go - toward your future",
+  "entity.automata_valkyries.time_ruler.defeat": "The hour of the end has stopped",
   "death.attack.automata_valkyries.time_erasure": "%1$s was erased along with their coordinates",
   "death.attack.automata_valkyries.time_erasure.player": "%1$s was erased along with their coordinates by %2$s",
   "message.automata_valkyries.ruler_portal.keeper": "The fortress's Keeper guards the gate - defeat it first",
