@@ -35,7 +35,7 @@ import java.util.List;
 
 /**
  * 浮遊要塞（クロノ・バスティオン）の中ボス「要塞守護機 バスティオン・キーパー」（2026-10-19 ユーザー指定「ティア３」。HP {@value #MAX_HP}、数値は【仮】）。
- * 光輪を背負い、4 枚の盾板を周りに浮かべた浮遊の守護機。倒すまで奥の中枢の封印の召喚台は封じられている（{@link com.automatavalkyries.block.BastionAltarBlock}）。
+ * 光輪を背負い、4 枚の盾板を周りに浮かべた浮遊の守護機。
  * <ul>
  *   <li>時の檻: 相手の足元に半径 {@value #STASIS_R} の紫の輪。4 秒の間、中は鈍化 III・採掘速度低下。終わりに中へ {@value #STASIS}</li>
  *   <li>天の槍: 相手の所と近くの 2 か所に赤い輪、1.5 秒後に空から光の槍（1 つ {@value #LANCE}・半径 2.5）</li>
@@ -262,15 +262,6 @@ public class BastionKeeperEntity extends ChronoMidBoss {
     @Override
     protected SoundEvent getHurtSound(DamageSource source) {
         return SoundEvents.IRON_GOLEM_HURT;
-    }
-
-    /** 撃破の宝箱と一緒に、奥の召喚台の封印が解けたことを知らせる */
-    @Override
-    void placeReward(ServerLevel server) {
-        super.placeReward(server);
-        for (ServerPlayer p : server.getPlayers(p -> p.distanceToSqr(this) < 96 * 96)) {
-            p.displayClientMessage(Component.translatable("message.automata_valkyries.bastion_altar.unsealed").withStyle(ChatFormatting.LIGHT_PURPLE), false);
-        }
     }
 
     /** 戦い方: 8〜16 m を保ちながら、近ければ重力の錨、ほかは 時の檻 → 天の槍 → 扇の弾幕 */

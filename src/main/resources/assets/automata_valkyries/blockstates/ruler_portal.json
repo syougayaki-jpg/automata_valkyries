@@ -1,7 +1,11 @@
 {
   "variants": {
-    "": {
-      "model": "automata_valkyries:block/ruler_portal"
+    "axis=x": {
+      "model": "automata_valkyries:block/ruler_portal_ns"
+    },
+    "axis=z": {
+      "model": "automata_valkyries:block/ruler_portal_ns",
+      "y": 90
     }
   }
 }

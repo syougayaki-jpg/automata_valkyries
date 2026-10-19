@@ -1,8 +1,0 @@
-{
-  "parent": "minecraft:block/cube_bottom_top",
-  "textures": {
-    "top": "automata_valkyries:block/bastion_altar_top",
-    "side": "automata_valkyries:block/bastion_altar_side",
-    "bottom": "automata_valkyries:block/tech_panel_dark"
-  }
-}

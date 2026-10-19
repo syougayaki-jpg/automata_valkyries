@@ -159,16 +159,15 @@ public class CorruptedBaseGameTests {
     }
 
     /**
-     * 空中庭園要塞（クロノ・バスティオン。2026-10-19）: 実際に置くと、空に封印の召喚台 1 つ、眠れる時の門（3×4）、芝と水路の庭、下の岩、
-     * 東西南北の着陸の甲板（先の縁が警告の帯）が描かれる。召喚台は守護機がいなければ封じられていない。中ボスは体力の倍率を受けず、雑魚は ×3
+     * 空中庭園要塞（クロノ・バスティオン。2026-10-19）: 実際に置くと、空に塔の真ん中の眠れる時の門（膜 3×5、戸口を向く、要石付き）、芝と水路の庭、下の岩、
+     * 東西南北の着陸の甲板（先の縁が警告の帯）が描かれる。中ボスは体力の倍率を受けず、雑魚は ×3
      */
     @GameTest(template = "empty", batch = "corrupted_base", timeoutTicks = 20)
     public static void chronoBastionFloatsWithKeeperAltarAndPortal(GameTestHelper helper) {
         var level = helper.getLevel();
         net.minecraft.core.BlockPos at = helper.absolutePos(net.minecraft.core.BlockPos.ZERO).offset(-1800, 0, 2600); // 前の形の要塞が残る所（試験の世界は残る）を避ける
         net.minecraft.world.level.ChunkPos c = new net.minecraft.world.level.ChunkPos(at);
-        int altars = 0, portals = 0, grass = 0, water = 0, rock = 0;
-        net.minecraft.core.BlockPos altar = null;
+        int portals = 0, keystones = 0, grass = 0, water = 0, rock = 0, lowestGate = Integer.MAX_VALUE;
         CorruptedBases.populate = false;
         try {
             for (int dx = -5; dx <= 5; dx++) for (int dz = -5; dz <= 5; dz++) {
@@ -183,20 +182,21 @@ public class CorruptedBaseGameTests {
             for (net.minecraft.core.BlockPos q : net.minecraft.core.BlockPos.betweenClosed(cx - 56, CorruptedBases.SKY_Y - 40, cz - 56,
                     cx + 56, CorruptedBases.SKY_MAX + 50, cz + 56)) {
                 var st = level.getBlockState(q);
-                if (st.is(com.automatavalkyries.registry.ModTechBlocks.BASTION_ALTAR.get())) {
-                    altars++;
-                    altar = q.immutable();
-                    helper.assertFalse(com.automatavalkyries.block.BastionAltarBlock.sealed(level, q), "the altar is sealed with no keeper around");
-                    helper.assertFalse(st.getValue(com.automatavalkyries.block.BastionAltarBlock.SPENT), "a fresh altar is already spent");
+                if (st.is(com.automatavalkyries.registry.ModTechBlocks.RULER_PORTAL.get())) {
+                    portals++;
+                    lowestGate = Math.min(lowestGate, q.getY());
+                    helper.assertTrue(q.getZ() == cz - 1 && Math.abs(q.getX() - cx) <= 1, "a gate block is out of place: " + q);
+                    helper.assertTrue(st.getValue(com.automatavalkyries.block.RulerPortalBlock.AXIS) == net.minecraft.core.Direction.Axis.X, "the gate does not face the door");
                 }
-                if (st.is(com.automatavalkyries.registry.ModTechBlocks.RULER_PORTAL.get())) portals++;
+                if (st.is(com.automatavalkyries.registry.ModTechBlocks.RULER_GATE_KEYSTONE.get())) keystones++;
                 if (st.is(net.minecraft.world.level.block.Blocks.GRASS_BLOCK)) grass++;
                 if (st.is(net.minecraft.world.level.block.Blocks.WATER)) water++;
                 if (st.is(net.minecraft.world.level.block.Blocks.STONE) || st.is(net.minecraft.world.level.block.Blocks.DEEPSLATE)) rock++;
             }
-            helper.assertTrue(altars == 1, "expected 1 altar in the sky, found " + altars);
-            int y0 = altar.getY() - com.automatavalkyries.world.SkyGardenFortress.R3 - 1;
-            helper.assertTrue(altar.getX() == cx && altar.getZ() == cz && y0 >= CorruptedBases.SKY_Y, "the altar is off centre or too low: " + altar);
+            helper.assertTrue(portals == 15, "expected a 3x5 dormant gate, found " + portals + " gate blocks");
+            helper.assertTrue(keystones >= 4, "the gate has too few keystones (" + keystones + ")");
+            int y0 = lowestGate - com.automatavalkyries.world.SkyGardenFortress.R3 - 2;
+            helper.assertTrue(y0 >= CorruptedBases.SKY_Y, "the fortress is too low: " + y0);
             int pad = com.automatavalkyries.world.SkyGardenFortress.PAD;
             for (int[] d : new int[][]{{0, pad}, {0, -pad}, {pad, 0}, {-pad, 0}}) {
                 var st = level.getBlockState(new net.minecraft.core.BlockPos(cx + d[0], y0, cz + d[1]));
@@ -206,7 +206,6 @@ public class CorruptedBaseGameTests {
             CorruptedBases.populate = true;
             for (int dx = -5; dx <= 5; dx++) for (int dz = -5; dz <= 5; dz++) level.setChunkForced(c.x + dx, c.z + dz, false);
         }
-        helper.assertTrue(portals == 12, "expected a 3x4 dormant gate, found " + portals + " gate blocks");
         helper.assertTrue(grass > 1500, "the garden has too little grass (" + grass + ")");
         helper.assertTrue(water > 300, "the canal and the water pillars are missing (" + water + ")");
         helper.assertTrue(rock > 3000, "the island has no rock under it (" + rock + ")");

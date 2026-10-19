@@ -32,7 +32,7 @@ import java.util.function.Supplier;
  *       木、4 つの東屋（宝箱）、6 つの転送ゲート。東西南北に着陸の甲板（r 44〜53）</li>
  *   <li>中段（r ≤ {@value #R2}、床 Y+7）: 光る窓の白い擁壁、生け垣と花の輪、白い広場。要塞守護機と報酬の宝箱。大通りから階段</li>
  *   <li>上段（r ≤ {@value #R3}、床 Y+14）: 八角の白い塔（高さ 30、斜めの面に縦の窓、7 ごとに紫の帯、頂に光の尖塔）。塔の 1 階が奥の中枢:
- *       真ん中に封印の召喚台、北の面に眠れる時の門、南に戸口、宝箱 2 つ</li>
+ *       真ん中に南（戸口）を向いて独り立ちの眠れる時の門（台座と前の階段、金の象嵌の白い枠、金の時計の要石、光の冠。膜は 3×5）、宝箱 2 つ</li>
  *   <li>下: 逆さの円錐の岩（真ん中ほど深く、最大 36）。下面に紫に光る 2 重の輪。水路から 4 本の水の柱が強化ガラスの管で下へ落ちる（水は管から出ない）</li>
  * </ul>
  */
@@ -281,7 +281,7 @@ public final class SkyGardenFortress {
             set(dx, -31, dz, t(core ? ModTechBlocks.TECH_LIGHT_PANEL : ModTechBlocks.TECH_PHASE_PANEL));
         }
 
-        /** 八角の塔（上段の真ん中）。1 階が奥の中枢（高さ 11）、北の面に眠れる時の門、南に戸口 */
+        /** 八角の塔（上段の真ん中）。1 階が奥の中枢（高さ 11）で真ん中に眠れる時の門、南に戸口 */
         void tower(int dx, int dz) {
             int ax = Math.abs(dx), az = Math.abs(dz);
             boolean inside = ax <= 5 && az <= 5 && ax + az <= 7;
@@ -296,9 +296,6 @@ public final class SkyGardenFortress {
                     else if (diagonal && h % 7 >= 2 && h % 7 <= 5) s = t(ModTechBlocks.TECH_GLASS);
                     else s = t(ModTechBlocks.TECH_PANEL_WHITE);
                     if (dz == 5 && ax <= 1 && h <= 4) s = AIR;                    // 南の戸口
-                    if (dz == -5 && ax <= 2 && h <= 6) {                          // 北の眠れる時の門（紫の枠の中の 3×4）
-                        s = ax == 2 || h == 1 || h == 6 ? t(ModTechBlocks.TECH_PHASE_PANEL) : t(ModTechBlocks.RULER_PORTAL);
-                    }
                 } else if (h <= 11) {
                     s = AIR;
                 } else if (h == 12) {
@@ -310,12 +307,34 @@ public final class SkyGardenFortress {
             }
             if (!shell) set(dx, T3, dz, t((ax + az) % 4 == 0 ? ModTechBlocks.TECH_PHASE_PANEL : ModTechBlocks.TECH_PANEL_WHITE)); // 中枢の床
             set(dx, T3 + TOWER + 1, dz, t(shell ? ModTechBlocks.TECH_PHASE_PANEL : ModTechBlocks.TECH_PANEL_WHITE));       // 頂の冠
+            if (!shell) gate(dx, dz);
             if (dx == 0 && dz == 0) {
-                set(0, T3, 0, t(ModTechBlocks.TECH_PANEL_WHITE));
-                set(0, T3 + 1, 0, ModTechBlocks.BASTION_ALTAR.get().defaultBlockState());
                 for (int h = TOWER + 2; h <= TOWER + 8; h++) set(0, T3 + h, 0, t(h % 2 == 0 ? ModTechBlocks.TECH_LIGHT_PANEL : ModTechBlocks.TECH_PHASE_PANEL)); // 光の尖塔
                 set(0, T3 + TOWER + 9, 0, Blocks.END_ROD.defaultBlockState());
             }
+        }
+
+        /**
+         * 眠れる時の門（塔の 1 階の真ん中、南の戸口を向く）: 台座（時の門の枠、奥行き 3）と前の石英の階段、
+         * 膜 3×5 を囲む枠、上の 3 か所に金の時計の要石、その上に要石の冠と光の棒。中枢の床に金の要石の小道
+         */
+        void gate(int dx, int dz) {
+            int ax = Math.abs(dx), h0 = T3;
+            BlockState frame = t(ModTechBlocks.RULER_GATE_FRAME), key = t(ModTechBlocks.RULER_GATE_KEYSTONE);
+            if (ax <= 3 && dz >= -2 && dz <= 0) set(dx, h0 + 1, dz, frame);                                    // 台座
+            if (ax <= 2 && dz == 1) set(dx, h0 + 1, dz, Blocks.QUARTZ_STAIRS.defaultBlockState().setValue(StairBlock.FACING, Direction.NORTH));
+            if (dx == 0 && dz >= 2) set(dx, h0, dz, key);                                                     // 戸口から門への金の小道
+            if (dz != -1 || ax > 2) return;
+            for (int h = 2; h <= 7; h++) {
+                BlockState s;
+                if (h == 7) s = ax == 1 ? frame : key;                                                        // 上の梁: 真ん中と両端に要石
+                else if (ax == 2) s = frame;                                                                   // 両脇の柱
+                else s = t(ModTechBlocks.RULER_PORTAL);                                                        // 膜（3×5）
+                set(dx, h0 + h, dz, s);
+            }
+            if (ax <= 1) set(dx, h0 + 8, dz, dx == 0 ? key : frame);                                        // 冠
+            if (dx == 0) set(0, h0 + 9, dz, Blocks.END_ROD.defaultBlockState());
+            if (ax == 2) set(dx, h0 + 8, dz, Blocks.END_ROD.defaultBlockState());
         }
 
         // ------------------------------------------------------------------ 置き物と敵

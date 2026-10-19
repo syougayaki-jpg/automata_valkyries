@@ -1,6 +1,6 @@
 {
   "parent": "minecraft:block/cube_all",
   "textures": {
-    "all": "automata_valkyries:block/ruler_portal"
+    "all": "automata_valkyries:block/ruler_gate_keystone"
   }
 }

@@ -2289,11 +2289,7 @@
   "item.automata_valkyries.bastion_keeper_spawn_egg": "Bastion Keeper Spawn Egg",
   "item.automata_valkyries.chrono_interceptor_spawn_egg": "Striker Interceptor Spawn Egg",
   "item.automata_valkyries.delay_node_spawn_egg": "Delay Node Spawn Egg",
-  "block.automata_valkyries.bastion_altar": "Sealed Summoning Altar",
   "block.automata_valkyries.ruler_portal": "Dormant Gate of Time",
-  "message.automata_valkyries.bastion_altar.sealed": "The altar is sealed... the fortress's Keeper still stands",
-  "message.automata_valkyries.bastion_altar.unsealed": "Deep in the fortress, the altar's seal breaks",
-  "message.automata_valkyries.bastion_altar.spent": "The altar's power is spent",
   "message.automata_valkyries.ruler_portal.dormant": "The gate sleeps... its time has not yet come",
   "item.automata_valkyries.base_generator": "Corrupted Base Generator",
   "item.automata_valkyries.base_generator.desc": "Creative only. Sneak + right-click to switch the base, use on a block to build it there (enemies and mid-boss included)",
@@ -2305,5 +2301,7 @@
   "structure.automata_valkyries.supply_depot": "Supply Depot",
   "structure.automata_valkyries.chrono_outpost": "Chrono Outpost",
   "structure.automata_valkyries.dimension_foundry": "Dimension Foundry",
-  "structure.automata_valkyries.chrono_bastion": "Chrono Bastion (Sky Garden Fortress)"
+  "structure.automata_valkyries.chrono_bastion": "Chrono Bastion (Sky Garden Fortress)",
+  "block.automata_valkyries.ruler_gate_frame": "Gate of Time Frame",
+  "block.automata_valkyries.ruler_gate_keystone": "Gate of Time Keystone"
 }

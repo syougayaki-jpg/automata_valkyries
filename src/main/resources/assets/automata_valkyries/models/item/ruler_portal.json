@@ -1,3 +1,6 @@
 {
-  "parent": "automata_valkyries:block/ruler_portal"
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "automata_valkyries:block/ruler_portal"
+  }
 }
