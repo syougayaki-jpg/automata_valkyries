@@ -2325,13 +2325,12 @@
   "entity.automata_valkyries.time_ruler.rewind_broken": "因果の歯車が砕けた――ルーラーが揺らいでいる！",
   "entity.automata_valkyries.time_ruler.rewound": "時が巻き戻った",
   "entity.automata_valkyries.time_ruler.finale": "刻の終焉――盤上の全てを刻め",
-  "entity.automata_valkyries.time_ruler.retreat": "……剪定は済んだ。お前たちの時は、ここで止まったままでいい",
+  "entity.automata_valkyries.time_ruler.retreat": "総司令機は時の彼方へ退き、止まらぬ時がまた刻み始めた",
   "entity.automata_valkyries.time_ruler.defeat": "終末の時は止まった",
   "death.attack.automata_valkyries.time_erasure": "%1$s はその座標ごと消去された",
   "death.attack.automata_valkyries.time_erasure.player": "%1$s は %2$s にその座標ごと消去された",
   "message.automata_valkyries.ruler_portal.keeper": "門は要塞の守護機に守られている――先に守護機を倒せ",
   "message.automata_valkyries.ruler_portal.awaken": "時の鍵が回った――門が目覚める",
   "message.automata_valkyries.ruler_portal.return_dormant": "帰りの門は眠っている……タイムルーラーを倒せ",
-  "message.automata_valkyries.time_rift.gate_open": "帰りの門が目覚めた",
-  "entity.automata_valkyries.time_ruler.speech": "%s「%s」"
+  "message.automata_valkyries.time_rift.gate_open": "帰りの門が目覚めた"
 }

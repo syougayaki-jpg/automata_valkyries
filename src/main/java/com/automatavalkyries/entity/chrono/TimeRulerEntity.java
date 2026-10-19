@@ -194,13 +194,11 @@ public class TimeRulerEntity extends Monster implements GeoEntity, ChronoGazer, 
     }
 
     /**
-     * セリフ（2026-10-19 ユーザー指定「撤退と撃破のセリフを設定して」）: 「総司令機 タイムルーラー」の名とセリフを金の斜体でチャットに。
+     * セリフ（2026-10-19 ユーザー指定「撤退と撃破のセリフを設定して」）: 名もかぎかっこも付けない地の文を金の斜体でチャットに。
      * 撤退（相手がいなくなって退く）は {@link #getDefeatSpeech}（正規退場がサーバー全体へ）、撃破は {@link #speak}（近くの者へ）
      */
-    Component line(String key) {
-        return Component.translatable("entity.automata_valkyries.time_ruler.speech",
-                Component.translatable("entity.automata_valkyries.time_ruler").withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD),
-                Component.translatable("entity.automata_valkyries.time_ruler." + key).withStyle(ChatFormatting.YELLOW, ChatFormatting.ITALIC));
+    Component line(String key) {                                                   // 地の文（2026-10-19 ユーザー指定「セリフではなく地の文で」）: 名前もかぎかっこも付けない
+        return Component.translatable("entity.automata_valkyries.time_ruler." + key).withStyle(ChatFormatting.GOLD, ChatFormatting.ITALIC);
     }
 
     void speak(ServerLevel server, String key) {
