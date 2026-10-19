@@ -253,6 +253,8 @@ public class ChronoBaseModel<T extends Mob & GeoEntity> extends DefaultedEntityG
      * rotZ は右腕が正・左腕が負で外へ（いままでの動きと同じ向き）。
      * 肘（forearm_*）と膝（shin_*）を曲げる（2026-10-19 ユーザー指定「肘と膝の動きを追加して立ち姿は少し前に膝を曲げ手を引きゆうゆうとたたずむように」）:
      * 技をしていない間は、膝を少し前へ出して曲げ、腕を後ろへ引いて肘を軽く曲げ、胸を張ってあごを上げ、悠然とたたずむ
+     * さらに（2026-10-19 ユーザー指定「更にモーションの全体改良して」）: ときどき左の掌を差し出して見下ろす・辺りを見回すしぐさ、マントと光輪が体に遅れて揺れる、
+     * 動くと腕がなびく、被弾で肩をすくめる、針は腕を引いて溜めてから突く、座標が消える瞬間の反動、時が止まる瞬間に腕を広げて胸を反らし、止まった時の中では右腕で指揮をする
      */
     private void animateRuler(TimeRulerEntity r, float age, float pt, float pitch) {
         int phase = r.phase();
@@ -271,7 +273,9 @@ public class ChronoBaseModel<T extends Mob & GeoEntity> extends DefaultedEntityG
         float moving = Mth.clamp((float) Math.sqrt(fwd * fwd + side * side) * 4.0F, 0.0F, 1.0F);
 
         // ---- 技の重み（それぞれ 0〜1）
-        float needle = pulse(age - r.needleTick, 4, 6, 8);
+        float needleT = age - r.needleTick;
+        float needleWind = pulse(needleT, 2, 2, 3);                                                // 針: 一度腕を引いて肘を曲げ（溜め）
+        float needle = pulse(needleT - 4, 2, 6, 8);                                                // それから突き出す
         float slashT = age - r.slashTick;
         float windup = slashT >= 0 && slashT < 15 ? Mth.sin(slashT / 15.0F * Mth.HALF_PI) : 0.0F;   // 振りかぶる（技の 0.75 秒の構え）
         float strike = pulse(slashT - 15, 2, 4, 10);                                                // 振り下ろす
@@ -280,26 +284,33 @@ public class ChronoBaseModel<T extends Mob & GeoEntity> extends DefaultedEntityG
         float cast = pulse(age - r.stopTick, 10, 30, 12);                                          // 時間停止の予告
         float rewind = back ? 1.0F : 0.0F;
         float finale = pulse(age - r.finaleTick, 20, 260, 20);
+        float eraseKick = pulse(age - r.eraseTick - 40, 1, 2, 8);                                  // 座標が消える瞬間の反動
+        float snap = pulse(age - r.stopTick - 40, 2, 6, 14);                                       // 時が止まる瞬間に腕を広げて胸を反らす
+        float conduct = ClientTimeStop.running() ? 1.0F : 0.0F;                                   // 止まった時の中で指揮をする
         // 落ち着き: 技をしていない度合い（2026-10-19 ユーザー指定「立ち姿は少し前に膝を曲げ手を引きゆうゆうとたたずむように」）
-        float calm = 1.0F - Mth.clamp(needle + windup + strike + sweep + erase + cast + rewind + finale + dying, 0.0F, 1.0F);
+        float calm = 1.0F - Mth.clamp(needleWind + needle + windup + strike + sweep + erase + eraseKick + cast + snap + conduct + rewind + finale + dying, 0.0F, 1.0F);
+        // ふだんのしぐさ（落ち着いている間だけ）: ときどき左の掌を上に向けて差し出し見下ろす・首を巡らせて辺りを見回す
+        float present = pulse((age % 320.0F) - 200.0F, 25, 40, 25) * calm;
+        float lookAround = pulse((age % 460.0F) - 300.0F, 20, 50, 20) * calm;
 
         // ---- 体: 呼吸と揺れ、傾き、のけぞり、構え、崩れ
         float breath = Mth.sin(age * 0.06F * pace);
         float bob = Mth.sin(age * 0.05F * pace) * 1.5F + finale * 2.0F + cast * 1.2F - dying * 6.0F;
-        float bodyX = 0.04F * breath + lean - hurt * 0.25F - cast * 0.18F - sweep * 0.12F + rewind * 0.25F + needle * 0.08F + dying * 0.7F;
+        float bodyX = 0.04F * breath + lean - hurt * 0.25F - cast * 0.18F - sweep * 0.12F + rewind * 0.25F + needle * 0.08F - needleWind * 0.05F + dying * 0.7F
+                - eraseKick * 0.15F - snap * 0.22F;
         float bodyY = windup * 0.35F - strike * 0.55F;
         float bodyZ = -roll + Mth.sin(age * 0.031F) * 0.03F;
         CoreGeoBone body = bone("body");
         if (body != null) {
             body.setPosY(bob);
-            body.setRotX(-bodyX - 0.06F * calm);                                           // 胸を張る（たたずむ）                                                          // 前後はゲームで逆だった（2026-10-19）ので裏返す
+            body.setRotX(-bodyX - 0.06F * calm);                                           // 前後はゲームで逆だったので裏返す。たたずむ間は胸を張る
             body.setRotY(bodyY);
             body.setRotZ(bodyZ);
         }
 
         // ---- 頭: 相手を見上げ・見下ろし、首をわずかに傾げる。崩れると垂れる
-        set("head", -(-pitch * 0.5F + rewind * 0.3F + dying * 0.6F - cast * 0.3F) - 0.1F * calm,
-                Mth.sin(age * 0.023F) * 0.08F, Mth.sin(age * 0.037F) * 0.06F);
+        set("head", -(-pitch * 0.5F + rewind * 0.3F + dying * 0.6F - cast * 0.3F) - 0.1F * calm + 0.18F * present - 0.2F * hurt - 0.15F * snap - 0.1F * conduct,
+                Mth.sin(age * 0.023F) * 0.08F + 0.3F * present + Mth.sin(age * 0.04F) * 0.5F * lookAround, Mth.sin(age * 0.037F) * 0.06F + 0.08F * present);
         CoreGeoBone visor = bone("visor");
         if (visor != null) {
             float vs = 1.0F + erase * 0.15F + cast * 0.1F;
@@ -309,18 +320,19 @@ public class ChronoBaseModel<T extends Mob & GeoEntity> extends DefaultedEntityG
 
         // ---- 腕（右: 一閃・消去で指す。左: 針で突く。両方: 掃射で広げる・予告で天へ・逆転で交差・終焉で大きく広げる。崩れると垂れる）
         float idleR = Mth.sin(age * 0.045F * pace) * 0.07F, idleL = Mth.sin(age * 0.045F * pace + 1.7F) * 0.07F;
-        float rx = idleR + 0.8F * windup - 1.9F * strike - 1.55F * erase - 2.7F * cast - 1.0F * rewind - 0.4F * finale + dying * 0.3F;
+        float rx = idleR + 0.8F * windup - 1.9F * strike - 1.55F * erase - 0.4F * eraseKick - 2.7F * cast - 1.0F * rewind - 0.4F * finale - 0.9F * conduct + dying * 0.3F;
         float ry = -0.5F * windup + 0.4F * strike - 0.6F * rewind;
-        float rz = 0.12F + 0.5F * windup + 1.2F * sweep + 0.25F * cast - 0.7F * rewind + 1.35F * finale - lean * 0.3F;
-        float lx = idleL - 1.5F * needle - 2.7F * cast - 1.0F * rewind - 0.4F * finale + dying * 0.3F;
-        float ly = 0.3F * needle + 0.6F * rewind;
-        float lz = -0.12F - 1.2F * sweep - 0.25F * cast + 0.7F * rewind - 1.35F * finale - lean * -0.3F;
+        float rz = 0.12F + 0.5F * windup + 1.2F * sweep + 0.25F * cast + 1.0F * snap - 0.7F * rewind + 1.35F * finale - lean * 0.3F
+                + Mth.sin(age * 0.15F) * 0.5F * conduct + 0.25F * hurt;
+        float lx = idleL - 1.5F * needle + 0.35F * needleWind - 2.7F * cast - 1.0F * rewind - 0.4F * finale - 0.7F * present + dying * 0.3F;
+        float ly = 0.3F * needle + 0.6F * rewind + 0.3F * present;
+        float lz = -0.12F - 1.2F * sweep - 0.25F * cast - 1.0F * snap + 0.7F * rewind - 1.35F * finale - lean * -0.3F + 0.2F * present - 0.25F * hurt;
         float limp = 1.0F - dying;
-        set("arm_right", -rx * limp - 0.3F * calm, ry * limp, rz * limp + dying * 0.1F + 0.08F * calm);   // たたずむ: 手を後ろへ引く
-        set("arm_left", -lx * limp - 0.3F * calm, ly * limp, lz * limp - dying * 0.1F - 0.08F * calm);
+        set("arm_right", -rx * limp - 0.3F * calm - 0.3F * moving, ry * limp, rz * limp + dying * 0.1F + 0.08F * calm);   // たたずむ: 手を後ろへ引く
+        set("arm_left", -lx * limp - 0.3F * calm - 0.3F * moving, ly * limp, lz * limp - dying * 0.1F - 0.08F * calm);
         // 肘（rotX が正で前腕が前・上へ曲がる）: たたずむ間は軽く曲げ、振りかぶり・交差で深く、突く・振り下ろす・指す・掲げる・広げるで伸ばす
-        float elbowR = 0.55F * calm + 1.2F * windup + 0.15F * strike + 1.4F * rewind + 0.2F * sweep + 0.5F * dying + Mth.sin(age * 0.04F) * 0.04F * calm;
-        float elbowL = 0.55F * calm + 0.25F * needle + 1.4F * rewind + 0.2F * sweep + 0.5F * dying + Mth.sin(age * 0.04F + 1.3F) * 0.04F * calm;
+        float elbowR = 0.55F * calm + 1.2F * windup + 0.15F * strike + 1.4F * rewind + 0.2F * sweep + 0.4F * conduct + 0.5F * dying + Mth.sin(age * 0.04F) * 0.04F * calm;
+        float elbowL = 0.55F * calm + 0.25F * needle + 1.1F * needleWind + 1.4F * rewind + 0.2F * sweep + 0.6F * present + 0.5F * dying + Mth.sin(age * 0.04F + 1.3F) * 0.04F * calm;
         rotX("forearm_right", elbowR);
         rotX("forearm_left", elbowL);
 
@@ -338,7 +350,7 @@ public class ChronoBaseModel<T extends Mob & GeoEntity> extends DefaultedEntityG
         }
 
         // ---- マント: 2 つの波、動くと後ろへなびく、掃射・終焉で広がる
-        set("cape", -(0.08F + Mth.sin(age * 0.09F) * 0.05F + Mth.sin(age * 0.23F + 0.6F) * 0.025F + moving * 0.45F + sweep * 0.15F + finale * 0.25F - dying * 0.05F),
+        set("cape", -(0.08F + Mth.sin(age * 0.09F) * 0.05F + Mth.sin(age * 0.23F + 0.6F) * 0.025F - Mth.cos(age * 0.05F * pace) * 0.04F + moving * 0.45F + sweep * 0.15F + finale * 0.25F - dying * 0.05F),
                 0.0F, Mth.sin(age * 0.05F) * 0.03F);
 
         // ---- 光輪: 回り、上下し、予告・終焉で広がり速く回る。崩れると落ちる
@@ -346,7 +358,7 @@ public class ChronoBaseModel<T extends Mob & GeoEntity> extends DefaultedEntityG
         CoreGeoBone halo = bone("halo_top");
         if (halo != null) {
             halo.setRotY(age * haloSpin);
-            halo.setPosY(Mth.sin(age * 0.08F) * 0.6F + cast * 1.5F - dying * 8.0F);
+            halo.setPosY(Mth.sin(age * 0.05F * pace - 0.7F) * 1.0F + Mth.sin(age * 0.08F) * 0.4F + cast * 1.5F + snap * 1.0F - dying * 8.0F);   // 体の上下に少し遅れて揺れる
             float hs = 1.0F + cast * 0.35F + finale * 0.25F;
             halo.setScaleX(hs);
             halo.setScaleZ(hs);

@@ -46,6 +46,11 @@ public final class ClientTimeStop {
         }
     }
 
+    /** 時が止まっているか（動ける者の画面でも true。タイムルーラーの指揮のしぐさに使う） */
+    public static boolean running() {
+        return left > 0;
+    }
+
     public static boolean locked() {
         return left > 0 && !exempt;
     }
