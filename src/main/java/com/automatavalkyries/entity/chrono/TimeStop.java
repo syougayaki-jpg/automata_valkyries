@@ -31,7 +31,7 @@ import java.util.UUID;
  *   <li>プレイヤーの移動・アイテムの使用・ブロックを壊す・叩くの受け付けを断る（画面は白黒、{@code client/ClientTimeStop}）</li>
  *   <li>チャンクの処理（クライアントへ動きを送る）は止めないので、動ける者の動きは見える</li>
  * </ul>
- * 動けるのは止めた者（タイムルーラー）、特異点コア以上を付けた兵姫とその持ち主、スペクテイター。時間はサーバーの Tick 数で測る（ゲームの時刻は止まるので）。
+ * 動けるのは止めた者（タイムルーラー）、特異点コア以上を持ち物に持つプレイヤー（2026-10-19 ユーザー指定で追加）、特異点コア以上を付けた兵姫とその持ち主、スペクテイター。時間はサーバーの Tick 数で測る（ゲームの時刻は止まるので）。
  * 止めた者が倒れても、決めた時間が来れば必ず動き出す。Eprotect の「止まった Tick を代わりに回す」はこの停止の間は働かない（{@code protect/TickStallGuard}）
  */
 @Mod.EventBusSubscriber(modid = AutomataValkyries.MODID)
@@ -43,6 +43,8 @@ public final class TimeStop {
     @Nullable
     private static UUID source;
     private static final Set<UUID> EXEMPT = new HashSet<>();
+    /** 画面に伝えた「動ける」の状態（変わったら送り直す） */
+    private static final java.util.Map<UUID, Boolean> SENT = new java.util.HashMap<>();
 
     private TimeStop() {
     }
@@ -83,6 +85,7 @@ public final class TimeStop {
         refreshExempt();
         for (ServerPlayer p : server.getPlayerList().getPlayers()) {
             ModNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> p), new TimeStopPacket(remaining(), exempt(p)));
+            SENT.put(p.getUUID(), exempt(p));
             p.level().playSound(null, p.blockPosition(), SoundEvents.BELL_BLOCK, SoundSource.HOSTILE, 1.5F, 0.5F);
         }
         AutomataValkyries.LOGGER.info("[time-stop] {} stopped time for {} ticks ({} exempt)", by, ticks, EXEMPT.size());
@@ -95,6 +98,7 @@ public final class TimeStop {
         until = -1;
         source = null;
         EXEMPT.clear();
+        SENT.clear();
         if (s == null || !was) return;
         for (ServerPlayer p : s.getPlayerList().getPlayers()) {
             ModNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> p), new TimeStopPacket(0, true));
@@ -103,11 +107,20 @@ public final class TimeStop {
         AutomataValkyries.LOGGER.info("[time-stop] time flows again");
     }
 
-    /** 動ける者（特異点コアの兵姫とその持ち主）を数え直す */
+    /** 特異点コア以上を持ち物（手・オフハンド・インベントリ）に持っているか（2026-10-19 ユーザー指定「特異点励起コアを持っても停止する」で、持つだけで動けるように） */
+    public static boolean carriesSingularityCore(Player player) {
+        return player.getInventory().hasAnyMatching(stack -> stack.getItem() instanceof LuminalCoreItem core
+                && core.grade().ordinal() >= LuminalCoreItem.Grade.SINGULARITY.ordinal());
+    }
+
+    /** 動ける者（特異点コアを持つプレイヤー、特異点コアの兵姫とその持ち主）を数え直す */
     static void refreshExempt() {
         MinecraftServer s = server;
         if (s == null) return;
         EXEMPT.clear();
+        for (ServerPlayer p : s.getPlayerList().getPlayers()) {
+            if (carriesSingularityCore(p)) EXEMPT.add(p.getUUID());
+        }
         for (ServerLevel level : s.getAllLevels()) {
             for (Entity e : level.getAllEntities()) {
                 if (e instanceof ValkyrieEntity v && v.isAlive() && hasSingularityCore(v)) {
@@ -122,7 +135,16 @@ public final class TimeStop {
     public static void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase != TickEvent.Phase.END || until < 0 || server == null) return;
         if (server.getTickCount() >= until) stop();
-        else if (server.getTickCount() % 20 == 0) refreshExempt();
+        else if (server.getTickCount() % 10 == 0) {
+            refreshExempt();
+            for (ServerPlayer p : server.getPlayerList().getPlayers()) { // 持ち物が変わって動ける・動けないが変わったら画面へ送り直す
+                boolean now = exempt(p);
+                if (!Boolean.valueOf(now).equals(SENT.get(p.getUUID()))) {
+                    ModNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> p), new TimeStopPacket(remaining(), now));
+                    SENT.put(p.getUUID(), now);
+                }
+            }
+        }
     }
 
     @SubscribeEvent
