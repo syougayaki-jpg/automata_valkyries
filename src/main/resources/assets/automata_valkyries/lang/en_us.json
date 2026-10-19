@@ -2294,5 +2294,16 @@
   "message.automata_valkyries.bastion_altar.sealed": "The altar is sealed... the fortress's Keeper still stands",
   "message.automata_valkyries.bastion_altar.unsealed": "Deep in the fortress, the altar's seal breaks",
   "message.automata_valkyries.bastion_altar.spent": "The altar's power is spent",
-  "message.automata_valkyries.ruler_portal.dormant": "The gate sleeps... its time has not yet come"
+  "message.automata_valkyries.ruler_portal.dormant": "The gate sleeps... its time has not yet come",
+  "item.automata_valkyries.base_generator": "Corrupted Base Generator",
+  "item.automata_valkyries.base_generator.desc": "Creative only. Sneak + right-click to switch the base, use on a block to build it there (enemies and mid-boss included)",
+  "item.automata_valkyries.base_generator.current": "Base: %s",
+  "item.automata_valkyries.base_generator.selected": "Base: %s",
+  "item.automata_valkyries.base_generator.placed": "Placed %s",
+  "item.automata_valkyries.base_generator.failed": "Could not place %s (ground bases are not built on water or steep slopes)",
+  "item.automata_valkyries.base_generator.denied": "Needs creative mode or command permission",
+  "structure.automata_valkyries.supply_depot": "Supply Depot",
+  "structure.automata_valkyries.chrono_outpost": "Chrono Outpost",
+  "structure.automata_valkyries.dimension_foundry": "Dimension Foundry",
+  "structure.automata_valkyries.chrono_bastion": "Chrono Bastion (Sky Garden Fortress)"
 }

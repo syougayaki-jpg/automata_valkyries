@@ -81,6 +81,10 @@ public class ModItems {
     public static final RegistryObject<Item> TOOL_FLIGHT_WING = ITEMS.register("tool_flight_wing", () ->
             new com.automatavalkyries.item.FlightWingItem(new Item.Properties().rarity(Rarity.EPIC)));
 
+    /** 侵食基地の生成機（クリエイティブ用。スニークで種類を切り替え、ブロックへ使うとそこに基地を置く。2026-10-19） */
+    public static final RegistryObject<Item> BASE_GENERATOR = ITEMS.register("base_generator", () ->
+            new com.automatavalkyries.item.BaseGeneratorItem(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC)));
+
     // ---- スポーンエッグ ----
     public static final RegistryObject<Item> ELENOR_SPAWN_EGG = ITEMS.register("elenor_spawn_egg", () ->
             new ForgeSpawnEggItem(ModEntities.ELENOR, 0x512da8, 0xe040fb, new Item.Properties()));

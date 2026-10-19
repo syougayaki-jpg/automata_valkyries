@@ -28,4 +28,7 @@ public final class ModStructures {
     /** 侵食基地の部屋の間のガラス屋根の通路（2026-10-15） */
     public static final RegistryObject<StructurePieceType> BASE_CORRIDOR =
             PIECES.register("corrupted_base_corridor", () -> (StructurePieceType.ContextlessType) CorruptedBases.Corridor::new);
+    /** T3 の空中庭園要塞（クロノ・バスティオン。2026-10-19。設計した 1 つの形を 1 つの部品で描く） */
+    public static final RegistryObject<StructurePieceType> SKY_GARDEN =
+            PIECES.register("chrono_bastion_garden", () -> (StructurePieceType.ContextlessType) com.automatavalkyries.world.SkyGardenFortress.Piece::new);
 }

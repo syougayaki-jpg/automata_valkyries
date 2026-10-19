@@ -2294,5 +2294,16 @@
   "message.automata_valkyries.bastion_altar.sealed": "召喚台は封じられている……要塞の守護機がまだ動いている",
   "message.automata_valkyries.bastion_altar.unsealed": "要塞の奥で、召喚台の封印が解けた",
   "message.automata_valkyries.bastion_altar.spent": "召喚台はもう力を失っている",
-  "message.automata_valkyries.ruler_portal.dormant": "門は眠っている……まだ時が満ちていない"
+  "message.automata_valkyries.ruler_portal.dormant": "門は眠っている……まだ時が満ちていない",
+  "item.automata_valkyries.base_generator": "侵食基地の生成機",
+  "item.automata_valkyries.base_generator.desc": "クリエイティブ用。スニークしながら右クリックで種類を切り替え、ブロックに使うとそこに基地を置く（敵・中ボスも出る）",
+  "item.automata_valkyries.base_generator.current": "置く基地: %s",
+  "item.automata_valkyries.base_generator.selected": "置く基地: %s",
+  "item.automata_valkyries.base_generator.placed": "%s を置いた",
+  "item.automata_valkyries.base_generator.failed": "%s を置けなかった（地上の基地は水の上・急な斜面には建たない）",
+  "item.automata_valkyries.base_generator.denied": "クリエイティブかコマンドの権限が要る",
+  "structure.automata_valkyries.supply_depot": "物資倉庫",
+  "structure.automata_valkyries.chrono_outpost": "クロノ・アウトリポスト",
+  "structure.automata_valkyries.dimension_foundry": "ディメンション・ファウンドリ",
+  "structure.automata_valkyries.chrono_bastion": "クロノ・バスティオン（空中庭園要塞）"
 }

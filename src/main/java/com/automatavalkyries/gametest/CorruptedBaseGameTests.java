@@ -159,38 +159,19 @@ public class CorruptedBaseGameTests {
     }
 
     /**
-     * 浮遊要塞（2026-10-19）: 並べ方は入口・中ボス・奥の中枢が 1 つずつで、部屋は空の上。実際に置くと、空に封印の召喚台 1 つと眠れる時の門（3×4）と船底が描かれる。
-     * 召喚台は守護機がいなければ封じられていない。中ボスは体力の倍率を受けず、雑魚は ×3
+     * 空中庭園要塞（クロノ・バスティオン。2026-10-19）: 実際に置くと、空に封印の召喚台 1 つ、眠れる時の門（3×4）、芝と水路の庭、下の岩、
+     * 東西南北の着陸の甲板（先の縁が警告の帯）が描かれる。召喚台は守護機がいなければ封じられていない。中ボスは体力の倍率を受けず、雑魚は ×3
      */
     @GameTest(template = "empty", batch = "corrupted_base", timeoutTicks = 20)
     public static void chronoBastionFloatsWithKeeperAltarAndPortal(GameTestHelper helper) {
         var level = helper.getLevel();
-        for (long seed = 1; seed <= 20; seed++) {
-            var builder = new net.minecraft.world.level.levelgen.structure.pieces.StructurePiecesBuilder();
-            CorruptedBases.layout(builder, net.minecraft.util.RandomSource.create(seed), CorruptedBases.Kind.CHRONO_BASTION,
-                    new net.minecraft.core.BlockPos(0, CorruptedBases.SKY_Y, 0));
-            int entrance = 0, mid = 0, core = 0, rooms = 0;
-            for (var piece : builder.build().pieces()) {
-                if (!(piece instanceof CorruptedBases.Room room)) continue;
-                rooms++;
-                switch (room.roleName()) {
-                    case "ENTRANCE" -> entrance++;
-                    case "MIDBOSS" -> mid++;
-                    case "BOSS" -> core++;
-                    default -> { }
-                }
-                helper.assertTrue(piece.getBoundingBox().minY() >= CorruptedBases.SKY_Y - CorruptedBases.HULL - 1, "seed " + seed + ": a bastion room hangs too low");
-            }
-            helper.assertTrue(entrance == 1 && mid == 1 && core == 1 && rooms >= 10,
-                    "seed " + seed + ": entrance " + entrance + ", midboss " + mid + ", core " + core + ", rooms " + rooms);
-        }
-        // 実際に置く（敵は置かない）
-        net.minecraft.core.BlockPos at = helper.absolutePos(net.minecraft.core.BlockPos.ZERO).offset(-900, 0, 1400);
+        net.minecraft.core.BlockPos at = helper.absolutePos(net.minecraft.core.BlockPos.ZERO).offset(-1800, 0, 2600); // 前の形の要塞が残る所（試験の世界は残る）を避ける
         net.minecraft.world.level.ChunkPos c = new net.minecraft.world.level.ChunkPos(at);
-        int altars = 0, portals = 0, hull = 0;
+        int altars = 0, portals = 0, grass = 0, water = 0, rock = 0;
+        net.minecraft.core.BlockPos altar = null;
         CorruptedBases.populate = false;
         try {
-            for (int dx = -4; dx <= 4; dx++) for (int dz = -4; dz <= 4; dz++) {
+            for (int dx = -5; dx <= 5; dx++) for (int dz = -5; dz <= 5; dz++) {
                 level.setChunkForced(c.x + dx, c.z + dz, true);
                 level.getChunk(c.x + dx, c.z + dz);
             }
@@ -199,24 +180,36 @@ public class CorruptedBaseGameTests {
             helper.assertTrue(server.getCommands().performPrefixedCommand(source,
                     "place structure " + AutomataValkyries.MODID + ":chrono_bastion " + at.getX() + " " + at.getY() + " " + at.getZ()) > 0, "could not place chrono_bastion");
             int cx = c.getMiddleBlockX(), cz = c.getMiddleBlockZ();
-            for (net.minecraft.core.BlockPos q : net.minecraft.core.BlockPos.betweenClosed(cx - 60, CorruptedBases.SKY_Y - CorruptedBases.HULL - 1, cz - 60,
-                    cx + 60, CorruptedBases.SKY_MAX + 12, cz + 60)) {
+            for (net.minecraft.core.BlockPos q : net.minecraft.core.BlockPos.betweenClosed(cx - 56, CorruptedBases.SKY_Y - 40, cz - 56,
+                    cx + 56, CorruptedBases.SKY_MAX + 50, cz + 56)) {
                 var st = level.getBlockState(q);
                 if (st.is(com.automatavalkyries.registry.ModTechBlocks.BASTION_ALTAR.get())) {
                     altars++;
+                    altar = q.immutable();
                     helper.assertFalse(com.automatavalkyries.block.BastionAltarBlock.sealed(level, q), "the altar is sealed with no keeper around");
                     helper.assertFalse(st.getValue(com.automatavalkyries.block.BastionAltarBlock.SPENT), "a fresh altar is already spent");
                 }
                 if (st.is(com.automatavalkyries.registry.ModTechBlocks.RULER_PORTAL.get())) portals++;
-                if (st.is(com.automatavalkyries.registry.ModTechBlocks.TECH_PANEL_DARK.get()) && q.getY() < CorruptedBases.SKY_Y) hull++;
+                if (st.is(net.minecraft.world.level.block.Blocks.GRASS_BLOCK)) grass++;
+                if (st.is(net.minecraft.world.level.block.Blocks.WATER)) water++;
+                if (st.is(net.minecraft.world.level.block.Blocks.STONE) || st.is(net.minecraft.world.level.block.Blocks.DEEPSLATE)) rock++;
+            }
+            helper.assertTrue(altars == 1, "expected 1 altar in the sky, found " + altars);
+            int y0 = altar.getY() - com.automatavalkyries.world.SkyGardenFortress.R3 - 1;
+            helper.assertTrue(altar.getX() == cx && altar.getZ() == cz && y0 >= CorruptedBases.SKY_Y, "the altar is off centre or too low: " + altar);
+            int pad = com.automatavalkyries.world.SkyGardenFortress.PAD;
+            for (int[] d : new int[][]{{0, pad}, {0, -pad}, {pad, 0}, {-pad, 0}}) {
+                var st = level.getBlockState(new net.minecraft.core.BlockPos(cx + d[0], y0, cz + d[1]));
+                helper.assertTrue(st.is(com.automatavalkyries.registry.ModTechBlocks.TECH_HAZARD.get()), "no landing pad edge at " + d[0] + ", " + d[1] + ": " + st);
             }
         } finally {
             CorruptedBases.populate = true;
-            for (int dx = -4; dx <= 4; dx++) for (int dz = -4; dz <= 4; dz++) level.setChunkForced(c.x + dx, c.z + dz, false);
+            for (int dx = -5; dx <= 5; dx++) for (int dz = -5; dz <= 5; dz++) level.setChunkForced(c.x + dx, c.z + dz, false);
         }
-        helper.assertTrue(altars == 1, "expected 1 altar in the sky, found " + altars);
         helper.assertTrue(portals == 12, "expected a 3x4 dormant gate, found " + portals + " gate blocks");
-        helper.assertTrue(hull > 100, "the bastion has no hull under it (" + hull + ")");
+        helper.assertTrue(grass > 1500, "the garden has too little grass (" + grass + ")");
+        helper.assertTrue(water > 300, "the canal and the water pillars are missing (" + water + ")");
+        helper.assertTrue(rock > 3000, "the island has no rock under it (" + rock + ")");
         // 新しい中ボスは倍率を受けない。雑魚は要塞の中では ×3
         var keeper = ModEntities.BASTION_KEEPER.get().create(level);
         CorruptedBases.Kind.CHRONO_BASTION.scaleHealth(keeper);

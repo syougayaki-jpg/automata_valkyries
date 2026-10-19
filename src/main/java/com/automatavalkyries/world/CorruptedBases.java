@@ -67,10 +67,8 @@ public final class CorruptedBases {
      */
     public static final int CELL = 13, CORRIDOR = 5, STRIDE = CELL + CORRIDOR, CORRIDOR_H = 4;
     public static final int ROOM_H = 6, BOSS_H = 9, FOUNDRY_DEPTH = 16;
-    /** 浮遊要塞の床の高さ（地表がそれに近い山の上では、地表の 40 上まで上げる） */
-    public static final int SKY_Y = 200, SKY_CLEARANCE = 40, SKY_MAX = 270;
-    /** 浮遊要塞の部屋の船底のいちばん深い所（部屋の真ん中。縁は 2） */
-    public static final int HULL = 8;
+    /** 空中庭園要塞の外周の庭の高さ（地表がそれに近い山の上では、地表の 40 上まで上げる） */
+    public static final int SKY_Y = 200, SKY_CLEARANCE = 40, SKY_MAX = 250;
     /** 敵・中ボスを置くか（試験で建物だけを確かめる時に切る。試験の世界に敵を残さないため） */
     public static boolean populate = true;
     static final UUID HEALTH_SCALE_ID = UUID.fromString("5c1e0a7d-3b2f-4e8a-9d41-7a6b2c90f3e1");
@@ -82,8 +80,8 @@ public final class CorruptedBases {
         SUPPLY_DEPOT("supply_depot", 3, 6, 8, false, 1.0),
         CHRONO_OUTPOST("chrono_outpost", 4, 10, 13, false, 1.5),
         DIMENSION_FOUNDRY("dimension_foundry", 4, 11, 15, true, 2.0),
-        /** T3 の浮遊要塞（2026-10-19）。空の上（{@value #SKY_Y} 以上）に浮かぶ。行くには飛ぶしかない */
-        CHRONO_BASTION("chrono_bastion", 5, 14, 18, false, 3.0);
+        /** T3 の空中庭園要塞（2026-10-19）。部屋の格子ではなく、設計した 1 つの形（{@link SkyGardenFortress}）。空の上に浮かび、行くには飛ぶしかない */
+        CHRONO_BASTION("chrono_bastion", 0, 0, 0, false, 3.0);
 
         public static final Codec<Kind> CODEC = StringRepresentable.fromEnum(Kind::values);
         public final String id;
@@ -101,7 +99,7 @@ public final class CorruptedBases {
             this.healthScale = healthScale;
         }
 
-        /** 空に浮かぶか（土台の代わりに船底を付け、入口は屋根の無い着陸の甲板） */
+        /** 空に浮かぶ設計した要塞か（部屋の格子を使わない） */
         public boolean floating() {
             return this == CHRONO_BASTION;
         }
@@ -131,8 +129,8 @@ public final class CorruptedBases {
         }
     }
 
-    /** 部屋の役（MIDBOSS は浮遊要塞だけ。入口から奥の中枢への道の半ばに中ボス、奥の中枢＝BOSS には封印の召喚台と眠れる時の門） */
-    enum Role { ENTRANCE, ROOM, BOSS, MIDBOSS }
+    /** 部屋の役 */
+    enum Role { ENTRANCE, ROOM, BOSS }
 
     /** 戸口の向きの印（北 = -Z、南 = +Z、西 = -X、東 = +X） */
     static final int N = 1, S = 2, W = 4, E = 8;
@@ -166,7 +164,8 @@ public final class CorruptedBases {
             int y = gen.getFirstOccupiedHeight(x, z, Heightmap.Types.WORLD_SURFACE_WG, ctx.heightAccessor(), ctx.randomState());
             if (kind.floating()) { // 空の上: 水・斜面は気にしない。真下の地表が高ければ、そのぶん上げる
                 BlockPos sky = new BlockPos(x, Math.min(SKY_MAX, Math.max(SKY_Y, y + SKY_CLEARANCE)), z);
-                return Optional.of(new GenerationStub(sky, b -> layout(b, ctx.random(), kind, sky)));
+                long seed = ctx.random().nextLong();
+                return Optional.of(new GenerationStub(sky, b -> b.addPiece(new SkyGardenFortress.Piece(sky, seed))));
             }
             int floor = gen.getFirstOccupiedHeight(x, z, Heightmap.Types.OCEAN_FLOOR_WG, ctx.heightAccessor(), ctx.randomState());
             if (y - floor > 1) return Optional.empty(); // 水の上には建てない
@@ -183,8 +182,8 @@ public final class CorruptedBases {
         }
     }
 
-    /** 区画の並びを決めて部屋を置く（試験からも呼ぶ） */
-    public static void layout(StructurePiecesBuilder builder, RandomSource rand, Kind kind, BlockPos center) {
+    /** 区画の並びを決めて部屋を置く */
+    static void layout(StructurePiecesBuilder builder, RandomSource rand, Kind kind, BlockPos center) {
         int n = kind.grid;
         int target = kind.minRooms + rand.nextInt(kind.maxRooms - kind.minRooms + 1);
         int[][] doors = new int[n][n];
@@ -225,7 +224,6 @@ public final class CorruptedBases {
         }
         // ボスの部屋: 入口から戸口をたどっていちばん遠い部屋
         int[][] dist = new int[n][n];
-        int[][] from = new int[n * n][];
         for (int[] row : dist) Arrays.fill(row, -1);
         ArrayDeque<int[]> q = new ArrayDeque<>();
         dist[ex][ez] = 0;
@@ -241,20 +239,8 @@ public final class CorruptedBases {
                 int nx = c[0] + d[0], nz = c[1] + d[1];
                 if ((doors[c[0]][c[1]] & d[2]) != 0 && nx >= 0 && nz >= 0 && nx < n && nz < n && dist[nx][nz] < 0) {
                     dist[nx][nz] = dist[c[0]][c[1]] + 1;
-                    from[nx * n + nz] = c;
                     q.add(new int[]{nx, nz});
                 }
-            }
-        }
-        // 浮遊要塞の中ボスの部屋: 入口から奥の中枢への道の半ば（道が短ければ、中枢の 1 つ手前）
-        int mx = -1, mz = -1;
-        if (kind.floating()) {
-            List<int[]> path = new ArrayList<>();
-            for (int[] c = {bx, bz}; c != null; c = from[c[0] * n + c[1]]) path.add(0, c);
-            if (path.size() >= 3) {
-                int[] m = path.get(Math.max(1, Math.min(path.size() - 2, path.size() / 2)));
-                mx = m[0];
-                mz = m[1];
             }
         }
         int surface = center.getY();
@@ -263,12 +249,12 @@ public final class CorruptedBases {
         for (int x = 0; x < n; x++) {
             for (int z = 0; z < n; z++) {
                 if (!used[x][z]) continue;
-                Role role = x == ex && z == ez ? Role.ENTRANCE : x == bx && z == bz ? Role.BOSS : x == mx && z == mz ? Role.MIDBOSS : Role.ROOM;
+                Role role = x == ex && z == ez ? Role.ENTRANCE : x == bx && z == bz ? Role.BOSS : Role.ROOM;
                 int d = doors[x][z] | (role == Role.ENTRANCE ? S : 0);
                 int x0 = ox + x * STRIDE, z0 = oz + z * STRIDE;
-                int top = floorY + (role == Role.BOSS || role == Role.MIDBOSS ? BOSS_H : ROOM_H) + 3; // 屋上のタレットの分
+                int top = floorY + (role == Role.BOSS ? BOSS_H : ROOM_H) + 3; // 屋上のタレットの分
                 if (role == Role.ENTRANCE && kind.underground) top = surface + ROOM_H + 1;
-                int bottom = floorY - (kind.underground ? 1 : kind.floating() ? HULL + 1 : 12);   // 地上は土台を、空は船底を下へ伸ばす
+                int bottom = floorY - (kind.underground ? 1 : 12);   // 地上は土台を下へ伸ばす
                 BoundingBox box = new BoundingBox(x0, bottom, z0, x0 + CELL - 1, top, z0 + CELL - 1);
                 builder.addPiece(new Room(kind, role, d, box, floorY, surface, rand.nextLong()));
                 // 東・南の隣とつながっていれば、その間に通路
@@ -321,8 +307,7 @@ public final class CorruptedBases {
             for (int x = x0; x <= x1; x++) {
                 for (int z = z0; z <= z1; z++) {
                     boolean side = eastWest ? (z == z0 || z == z1) : (x == x0 || x == x1);
-                    if (kind.floating()) p.set(x, floorY - 1, z, Painter.tech(side ? ModTechBlocks.TECH_PHASE_PANEL : ModTechBlocks.TECH_PANEL_DARK)); // 空の渡り廊下の底
-                    else if (!kind.underground) p.foundation(x, floorY - 1, z, 12);
+                    if (!kind.underground) p.foundation(x, floorY - 1, z, 12);
                     p.set(x, floorY, z, side ? p.wall(x, floorY, z, 0) : Painter.tech(ModTechBlocks.TECH_GRATING));
                     for (int y = floorY + 1; y < roof; y++) {
                         if (side) p.set(x, y, z, y == floorY + 3 ? Painter.tech(ModTechBlocks.TECH_LIGHT_LINE) : p.wall(x, y, z, y - floorY));
@@ -330,7 +315,7 @@ public final class CorruptedBases {
                     }
                     if (side) p.set(x, roof, z, p.wall(x, roof, z, 0));
                     else p.set(x, roof, z, Painter.tech(kind.underground ? ModTechBlocks.TECH_SKY_PANEL : ModTechBlocks.TECH_GLASS)); // 空が見える
-                    if (!kind.underground && !kind.floating()) for (int y = roof + 1; y <= roof + 5; y++) p.clearNatural(x, y, z); // 屋根の上の土・石をどけて空を見せる
+                    if (!kind.underground) for (int y = roof + 1; y <= roof + 5; y++) p.clearNatural(x, y, z); // 屋根の上の土・石をどけて空を見せる
                 }
             }
         }
@@ -375,12 +360,7 @@ public final class CorruptedBases {
         }
 
         int height() {
-            return role == Role.BOSS || role == Role.MIDBOSS ? BOSS_H : ROOM_H;
-        }
-
-        /** 部屋の役の名前（試験用: ENTRANCE / ROOM / BOSS / MIDBOSS） */
-        public String roleName() {
-            return role.name();
+            return role == Role.BOSS ? BOSS_H : ROOM_H;
         }
 
         @Override
@@ -390,26 +370,13 @@ public final class CorruptedBases {
             int x0 = boundingBox.minX(), z0 = boundingBox.minZ(), x1 = boundingBox.maxX(), z1 = boundingBox.maxZ();
             boolean tallEntrance = role == Role.ENTRANCE && kind.underground;
             int roof = tallEntrance ? surface + ROOM_H + 1 : floorY + height() + 1;
-            boolean courtyard = (kind == Kind.CHRONO_OUTPOST || kind == Kind.CHRONO_BASTION) && role == Role.ROOM && rand.nextInt(4) == 0;
-            boolean deck = kind.floating() && role == Role.ENTRANCE; // 浮遊要塞の入口: 屋根の無い着陸の甲板（強化ガラスの手すり）
-            int mx = x0 + CELL / 2, mz = z0 + CELL / 2;
-            // 骨組み: 土台（空は船底）・床・壁・天井・中の空気
+            boolean courtyard = kind == Kind.CHRONO_OUTPOST && role == Role.ROOM && rand.nextInt(4) == 0;
+            // 骨組み: 土台・床・壁・天井・中の空気
             for (int x = x0; x <= x1; x++) {
                 for (int z = z0; z <= z1; z++) {
                     boolean edge = x == x0 || x == x1 || z == z0 || z == z1;
-                    int cheb = Math.max(Math.abs(x - mx), Math.abs(z - mz));
-                    if (kind.floating()) p.hull(x, floorY - 1, z, 2 + Math.max(0, HULL - 2 - cheb), cheb == 0 || cheb == 3);
-                    else if (!kind.underground) p.foundation(x, floorY - 1, z, 12);
+                    if (!kind.underground) p.foundation(x, floorY - 1, z, 12);
                     p.set(x, floorY, z, p.floor(x, z));
-                    if (deck) {
-                        if (cheb == 4) p.set(x, floorY, z, Painter.tech(ModTechBlocks.TECH_LIGHT_PANEL)); // 着陸の目印の輪
-                        else if (cheb == 5) p.set(x, floorY, z, Painter.tech(ModTechBlocks.TECH_HAZARD));
-                        for (int y = floorY + 1; y <= roof + 1; y++) {
-                            boolean rail = edge && y == floorY + 1 && !door(x, y, z, x0, z0, x1, z1);
-                            p.set(x, y, z, rail ? Painter.tech(ModTechBlocks.TECH_GLASS) : Blocks.AIR.defaultBlockState());
-                        }
-                        continue;
-                    }
                     for (int y = floorY + 1; y < roof; y++) {
                         if (edge && !door(x, y, z, x0, z0, x1, z1)) p.set(x, y, z, p.wall(x, y, z, y - floorY));
                         else p.set(x, y, z, Blocks.AIR.defaultBlockState());
@@ -428,10 +395,8 @@ public final class CorruptedBases {
             int cx = x0 + CELL / 2, cz = z0 + CELL / 2;
             switch (role) {
                 case ENTRANCE -> {
-                    if (deck) p.set(cx, floorY, cz, Painter.tech(ModTechBlocks.TECH_PHASE_PANEL));
-                    else if (!tallEntrance) furnish(p, rand, x0, z0, false, courtyard);
+                    if (!tallEntrance) furnish(p, rand, x0, z0, false, courtyard);
                 }
-                case MIDBOSS -> keeper(p, rand, x0, z0);
                 case ROOM -> {
                     furnish(p, rand, x0, z0, true, courtyard);
                     if (rand.nextInt(10) < 6) { // クロノ転送ゲート（6 割の部屋に 1 つ、内側の四隅のどれか）
@@ -443,16 +408,6 @@ public final class CorruptedBases {
             }
             if (kind == Kind.CHRONO_OUTPOST && role == Role.ROOM && !courtyard && rand.nextInt(3) == 0) { // 屋上の対空タレット
                 p.spawn(ModEntities.PULSE_PHALANX, cx + 0.5, roof + 1, cz + 0.5, rand);
-            }
-            if (kind == Kind.CHRONO_BASTION && !deck && !courtyard) { // 浮遊要塞は対空を厚く（2026-10-19 ユーザー指定「対空砲を多めに」）: 屋上の対角に 1〜2 基、中ボス・中枢の屋上は四隅に 4 基
-                int[][] cs = corners(x0, z0);
-                boolean big = role == Role.MIDBOSS || role == Role.BOSS;
-                int n = big ? 4 : 1 + rand.nextInt(2);
-                int first = rand.nextInt(4);
-                for (int i = 0; i < n; i++) {
-                    int[] s = cs[big ? i : (first + i * 3) % 4]; // 2 基目は対角の隅
-                    p.spawn(ModEntities.PULSE_PHALANX, s[0] + 0.5, roof + 1, s[1] + 0.5, rand);
-                }
             }
         }
 
@@ -554,84 +509,16 @@ public final class CorruptedBases {
                         if (rand.nextInt(5) == 0) p.spawn(ModEntities.SIREN_EYE, cx + 0.5, y + 3, cz + 0.5, rand);
                     }
                 }
-                case CHRONO_BASTION -> {
-                    if (courtyard) { // 天井の無い発着場: 床の照明と迎撃機、対空タレット 3 基（真ん中と、斜めに 3 ずらした 2 か所。四隅は転送ゲートの所なので避ける）
-                        p.set(cx, floorY, cz, Painter.tech(ModTechBlocks.TECH_LIGHT_PANEL));
-                        if (enemies) {
-                            p.spawn(ModEntities.PULSE_PHALANX, cx + 0.5, y, cz + 0.5, rand);
-                            p.spawn(ModEntities.PULSE_PHALANX, cx - 2.5, y, cz - 2.5, rand);
-                            p.spawn(ModEntities.PULSE_PHALANX, cx + 3.5, y, cz + 3.5, rand);
-                            p.spawn(ModEntities.CHRONO_INTERCEPTOR, cx + 0.5, y + 4, cz + 0.5, rand);
-                        }
-                    } else { // 時の柱（紫の核を強化ガラスで挟む）と端末
-                        p.set(cx, y, cz, Painter.tech(ModTechBlocks.TECH_PANEL_DARK));
-                        p.set(cx, y + 1, cz, Painter.tech(ModTechBlocks.TECH_PHASE_PANEL));
-                        p.set(cx, y + 2, cz, Painter.tech(ModTechBlocks.TECH_GLASS));
-                        p.set(cx, y + 3, cz, Painter.tech(ModTechBlocks.TECH_PHASE_PANEL));
-                        for (int i = 0; i < 2; i++) {
-                            int[] s = wallSpot(rand, x0, z0);
-                            p.set(s[0], y, s[1], Painter.tech(ModTechBlocks.TECH_LIGHT_LINE));
-                        }
-                    }
-                    if (rand.nextInt(3) == 0) p.chest(wallSpot(rand, x0, z0), y, kind.chestLoot(), rand);
-                    if (enemies) {
-                        if (rand.nextInt(2) == 0) p.spawn(ModEntities.CHRONO_GUARDIAN, cx + 2.5, y, cz + 3.5, rand);
-                        if (rand.nextInt(2) == 0) p.spawn(ModEntities.CHRONO_TROOPER, cx - 3.5, y, cz + 2.5, rand);
-                        if (rand.nextInt(3) == 0) p.spawn(ModEntities.DELAY_NODE, cx - 3.5, y + 2, cz - 3.5, rand);
-                        if (rand.nextInt(3) == 0) p.spawn(ModEntities.CHRONO_INTERCEPTOR, cx + 0.5, y + 3, cz - 2.5, rand);
-                        if (rand.nextInt(5) == 0) p.spawn(ModEntities.SIREN_EYE, cx + 0.5, y + 3, cz + 0.5, rand);
-                    }
-                }
             }
         }
 
         /** ボスの部屋: 中ボスと、撃破で宝箱が出る所（入口から遠い側の壁の前） */
-        /** 宝箱の所: 戸口の無い壁の前（北・東・西・南の順で探す） */
-        BlockPos rewardSpot(int x0, int z0) {
-            int cx = x0 + CELL / 2, cz = z0 + CELL / 2;
-            int[] chest = (doors & N) == 0 ? new int[]{cx, z0 + 1} : (doors & E) == 0 ? new int[]{x0 + CELL - 2, cz}
-                    : (doors & W) == 0 ? new int[]{x0 + 1, cz} : new int[]{cx, z0 + CELL - 2};
-            return new BlockPos(chest[0], floorY + 1, chest[1]);
-        }
-
-        /** 浮遊要塞の中ボスの部屋: 要塞守護機と、撃破で宝箱が出る所 */
-        void keeper(Painter p, RandomSource rand, int x0, int z0) {
-            int y = floorY + 1, cx = x0 + CELL / 2, cz = z0 + CELL / 2;
-            for (int[] s : corners(x0, z0)) p.set(s[0], floorY, s[1], Painter.tech(ModTechBlocks.TECH_PHASE_PANEL));
-            p.boss(ModEntities.BASTION_KEEPER, cx + 0.5, y, cz + 0.5, rewardSpot(x0, z0), rand);
-        }
-
-        /** 浮遊要塞の奥の中枢: 封印の召喚台（真ん中）、眠れる時の門（戸口の無い壁。どの壁にも戸口があれば北寄りに独り立ち）、宝箱 2 つ */
-        void core(Painter p, RandomSource rand, int x0, int z0) {
-            int y = floorY + 1, cx = x0 + CELL / 2, cz = z0 + CELL / 2;
-            for (int dx = -2; dx <= 2; dx++) for (int dz = -2; dz <= 2; dz++) {
-                if (Math.max(Math.abs(dx), Math.abs(dz)) == 2) p.set(cx + dx, floorY, cz + dz, Painter.tech(ModTechBlocks.TECH_PHASE_PANEL));
-            }
-            p.set(cx, y, cz, ModTechBlocks.BASTION_ALTAR.get().defaultBlockState());
-            // 門: 幅 5・高さ 6 の紫の枠、中の 3×4 が眠れる時の門
-            boolean alongX;
-            int fixed, mid;
-            if ((doors & N) == 0) { alongX = true; fixed = z0; mid = cx; }
-            else if ((doors & E) == 0) { alongX = false; fixed = x0 + CELL - 1; mid = cz; }
-            else if ((doors & W) == 0) { alongX = false; fixed = x0; mid = cz; }
-            else if ((doors & S) == 0) { alongX = true; fixed = z0 + CELL - 1; mid = cx; }
-            else { alongX = true; fixed = z0 + 2; mid = cx; }
-            for (int t = -2; t <= 2; t++) {
-                for (int h = 1; h <= 6; h++) {
-                    boolean frame = Math.abs(t) == 2 || h == 1 || h == 6;
-                    BlockState st = frame ? Painter.tech(ModTechBlocks.TECH_PHASE_PANEL) : ModTechBlocks.RULER_PORTAL.get().defaultBlockState();
-                    if (alongX) p.set(mid + t, floorY + h, fixed, st);
-                    else p.set(fixed, floorY + h, mid + t, st);
-                }
-            }
-            int[][] cs = corners(x0, z0);
-            p.chest(cs[rand.nextInt(2)], y, kind.chestLoot(), rand);
-            p.chest(cs[2 + rand.nextInt(2)], y, kind.chestLoot(), rand);
-        }
-
         void boss(Painter p, RandomSource rand, int x0, int z0) {
             int y = floorY + 1, cx = x0 + CELL / 2, cz = z0 + CELL / 2;
-            BlockPos reward = rewardSpot(x0, z0);
+            // 宝箱の所: 戸口の無い壁の前（北・東・西・南の順で探す）
+            int[] chest = (doors & N) == 0 ? new int[]{cx, z0 + 1} : (doors & E) == 0 ? new int[]{x0 + CELL - 2, cz}
+                    : (doors & W) == 0 ? new int[]{x0 + 1, cz} : new int[]{cx, z0 + CELL - 2};
+            BlockPos reward = new BlockPos(chest[0], y, chest[1]);
             switch (kind) {
                 case SUPPLY_DEPOT -> {
                     for (int[] s : corners(x0, z0)) for (int k = 0; k < 2; k++) p.set(s[0], y + k, s[1], Blocks.BARREL.defaultBlockState());
@@ -648,7 +535,6 @@ public final class CorruptedBases {
                     }
                     p.boss(ModEntities.FOUNDRY_MASTER, cx + 0.5, y, cz + 0.5, reward, rand);
                 }
-                case CHRONO_BASTION -> core(p, rand, x0, z0);
             }
         }
 
@@ -723,14 +609,6 @@ public final class CorruptedBases {
             };
         }
 
-        /** 浮遊要塞の船底: y から下へ depth ブロック。glow なら底を紫に光らせる（推進器の光） */
-        void hull(int x, int y, int z, int depth, boolean glow) {
-            for (int k = 0; k < depth; k++) {
-                boolean bottom = k == depth - 1;
-                set(x, y - k, z, tech(bottom && glow ? ModTechBlocks.TECH_PHASE_PANEL : ModTechBlocks.TECH_PANEL_DARK));
-            }
-        }
-
         static BlockState tech(Supplier<? extends net.minecraft.world.level.block.Block> block) {
             return block.get().defaultBlockState();
         }
@@ -754,8 +632,7 @@ public final class CorruptedBases {
                 case CHRONO_OUTPOST -> tech(h == 3 && Math.floorMod(x + z, 4) == 0 ? ModTechBlocks.TECH_GLASS
                         : h % 5 == 3 ? ModTechBlocks.TECH_LIGHT_LINE : ModTechBlocks.TECH_PANEL_DARK);
                 case DIMENSION_FOUNDRY -> tech(h % 5 == 4 ? ModTechBlocks.TECH_PHASE_PANEL : h % 5 == 2 ? ModTechBlocks.TECH_LIGHT_LINE : ModTechBlocks.TECH_PANEL_DARK);
-                case CHRONO_BASTION -> tech((h == 3 || h == 4) && Math.floorMod(x + z, 3) != 0 ? ModTechBlocks.TECH_GLASS // 空を見渡す大きな窓
-                        : h == 5 ? ModTechBlocks.TECH_PHASE_PANEL : ModTechBlocks.TECH_PANEL_WHITE);
+                case CHRONO_BASTION -> tech(h == 5 ? ModTechBlocks.TECH_PHASE_PANEL : ModTechBlocks.TECH_PANEL_WHITE);
             };
         }
 
