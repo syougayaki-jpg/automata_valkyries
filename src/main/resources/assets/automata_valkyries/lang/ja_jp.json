@@ -2322,6 +2322,8 @@
   "entity.automata_valkyries.time_ruler.stop_warn": "時よ――",
   "entity.automata_valkyries.time_ruler.stop": "止まれ",
   "entity.automata_valkyries.time_ruler.erase": "その座標を消去する",
+  "entity.automata_valkyries.time_ruler.judge": "十二時の審判",
+  "entity.automata_valkyries.time_ruler.barrage": "文字盤の針雨",
   "entity.automata_valkyries.time_ruler.rewind": "因果逆転――歯車を壊さねば、時は巻き戻る！",
   "entity.automata_valkyries.time_ruler.rewind_broken": "因果の歯車が砕けた――ルーラーが揺らいでいる！",
   "entity.automata_valkyries.time_ruler.rewound": "時が巻き戻った",

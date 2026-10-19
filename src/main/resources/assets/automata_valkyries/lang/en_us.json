@@ -2322,6 +2322,8 @@
   "entity.automata_valkyries.time_ruler.stop_warn": "Time...",
   "entity.automata_valkyries.time_ruler.stop": "Stop",
   "entity.automata_valkyries.time_ruler.erase": "Erasing those coordinates",
+  "entity.automata_valkyries.time_ruler.judge": "Judgment of the Twelve Hours",
+  "entity.automata_valkyries.time_ruler.barrage": "Dial of Needles",
   "entity.automata_valkyries.time_ruler.rewind": "Causality reversal - break the gears or time rewinds!",
   "entity.automata_valkyries.time_ruler.rewind_broken": "The causality gears shattered - the Ruler is staggered!",
   "entity.automata_valkyries.time_ruler.rewound": "Time has been rewound",
