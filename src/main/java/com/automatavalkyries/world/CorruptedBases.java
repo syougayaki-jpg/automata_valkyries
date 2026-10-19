@@ -3,6 +3,7 @@ package com.automatavalkyries.world;
 import com.automatavalkyries.AutomataValkyries;
 import com.automatavalkyries.entity.chrono.ChronoMidBoss;
 import com.automatavalkyries.entity.chrono.MimicContainerEntity;
+import com.automatavalkyries.entity.chrono.PhaseCondenserEntity;
 import com.automatavalkyries.registry.ModEntities;
 import com.automatavalkyries.registry.ModStructures;
 import com.automatavalkyries.registry.ModTechBlocks;
@@ -17,6 +18,9 @@ import net.minecraft.util.StringRepresentable;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.MobSpawnType;
+import net.minecraft.world.entity.ai.attributes.AttributeInstance;
+import net.minecraft.world.entity.ai.attributes.AttributeModifier;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.StructureManager;
 import net.minecraft.world.level.WorldGenLevel;
@@ -33,11 +37,14 @@ import net.minecraft.world.level.levelgen.structure.StructureType;
 import net.minecraft.world.level.levelgen.structure.pieces.StructurePieceSerializationContext;
 import net.minecraft.world.level.levelgen.structure.pieces.StructurePiecesBuilder;
 
+import org.jetbrains.annotations.Nullable;
+
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.function.Supplier;
 
 /**
@@ -62,26 +69,45 @@ public final class CorruptedBases {
     public static final int ROOM_H = 6, BOSS_H = 9, FOUNDRY_DEPTH = 16;
     /** 敵・中ボスを置くか（試験で建物だけを確かめる時に切る。試験の世界に敵を残さないため） */
     public static boolean populate = true;
+    static final UUID HEALTH_SCALE_ID = UUID.fromString("5c1e0a7d-3b2f-4e8a-9d41-7a6b2c90f3e1");
 
     private CorruptedBases() {
     }
 
     public enum Kind implements StringRepresentable {
-        SUPPLY_DEPOT("supply_depot", 3, 6, 8, false),
-        CHRONO_OUTPOST("chrono_outpost", 4, 10, 13, false),
-        DIMENSION_FOUNDRY("dimension_foundry", 4, 11, 15, true);
+        SUPPLY_DEPOT("supply_depot", 3, 6, 8, false, 1.0),
+        CHRONO_OUTPOST("chrono_outpost", 4, 10, 13, false, 1.5),
+        DIMENSION_FOUNDRY("dimension_foundry", 4, 11, 15, true, 2.0);
 
         public static final Codec<Kind> CODEC = StringRepresentable.fromEnum(Kind::values);
         public final String id;
         final int grid, minRooms, maxRooms;
         final boolean underground;
+        /** 中で生まれる雑魚の最大 HP の倍率（倉庫 ×1・基地 ×1.5・工場 ×2。中ボスとコンデンサーは除く） */
+        public final double healthScale;
 
-        Kind(String id, int grid, int minRooms, int maxRooms, boolean underground) {
+        Kind(String id, int grid, int minRooms, int maxRooms, boolean underground, double healthScale) {
             this.id = id;
             this.grid = grid;
             this.minRooms = minRooms;
             this.maxRooms = maxRooms;
             this.underground = underground;
+            this.healthScale = healthScale;
+        }
+
+        @Nullable
+        public static Kind byId(String id) {
+            for (Kind k : values()) if (k.id.equals(id)) return k;
+            return null;
+        }
+
+        /** ダンジョンのティアに合わせて雑魚の最大 HP を上げ、満タンにする（属性の修飾子なので保存される） */
+        public void scaleHealth(Mob mob) {
+            if (healthScale == 1.0 || mob instanceof ChronoMidBoss || mob instanceof PhaseCondenserEntity) return;
+            AttributeInstance hp = mob.getAttribute(Attributes.MAX_HEALTH);
+            if (hp == null || hp.getModifier(HEALTH_SCALE_ID) != null) return;
+            hp.addPermanentModifier(new AttributeModifier(HEALTH_SCALE_ID, "corrupted base tier", healthScale - 1.0, AttributeModifier.Operation.MULTIPLY_BASE));
+            mob.setHealth(mob.getMaxHealth());
         }
 
         @Override
@@ -634,6 +660,7 @@ public final class CorruptedBases {
             if (mob == null) return null;
             mob.moveTo(x, y, z, rand.nextFloat() * 360.0F, 0.0F);
             mob.finalizeSpawn(level, level.getCurrentDifficultyAt(mob.blockPosition()), MobSpawnType.STRUCTURE, null, null);
+            kind.scaleHealth(mob);
             mob.setPersistenceRequired();
             level.addFreshEntityWithPassengers(mob);
             return mob;

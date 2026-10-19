@@ -5,6 +5,7 @@ import com.automatavalkyries.entity.chrono.ChronoMidBoss;
 import com.automatavalkyries.entity.chrono.MimicContainerEntity;
 import com.automatavalkyries.registry.ModEntities;
 import com.automatavalkyries.registry.ModTechBlocks;
+import com.automatavalkyries.world.CorruptedBases;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
@@ -116,6 +117,8 @@ public class ChronoGateBlock extends BaseEntityBlock {
                     BlockPos below = BlockPos.containing(x, y - 1, z);
                     if (level.noCollision(mob) && !level.getBlockState(below).getCollisionShape(level, below).isEmpty()) {
                         mob.finalizeSpawn(level, level.getCurrentDifficultyAt(mob.blockPosition()), MobSpawnType.SPAWNER, null, null);
+                        CorruptedBases.Kind k = CorruptedBases.Kind.byId(kind);
+                        if (k != null) k.scaleHealth(mob);
                         if (target != null && ChronoGazer.canHurt(target)) mob.setTarget(target);
                         level.addFreshEntity(mob);
                         if (mob instanceof MimicContainerEntity mimic) mimic.wake(target);

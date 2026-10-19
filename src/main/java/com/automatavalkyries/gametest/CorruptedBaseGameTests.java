@@ -4,7 +4,10 @@ import com.automatavalkyries.AutomataValkyries;
 import com.automatavalkyries.entity.chrono.ChronoGuardianEntity;
 import com.automatavalkyries.entity.chrono.MimicContainerEntity;
 import com.automatavalkyries.entity.chrono.MortarShellEntity;
+import com.automatavalkyries.entity.chrono.PhaseCondenserEntity;
+import com.automatavalkyries.entity.chrono.TrooperEntity;
 import com.automatavalkyries.registry.ModEntities;
+import com.automatavalkyries.world.CorruptedBases;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -131,6 +134,27 @@ public class CorruptedBaseGameTests {
         helper.assertTrue(front > 0 && back > front * 3.0F, "the shield did not cut only frontal damage (front " + front + ", back " + back + ")");
         guardian.discard();
         pig.discard();
+        helper.succeed();
+    }
+
+    /** 雑魚の最大 HP はダンジョンのティアで倍になる（倉庫 ×1・基地 ×1.5・工場 ×2）。二度掛けしない・コンデンサーは除く */
+    @GameTest(template = "empty", batch = "corrupted_base", timeoutTicks = 20)
+    public static void baseMobHealthScalesWithTier(GameTestHelper helper) {
+        var level = helper.getLevel();
+        double[] expect = {100.0, 150.0, 200.0};
+        CorruptedBases.Kind[] kinds = CorruptedBases.Kind.values();
+        for (int i = 0; i < kinds.length; i++) {
+            TrooperEntity t = ModEntities.CHRONO_TROOPER.get().create(level);
+            kinds[i].scaleHealth(t);
+            kinds[i].scaleHealth(t);
+            helper.assertTrue(Math.abs(t.getMaxHealth() - expect[i]) < 0.01 && Math.abs(t.getHealth() - expect[i]) < 0.01,
+                    kinds[i].id + ": trooper hp " + t.getHealth() + "/" + t.getMaxHealth() + ", expected " + expect[i]);
+        }
+        PhaseCondenserEntity c = ModEntities.PHASE_CONDENSER.get().create(level);
+        float before = c.getMaxHealth();
+        CorruptedBases.Kind.DIMENSION_FOUNDRY.scaleHealth(c);
+        helper.assertTrue(c.getMaxHealth() == before, "condenser hp must not scale");
+        helper.assertTrue(CorruptedBases.Kind.byId("chrono_outpost") == CorruptedBases.Kind.CHRONO_OUTPOST, "byId");
         helper.succeed();
     }
 }
