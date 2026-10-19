@@ -250,7 +250,9 @@ public class ChronoBaseModel<T extends Mob & GeoEntity> extends DefaultedEntityG
      * 時間停止の予告（両腕を天へ、光輪が広がる）・因果逆転（腕を前で交差して身を丸める）・刻の終焉（両腕を大きく広げる）。
      * 被弾でのけぞり、撃破で前へ崩れて腕が垂れ、光輪が落ちる。形態が進むほど速く大きく。前後（rotX）はゲームで逆だったので、
      * 下の式の符号のまま最後に裏返して入れる（2026-10-19 ユーザー指定「モーションは全体的に前後が逆でした」。この骨では rotX が正で前・上へ）。
-     * rotZ は右腕が正・左腕が負で外へ（いままでの動きと同じ向き）
+     * rotZ は右腕が正・左腕が負で外へ（いままでの動きと同じ向き）。
+     * 肘（forearm_*）と膝（shin_*）を曲げる（2026-10-19 ユーザー指定「肘と膝の動きを追加して立ち姿は少し前に膝を曲げ手を引きゆうゆうとたたずむように」）:
+     * 技をしていない間は、膝を少し前へ出して曲げ、腕を後ろへ引いて肘を軽く曲げ、胸を張ってあごを上げ、悠然とたたずむ
      */
     private void animateRuler(TimeRulerEntity r, float age, float pt, float pitch) {
         int phase = r.phase();
@@ -278,6 +280,8 @@ public class ChronoBaseModel<T extends Mob & GeoEntity> extends DefaultedEntityG
         float cast = pulse(age - r.stopTick, 10, 30, 12);                                          // 時間停止の予告
         float rewind = back ? 1.0F : 0.0F;
         float finale = pulse(age - r.finaleTick, 20, 260, 20);
+        // 落ち着き: 技をしていない度合い（2026-10-19 ユーザー指定「立ち姿は少し前に膝を曲げ手を引きゆうゆうとたたずむように」）
+        float calm = 1.0F - Mth.clamp(needle + windup + strike + sweep + erase + cast + rewind + finale + dying, 0.0F, 1.0F);
 
         // ---- 体: 呼吸と揺れ、傾き、のけぞり、構え、崩れ
         float breath = Mth.sin(age * 0.06F * pace);
@@ -288,13 +292,13 @@ public class ChronoBaseModel<T extends Mob & GeoEntity> extends DefaultedEntityG
         CoreGeoBone body = bone("body");
         if (body != null) {
             body.setPosY(bob);
-            body.setRotX(-bodyX);                                                          // 前後はゲームで逆だった（2026-10-19）ので裏返す
+            body.setRotX(-bodyX - 0.06F * calm);                                           // 胸を張る（たたずむ）                                                          // 前後はゲームで逆だった（2026-10-19）ので裏返す
             body.setRotY(bodyY);
             body.setRotZ(bodyZ);
         }
 
         // ---- 頭: 相手を見上げ・見下ろし、首をわずかに傾げる。崩れると垂れる
-        set("head", -(-pitch * 0.5F + rewind * 0.3F + dying * 0.6F - cast * 0.3F),
+        set("head", -(-pitch * 0.5F + rewind * 0.3F + dying * 0.6F - cast * 0.3F) - 0.1F * calm,
                 Mth.sin(age * 0.023F) * 0.08F, Mth.sin(age * 0.037F) * 0.06F);
         CoreGeoBone visor = bone("visor");
         if (visor != null) {
@@ -312,8 +316,13 @@ public class ChronoBaseModel<T extends Mob & GeoEntity> extends DefaultedEntityG
         float ly = 0.3F * needle + 0.6F * rewind;
         float lz = -0.12F - 1.2F * sweep - 0.25F * cast + 0.7F * rewind - 1.35F * finale - lean * -0.3F;
         float limp = 1.0F - dying;
-        set("arm_right", -rx * limp, ry * limp, rz * limp + dying * 0.1F);
-        set("arm_left", -lx * limp, ly * limp, lz * limp - dying * 0.1F);
+        set("arm_right", -rx * limp - 0.3F * calm, ry * limp, rz * limp + dying * 0.1F + 0.08F * calm);   // たたずむ: 手を後ろへ引く
+        set("arm_left", -lx * limp - 0.3F * calm, ly * limp, lz * limp - dying * 0.1F - 0.08F * calm);
+        // 肘（rotX が正で前腕が前・上へ曲がる）: たたずむ間は軽く曲げ、振りかぶり・交差で深く、突く・振り下ろす・指す・掲げる・広げるで伸ばす
+        float elbowR = 0.55F * calm + 1.2F * windup + 0.15F * strike + 1.4F * rewind + 0.2F * sweep + 0.5F * dying + Mth.sin(age * 0.04F) * 0.04F * calm;
+        float elbowL = 0.55F * calm + 0.25F * needle + 1.4F * rewind + 0.2F * sweep + 0.5F * dying + Mth.sin(age * 0.04F + 1.3F) * 0.04F * calm;
+        rotX("forearm_right", elbowR);
+        rotX("forearm_left", elbowL);
 
         // ---- 脚: 左右の位相をずらしてぶら下がり、動くと後ろへなびく
         for (String leg : new String[]{"leg_right", "leg_left"}) {
@@ -321,8 +330,11 @@ public class ChronoBaseModel<T extends Mob & GeoEntity> extends DefaultedEntityG
             if (b == null) continue;
             float ph = leg.equals("leg_left") ? 1.3F : 0.0F;
             b.setPosY(bob);
-            b.setRotX(-(0.12F + Mth.sin(age * 0.05F * pace + ph) * 0.09F + moving * 0.35F + lean * 0.6F - finale * 0.15F + dying * 0.4F));
+            // 太もも（rotX が正で前へ）: たたずむ間は膝を少し前へ出し、動くと後ろへなびく
+            b.setRotX(0.24F * calm + Mth.sin(age * 0.05F * pace + ph) * 0.05F - moving * 0.35F - lean * 0.5F + finale * 0.1F + dying * 0.25F);
             b.setRotZ((leg.equals("leg_left") ? -1 : 1) * (0.03F + sweep * 0.08F + finale * 0.12F) - roll * 0.5F);
+            // 膝（脛から下。rotX が負で後ろへ曲がる）: たたずむ間は軽く曲げ、動くとさらに曲げ、崩れると深く
+            rotX(leg.replace("leg", "shin"), -(0.5F * calm + 0.25F + moving * 0.3F + finale * 0.1F + dying * 0.6F + Mth.sin(age * 0.05F * pace + ph + 0.8F) * 0.05F));
         }
 
         // ---- マント: 2 つの波、動くと後ろへなびく、掃射・終焉で広がる
