@@ -10,6 +10,8 @@
   tech_phase_panel  紫に光るパネル（暗いパネルに紫の菱形）
   tech_sky_panel    空を映す照明パネル（地下の通路の天井。青空と雲の面と枠）
   chrono_gate       クロノ転送ゲート（暗い枠の中で紫の渦が光る）
+  bastion_altar_top / _side / _spent_top / _spent_side  浮遊要塞の封印の召喚台（2026-10-19。上は金の魔法陣と紫の封印の鎖、使い終わると光が消える）
+  ruler_portal      眠れる時の門（深い藍の面に金の時計の目盛りと針）
 
     python tools/gen_tech_blocks.py
 """
@@ -158,7 +160,50 @@ def main():
                 k = (math.sin(a * 3 + r * 1.1) + 1) / 2
                 px[x, y] = (int(60 + 140 * k), int(20 + 60 * k), int(120 + 135 * k), 255)
     im.save(os.path.join(OUT, "chrono_gate.png"))
-    print("wrote 10 textures to", OUT)
+
+    for spent in (False, True):  # 封印の召喚台
+        suffix = "_spent" if spent else ""
+        im = img()  # 上: 金の円と、紫の十字の鎖（使い終わると灰色）
+        px = im.load()
+        for y in range(16):
+            for x in range(16):
+                r = math.hypot(x - 7.5, y - 7.5)
+                if x in (0, 15) or y in (0, 15):
+                    px[x, y] = DL if (x == 0 or y == 0) else DD
+                elif 5.2 <= r <= 6.4:
+                    px[x, y] = (120, 110, 90, 255) if spent else (255, 209, 102, 255)
+                elif r < 2.2:
+                    px[x, y] = (70, 70, 80, 255) if spent else (226, 196, 255, 255)
+                elif (x in (7, 8) or y in (7, 8)) and r < 5.2:
+                    px[x, y] = (60, 62, 70, 255) if spent else (176, 96, 255, 255)
+                else:
+                    px[x, y] = shade(D, rnd.randint(-4, 4))
+        im.save(os.path.join(OUT, "bastion_altar" + suffix + "_top.png"))
+        im = panel(D, DS, DL, DD, rnd)  # 横: 暗いパネルに金の帯と紫の目
+        px = im.load()
+        for x in range(1, 15):
+            px[x, 3] = (120, 110, 90, 255) if spent else (255, 209, 102, 255)
+            px[x, 12] = px[x, 3]
+        for y in range(6, 10):
+            for x in range(6, 10):
+                px[x, y] = (60, 62, 70, 255) if spent else (176, 96, 255, 255)
+        im.save(os.path.join(OUT, "bastion_altar" + suffix + "_side.png"))
+
+    im = img()  # 眠れる時の門
+    px = im.load()
+    for y in range(16):
+        for x in range(16):
+            r = math.hypot(x - 7.5, y - 7.5)
+            k = (math.sin(r * 1.3) + 1) / 2
+            px[x, y] = (int(10 + 20 * k), int(16 + 30 * k), int(50 + 60 * k), 255)
+            a = math.atan2(y - 7.5, x - 7.5)
+            if 6.0 <= r <= 7.2 and abs(math.sin(a * 6)) < 0.3:
+                px[x, y] = (255, 209, 102, 255)  # 12 の目盛り
+    for t in range(1, 6):
+        px[7 + (t if t < 4 else 3), 7] = (255, 240, 176, 255)  # 短針
+        px[7, 7 - t] = (255, 240, 176, 255)  # 長針
+    im.save(os.path.join(OUT, "ruler_portal.png"))
+    print("wrote 15 textures to", OUT)
 
 
 if __name__ == "__main__":

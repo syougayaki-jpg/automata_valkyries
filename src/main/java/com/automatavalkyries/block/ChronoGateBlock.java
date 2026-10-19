@@ -138,6 +138,7 @@ public class ChronoGateBlock extends BaseEntityBlock {
                 case "supply_depot" -> new Object[][]{{ModEntities.CHRONO_TROOPER, 4}, {ModEntities.CHRONO_SCOUT_DRONE, 4}, {ModEntities.CHRONO_SPIDER_BOT, 3}, {ModEntities.MIMIC_CONTAINER, 1}};
                 case "chrono_outpost" -> new Object[][]{{ModEntities.CHRONO_TROOPER, 5}, {ModEntities.CHRONO_GUARDIAN, 3}, {ModEntities.CHRONO_SCOUT_DRONE, 3}};
                 case "dimension_foundry" -> new Object[][]{{ModEntities.CHRONO_GUARDIAN, 4}, {ModEntities.CHRONO_TROOPER, 4}, {ModEntities.CHRONO_HEAVY_WALKER, 2}, {ModEntities.CHRONO_MASK_DRONE, 2}};
+                case "chrono_bastion" -> new Object[][]{{ModEntities.CHRONO_INTERCEPTOR, 4}, {ModEntities.CHRONO_GUARDIAN, 3}, {ModEntities.CHRONO_TROOPER, 3}, {ModEntities.DELAY_NODE, 2}, {ModEntities.CHRONO_HEAVY_WALKER, 1}};
                 default -> new Object[][]{{ModEntities.CHRONO_TROOPER, 1}, {ModEntities.CHRONO_SCOUT_DRONE, 1}};
             };
             int total = 0;

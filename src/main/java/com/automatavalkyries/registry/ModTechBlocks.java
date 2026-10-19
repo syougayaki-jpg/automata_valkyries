@@ -1,6 +1,8 @@
 package com.automatavalkyries.registry;
 
+import com.automatavalkyries.block.BastionAltarBlock;
 import com.automatavalkyries.block.ChronoGateBlock;
+import com.automatavalkyries.block.RulerPortalBlock;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.block.Block;
@@ -50,6 +52,15 @@ public final class ModTechBlocks {
             .lightLevel(s -> 10).pushReaction(PushReaction.BLOCK)));
     public static final RegistryObject<BlockEntityType<ChronoGateBlock.Gate>> CHRONO_GATE_ENTITY = ModMachines.BLOCK_ENTITIES.register("chrono_gate", () ->
             BlockEntityType.Builder.of(ChronoGateBlock.Gate::new, CHRONO_GATE.get()).build(null));
+
+    /** 浮遊要塞の奥の封印の召喚台（2026-10-19。要塞守護機を倒すと AEC 級を 1 度だけ呼べる。壊せない） */
+    public static final RegistryObject<Block> BASTION_ALTAR = register("bastion_altar", () -> new BastionAltarBlock(BlockBehaviour.Properties.of()
+            .mapColor(MapColor.COLOR_PURPLE).strength(-1.0F, 3600000.0F).sound(SoundType.NETHERITE_BLOCK).noLootTable()
+            .lightLevel(s -> s.getValue(BastionAltarBlock.SPENT) ? 4 : 12).pushReaction(PushReaction.BLOCK)));
+    /** 浮遊要塞の奥の眠れる時の門（2026-10-19。タイムルーラーへの門。今は眠っている。壊せない） */
+    public static final RegistryObject<Block> RULER_PORTAL = register("ruler_portal", () -> new RulerPortalBlock(BlockBehaviour.Properties.of()
+            .mapColor(MapColor.COLOR_BLUE).strength(-1.0F, 3600000.0F).sound(SoundType.AMETHYST).noLootTable()
+            .lightLevel(s -> 7).pushReaction(PushReaction.BLOCK)));
 
     private static RegistryObject<Block> register(String name, Supplier<Block> factory) {
         RegistryObject<Block> block = ModBlocks.BLOCKS.register(name, factory);

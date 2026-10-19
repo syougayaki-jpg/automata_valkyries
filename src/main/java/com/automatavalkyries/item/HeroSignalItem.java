@@ -55,14 +55,18 @@ public class HeroSignalItem extends Item {
     public InteractionResult useOn(UseOnContext ctx) {
         Level level = ctx.getLevel();
         if (!(level instanceof ServerLevel server)) return InteractionResult.SUCCESS;
-        BlockPos at = ctx.getClickedPos().relative(ctx.getClickedFace());
+        summon(server, ctx.getClickedPos().relative(ctx.getClickedFace()));
+        if (ctx.getPlayer() == null || !ctx.getPlayer().getAbilities().instabuild) ctx.getItemInHand().shrink(1);
+        return InteractionResult.CONSUME;
+    }
+
+    /** at に光の柱を立て、{@value #DELAY} Tick 後にこのボスを降ろす（浮遊要塞の封印の召喚台からも呼ぶ） */
+    public void summon(ServerLevel server, BlockPos at) {
         PENDING.add(new Pending(server.dimension(), at, server.getGameTime() + DELAY, this));
         server.playSound(null, at, SoundEvents.BEACON_ACTIVATE, SoundSource.HOSTILE, 2.0F, 1.4F);
         for (ServerPlayer p : server.getPlayers(p -> p.blockPosition().distSqr(at) < 64 * 64)) {
             p.displayClientMessage(Component.translatable("message.automata_valkyries." + name + ".incoming").withStyle(ChatFormatting.GOLD), true);
         }
-        if (ctx.getPlayer() == null || !ctx.getPlayer().getAbilities().instabuild) ctx.getItemInHand().shrink(1);
-        return InteractionResult.CONSUME;
     }
 
     @Override

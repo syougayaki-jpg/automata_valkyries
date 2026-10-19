@@ -204,6 +204,21 @@ public class ModEntities {
             ENTITY_TYPES.register("phase_condenser", () ->
                     EntityType.Builder.of(com.automatavalkyries.entity.chrono.PhaseCondenserEntity::new, MobCategory.MONSTER)
                             .sized(1.0F, 3.0F).clientTrackingRange(10).build("phase_condenser"));
+    /** 浮遊要塞（クロノ・バスティオン）の中ボス（2026-10-19） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.BastionKeeperEntity>> BASTION_KEEPER =
+            ENTITY_TYPES.register("bastion_keeper", () ->
+                    EntityType.Builder.of(com.automatavalkyries.entity.chrono.BastionKeeperEntity::new, MobCategory.MONSTER)
+                            .sized(2.4F, 3.8F).clientTrackingRange(12).build("bastion_keeper"));
+    /** 浮遊要塞の迎撃機（2026-10-19） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.InterceptorEntity>> CHRONO_INTERCEPTOR =
+            ENTITY_TYPES.register("chrono_interceptor", () ->
+                    EntityType.Builder.of(com.automatavalkyries.entity.chrono.InterceptorEntity::new, MobCategory.MONSTER)
+                            .sized(1.4F, 0.6F).clientTrackingRange(12).build("chrono_interceptor"));
+    /** 浮遊要塞の時間干渉機（2026-10-19） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.DelayNodeEntity>> DELAY_NODE =
+            ENTITY_TYPES.register("delay_node", () ->
+                    EntityType.Builder.of(com.automatavalkyries.entity.chrono.DelayNodeEntity::new, MobCategory.MONSTER)
+                            .sized(0.9F, 1.6F).clientTrackingRange(10).build("delay_node"));
     /** 山なりの砲弾（曲射砲・前哨司令機の砲撃要請。2026-10-15） */
     public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.MortarShellEntity>> MORTAR_SHELL =
             ENTITY_TYPES.register("mortar_shell", () ->
@@ -257,5 +272,8 @@ public class ModEntities {
         event.put(FOUNDRY_MASTER.get(), com.automatavalkyries.entity.chrono.FoundryMasterEntity.createAttributes().build());
         event.put(SHIELD_DRONE.get(), com.automatavalkyries.entity.chrono.ShieldDroneEntity.createAttributes().build());
         event.put(PHASE_CONDENSER.get(), com.automatavalkyries.entity.chrono.PhaseCondenserEntity.createAttributes().build());
+        event.put(BASTION_KEEPER.get(), com.automatavalkyries.entity.chrono.BastionKeeperEntity.createAttributes().build());
+        event.put(CHRONO_INTERCEPTOR.get(), com.automatavalkyries.entity.chrono.InterceptorEntity.createAttributes().build());
+        event.put(DELAY_NODE.get(), com.automatavalkyries.entity.chrono.DelayNodeEntity.createAttributes().build());
     }
 }

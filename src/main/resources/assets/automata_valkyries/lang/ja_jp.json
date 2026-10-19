@@ -2281,5 +2281,18 @@
   "subtitles.automata_valkyries.memento.moon_bell": "黒死の月が鳴る",
   "subtitles.automata_valkyries.memento.moon_fall": "黒死の月が納める",
   "subtitles.automata_valkyries.memento.shatter": "光輪が割れる",
-  "subtitles.automata_valkyries.memento.scatter": "メメントモリが光の蝶になって散る"
+  "subtitles.automata_valkyries.memento.scatter": "メメントモリが光の蝶になって散る",
+  "entity.automata_valkyries.bastion_keeper": "要塞守護機 バスティオン・キーパー",
+  "entity.automata_valkyries.bastion_keeper.phase2": "守護機が迎撃機と時間干渉機を呼んだ――！",
+  "entity.automata_valkyries.chrono_interceptor": "迎撃機『ストライカー』",
+  "entity.automata_valkyries.delay_node": "時間干渉機『ディレイ・ノード』",
+  "item.automata_valkyries.bastion_keeper_spawn_egg": "要塞守護機 バスティオン・キーパーのスポーンエッグ",
+  "item.automata_valkyries.chrono_interceptor_spawn_egg": "迎撃機『ストライカー』のスポーンエッグ",
+  "item.automata_valkyries.delay_node_spawn_egg": "時間干渉機『ディレイ・ノード』のスポーンエッグ",
+  "block.automata_valkyries.bastion_altar": "封印の召喚台",
+  "block.automata_valkyries.ruler_portal": "眠れる時の門",
+  "message.automata_valkyries.bastion_altar.sealed": "召喚台は封じられている……要塞の守護機がまだ動いている",
+  "message.automata_valkyries.bastion_altar.unsealed": "要塞の奥で、召喚台の封印が解けた",
+  "message.automata_valkyries.bastion_altar.spent": "召喚台はもう力を失っている",
+  "message.automata_valkyries.ruler_portal.dormant": "門は眠っている……まだ時が満ちていない"
 }

@@ -1,7 +1,10 @@
 package com.automatavalkyries.client;
 
 import com.automatavalkyries.AutomataValkyries;
+import com.automatavalkyries.entity.chrono.BastionKeeperEntity;
 import com.automatavalkyries.entity.chrono.ChronoGuardianEntity;
+import com.automatavalkyries.entity.chrono.DelayNodeEntity;
+import com.automatavalkyries.entity.chrono.InterceptorEntity;
 import com.automatavalkyries.entity.chrono.CraneLoaderEntity;
 import com.automatavalkyries.entity.chrono.FoundryMasterEntity;
 import com.automatavalkyries.entity.chrono.MimicContainerEntity;
@@ -149,6 +152,53 @@ public class ChronoBaseModel<T extends Mob & GeoEntity> extends DefaultedEntityG
             float busy = build >= 0 && build < 1 ? Mth.sin(age * 0.8F) * 0.4F : Mth.sin(age * 0.09F + 1.0F) * 0.1F;
             rotX("arm_2", busy);
             rotX("arm_3", -busy * 0.8F); // ドリルの腕は掴み爪と逆へ
+        } else if (entity instanceof BastionKeeperEntity keeper) { // 浮遊の守護機: 体が上下に揺れ、光輪が回り（錨では速く）、4 枚の盾板が周りを回る（弾幕では開く）
+            CoreGeoBone body = bone("body");
+            if (body != null) body.setPosY(Mth.sin(age * 0.08F) * 1.2F);
+            float anchor = age - keeper.anchorTick;
+            rotZ("halo", age * (anchor >= 0 && anchor < 32 ? 0.5F : 0.04F));
+            float volley = age - keeper.volleyTick;
+            float open = volley >= 0 && volley < 30 ? 1.0F : 0.0F;
+            for (int i = 0; i < 4; i++) {
+                CoreGeoBone plate = bone("plate_" + i);
+                if (plate == null) continue;
+                plate.setRotY(age * 0.03F + i * Mth.HALF_PI);
+                plate.setPosY(Mth.sin(age * 0.1F + i) * 0.8F + open * 2.0F);
+            }
+            rotY("head", yaw);
+            CoreGeoBone eye = bone("eye");
+            if (eye != null) {
+                float stasis = age - keeper.stasisTick, lance = age - keeper.lanceTick;
+                float s = (stasis >= 0 && stasis < 20) || (lance >= 0 && lance < 20) ? 1.35F : 1.0F + 0.05F * Mth.sin(age * 0.2F);
+                eye.setScaleX(s);
+                eye.setScaleY(s);
+            }
+        } else if (entity instanceof InterceptorEntity jet) { // 三角翼: 旋回で傾き、急降下で翼をたたむ
+            CoreGeoBone body = bone("body");
+            float dive = age - jet.diveTick;
+            boolean diving = dive >= 0 && dive < InterceptorEntity.DIVE_TICKS;
+            if (body != null) {
+                body.setRotZ(Mth.sin(age * 0.07F) * 0.35F);
+                body.setRotX(diving ? -0.35F : -pitch * 0.5F);
+            }
+            rotZ("wing_left", diving ? -0.3F : 0.0F);
+            rotZ("wing_right", diving ? 0.3F : 0.0F);
+            CoreGeoBone engine = bone("engine");
+            if (engine != null) {
+                float s = diving ? 1.4F : 1.0F + 0.1F * Mth.sin(age * 1.3F);
+                engine.setScaleX(s);
+                engine.setScaleY(s);
+            }
+        } else if (entity instanceof DelayNodeEntity) { // 砂時計: 核の脈と、逆へ回る 2 つの輪
+            CoreGeoBone core = bone("core");
+            if (core != null) {
+                core.setPosY(Mth.sin(age * 0.06F) * 0.6F);
+                core.setRotY(age * 0.02F);
+            }
+            rotY("ring_a", age * 0.06F);
+            rotY("ring_b", -age * 0.045F);
+            CoreGeoBone ringB = bone("ring_b");
+            if (ringB != null) ringB.setRotX(0.4F);
         } else if (entity instanceof PhaseCondenserEntity) {
             CoreGeoBone core = bone("core");
             if (core != null) {

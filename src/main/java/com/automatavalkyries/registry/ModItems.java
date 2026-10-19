@@ -103,6 +103,13 @@ public class ModItems {
             new ForgeSpawnEggItem(ModEntities.OUTPOST_WATCHER, 0x2c3038, 0xe8e4dc, new Item.Properties()));
     public static final RegistryObject<Item> FOUNDRY_MASTER_SPAWN_EGG = ITEMS.register("foundry_master_spawn_egg", () ->
             new ForgeSpawnEggItem(ModEntities.FOUNDRY_MASTER, 0x23262e, 0xb060ff, new Item.Properties()));
+    // 浮遊要塞の中ボス・雑魚（2026-10-19）
+    public static final RegistryObject<Item> BASTION_KEEPER_SPAWN_EGG = ITEMS.register("bastion_keeper_spawn_egg", () ->
+            new ForgeSpawnEggItem(ModEntities.BASTION_KEEPER, 0xe8ecf4, 0xb060ff, new Item.Properties()));
+    public static final RegistryObject<Item> CHRONO_INTERCEPTOR_SPAWN_EGG = ITEMS.register("chrono_interceptor_spawn_egg", () ->
+            new ForgeSpawnEggItem(ModEntities.CHRONO_INTERCEPTOR, 0x2c3038, 0x7fe4ff, new Item.Properties()));
+    public static final RegistryObject<Item> DELAY_NODE_SPAWN_EGG = ITEMS.register("delay_node_spawn_egg", () ->
+            new ForgeSpawnEggItem(ModEntities.DELAY_NODE, 0x23262e, 0xd8b0ff, new Item.Properties()));
     public static final RegistryObject<Item> PHASE_CONDENSER_SPAWN_EGG = ITEMS.register("phase_condenser_spawn_egg", () ->
             new ForgeSpawnEggItem(ModEntities.PHASE_CONDENSER, 0x23262e, 0xb060ff, new Item.Properties()));
     public static final RegistryObject<Item> CHRONO_SCOUT_DRONE_SPAWN_EGG = ITEMS.register("chrono_scout_drone_spawn_egg", () ->

@@ -14,6 +14,9 @@
   outpost_watcher : root > body > head / tower > dish、body > gun_left / gun_right、root > leg_left / leg_right
   foundry_master  : root > base、root > torso > core / arm_0..arm_3
   phase_condenser : root > pylon、root > core、root > ring
+  bastion_keeper  : root > body > head > eye、body > halo、body > plate_0..plate_3（2026-10-19 浮遊要塞の中ボス）
+  chrono_interceptor : root > body > wing_left / wing_right / engine（2026-10-19 浮遊要塞の迎撃機）
+  delay_node      : root > core、root > ring_a、root > ring_b（2026-10-19 浮遊要塞の時間干渉機）
 座標は geo の座標（px、16px = 1 ブロック）。正面は -Z、右は -X
 """
 import math
@@ -30,6 +33,10 @@ g.MAT.update({
     'teeth': (0xE8E4DC, 0xFFFFFF, 0xBFB8AC, 'plain', False),
     'tread': (0x15171C, 0x2C3038, 0x08090C, 'vent', False),     # 履帯（横の溝）
     'orange': (0xFF8030, 0xFFC080, 0xC04010, 'glow', True),     # 溶接・溶鉱の光
+    'white': (0xE0E4EC, 0xF8FAFC, 0x9AA0AE, 'panel', False),    # 浮遊要塞の白い装甲
+    'whiteb': (0xE0E4EC, 0xF8FAFC, 0xA8AEBA, 'rivet', False),
+    'cglow': (0x7FE4FF, 0xD8F8FF, 0x2A9AC0, 'glow', True),     # 迎撃機の推進器の水色
+    'gold': (0xD8B040, 0xFFE08A, 0x8A6A20, 'plain', False),     # 守護機の光輪の金の縁
 })
 
 
@@ -277,15 +284,83 @@ def phase_condenser():
     return m
 
 
+def bastion_keeper():
+    m = M('bastion_keeper')
+    m.bone('root')
+    m.bone('body', 'root', (0, 34, 0))
+    m.box('body', (-10, 22, -9), (10, 46, 9), 'white', top='whiteb', back='vent')          # 胴（浮かぶ白い装甲）
+    m.box('body', (-11, 33, -10), (11, 35, 10), 'purple')
+    m.box('body', (-7, 14, -7), (7, 22, 7), 'armor', bottom='pglow')                         # 下の推進器
+    m.box('body', (-4, 10, -4), (4, 14, 4), 'pglow', sides='dark')
+    m.box('body', (-12, 40, -6), (-10, 46, 6), 'whiteb')                                     # 肩の張り出し
+    m.box('body', (10, 40, -6), (12, 46, 6), 'whiteb')
+    m.bone('head', 'body', (0, 46, 0))
+    m.box('head', (-6, 46, -7), (6, 54, 5), 'whiteb', top='white')
+    m.bone('eye', 'head', (0, 50, -7))
+    m.box('eye', (-3, 48, -7.8), (3, 52, -6.9), 'pglow', sides='dark')                       # 紫の単眼
+    m.bone('halo', 'body', (0, 44, 9))                                                       # 背の光輪（前後の軸で回る）
+    for k in range(12):
+        a = k * math.pi / 6
+        x, y = 15 * math.cos(a), 44 + 15 * math.sin(a)
+        m.box('halo', (x - 2, y - 2, 9), (x + 2, y + 2, 11), 'gold' if k % 3 else 'pglow')
+    for i in range(4):                                                                       # 周りに浮く 4 枚の盾板
+        name = f'plate_{i}'
+        m.bone(name, 'body', (0, 30, 0))
+        m.box(name, (-5, 20, -22), (5, 38, -19), 'white', front='whiteb', back='dark')
+        m.box(name, (-1, 24, -22.6), (1, 34, -21.9), 'pglow')
+    return m
+
+
+def chrono_interceptor():
+    m = M('chrono_interceptor')
+    m.bone('root')
+    m.bone('body', 'root', (0, 5, 0))
+    m.box('body', (-3, 2, -14), (3, 7, 10), 'armor', top='plate')                            # 胴
+    m.box('body', (-2, 2.5, -19), (2, 6, -14), 'metal', front='edge')                        # 機首
+    m.box('body', (-1.6, 6.8, -10), (1.6, 8.4, -3), 'slit', sides='dark')                    # 赤い目の窓
+    m.box('body', (-0.6, 7, 4), (0.6, 13, 10), 'purple')                                     # 垂直尾翼
+    for name, s_ in (('wing_right', -1), ('wing_left', 1)):
+        m.bone(name, 'body', (s_ * 3, 4, 0))
+        m.box(name, (s_ * 3, 3, -4), (s_ * 20, 5, 8), 'plate', top='armor')                  # 三角翼（段で）
+        m.box(name, (s_ * 3, 3.2, -9), (s_ * 10, 4.8, -4), 'plate')
+        m.box(name, (s_ * 19, 2.6, 4), (s_ * 21, 5.4, 9), 'edge', front='glow')              # 翼端の灯
+        m.box(name, (s_ * 6, 2.2, 0), (s_ * 16, 2.8, 2), 'purple')
+    m.bone('engine', 'body', (0, 4.5, 11))
+    m.box('engine', (-2.5, 2.5, 10), (2.5, 6.5, 12), 'cglow', sides='dark')                  # 推進器の光
+    return m
+
+
+def delay_node():
+    m = M('delay_node')
+    m.bone('root')
+    m.bone('core', 'root', (0, 13, 0))
+    m.box('core', (-5, 1, -5), (5, 4, 5), 'armor', bottom='pglow')                           # 砂時計の下の皿
+    m.box('core', (-3, 4, -3), (3, 10, 3), 'pglow', sides='dark')                            # 下の玉
+    m.box('core', (-1, 10, -1), (1, 16, 1), 'metal')                                         # くびれ
+    m.box('core', (-3, 16, -3), (3, 22, 3), 'pglow', sides='dark')                           # 上の玉
+    m.box('core', (-5, 22, -5), (5, 25, 5), 'armor', top='plate')
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            m.box('core', (sx * 4 - 0.7, 4, sz * 4 - 0.7), (sx * 4 + 0.7, 22, sz * 4 + 0.7), 'edge')  # 4 本の柱
+    m.box('core', (-1.4, 12, -4.6), (1.4, 14, -3.9), 'eye')
+    for name, r, y in (('ring_a', 9, 13), ('ring_b', 11, 13)):
+        m.bone(name, 'root', (0, y, 0))
+        for k in range(12):
+            a = k * math.pi / 6
+            x, z = r * math.cos(a), r * math.sin(a)
+            m.box(name, (x - 1, y - 0.8, z - 1), (x + 1, y + 0.8, z + 1), 'edge' if k % 3 else 'pglow')
+    return m
+
+
 if __name__ == '__main__':
     os.makedirs(os.path.join(g.ASSETS, 'geo', 'entity'), exist_ok=True)
     os.makedirs(os.path.join(g.ASSETS, 'textures', 'entity'), exist_ok=True)
-    for fn in (pulse_phalanx, siege_cannon, siren_eye):
+    for fn in (pulse_phalanx, siege_cannon, siren_eye, chrono_interceptor, delay_node):
         g.write(fn())
     g.TEX = 256  # 大きな機体は 256 の画像に詰める
     for fn in (chrono_guardian, mimic_container, phase_condenser):
         g.write(fn())
     g.TEX = 512  # 中ボスは面が大きいので 512
-    for fn in (crane_loader, outpost_watcher, foundry_master):
+    for fn in (crane_loader, outpost_watcher, foundry_master, bastion_keeper):
         g.write(fn())
     g.TEX = 128
