@@ -4,10 +4,12 @@
 
     python tools/gen_time_ruler.py
 
-出力: geo/entity/time_ruler.geo.json、textures/entity/time_ruler.png（＋ _glowmask.png、1024x1024・1px に 5 texel。paint で細かく塗る）。
+出力: geo/entity/time_ruler.geo.json、textures/entity/time_ruler.png（＋ _glowmask.png、1024x1024・1px に 4.6 texel。paint で細かく塗る）。
 箱・UV の詰め込みは tools/gen_chrono_gazers.py の write_hd を使う。
 骨の名前と pivot は Java 側（client/ChronoBaseModel）と一致させること:
-  root > body（0,40,0）> head（首 0,63,0）> visor（0,67,-4.8）、head > halo_top（0,80,0）/ halo_left（9,71,0）/ halo_right（-9,71,0）
+  root > body（0,40,0）> gear_back（背の大きな歯車 0,51,9.4）/ gear_back_small（7.6,59.4,9.9）/ gear_back_low（-7.2,42.2,9.9）/ gear_chest（胸 0,53.5,-9.9）
+                       > gear_hip_left（8.6,39.4,0）/ gear_hip_right（-8.6,39.4,0）（2026-10-19 回る歯車。前を向く歯車は rotZ、横を向く歯車は rotX で回す）
+       > body > head（首 0,63,0）> visor（0,67,-4.8）、head > halo_top（0,80,0）/ halo_left（9,71,0）/ halo_right（-9,71,0）
                        > arm_right（右肩 -11,57,0）/ arm_left（左肩 11,57,0）
                        > cape（背のマント 0,58,5）
                        > dial（背の文字盤。体の左上の後ろ 10,62,11）> hand_hour / hand_minute（文字盤の真ん中）
@@ -39,6 +41,7 @@ g.MAT.update({
     'bladew': (0xE8ECF4, 0xFFFFFF, 0xA8B0C0, 'plain', False),   # 白銀の刃（いまは使っていない）
     'leather': (0x2A1C16, 0x5A4034, 0x120A08, 'plain', False),  # 革靴の靴底と踵（つやのある暗い革）
     'frame': (0x2A2C38, 0x444858, 0x14151C, 'plain', False),    # 暗い骨組み（金の回路の線）
+    'steel': (0x8C909A, 0xC8CCD4, 0x4A4E58, 'panel', False),    # 鋼（歯車・ピストンの棒。2026-10-19「もっとメカニカルに」）
     'gglow': (0xFFD166, 0xFFF0B0, 0xC08A20, 'glow', True),      # 金の光（光輪・数字の芯・宝石の縁）
     'vglow': (0xB070FF, 0xE0C8FF, 0x6A30C0, 'glow', True),      # 紫の光（宝石）
 })
@@ -86,6 +89,26 @@ def taper(B, bone, a, c, mat, steps=3, k=0.7, top_wide=True, **f):
         octo(B, bone, (cx - w * sc / 2, ya, cz - d * sc / 2), (cx + w * sc / 2, yb, cz + d * sc / 2), mat, **f)
 
 
+def gear(B, bone, c, r, teeth, th, rim='goldp', tooth='gold', hub='frame', plane='xy', spokes=4):
+    """歯車（2026-10-19 ユーザー指定「歯車をついかして」）: 外の輪・外へ出る歯・八角の軸・スポーク。plane = 'xy'（前を向く）か 'zy'（横を向く）"""
+    cx, cy, cz = c
+    n = max(12, teeth)
+    seg = 2 * math.pi * r / n * 1.08
+    ring(B, bone, cx, cy, cz, r, n, (seg, r * 0.26, th), rim, plane=plane)                               # 外の輪
+    ring(B, bone, cx, cy, cz, r * 1.17, teeth, (2 * math.pi * r / teeth * 0.45, r * 0.24, th * 0.9), tooth, plane=plane)   # 歯
+    h = r * 0.32
+    if plane == 'xy':
+        B(bone, (cx - h, cy - h, cz - th * 0.65), (cx + h, cy + h, cz + th * 0.65), hub)
+        B(bone, (cx - h * 0.85, cy - h * 0.85, cz - th * 0.6), (cx + h * 0.85, cy + h * 0.85, cz + th * 0.6), hub, rot=(0, 0, 45), pivot=c)   # 八角の軸
+        for k in range(spokes):
+            B(bone, (cx - r * 0.07, cy, cz - th * 0.35), (cx + r * 0.07, cy + r * 0.9, cz + th * 0.35), rim, rot=(0, 0, k * 360 / spokes + 45), pivot=c)
+    else:
+        B(bone, (cx - th * 0.65, cy - h, cz - h), (cx + th * 0.65, cy + h, cz + h), hub)
+        B(bone, (cx - th * 0.6, cy - h * 0.85, cz - h * 0.85), (cx + th * 0.6, cy + h * 0.85, cz + h * 0.85), hub, rot=(45, 0, 0), pivot=c)
+        for k in range(spokes):
+            B(bone, (cx - th * 0.35, cy, cz - r * 0.07), (cx + th * 0.35, cy + r * 0.9, cz + r * 0.07), rim, rot=(k * 360 / spokes + 45, 0, 0), pivot=c)
+
+
 def spike(B, bone, at, size, length, mat, rot=(0, 0, 0)):
     """尖り: 細くなる 3 つの菱形（Z で 45 度）を rot の向きへ伸ばす。at は付け根、rot は付け根を軸にした向き（度）"""
     x, y, z = at
@@ -120,6 +143,10 @@ def time_ruler():
         X = s * 4.6
         taper(B, name, (X - 3.1, 26, -3.2), (X + 3.1, 36, 3.2), 'white', steps=2, k=0.82, top_wide=True)       # 太もも
         octo(B, name, (X - 3.4, 30, -3.5), (X + 3.4, 31.2, 3.5), 'goldp')                                         # 太ももの金の帯
+        B(name, (X - 0.85, 24.4, 3.0), (X + 0.85, 34.6, 4.7), 'frame')                                         # 太ももの後ろのピストンの筒
+        B(name, (X - 0.4, 15.6, 3.45), (X + 0.4, 24.8, 4.25), 'steel')                                        # ピストンの棒
+        B(name, (X - 1.2, 14.8, 2.9), (X + 1.2, 16.0, 4.8), 'goldp')                                          # 脛の受け
+        gear(B, name, (X + s * 3.1, 31.0, 0), 1.9, 8, 0.7, rim='steel', tooth='steel', hub='goldp', plane='zy')   # 太ももの外の歯車
         B(name, (X - 2.4, 21.6, -4.6), (X + 2.4, 26.2, -2.8), 'goldp', rot=(-12, 0, 0), pivot=(X, 24, -3.7))      # 膝当て
         spike(B, name, (X, 25.0, -4.4), 2.2, 4.0, 'gold', rot=(70, 0, 0))                                        # 膝の前へ尖る角
         ring(B, name, X, 23.4, -4.9, 2.2, 10, (1.2, 0.9, 0.7), 'gold')                                            # 膝の金の歯車
@@ -156,6 +183,10 @@ def time_ruler():
     m.bone('body', 'root', (0, 40, 0))
     octo(B, 'body', (-6.0, 34, -4.4), (6.0, 40, 4.4), 'frame')                                              # 細い腰
     octo(B, 'body', (-7.0, 38, -5.0), (7.0, 40.6, 5.0), 'goldp')                                            # 帯
+    ring(B, 'body', 0, 39.3, 0, 7.3, 22, (0.9, 0.9, 0.9), 'steel', plane='xz')                              # 帯のまわりの歯の輪
+    for name, sx in (('gear_hip_right', -1), ('gear_hip_left', 1)):                                        # 腰の左右の横向きの歯車（回る）
+        m.bone(name, 'body', (sx * 8.6, 39.4, 0))
+        gear(B, name, (sx * 8.6, 39.4, 0), 2.9, 10, 1.0, rim='steel', tooth='steel', hub='goldp', plane='zy')
     B('body', (-1.2, 38.0, -5.9), (1.2, 40.4, -5.1), 'vglow', sides='gold', rot=(0, 0, 45), pivot=(0, 39.2, -5.5))   # 帯の菱形の宝石
     B('body', (-3.0, 15.5, -5.9), (3.0, 38, -5.0), 'tabard', back='purple', rot=(-5, 0, 0), pivot=(0, 38, -5.4))     # 紫の前垂れ
     B('body', (-2.12, 12.6, -5.85), (2.12, 16.8, -5.05), 'tabard', back='purple', rot=(-5, 0, 45), pivot=(0, 15.5, -5.4))   # 前垂れの尖った裾
@@ -187,7 +218,8 @@ def time_ruler():
     B('body', (-1.6, 44.2, -7.6), (1.6, 47.4, -5.6), 'goldp', rot=(0, 0, 45), pivot=(0, 45.8, -6.6))       # 胸の V の尖り
     MB('body', (-10.2, 46.5, -5.0), (-8.4, 59, 5.0), 'white', out='whites', rot=(0, 0, -10), pivot=(-8.4, 59, 0))
     B('body', (-1.0, 51.0, -8.6), (1.0, 56.0, -6.6), 'goldp', rot=(0, 45, 0), pivot=(0, 53.5, -7.6))           # 核の後ろの竜骨
-    ring(B, 'body', 0, 53.5, -9.9, 2.4, 10, (1.4, 0.8, 0.8), 'gold')                                           # 胸の金の飾り
+    m.bone('gear_chest', 'body', (0, 53.5, -9.9))                                                         # 胸の歯車の核（回る）
+    gear(B, 'gear_chest', (0, 53.5, -9.9), 2.6, 12, 0.8, rim='goldp', tooth='gold', hub='frame', spokes=6)
     B('body', (-1.1, 52.4, -10.2), (1.1, 54.6, -9.6), 'vglow', sides='gold', rot=(0, 0, 45), pivot=(0, 53.5, -9.9))   # 胸の紫の宝石
     MB('body', (-7.0, 59.2, -5.2), (-0.8, 61.8, 5.2), 'goldp', top='gold', rot=(-6, 0, 18), pivot=(-0.8, 59.2, 0))   # 襟
     spike(B, 'body', (-6.4, 61.0, -3.2), 1.6, 3.6, 'gold', rot=(0, 0, -50))                                 # 襟の外へ尖る角
@@ -197,6 +229,17 @@ def time_ruler():
     B('body', (-1.6, 56, 7.2), (1.6, 63, 10.4), 'goldp', rot=(0, 0, 0))                                    # 文字盤の支え
 
     # ---- 背のマント（体に沿って曲がる 3 枚ずつ、尖った裾と金の房）
+    # 背中の歯車の仕掛け（2026-10-19 ユーザー指定「もっとメカニカルに」「歯車をついかして」）: 大（金）・中・小（鋼）がかみ合って回る。マントの上、文字盤の手前
+    B('body', (-1.2, 40, 7.2), (1.2, 62, 8.6), 'frame')                                                     # 歯車を支える背骨
+    for k in range(6):
+        octo(B, 'body', (-1.8, 41 + k * 3.4, 7.0), (1.8, 42.2 + k * 3.4, 8.8), 'steel')                      # 背骨の節
+    m.bone('gear_back', 'body', (0, 51, 9.4))
+    gear(B, 'gear_back', (0, 51, 9.4), 7.4, 18, 1.2, rim='goldp', tooth='gold', hub='frame', spokes=6)
+    m.bone('gear_back_small', 'body', (7.6, 59.4, 9.9))
+    gear(B, 'gear_back_small', (7.6, 59.4, 9.9), 3.6, 10, 1.0, rim='steel', tooth='steel', hub='goldp')
+    m.bone('gear_back_low', 'body', (-7.2, 42.2, 9.9))
+    gear(B, 'gear_back_low', (-7.2, 42.2, 9.9), 4.4, 12, 1.0, rim='steel', tooth='steel', hub='goldp')
+
     m.bone('cape', 'body', (0, 58, 5))
     for side in (-1, 1):
         for i in range(3):
@@ -291,6 +334,11 @@ def time_ruler():
         taper(B, name, (s * 11.3 - 2.3, 46, -2.6), (s * 11.3 + 2.3, 56, 2.6), 'frame', steps=2, k=0.85)    # 二の腕
         octo(B, name, (s * 11.3 - 2.7, 43.4, -3.2), (s * 11.3 + 2.7, 46.4, 3.2), 'goldp')                    # 肘
         SP((11.3, 44.6, 2.4), 1.6, 4.0, 'gold', rot=(-120, 0, 0))                                          # 肘の後ろへ尖る角
+        gear(B, name, (s * 14.4, 44.9, 0), 2.0, 8, 0.8, rim='steel', tooth='steel', hub='goldp', plane='zy')   # 肘の外の歯車
+        X((10.5, 47.2, 2.6), (12.1, 55.0, 4.2), 'frame')                                                    # 二の腕の後ろのピストンの筒
+        X((10.95, 39.4, 3.05), (11.65, 47.6, 3.75), 'steel')                                                # ピストンの棒
+        X((10.3, 38.6, 2.4), (12.3, 40.0, 4.4), 'goldp')                                                    # 籠手の受け
+        X((10.3, 54.6, 2.4), (12.3, 55.8, 4.4), 'goldp')
         taper(B, name, (s * 11.4 - 3.0, 34, -3.3), (s * 11.4 + 3.0, 43.6, 3.3), 'white', steps=3, k=0.72, top_wide=True)   # 籠手（手首へ細く）
         for zz in (-1, 1):                                                                                # 籠手の上の広がる縁（尖る）
             X((8.0, 41.0, zz * 3.6 - 0.5), (14.8, 44.4, zz * 3.6 + 0.5), 'goldp', rot=(-zz * 22, 0, 0), pivot=(11.4, 41.0, zz * 3.6))
@@ -344,7 +392,7 @@ def time_ruler():
 
 
 # ------------------------------------------------------------------ 細かい塗り
-TEX_HD, DENSITY = 1024, 5
+TEX_HD, DENSITY = 1024, 4.6
 
 
 def _c(h):
