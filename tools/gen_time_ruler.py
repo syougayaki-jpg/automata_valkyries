@@ -44,6 +44,7 @@ g.MAT.update({
     'steel': (0x8C909A, 0xC8CCD4, 0x4A4E58, 'panel', False),    # 鋼（歯車・ピストンの棒。2026-10-19「もっとメカニカルに」）
     'gglow': (0xFFD166, 0xFFF0B0, 0xC08A20, 'glow', True),      # 金の光（光輪・数字の芯・宝石の縁）
     'vglow': (0xB070FF, 0xE0C8FF, 0x6A30C0, 'glow', True),      # 紫の光（宝石）
+    'cglow': (0x7FE4FF, 0xE0FAFF, 0x2A9AC0, 'glow', True),      # 水色の光（近未来の光の筋・噴射口。2026-10-19「全体的に近未来的に」）
 })
 
 
@@ -146,6 +147,10 @@ def time_ruler():
         B(name, (X - 0.85, 24.4, 3.0), (X + 0.85, 34.6, 4.7), 'frame')                                         # 太ももの後ろのピストンの筒
         B(name, (X - 0.4, 15.6, 3.45), (X + 0.4, 24.8, 4.25), 'steel')                                        # ピストンの棒
         B(name, (X - 1.2, 14.8, 2.9), (X + 1.2, 16.0, 4.8), 'goldp')                                          # 脛の受け
+        B(name, (X - 1.6, 11.6, 3.6), (X + 1.6, 18.0, 5.6), 'white', back='frame')                              # ふくらはぎの推進器（近未来。2026-10-19）
+        B(name, (X - 1.2, 10.6, 3.9), (X + 1.2, 11.7, 5.3), 'frame')                                          # 噴射口の枠
+        B(name, (X - 0.9, 10.2, 4.1), (X + 0.9, 10.7, 5.1), 'cglow')                                          # 水色の噴射の光
+        B(name, (X - 0.2, 12.4, 5.55), (X + 0.2, 17.4, 5.75), 'cglow')                                        # 推進器の光の線
         gear(B, name, (X + s * 3.1, 31.0, 0), 1.9, 8, 0.7, rim='steel', tooth='steel', hub='goldp', plane='zy')   # 太ももの外の歯車
         B(name, (X - 2.4, 21.6, -4.6), (X + 2.4, 26.2, -2.8), 'goldp', rot=(-12, 0, 0), pivot=(X, 24, -3.7))      # 膝当て
         spike(B, name, (X, 25.0, -4.4), 2.2, 4.0, 'gold', rot=(70, 0, 0))                                        # 膝の前へ尖る角
@@ -276,6 +281,8 @@ def time_ruler():
     B('visor', (-3.7, 63.8, -5.2), (3.7, 70.2, -4.6), 'whites', sides='gold', top='gold', bottom='gold')
     B('visor', (-3.3, 67.6, -5.42), (3.3, 68.9, -5.15), 'visor')                                            # 横の切れ込み（目）
     B('visor', (-0.6, 64.4, -5.42), (0.6, 67.7, -5.15), 'visor')                                            # 縦の切れ込み
+    B('visor', (-3.0, 68.1, -5.47), (3.0, 68.4, -5.42), 'cglow')                                            # 切れ込みの奥の水色の光の線（近未来）
+    B('visor', (-0.15, 64.8, -5.47), (0.15, 68.1, -5.42), 'cglow')
     B('visor', (-3.5, 68.9, -5.38), (3.5, 69.3, -5.1), 'gold')                                              # 切れ込みの上の金の縁
     B('visor', (-1.8, 62.6, -5.15), (1.8, 65.0, -4.65), 'whites', rot=(0, 0, 45), pivot=(0, 63.8, -4.9))   # 面頬の下の尖り
     B('visor', (-3.9, 69.9, -5.4), (3.9, 70.6, -4.5), 'gold')
@@ -426,25 +433,20 @@ def time_ruler():
         B('dial_inner', (x1 - 0.25, y1, cz - 1.25), (x1 + 0.25, y1 + ln * 0.7, cz - 1.05), 'gglow', rot=(0, 0, deg), pivot=(x1, y1, cz))   # 星の芯の光
     ring(B, 'dial_inner', cx, cy, cz - 0.9, 4.4, 16, (1.8, 0.8, 1.0), 'gold')                              # 星の付け根の輪
     B('dial', (cx - 2.4, cy - 2.4, cz - 1.6), (cx + 2.4, cy + 2.4, cz + 1.0), 'gglow', sides='gold', rot=(0, 0, 45), pivot=(cx, cy, cz))   # 真ん中の光
+    # 時計の針は時空剪定の針と同じ形（2026-10-19 ユーザー指定「時計の針を時空剪定の針と同じようにして」）: 金の細い身（前の面が光る）・
+    # 十字の鍔・光る柄頭・先へ細くなって光る切っ先。長針と短針は長さだけ違う
+    def needle_hand(bone, z0, length, w):
+        z1 = z0 + 0.8
+        B(bone, (cx - w * 0.9, cy - 5.6, z0 - 0.2), (cx + w * 0.9, cy - 3.8, z1 + 0.2), 'vglow', rot=(0, 0, 45), pivot=(cx, cy - 4.7, (z0 + z1) / 2))   # 光る柄頭
+        B(bone, (cx - w * 0.35, cy - 4.0, z0 + 0.15), (cx + w * 0.35, cy + 1.0, z1 - 0.15), 'frame')                 # 柄
+        B(bone, (cx - w * 2.6, cy + 1.0, z0 - 0.1), (cx + w * 2.6, cy + 2.2, z1 + 0.1), 'goldp')                                          # 十字の鍔
+        B(bone, (cx - w * 0.5, cy + 2.2, z0), (cx + w * 0.5, cy + length * 0.78, z1), 'gold', front='gglow', back='gglow')              # 身
+        B(bone, (cx - w * 0.32, cy + length * 0.78, z0 + 0.1), (cx + w * 0.32, cy + length * 0.93, z1 - 0.1), 'gold', front='gglow')    # 細くなる
+        B(bone, (cx - w * 0.18, cy + length * 0.93, z0 + 0.15), (cx + w * 0.18, cy + length * 1.06, z1 - 0.15), 'gglow')                 # 光る切っ先
     m.bone('hand_hour', 'dial', (cx, cy, cz - 1.5))
-    for i, (w2, y0, y1) in enumerate(((2.0, 0, 12), (1.4, 12, 17), (0.8, 17, 20))):                     # 先へ細くなる短針
-        B('hand_hour', (cx - w2 / 2, cy + y0, cz - 2.0), (cx + w2 / 2, cy + y1, cz - 1.2), 'gold', front='gglow')
-    B('hand_hour', (cx - 1.7, cy + 14.3, cz - 2.0), (cx + 1.7, cy + 17.7, cz - 1.2), 'goldp', rot=(0, 0, 45), pivot=(cx, cy + 16, cz - 1.6))
-    B('hand_hour', (cx - 0.7, cy + 15.3, cz - 2.3), (cx + 0.7, cy + 16.7, cz - 1.9), 'vglow', rot=(0, 0, 45), pivot=(cx, cy + 16, cz - 2.1))   # 短針の宝石
-    for yy in (5.0, 9.0):                                                                                # 透かしの菱形
-        B('hand_hour', (cx - 1.4, cy + yy - 1.4, cz - 2.1), (cx + 1.4, cy + yy + 1.4, cz - 1.5), 'gold', rot=(0, 0, 45), pivot=(cx, cy + yy, cz - 1.8))
+    needle_hand('hand_hour', cz - 2.0, 21.0, 1.6)
     m.bone('hand_minute', 'dial', (cx, cy, cz - 2.0))
-    for i, (w2, y0, y1) in enumerate(((1.5, -6, 24), (1.0, 24, 36), (0.5, 36, 40))):                    # 輪の外まで伸びる、先へ細くなる長針
-        B('hand_minute', (cx - w2 / 2, cy + y0, cz - 2.6), (cx + w2 / 2, cy + y1, cz - 1.8), 'gold', front='gglow')
-    B('hand_minute', (cx - 1.27, cy - 9.3, cz - 2.6), (cx + 1.27, cy - 4.7, cz - 1.8), 'goldp', rot=(0, 0, 45), pivot=(cx, cy - 7, cz - 2.2))   # 菱形の重り
-    B('hand_minute', (cx - 0.7, cy - 7.7, cz - 2.9), (cx + 0.7, cy - 6.3, cz - 2.5), 'vglow', rot=(0, 0, 45), pivot=(cx, cy - 7, cz - 2.7))   # 重りの宝石
-    for yy in (10.0, 18.0, 30.0):                                                                        # 長針の透かしの菱形
-        B('hand_minute', (cx - 1.2, cy + yy - 1.2, cz - 2.8), (cx + 1.2, cy + yy + 1.2, cz - 2.2), 'gold', rot=(0, 0, 45), pivot=(cx, cy + yy, cz - 2.5))
-    for k in range(7):                                                                                   # 先の三日月の飾り（光る、細い）
-        a = math.radians(190 + k * 27)
-        x, y = cx + 2.8 * math.cos(a), cy + 42.4 + 2.8 * math.sin(a)
-        wk = 1.2 - abs(k - 3) * 0.22
-        B('hand_minute', (x - wk / 2, y - wk / 2, cz - 2.7), (x + wk / 2, y + wk / 2, cz - 1.7), 'gglow', rot=(0, 0, math.degrees(a) + 45), pivot=(x, y, cz - 2.2))
+    needle_hand('hand_minute', cz - 2.8, 38.0, 1.4)
     return m
 
 
@@ -467,6 +469,7 @@ def _put(img, x, y, col):
 
 GOLD_LINE, GOLD_HI, GOLD_DEEP = _c(0xE0B048), _c(0xFFF0B0), _c(0x7A5418)
 GLOW_CORE, GLOW_MID, GLOW_EDGE = (255, 252, 236), _c(0xFFE08A), _c(0xE0A030)
+CYAN_CORE, CYAN_EDGE = (220, 252, 255), _c(0x5AD8F8)
 
 
 def paint(base, glow, u, v, w, h, mat, face, rnd, ctx=None):
@@ -478,8 +481,9 @@ def paint(base, glow, u, v, w, h, mat, face, rnd, ctx=None):
         if gl:
             _put(glow, u + x, v + y, col)
 
-    if mat in ('gglow', 'vglow'):
-        hi, mid, edge = (GLOW_CORE, GLOW_MID, GLOW_EDGE) if mat == 'gglow' else ((250, 240, 255), _c(0xD0A8FF), _c(0x8A40E0))
+    if mat in ('gglow', 'vglow', 'cglow'):
+        hi, mid, edge = {'gglow': (GLOW_CORE, GLOW_MID, GLOW_EDGE), 'vglow': ((250, 240, 255), _c(0xD0A8FF), _c(0x8A40E0)),
+                         'cglow': ((240, 255, 255), _c(0xA8F0FF), _c(0x2AA8D8))}[mat]
         for y in range(h):
             for x in range(w):
                 d = (((x + 0.5) / w - 0.5) ** 2 + ((y + 0.5) / h - 0.5) ** 2) ** 0.5 * 2
@@ -555,10 +559,18 @@ def paint(base, glow, u, v, w, h, mat, face, rnd, ctx=None):
         for (x, y) in ((w - 4, 3), (3, h - 5)):                                         # リベット
             put(x, y, _mix(d0, (0, 0, 0), 0.25))
         if mat == 'white' and w >= 12:
-            for x in range(4, w - 4):                                                   # 金の彫り線
-                put(x, h - 4, GOLD_LINE if x % 7 else GOLD_HI, x % 7 == 0)
+            for x in range(4, w - 4):                                                   # 水色の光の継ぎ目（近未来。2026-10-19）
+                put(x, h - 4, CYAN_CORE if x % 9 else CYAN_EDGE, True)
             for y in range(4, h - 6):
-                put(3, y, GOLD_LINE)
+                put(3, y, CYAN_EDGE, True)
+            if w >= 20 and h >= 16:                                                     # 斜めに折れる光の線
+                bx = int(w * 0.62)
+                for y in range(3, int(h * 0.4)):
+                    put(bx + (y - 3) // 2, y, CYAN_CORE, True)
+    if mat == 'whites' and w >= 14 and h >= 10:                                         # なめらかな白にも細い光の筋
+        yy = int(h * 0.3)
+        for x in range(int(w * 0.2), int(w * 0.8)):
+            put(x, yy, CYAN_EDGE, True)
     if mat in ('purple', 'tabard'):
         for y in range(h):
             for x in range(w):
@@ -613,12 +625,14 @@ def paint(base, glow, u, v, w, h, mat, face, rnd, ctx=None):
             put(x, my, GOLD_DEEP)
             put(x, my - 1, _mix(grid[(x, my - 1)], GOLD_HI, 0.5))
     if mat == 'frame' and w >= 8 and h >= 8:
-        if rnd.random() < 0.8:                                                          # 金の回路の線（光る）
+        if rnd.random() < 0.85:                                                         # 水色の回路の線（光る。2026-10-19 近未来に）
             y1, y2 = max(2, h // 4), min(h - 3, h * 3 // 4)
             x1, xm, x2 = 2, w // 2, w - 3
             path = [(x, y1) for x in range(x1, xm + 1)] + [(xm, y) for y in range(y1, y2 + 1)] + [(x, y2) for x in range(xm, x2 + 1)]
             for p in path:
-                put(p[0], p[1], GLOW_EDGE, True)
+                put(p[0], p[1], CYAN_EDGE, True)
+            for p in ((x1, y1), (x2, y2), (xm, y1)):
+                put(p[0], p[1], CYAN_CORE, True)
     for (x, y), col in grid.items():
         P(x, y, col, (x, y) in glows)
 
