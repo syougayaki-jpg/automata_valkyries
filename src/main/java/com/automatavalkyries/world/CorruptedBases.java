@@ -441,8 +441,18 @@ public final class CorruptedBases {
                 }
                 case BOSS -> boss(p, rand, x0, z0);
             }
-            if ((kind == Kind.CHRONO_OUTPOST || kind == Kind.CHRONO_BASTION) && role == Role.ROOM && !courtyard && rand.nextInt(3) == 0) { // 屋上の対空タレット
+            if (kind == Kind.CHRONO_OUTPOST && role == Role.ROOM && !courtyard && rand.nextInt(3) == 0) { // 屋上の対空タレット
                 p.spawn(ModEntities.PULSE_PHALANX, cx + 0.5, roof + 1, cz + 0.5, rand);
+            }
+            if (kind == Kind.CHRONO_BASTION && !deck && !courtyard) { // 浮遊要塞は対空を厚く（2026-10-19 ユーザー指定「対空砲を多めに」）: 屋上の対角に 1〜2 基、中ボス・中枢の屋上は四隅に 4 基
+                int[][] cs = corners(x0, z0);
+                boolean big = role == Role.MIDBOSS || role == Role.BOSS;
+                int n = big ? 4 : 1 + rand.nextInt(2);
+                int first = rand.nextInt(4);
+                for (int i = 0; i < n; i++) {
+                    int[] s = cs[big ? i : (first + i * 3) % 4]; // 2 基目は対角の隅
+                    p.spawn(ModEntities.PULSE_PHALANX, s[0] + 0.5, roof + 1, s[1] + 0.5, rand);
+                }
             }
         }
 
@@ -545,10 +555,12 @@ public final class CorruptedBases {
                     }
                 }
                 case CHRONO_BASTION -> {
-                    if (courtyard) { // 天井の無い発着場: 床の照明と迎撃機
+                    if (courtyard) { // 天井の無い発着場: 床の照明と迎撃機、対空タレット 3 基（真ん中と、斜めに 3 ずらした 2 か所。四隅は転送ゲートの所なので避ける）
                         p.set(cx, floorY, cz, Painter.tech(ModTechBlocks.TECH_LIGHT_PANEL));
                         if (enemies) {
                             p.spawn(ModEntities.PULSE_PHALANX, cx + 0.5, y, cz + 0.5, rand);
+                            p.spawn(ModEntities.PULSE_PHALANX, cx - 2.5, y, cz - 2.5, rand);
+                            p.spawn(ModEntities.PULSE_PHALANX, cx + 3.5, y, cz + 3.5, rand);
                             p.spawn(ModEntities.CHRONO_INTERCEPTOR, cx + 0.5, y + 4, cz + 0.5, rand);
                         }
                     } else { // 時の柱（紫の核を強化ガラスで挟む）と端末
