@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "automata_valkyries:boss_drop_luxion_core"
+    },
+    {
+      "item": "automata_valkyries:boss_drop_gallia_plate"
+    },
+    {
+      "item": "automata_valkyries:boss_drop_memento_wings"
+    },
+    {
+      "item": "minecraft:clock"
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:chrono_key"
+  }
+}

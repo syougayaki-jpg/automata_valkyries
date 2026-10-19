@@ -89,6 +89,10 @@ public class ModItems {
     public static final RegistryObject<Item> BLINK_DEVICE = ITEMS.register("blink_device", () ->
             new com.automatavalkyries.item.BlinkItem(new Item.Properties().stacksTo(1).rarity(Rarity.RARE)));
 
+    /** 時の鍵（AEC 級 3 体の素材と時計で作る。目覚めさせた眠れる時の門から時の狭間へ。2026-10-19） */
+    public static final RegistryObject<Item> CHRONO_KEY = ITEMS.register("chrono_key", () ->
+            new com.automatavalkyries.item.ChronoKeyItem(new Item.Properties().stacksTo(16).rarity(Rarity.EPIC)));
+
     // ---- スポーンエッグ ----
     public static final RegistryObject<Item> ELENOR_SPAWN_EGG = ITEMS.register("elenor_spawn_egg", () ->
             new ForgeSpawnEggItem(ModEntities.ELENOR, 0x512da8, 0xe040fb, new Item.Properties()));
@@ -112,6 +116,8 @@ public class ModItems {
     public static final RegistryObject<Item> FOUNDRY_MASTER_SPAWN_EGG = ITEMS.register("foundry_master_spawn_egg", () ->
             new ForgeSpawnEggItem(ModEntities.FOUNDRY_MASTER, 0x23262e, 0xb060ff, new Item.Properties()));
     // 浮遊要塞の中ボス・雑魚（2026-10-19）
+    public static final RegistryObject<Item> TIME_RULER_SPAWN_EGG = ITEMS.register("time_ruler_spawn_egg", () ->
+            new ForgeSpawnEggItem(ModEntities.TIME_RULER, 0xf4f0e6, 0xffd166, new Item.Properties()));
     public static final RegistryObject<Item> BASTION_KEEPER_SPAWN_EGG = ITEMS.register("bastion_keeper_spawn_egg", () ->
             new ForgeSpawnEggItem(ModEntities.BASTION_KEEPER, 0xe8ecf4, 0xb060ff, new Item.Properties()));
     public static final RegistryObject<Item> CHRONO_INTERCEPTOR_SPAWN_EGG = ITEMS.register("chrono_interceptor_spawn_egg", () ->

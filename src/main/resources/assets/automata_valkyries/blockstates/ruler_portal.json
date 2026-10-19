@@ -1,10 +1,17 @@
 {
   "variants": {
-    "axis=x": {
+    "axis=x,awake=false": {
       "model": "automata_valkyries:block/ruler_portal_ns"
     },
-    "axis=z": {
+    "axis=z,awake=false": {
       "model": "automata_valkyries:block/ruler_portal_ns",
+      "y": 90
+    },
+    "axis=x,awake=true": {
+      "model": "automata_valkyries:block/ruler_portal_awake_ns"
+    },
+    "axis=z,awake=true": {
+      "model": "automata_valkyries:block/ruler_portal_awake_ns",
       "y": 90
     }
   }

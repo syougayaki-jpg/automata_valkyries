@@ -17,6 +17,10 @@
   bastion_keeper  : root > body > head > eye、body > halo、body > plate_0..plate_3（2026-10-19 浮遊要塞の中ボス）
   chrono_interceptor : root > body > wing_left / wing_right / engine（2026-10-19 浮遊要塞の迎撃機）
   delay_node      : root > core、root > ring_a、root > ring_b（2026-10-19 浮遊要塞の時間干渉機）
+  time_ruler      : root > body > head > visor、body > arm_left / arm_right、body > dial > hand_hour / hand_minute、body > blades、
+                    root > gear_ring、root > gear_inner（2026-10-19 総司令機タイムルーラー）
+  ruler_anchor    : root > gear > core（2026-10-19 タイムルーラーの因果の歯車）
+  ruler_needle    : root > needle（2026-10-19 時空剪定の針。切っ先が +Y）
 座標は geo の座標（px、16px = 1 ブロック）。正面は -Z、右は -X
 """
 import math
@@ -37,6 +41,10 @@ g.MAT.update({
     'whiteb': (0xE0E4EC, 0xF8FAFC, 0xA8AEBA, 'rivet', False),
     'cglow': (0x7FE4FF, 0xD8F8FF, 0x2A9AC0, 'glow', True),     # 迎撃機の推進器の水色
     'gold': (0xD8B040, 0xFFE08A, 0x8A6A20, 'plain', False),     # 守護機の光輪の金の縁
+    'goldp': (0xD8B040, 0xFFE08A, 0x8A6A20, 'panel', False),    # タイムルーラーの金の装甲
+    'indigo': (0x2A2468, 0x4A42A0, 0x14103A, 'panel', False),   # タイムルーラーの深い藍の外套
+    'yglow2': (0xFFD166, 0xFFF0B0, 0xC08A20, 'glow', True),    # 金の光（文字盤・針）
+    'dial': (0x1A1640, 0x3A3480, 0x0C0A20, 'plain', False),     # 文字盤の地
 })
 
 
@@ -352,15 +360,103 @@ def delay_node():
     return m
 
 
+def time_ruler():
+    m = M('time_ruler')
+    m.bone('root')
+    # 下半身の代わりの、回る歯車の輪（浮いている）
+    m.bone('gear_ring', 'root', (0, 14, 0))
+    for k in range(16):
+        a = k * math.pi / 8
+        x, z = 16 * math.cos(a), 16 * math.sin(a)
+        m.box('gear_ring', (x - 2.5, 12, z - 2.5), (x + 2.5, 16, z + 2.5), 'goldp' if k % 2 else 'gold', **({'top': 'yglow2'} if k % 4 == 0 else {}))
+    m.bone('gear_inner', 'root', (0, 18, 0))
+    for k in range(8):
+        a = k * math.pi / 4
+        x, z = 9 * math.cos(a), 9 * math.sin(a)
+        m.box('gear_inner', (x - 2, 17, z - 2), (x + 2, 20, z + 2), 'whiteb')
+    m.box('gear_inner', (-6, 18, -6), (6, 22, 6), 'indigo', bottom='yglow2')
+    # 上半身（白と金の鎧、藍の外套）
+    m.bone('body', 'root', (0, 40, 0))
+    m.box('body', (-10, 22, -7), (10, 34, 7), 'indigo', front='goldp')                  # 腰と外套の裾
+    m.box('body', (-12, 34, -8), (12, 54, 8), 'white', front='whiteb', back='indigo')   # 胸
+    m.box('body', (-13, 44, -9), (13, 46, 9), 'goldp')
+    m.box('body', (-4, 40, -8.8), (4, 48, -8.1), 'yglow2', sides='gold')                # 胸の時計の核
+    for sx in (-1, 1):
+        m.box('body', (sx * 12, 48, -7), (sx * 19, 56, 7), 'goldp', top='white')        # 肩
+    m.bone('head', 'body', (0, 56, 0))
+    m.box('head', (-6, 56, -6), (6, 68, 6), 'white', top='goldp')
+    for k in range(5):                                                                   # 金の冠（時計の針の形の突起）
+        x = -6 + k * 3
+        m.box('head', (x - 0.6, 68, -1), (x + 0.6, 72 + (3 if k == 2 else 0), 1), 'gold')
+    m.bone('visor', 'head', (0, 62, -6))
+    m.box('visor', (-4.5, 60.5, -6.8), (4.5, 63.5, -6.0), 'yglow2', sides='dark')       # 金に光る面頬
+    for name, sx in (('arm_right', -1), ('arm_left', 1)):
+        m.bone(name, 'body', (sx * 16, 52, 0))
+        m.box(name, (sx * 14, 36, -4), (sx * 20, 52, 4), 'white', out='goldp')
+        m.box(name, (sx * 14.5, 26, -3.5), (sx * 19.5, 36, 3.5), 'goldp', bottom='white')
+        m.box(name, (sx * 16, 20, -1), (sx * 18, 26, 1), 'yglow2')                       # 指先の光
+    # 背の巨大な文字盤の光輪（前後の面の向き）
+    m.bone('dial', 'body', (0, 52, 12))
+    for k in range(24):
+        a = k * math.pi / 12
+        x, y = 28 * math.cos(a), 52 + 28 * math.sin(a)
+        m.box('dial', (x - 2.4, y - 2.4, 11), (x + 2.4, y + 2.4, 13), 'gold' if k % 2 else 'goldp')
+    for k in range(12):                                                                  # 12 の目盛り
+        a = k * math.pi / 6
+        x, y = 23 * math.cos(a), 52 + 23 * math.sin(a)
+        m.box('dial', (x - 1.2, y - 1.2, 11.5), (x + 1.2, y + 1.2, 12.5), 'yglow2')
+    m.box('dial', (-3, 49, 11), (3, 55, 13), 'yglow2', sides='gold')
+    m.bone('hand_hour', 'dial', (0, 52, 10.5))
+    m.box('hand_hour', (-1.2, 52, 10), (1.2, 68, 10.8), 'gold', front='yglow2')
+    m.bone('hand_minute', 'dial', (0, 52, 10))
+    m.box('hand_minute', (-0.8, 52, 9.5), (0.8, 76, 10.2), 'gold', front='yglow2')
+    # 周りに浮かぶ 8 本の針の剣
+    m.bone('blades', 'body', (0, 44, 0))
+    for k in range(8):
+        a = k * math.pi / 4
+        x, z = 26 * math.cos(a), 26 * math.sin(a)
+        m.box('blades', (x - 0.8, 34, z - 0.8), (x + 0.8, 58, z + 0.8), 'gold', top='yglow2')
+        m.box('blades', (x - 2, 38, z - 2), (x + 2, 39, z + 2), 'goldp')                 # 鍔
+    return m
+
+
+def ruler_anchor():
+    m = M('ruler_anchor')
+    m.bone('root')
+    m.bone('gear', 'root', (0, 14, 0))
+    for k in range(12):                                                                  # 金の歯車（前を向く）
+        a = k * math.pi / 6
+        x, y = 9 * math.cos(a), 14 + 9 * math.sin(a)
+        m.box('gear', (x - 2, y - 2, -1.5), (x + 2, y + 2, 1.5), 'gold' if k % 2 else 'goldp')
+    for k in range(4):
+        a = k * math.pi / 2
+        x, y = 4.5 * math.cos(a), 14 + 4.5 * math.sin(a)
+        m.box('gear', (x - 1, y - 1, -1), (x + 1, y + 1, 1), 'gold')
+    m.bone('core', 'gear', (0, 14, 0))
+    m.box('core', (-3, 11, -2.5), (3, 17, 2.5), 'yglow2', sides='indigo')
+    return m
+
+
+def ruler_needle():
+    m = M('ruler_needle')
+    m.bone('root')
+    m.bone('needle', 'root', (0, 0, 0))
+    m.box('needle', (-0.8, -8, -0.8), (0.8, 8, 0.8), 'gold', top='yglow2')              # 針の身（切っ先 +Y）
+    m.box('needle', (-0.4, 8, -0.4), (0.4, 12, 0.4), 'yglow2')                           # 光る切っ先
+    m.box('needle', (-2.5, -6, -0.6), (2.5, -5, 0.6), 'goldp')                           # 鍔
+    m.box('needle', (-0.6, -6, -2.5), (0.6, -5, 2.5), 'goldp')
+    return m
+
+
 if __name__ == '__main__':
     os.makedirs(os.path.join(g.ASSETS, 'geo', 'entity'), exist_ok=True)
     os.makedirs(os.path.join(g.ASSETS, 'textures', 'entity'), exist_ok=True)
-    for fn in (pulse_phalanx, siege_cannon, siren_eye, chrono_interceptor, delay_node):
+    for fn in (pulse_phalanx, siege_cannon, siren_eye, chrono_interceptor, delay_node, ruler_needle):
         g.write(fn())
     g.TEX = 256  # 大きな機体は 256 の画像に詰める
-    for fn in (chrono_guardian, mimic_container, phase_condenser):
+    for fn in (chrono_guardian, mimic_container, phase_condenser, ruler_anchor):
         g.write(fn())
     g.TEX = 512  # 中ボスは面が大きいので 512
-    for fn in (crane_loader, outpost_watcher, foundry_master, bastion_keeper):
+    for fn in (crane_loader, outpost_watcher, foundry_master, bastion_keeper, time_ruler):
         g.write(fn())
     g.TEX = 128

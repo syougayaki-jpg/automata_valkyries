@@ -5,6 +5,8 @@ import com.automatavalkyries.entity.chrono.BastionKeeperEntity;
 import com.automatavalkyries.entity.chrono.ChronoGuardianEntity;
 import com.automatavalkyries.entity.chrono.DelayNodeEntity;
 import com.automatavalkyries.entity.chrono.InterceptorEntity;
+import com.automatavalkyries.entity.chrono.RulerAnchorEntity;
+import com.automatavalkyries.entity.chrono.TimeRulerEntity;
 import com.automatavalkyries.entity.chrono.CraneLoaderEntity;
 import com.automatavalkyries.entity.chrono.FoundryMasterEntity;
 import com.automatavalkyries.entity.chrono.MimicContainerEntity;
@@ -189,6 +191,48 @@ public class ChronoBaseModel<T extends Mob & GeoEntity> extends DefaultedEntityG
                 engine.setScaleX(s);
                 engine.setScaleY(s);
             }
+        } else if (entity instanceof TimeRulerEntity ruler) { // 時計の機械神: 体が揺れ、背の文字盤の針が回り（因果逆転では逆回り）、周りの針の剣と下の歯車が回る
+            CoreGeoBone body = bone("body");
+            if (body != null) body.setPosY(Mth.sin(age * 0.05F) * 1.5F);
+            rotY("head", yaw * 0.6F);
+            boolean back = ruler.isRewinding();
+            float speed = back ? -0.25F : 1.0F;
+            rotZ("hand_minute", -age * 0.08F * speed);
+            rotZ("hand_hour", -age * 0.008F * speed);
+            float stop = age - ruler.stopTick;
+            if (stop >= 0 && stop < 40) rotZ("hand_minute", -Mth.PI * 2 * (stop / 40.0F)); // 予告の鐘: 長針がひと回り
+            rotY("blades", age * 0.04F);
+            float needle = (age - ruler.needleTick) / 12.0F;
+            CoreGeoBone blades = bone("blades");
+            if (blades != null) {
+                float s = needle >= 0 && needle < 1 ? 1.0F + 0.3F * Mth.sin(needle * Mth.PI) : 1.0F;
+                blades.setScaleX(s);
+                blades.setScaleZ(s);
+            }
+            rotY("gear_ring", age * 0.03F);
+            rotY("gear_inner", -age * 0.05F);
+            float slash = (age - ruler.slashTick) / 15.0F;
+            rotX("arm_right", slash >= 0 && slash < 1 ? -1.8F * Mth.sin(slash * Mth.PI) : Mth.sin(age * 0.04F) * 0.08F);
+            float sweep = age - ruler.sweepTick;
+            rotZ("arm_left", sweep >= 0 && sweep < 80 ? -1.2F : -0.15F + Mth.sin(age * 0.05F) * 0.06F);
+            CoreGeoBone visor = bone("visor");
+            if (visor != null) {
+                float erase = age - ruler.eraseTick;
+                float v = erase >= 0 && erase < 20 ? 1.4F : 1.0F;
+                visor.setScaleX(v);
+                visor.setScaleY(v);
+            }
+        } else if (entity instanceof RulerAnchorEntity) { // 因果の歯車: 回り、脈打つ
+            rotZ("gear", age * 0.1F);
+            CoreGeoBone core = bone("core");
+            if (core != null) {
+                float s = 1.0F + 0.15F * Mth.sin(age * 0.3F);
+                core.setScaleX(s);
+                core.setScaleY(s);
+                core.setScaleZ(s);
+            }
+            CoreGeoBone root = bone("gear");
+            if (root != null) root.setPosY(Mth.sin(age * 0.08F) * 1.0F);
         } else if (entity instanceof DelayNodeEntity) { // 砂時計: 核の脈と、逆へ回る 2 つの輪
             CoreGeoBone core = bone("core");
             if (core != null) {

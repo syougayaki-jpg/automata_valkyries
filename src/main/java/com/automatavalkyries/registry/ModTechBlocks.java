@@ -55,7 +55,7 @@ public final class ModTechBlocks {
     /** 空中庭園要塞の奥の眠れる時の門の膜（2026-10-19。ネザーポータルのような通り抜けられる膜。タイムルーラーへの門。今は眠っている。壊せない） */
     public static final RegistryObject<Block> RULER_PORTAL = register("ruler_portal", () -> new RulerPortalBlock(BlockBehaviour.Properties.of()
             .mapColor(MapColor.COLOR_BLUE).strength(-1.0F, 3600000.0F).sound(SoundType.AMETHYST).noLootTable().noCollission().noOcclusion()
-            .lightLevel(s -> 11).pushReaction(PushReaction.BLOCK)));
+            .lightLevel(s -> s.getValue(RulerPortalBlock.AWAKE) ? 15 : 11).pushReaction(PushReaction.BLOCK)));
     /** 時の門の枠（白い大理石に金の象嵌。壊せない） */
     public static final RegistryObject<Block> RULER_GATE_FRAME = register("ruler_gate_frame", () -> new Block(BlockBehaviour.Properties.of()
             .mapColor(MapColor.QUARTZ).strength(-1.0F, 3600000.0F).sound(SoundType.STONE).noLootTable().lightLevel(s -> 4).pushReaction(PushReaction.BLOCK)));

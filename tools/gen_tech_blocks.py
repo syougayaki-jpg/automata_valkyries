@@ -11,6 +11,7 @@
   tech_sky_panel    空を映す照明パネル（地下の通路の天井。青空と雲の面と枠）
   chrono_gate       クロノ転送ゲート（暗い枠の中で紫の渦が光る）
   ruler_portal      眠れる時の門の膜（2026-10-19。32 枚のアニメーション: 藍の星空の上を金と紫の渦が回り、星が瞬く。半透明）
+  ruler_portal_awake 目覚めた門の膜（金と白が明るく速く渦巻く）
   ruler_gate_frame  時の門の枠（白い大理石に金の象嵌と紫の小さな宝石）
   ruler_gate_keystone 時の門の要石（金の時計の文字盤、紫の芯）
 
@@ -191,6 +192,28 @@ def main():
     with open(os.path.join(OUT, "ruler_portal.png.mcmeta"), "w", encoding="utf-8", newline="\n") as meta:
         meta.write('{\n  "animation": {\n    "frametime": 2,\n    "interpolate": true\n  }\n}\n')
 
+    im = Image.new("RGBA", (16, 16 * frames), (0, 0, 0, 0))  # 目覚めた膜（金と白が明るく、倍の速さで渦巻く）
+    px = im.load()
+    for f in range(frames):
+        t = f / frames * math.tau * 2
+        for y in range(16):
+            for x in range(16):
+                r = math.hypot(x - 7.5, y - 7.5)
+                a = math.atan2(y - 7.5, x - 7.5)
+                k = ((math.sin(3 * a - r * 0.85 + t) + 1) / 2) ** 1.6 * (0.6 + 0.4 * max(0.0, 1.0 - r / 9.0))
+                base, mid, top = (70, 40, 120), (255, 190, 80), (255, 250, 230)
+                if k < 0.5:
+                    c = tuple(int(base[i] + (mid[i] - base[i]) * k * 2) for i in range(3))
+                else:
+                    c = tuple(int(mid[i] + (top[i] - mid[i]) * (k - 0.5) * 2) for i in range(3))
+                px[x, y + 16 * f] = c + (int(205 + 45 * k),)
+        for sx, sy, ph in stars:
+            if (math.sin(t * 2 + ph * math.tau) + 1) / 2 > 0.5:
+                px[sx, sy + 16 * f] = (255, 255, 255, 255)
+    im.save(os.path.join(OUT, "ruler_portal_awake.png"))
+    with open(os.path.join(OUT, "ruler_portal_awake.png.mcmeta"), "w", encoding="utf-8", newline="\n") as meta:
+        meta.write('{\n  "animation": {\n    "frametime": 1,\n    "interpolate": true\n  }\n}\n')
+
     GOLD, GOLD_L, GOLD_D = (232, 184, 72, 255), (255, 226, 140, 255), (150, 108, 34, 255)
     im = img()  # 時の門の枠: 白い大理石に金の象嵌
     px = im.load()
@@ -231,7 +254,26 @@ def main():
     for i in range(1, 4):
         px[7 + i, 7] = GOLD_L       # 短針
     im.save(os.path.join(OUT, "ruler_gate_keystone.png"))
-    print("wrote 13 textures to", OUT)
+
+    im = img()  # 時の鍵（アイテム）: 金の時計の頭と、紫の宝石の歯
+    px = im.load()
+    for y in range(16):
+        for x in range(16):
+            r = math.hypot(x - 5, y - 5)
+            if r <= 4.5:
+                px[x, y] = GOLD_D if r > 3.8 else (40, 24, 86, 255) if r > 1.2 else (226, 196, 255, 255)
+    for i in range(1, 3):
+        px[5, 5 - i] = GOLD_L
+        px[5 + i, 5] = GOLD_L
+    for i in range(5):  # 斜めの軸
+        px[8 + i, 8 + i] = GOLD
+        px[9 + i, 8 + i] = GOLD_D
+    px[12, 14] = px[13, 13] = (176, 96, 255, 255)
+    px[10, 13] = px[11, 14] = (176, 96, 255, 255)
+    item_out = os.path.join(os.path.dirname(OUT), "item")
+    os.makedirs(item_out, exist_ok=True)
+    im.save(os.path.join(item_out, "chrono_key.png"))
+    print("wrote 15 textures to", OUT)
 
 
 if __name__ == "__main__":

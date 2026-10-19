@@ -107,5 +107,11 @@ public final class ModNetwork {
                 .decoder(StorageActionPacket::decode)
                 .consumerMainThread(StorageActionPacket::handle)
                 .add();
+        // タイムルーラーの全世界時間停止（2026-10-19）
+        CHANNEL.messageBuilder(TimeStopPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(TimeStopPacket::encode)
+                .decoder(TimeStopPacket::decode)
+                .consumerMainThread(TimeStopPacket::handle)
+                .add();
     }
 }

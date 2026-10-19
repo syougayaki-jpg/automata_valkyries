@@ -219,6 +219,21 @@ public class ModEntities {
             ENTITY_TYPES.register("delay_node", () ->
                     EntityType.Builder.of(com.automatavalkyries.entity.chrono.DelayNodeEntity::new, MobCategory.MONSTER)
                             .sized(0.9F, 1.6F).clientTrackingRange(10).build("delay_node"));
+    /** 総司令機タイムルーラー（2026-10-19） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.TimeRulerEntity>> TIME_RULER =
+            ENTITY_TYPES.register("time_ruler", () ->
+                    EntityType.Builder.of(com.automatavalkyries.entity.chrono.TimeRulerEntity::new, MobCategory.MONSTER)
+                            .sized(2.6F, 6.0F).fireImmune().clientTrackingRange(16).build("time_ruler"));
+    /** タイムルーラーの時空剪定の針（2026-10-19） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.RulerNeedleEntity>> RULER_NEEDLE =
+            ENTITY_TYPES.register("ruler_needle", () ->
+                    EntityType.Builder.<com.automatavalkyries.entity.chrono.RulerNeedleEntity>of(com.automatavalkyries.entity.chrono.RulerNeedleEntity::new, MobCategory.MISC)
+                            .sized(0.4F, 0.4F).clientTrackingRange(10).updateInterval(1).noSave().build("ruler_needle"));
+    /** タイムルーラーの因果の歯車（2026-10-19） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.RulerAnchorEntity>> RULER_ANCHOR =
+            ENTITY_TYPES.register("ruler_anchor", () ->
+                    EntityType.Builder.of(com.automatavalkyries.entity.chrono.RulerAnchorEntity::new, MobCategory.MONSTER)
+                            .sized(1.4F, 1.6F).clientTrackingRange(12).build("ruler_anchor"));
     /** 山なりの砲弾（曲射砲・前哨司令機の砲撃要請。2026-10-15） */
     public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.MortarShellEntity>> MORTAR_SHELL =
             ENTITY_TYPES.register("mortar_shell", () ->
@@ -273,6 +288,8 @@ public class ModEntities {
         event.put(SHIELD_DRONE.get(), com.automatavalkyries.entity.chrono.ShieldDroneEntity.createAttributes().build());
         event.put(PHASE_CONDENSER.get(), com.automatavalkyries.entity.chrono.PhaseCondenserEntity.createAttributes().build());
         event.put(BASTION_KEEPER.get(), com.automatavalkyries.entity.chrono.BastionKeeperEntity.createAttributes().build());
+        event.put(TIME_RULER.get(), com.automatavalkyries.entity.chrono.TimeRulerEntity.createAttributes().build());
+        event.put(RULER_ANCHOR.get(), com.automatavalkyries.entity.chrono.RulerAnchorEntity.createAttributes().build());
         event.put(CHRONO_INTERCEPTOR.get(), com.automatavalkyries.entity.chrono.InterceptorEntity.createAttributes().build());
         event.put(DELAY_NODE.get(), com.automatavalkyries.entity.chrono.DelayNodeEntity.createAttributes().build());
     }

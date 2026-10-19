@@ -219,6 +219,85 @@ public class CorruptedBaseGameTests {
         helper.succeed();
     }
 
+    /**
+     * タイムルーラーの時間停止（2026-10-19）: 止めている間は、止めた者以外の Tick が進まず、時刻も進まない。止めた者は動ける。
+     * 動き出すと元どおり。ほかの試験を止めないよう、止めて確かめて動かすまでを 1 回の呼び出しの中で済ませる
+     */
+    @GameTest(template = "empty", batch = "corrupted_base", timeoutTicks = 20)
+    public static void timeStopFreezesEveryoneButTheSource(GameTestHelper helper) {
+        var level = helper.getLevel();
+        Vec3 c = helper.absoluteVec(new Vec3(1.5, 2.0, 1.5));
+        var source = ModEntities.CHRONO_TROOPER.get().create(level);
+        source.moveTo(c.x, c.y, c.z, 0, 0);
+        level.addFreshEntity(source);
+        var arrow = new net.minecraft.world.entity.projectile.Arrow(level, c.x + 2, c.y + 1, c.z);
+        level.addFreshEntity(arrow);
+        long day = level.getDayTime();
+        try {
+            com.automatavalkyries.entity.chrono.TimeStop.start(level, source, 40);
+            helper.assertTrue(com.automatavalkyries.entity.chrono.TimeStop.active(), "time did not stop");
+            helper.assertTrue(com.automatavalkyries.entity.chrono.TimeStop.frozen(arrow), "the arrow is not frozen");
+            helper.assertFalse(com.automatavalkyries.entity.chrono.TimeStop.frozen(source), "the source is frozen by its own time stop");
+            int arrowTicks = arrow.tickCount, sourceTicks = source.tickCount;
+            level.tickNonPassenger(arrow);
+            level.tickNonPassenger(source);
+            helper.assertTrue(arrow.tickCount == arrowTicks, "a frozen arrow still ticked");
+            helper.assertTrue(source.tickCount == sourceTicks + 1, "the source could not move in stopped time");
+            ((com.automatavalkyries.mixin.TimeStopTestAccess) level).automata_valkyries$tickTime();
+            helper.assertTrue(level.getDayTime() == day, "the day time moved in stopped time");
+        } finally {
+            com.automatavalkyries.entity.chrono.TimeStop.stop();
+            arrow.discard();
+            source.discard();
+        }
+        helper.assertFalse(com.automatavalkyries.entity.chrono.TimeStop.active(), "time did not flow again");
+        int before = arrow.tickCount;
+        helper.assertFalse(com.automatavalkyries.entity.chrono.TimeStop.frozen(arrow), "the arrow stays frozen after time flows");
+        helper.assertTrue(before == arrow.tickCount, "sanity");
+        helper.succeed();
+    }
+
+    /**
+     * 時の狭間とタイムルーラーの門（2026-10-19）: 次元があり、闘技場（真ん中の要石・帰りの門の眠った膜 3×5）が描ける。
+     * 眠れる時の門は時の鍵で目覚め（守護機がいなければ。鍵はなくなる）、守護機が近くに生きていれば目覚めない。タイムルーラーの体力
+     */
+    @GameTest(template = "empty", batch = "corrupted_base", timeoutTicks = 20)
+    public static void timeRiftArenaAndGateKey(GameTestHelper helper) {
+        var level = helper.getLevel();
+        var rift = level.getServer().getLevel(com.automatavalkyries.world.TimeRift.RIFT);
+        helper.assertTrue(rift != null, "the time rift dimension is missing");
+        com.automatavalkyries.world.TimeRift.ensureArena(rift);
+        int y = com.automatavalkyries.world.TimeRift.Y, gz = com.automatavalkyries.world.TimeRift.GATE_Z;
+        helper.assertTrue(rift.getBlockState(new net.minecraft.core.BlockPos(0, y, 0)).is(com.automatavalkyries.registry.ModTechBlocks.RULER_GATE_KEYSTONE.get()), "no keystone at the arena centre");
+        int sleeping = 0;
+        for (int dx = -1; dx <= 1; dx++) for (int h = 1; h <= 5; h++) {
+            var s = rift.getBlockState(new net.minecraft.core.BlockPos(dx, y + h, gz));
+            if (s.is(com.automatavalkyries.registry.ModTechBlocks.RULER_PORTAL.get()) && !s.getValue(com.automatavalkyries.block.RulerPortalBlock.AWAKE)) sleeping++;
+        }
+        helper.assertTrue(sleeping == 15, "the return gate should be 15 sleeping gate blocks, found " + sleeping);
+        // 眠れる時の門を時の鍵で目覚めさせる
+        net.minecraft.core.BlockPos gate = helper.absolutePos(new net.minecraft.core.BlockPos(2, 2, 2));
+        var portal = com.automatavalkyries.registry.ModTechBlocks.RULER_PORTAL.get().defaultBlockState();
+        level.setBlock(gate, portal, 3);
+        level.setBlock(gate.above(), portal, 3);
+        var player = helper.makeMockPlayer();
+        player.getAbilities().instabuild = false;
+        player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, new net.minecraft.world.item.ItemStack(com.automatavalkyries.registry.ModItems.CHRONO_KEY.get(), 2));
+        var hit = new net.minecraft.world.phys.BlockHitResult(Vec3.atCenterOf(gate), net.minecraft.core.Direction.NORTH, gate, false);
+        try {
+            level.getBlockState(gate).use(level, player, net.minecraft.world.InteractionHand.MAIN_HAND, hit);
+            helper.assertTrue(level.getBlockState(gate).getValue(com.automatavalkyries.block.RulerPortalBlock.AWAKE)
+                    && level.getBlockState(gate.above()).getValue(com.automatavalkyries.block.RulerPortalBlock.AWAKE), "the key did not wake the whole gate");
+            helper.assertTrue(player.getMainHandItem().getCount() == 1, "the key was not used up");
+        } finally {
+            level.setBlock(gate, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
+            level.setBlock(gate.above(), net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
+        }
+        var ruler = ModEntities.TIME_RULER.get().create(level);
+        helper.assertTrue(ruler.getMaxHealth() == com.automatavalkyries.entity.chrono.TimeRulerEntity.MAX_HP && ruler.phase() == 1, "time ruler hp/phase " + ruler.getMaxHealth());
+        helper.succeed();
+    }
+
     /** 瞬間転移の端末（2026-10-19）: 開けた所では見ている向きへ 10 m 先、壁があれば壁の手前で止まる */
     @GameTest(template = "empty", batch = "corrupted_base", timeoutTicks = 20)
     public static void blinkDeviceStopsShortOfWalls(GameTestHelper helper) {

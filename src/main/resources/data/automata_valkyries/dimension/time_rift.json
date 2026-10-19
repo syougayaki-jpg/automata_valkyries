@@ -1,0 +1,13 @@
+{
+  "type": "automata_valkyries:time_rift",
+  "generator": {
+    "type": "minecraft:flat",
+    "settings": {
+      "layers": [],
+      "biome": "automata_valkyries:time_rift",
+      "lakes": false,
+      "features": false,
+      "structure_overrides": []
+    }
+  }
+}

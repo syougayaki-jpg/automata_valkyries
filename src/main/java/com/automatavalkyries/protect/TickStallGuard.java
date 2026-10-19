@@ -68,6 +68,10 @@ final class TickStallGuard {
         // isRemoved() は他 MOD の ASM に呼び出し箇所ごと偽装されうるので、フィールドを直接読む
         if (!(owner.level() instanceof ServerLevel level) || ((EntityAccessor) owner).automata_valkyries$getRemovalReason() != null) return false;
         if (insideDriven) return false;
+        if (com.automatavalkyries.entity.chrono.TimeStop.frozen(owner)) { // タイムルーラーの時間停止（このMOD の正当な停止）は打ち消さない
+            markTicked();
+            return false;
+        }
         if (!Eprotect.isSafePosition(owner, owner.getX(), owner.getY(), owner.getZ())) return false;
         if (lastTick == Long.MIN_VALUE) return false; // まだワールドに追加されていない
         long stalled = protect.serverClock() - lastTick;

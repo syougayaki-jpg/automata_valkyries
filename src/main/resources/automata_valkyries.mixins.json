@@ -7,6 +7,10 @@
   "plugin": "com.automatavalkyries.mixin.AutomataMixinPlugin",
   "mixins": [
     "EntityAccessor",
+    "TimeStopMixin$Level",
+    "TimeStopMixin$Player",
+    "TimeStopMixin$Packets",
+    "TimeStopTestAccess",
     "HealthCapMixin",
     "LivingEntityAccessor",
     "ServerLevelTickListAccessor",
