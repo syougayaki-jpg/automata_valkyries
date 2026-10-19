@@ -114,6 +114,11 @@ public class TimeRulerEntity extends Monster implements GeoEntity, ChronoGazer, 
     /** 掃射の状態（残り Tick と回る向き） */
     private int sweepLeft, sweepWarn;
     private double sweepAngle, sweepSpin;
+    /** 掃射・刻の終焉の中心（始めた時に決めて動かさない。光の刃のエフェクトと当たりを合わせる） */
+    private Vec3 sweepCenter = Vec3.ZERO, finaleCenter = Vec3.ZERO;
+    /** 消去の印の立方体のエフェクトを出した座標（落ちたら外す） */
+    private final java.util.Set<Vec3> eraseMarked = new java.util.HashSet<>();
+    private RulerFxEntity rewindFx;
 
     public TimeRulerEntity(EntityType<? extends Monster> type, Level level) {
         super(type, level);
@@ -277,6 +282,7 @@ public class TimeRulerEntity extends Monster implements GeoEntity, ChronoGazer, 
         }
         if (isDefeated() || !isAlive()) {
             strikes.clear();
+            eraseMarked.clear();
             return;
         }
         if (castLock > 0) castLock--;
@@ -441,19 +447,20 @@ public class TimeRulerEntity extends Monster implements GeoEntity, ChronoGazer, 
         sweepLeft = 60;
         sweepAngle = random.nextDouble() * Math.PI * 2;
         sweepSpin = (random.nextBoolean() ? 1 : -1) * (phase() == 3 ? 0.045 : 0.03);
+        sweepCenter = new Vec3(getX(), floorY + 1.0, getZ());
+        if (level() instanceof ServerLevel server) {
+            RulerFxEntity.spawn(server, RulerFxEntity.SWEEP, 0, sweepCenter, 24.0F, (float) sweepAngle, (float) sweepSpin, 80, RulerFxEntity.GOLD);
+            RulerFxEntity.spawn(server, RulerFxEntity.CLOCK, RulerFxEntity.FLAT, sweepCenter.add(0, -0.9, 0), 24.5F, 0, 0, 80, RulerFxEntity.GOLD);
+        }
         playSound(SoundEvents.BEACON_ACTIVATE, 3.0F, 1.6F);
         level().broadcastEntityEvent(this, EVENT_SWEEP);
     }
 
     void tickSweep(ServerLevel server) {
         if (sweepLeft <= 0) return;
-        Vec3 o = new Vec3(getX(), floorY + 1.0, getZ());
-        if (sweepWarn > 0) {
+        Vec3 o = sweepCenter;
+        if (sweepWarn > 0) { // 予告の赤い線は RulerFxEntity が描く
             sweepWarn--;
-            if (sweepWarn % 4 == 0) for (int i = 0; i < 12; i++) {
-                double a = sweepAngle + i * Math.PI / 6;
-                Fx.line(server, MementoMoriEntity.glow(RED, 0.1F, 5), o, o.add(Math.cos(a) * 24, 0, Math.sin(a) * 24), 1.5);
-            }
             return;
         }
         sweepLeft--;
@@ -461,7 +468,7 @@ public class TimeRulerEntity extends Monster implements GeoEntity, ChronoGazer, 
         for (int i = 0; i < 12; i++) {
             double a = sweepAngle + i * Math.PI / 6;
             Vec3 dir = new Vec3(Math.cos(a), 0, Math.sin(a));
-            if (tickCount % 2 == 0) Fx.line(server, MementoMoriEntity.glow(i % 3 == 0 ? WHITE : GOLD, 0.2F, 3), o, o.add(dir.scale(24)), 0.8);
+            if (tickCount % 6 == 0) Fx.one(server, MementoMoriEntity.glow(i % 3 == 0 ? WHITE : GOLD, 0.3F, 8), o.add(dir.scale(4 + random.nextDouble() * 20)), Vec3.ZERO); // 刃に散る火の粉
             if (tickCount % 10 != 0) continue;
             for (LivingEntity e : level().getEntitiesOfClass(LivingEntity.class, new AABB(o, o).inflate(24, 2, 24), ChronoGazer::canHurt)) {
                 Vec3 rel = e.position().subtract(o).multiply(1, 0, 1);
@@ -478,7 +485,9 @@ public class TimeRulerEntity extends Monster implements GeoEntity, ChronoGazer, 
     void spikes(LivingEntity t) {
         for (int i = 0; i < 6; i++) {
             double a = random.nextDouble() * Math.PI * 2, r = i == 0 ? 0 : 2.0 + random.nextDouble() * 3.5;
-            strikes.add(new Strike(SPIKE_FALL, t.position().add(Math.cos(a) * r, 0, Math.sin(a) * r), tickCount + 24 + i * 2, null));
+            Vec3 at = t.position().add(Math.cos(a) * r, 0, Math.sin(a) * r);
+            strikes.add(new Strike(SPIKE_FALL, at, tickCount + 24 + i * 2, null));
+            if (level() instanceof ServerLevel server) RulerFxEntity.spawn(server, RulerFxEntity.CLOCK, RulerFxEntity.FLAT, at.add(0, 0.12, 0), 2.2F, 0, 0, 24 + i * 2, RulerFxEntity.GOLD);
         }
         playSound(SoundEvents.NOTE_BLOCK_CHIME.value(), 2.0F, 0.6F);
     }
@@ -505,6 +514,11 @@ public class TimeRulerEntity extends Monster implements GeoEntity, ChronoGazer, 
         castLock = STOP_WARN + 10;
         say("stop_warn", ChatFormatting.GOLD, ChatFormatting.BOLD);
         for (int i = 0; i < 3; i++) playSound(SoundEvents.BELL_BLOCK, 4.0F, 0.5F);
+        if (level() instanceof ServerLevel server) {
+            LivingEntity t = getTarget();
+            float face = t == null ? 0 : (float) (Math.atan2(t.getZ() - getZ(), t.getX() - getX()) + Math.PI / 2); // 文字盤の面を相手へ向ける
+            RulerFxEntity.spawn(server, RulerFxEntity.CLOCK, RulerFxEntity.FACING | RulerFxEntity.HANDS_TO_TWELVE, position().add(0, 13.0, 0), 9.0F, face, 0, STOP_WARN + 10, RulerFxEntity.GOLD);
+        }
         level().broadcastEntityEvent(this, EVENT_STOP);
     }
 
@@ -512,6 +526,7 @@ public class TimeRulerEntity extends Monster implements GeoEntity, ChronoGazer, 
     void stopTime(ServerLevel server) {
         TimeStop.start(server, this, STOP_TICKS);
         say("stop", ChatFormatting.GOLD, ChatFormatting.BOLD);
+        RulerFxEntity.spawn(server, RulerFxEntity.CLOCK, RulerFxEntity.FLAT | RulerFxEntity.HANDS_TO_TWELVE, position().add(0, 18.0, 0), 34.0F, 0, 0, 30, RulerFxEntity.VIOLET); // 止まった世界の空の文字盤（時と一緒に止まる）
         LivingEntity t = getTarget();
         if (t != null) {
             Vec3 behind = t.position().subtract(t.getLookAngle().multiply(1, 0, 1).normalize().scale(5.0)).add(0, 1.5, 0);
@@ -532,6 +547,9 @@ public class TimeRulerEntity extends Monster implements GeoEntity, ChronoGazer, 
     /** 時間跳躍: その場から消えて at に現れる */
     void blink(ServerLevel server, Vec3 at) {
         Fx.burst(server, MementoMoriEntity.glow(GOLD, 0.4F, 14), position().add(0, 3.0, 0), 24, 0.25);
+        float face = (float) Math.toRadians(getYRot());
+        RulerFxEntity.spawn(server, RulerFxEntity.CLOCK, RulerFxEntity.FACING, position().add(0, 0.5, 0), 3.2F, face, 0, 16, RulerFxEntity.GOLD);
+        RulerFxEntity.spawn(server, RulerFxEntity.CLOCK, RulerFxEntity.FACING | RulerFxEntity.HANDS_REVERSE, at.add(0, 0.5, 0), 3.2F, face, 0, 16, RulerFxEntity.VIOLET);
         moveTo(at.x, at.y, at.z, getYRot(), getXRot());
         Fx.burst(server, MementoMoriEntity.glow(INDIGO, 0.4F, 14), at.add(0, 3.0, 0), 24, 0.25);
         playSound(SoundEvents.ENDERMAN_TELEPORT, 2.0F, 0.5F);
@@ -555,6 +573,7 @@ public class TimeRulerEntity extends Monster implements GeoEntity, ChronoGazer, 
             server.addFreshEntity(anchor);
             Fx.burst(server, MementoMoriEntity.glow(GOLD, 0.4F, 16), anchor.position().add(0, 1.0, 0), 20, 0.2);
         }
+        rewindFx = RulerFxEntity.spawn(server, RulerFxEntity.CLOCK, RulerFxEntity.FLAT | RulerFxEntity.HANDS_REVERSE, new Vec3(getX(), floor + 0.1, getZ()), 13.0F, 0, 0, REWIND_TICKS, RulerFxEntity.VIOLET);
         playSound(SoundEvents.BEACON_POWER_SELECT, 4.0F, 0.4F);
         level().broadcastEntityEvent(this, EVENT_REWIND);
     }
@@ -574,6 +593,8 @@ public class TimeRulerEntity extends Monster implements GeoEntity, ChronoGazer, 
             entityData.set(REWINDING, false);
             castLock = 0;
             staggerLeft = 120;
+            if (rewindFx != null) rewindFx.discard();
+            RulerFxEntity.spawn(server, RulerFxEntity.PILLAR, 0, position().add(0, -1.0, 0), 2.0F, 0, 0, 24, RulerFxEntity.WHITE);
             say("rewind_broken", ChatFormatting.AQUA, ChatFormatting.BOLD);
             playSound(SoundEvents.GLASS_BREAK, 3.0F, 0.5F);
             Fx.shockwave(server, position().add(0, 3.0, 0), VIOLET, 8.0F, 16);
@@ -584,6 +605,7 @@ public class TimeRulerEntity extends Monster implements GeoEntity, ChronoGazer, 
             float past = history[Math.floorMod(historyAt - 20, history.length)];
             if (past > getHealth()) setHealth(Math.min(getMaxHealth(), past));
             for (RulerAnchorEntity a : left) a.discard();
+            RulerFxEntity.spawn(server, RulerFxEntity.PILLAR, 0, position().add(0, -1.0, 0), 1.6F, 0, 0, 24, RulerFxEntity.VIOLET);
             say("rewound", ChatFormatting.LIGHT_PURPLE);
             playSound(SoundEvents.BELL_RESONATE, 4.0F, 1.4F);
             Fx.burst(server, MementoMoriEntity.glow(VIOLET, 0.5F, 20), position().add(0, 3.0, 0), 40, 0.4);
@@ -598,6 +620,11 @@ public class TimeRulerEntity extends Monster implements GeoEntity, ChronoGazer, 
         castLock = FINALE_TICKS;
         LivingEntity t = getTarget();
         floorY = t != null ? t.getY() : getY() - 2.0;
+        finaleCenter = new Vec3(getX(), floorY + 0.4, getZ());
+        if (level() instanceof ServerLevel server) {
+            RulerFxEntity.spawn(server, RulerFxEntity.CLOCK, RulerFxEntity.FLAT | RulerFxEntity.HANDS_FINALE, finaleCenter.add(0, 0.05, 0), 28.0F, 0, 0, FINALE_TICKS, RulerFxEntity.GOLD);
+            RulerFxEntity.spawn(server, RulerFxEntity.CLOCK, RulerFxEntity.FACING, position().add(0, 16.0, 0), 12.0F, (float) Math.toRadians(getYRot()), 0, FINALE_TICKS, RulerFxEntity.VIOLET);
+        }
         say("finale", ChatFormatting.GOLD, ChatFormatting.BOLD);
         playSound(SoundEvents.BELL_RESONATE, 5.0F, 0.4F);
         level().broadcastEntityEvent(this, EVENT_FINALE);
@@ -606,11 +633,11 @@ public class TimeRulerEntity extends Monster implements GeoEntity, ChronoGazer, 
     void tickFinale(ServerLevel server) {
         if (finaleLeft <= 0) return;
         int t = FINALE_TICKS - finaleLeft--;
-        Vec3 o = new Vec3(getX(), floorY + 0.4, getZ());
+        Vec3 o = finaleCenter;
         double hour = t * 0.02, minute = t * 0.06;
         for (double[] hand : new double[][]{{hour, 18}, {minute, 28}}) {
             Vec3 dir = new Vec3(Math.cos(hand[0]), 0, Math.sin(hand[0]));
-            if (t % 2 == 0) Fx.line(server, MementoMoriEntity.glow(hand[1] > 20 ? GOLD : PALE, 0.3F, 3), o, o.add(dir.scale(hand[1])), 0.7);
+            if (t % 4 == 0) Fx.one(server, MementoMoriEntity.glow(hand[1] > 20 ? GOLD : PALE, 0.35F, 8), o.add(dir.scale(random.nextDouble() * hand[1])).add(0, 0.3, 0), Vec3.ZERO); // 針は RulerFxEntity が描く
             if (t % 10 != 0) continue;
             for (LivingEntity e : level().getEntitiesOfClass(LivingEntity.class, new AABB(o, o).inflate(hand[1], 2, hand[1]), ChronoGazer::canHurt)) {
                 Vec3 rel = e.position().subtract(o).multiply(1, 0, 1);
@@ -646,7 +673,7 @@ public class TimeRulerEntity extends Monster implements GeoEntity, ChronoGazer, 
                 case SPIKE_FALL -> {
                     if (left > 0 && tickCount % 3 == 0) KeeperFx.ring(server, s.at().add(0, 0.15, 0), 2.0, GOLD, 16);
                     if (left <= 0) {
-                        Fx.line(server, MementoMoriEntity.glow(GOLD, 0.45F, 12), s.at().add(0, 20, 0), s.at(), 0.6);
+                        RulerFxEntity.spawn(server, RulerFxEntity.PILLAR, 0, s.at(), 0.7F, 0, 0, 16, RulerFxEntity.GOLD);
                         Fx.shockwave(server, s.at().add(0, 0.2, 0), GOLD, 3.0F, 12);
                         hitAround(s.at(), 2.0, SPIKE, false);
                         server.playSound(null, BlockPos.containing(s.at()), SoundEvents.LIGHTNING_BOLT_IMPACT, getSoundSource(), 1.2F, 1.6F);
@@ -654,9 +681,11 @@ public class TimeRulerEntity extends Monster implements GeoEntity, ChronoGazer, 
                 }
                 case ERASE_FALL -> {
                     Vec3 at = s.at();
-                    if (left > 0 && left <= 40 && tickCount % 2 == 0) cube(server, at);
+                    if (left > 0 && left <= 40 && eraseMarked.add(at)) RulerFxEntity.spawn(server, RulerFxEntity.CUBE, 0, at, 1.6F, 0, 0, left, RulerFxEntity.RED);
                     if (left <= 0) {
-                        Fx.line(server, MementoMoriEntity.glow(WHITE, 0.6F, 14), at.add(0, 24, 0), at.add(0, -2, 0), 0.4);
+                        eraseMarked.remove(at);
+                        RulerFxEntity.spawn(server, RulerFxEntity.PILLAR, 0, at, 1.1F, 0, 0, 22, RulerFxEntity.VIOLET);
+                        RulerFxEntity.spawn(server, RulerFxEntity.PILLAR, 0, at, 0.5F, 0, 0, 14, RulerFxEntity.WHITE);
                         Fx.shockwave(server, at.add(0, 0.2, 0), WHITE, 3.0F, 12);
                         hitAround(at, 1.6, ERASE, true);
                         server.playSound(null, BlockPos.containing(at), SoundEvents.WARDEN_SONIC_BOOM, getSoundSource(), 1.5F, 1.6F);
@@ -669,6 +698,9 @@ public class TimeRulerEntity extends Monster implements GeoEntity, ChronoGazer, 
                     if (left <= 0) {
                         Vec3 fwd = Vec3.directionFromRotation(0, getYRot());
                         Fx.slash(server, position().add(0, 2.0, 0).add(fwd.scale(2.5)), GOLD, 5.0F, 10, 0.0F);
+                        float face = (float) Math.atan2(fwd.z, fwd.x);
+                        RulerFxEntity.spawn(server, RulerFxEntity.SLASH, 0, position().add(0, 1.6, 0), 6.0F, face, 0, 14, RulerFxEntity.GOLD);
+                        RulerFxEntity.spawn(server, RulerFxEntity.SLASH, 0, position().add(0, 0.8, 0), 5.0F, face, 0, 12, RulerFxEntity.VIOLET);
                         for (LivingEntity e : level().getEntitiesOfClass(LivingEntity.class, getBoundingBox().inflate(5.5), ChronoGazer::canHurt)) {
                             Vec3 rel = e.position().subtract(position()).multiply(1, 0, 1);
                             if (rel.length() < 5.5 && rel.normalize().dot(fwd) > 0.0) e.hurt(damageSources().mobAttack(this), damageFor(e, SLASH));
@@ -679,22 +711,6 @@ public class TimeRulerEntity extends Monster implements GeoEntity, ChronoGazer, 
                 }
             }
             if (left <= 0) strikes.remove(s);
-        }
-    }
-
-    /** 消去の印の光の立方体（一辺 1.6） */
-    static void cube(ServerLevel server, Vec3 at) {
-        double h = 0.8;
-        Vec3 b = at.add(0, h, 0);
-        for (int ax = -1; ax <= 1; ax += 2) for (int az = -1; az <= 1; az += 2) {
-            Fx.line(server, MementoMoriEntity.glow(RED, 0.12F, 3), b.add(ax * h, -h, az * h), b.add(ax * h, h, az * h), 0.4);
-        }
-        for (int ay = -1; ay <= 1; ay += 2) {
-            Vec3 y = b.add(0, ay * h, 0);
-            Fx.line(server, MementoMoriEntity.glow(RED, 0.12F, 3), y.add(-h, 0, -h), y.add(h, 0, -h), 0.4);
-            Fx.line(server, MementoMoriEntity.glow(RED, 0.12F, 3), y.add(-h, 0, h), y.add(h, 0, h), 0.4);
-            Fx.line(server, MementoMoriEntity.glow(RED, 0.12F, 3), y.add(-h, 0, -h), y.add(-h, 0, h), 0.4);
-            Fx.line(server, MementoMoriEntity.glow(RED, 0.12F, 3), y.add(h, 0, -h), y.add(h, 0, h), 0.4);
         }
     }
 
@@ -829,6 +845,7 @@ public class TimeRulerEntity extends Monster implements GeoEntity, ChronoGazer, 
     /** 自分の技の後始末（時間停止を解き、歯車・針を消す） */
     void cleanup(ServerLevel server) {
         strikes.clear();
+        eraseMarked.clear();
         sweepLeft = 0;
         finaleLeft = 0;
         rewindLeft = 0;

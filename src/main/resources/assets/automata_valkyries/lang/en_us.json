@@ -2312,6 +2312,7 @@
   "entity.automata_valkyries.time_ruler": "Time Ruler",
   "entity.automata_valkyries.ruler_anchor": "Causality Gear",
   "entity.automata_valkyries.ruler_needle": "Pruning Needle",
+  "entity.automata_valkyries.ruler_fx": "Chrono Light",
   "item.automata_valkyries.time_ruler_spawn_egg": "Time Ruler Spawn Egg",
   "item.automata_valkyries.chrono_key": "Chrono Key",
   "item.automata_valkyries.chrono_key.desc": "Use on the Dormant Gate of Time in a sky garden fortress to wake it (after the Bastion Keeper falls). The awakened gate leads to the Time Rift",

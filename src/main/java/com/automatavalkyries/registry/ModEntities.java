@@ -234,6 +234,11 @@ public class ModEntities {
             ENTITY_TYPES.register("ruler_anchor", () ->
                     EntityType.Builder.of(com.automatavalkyries.entity.chrono.RulerAnchorEntity::new, MobCategory.MONSTER)
                             .sized(1.4F, 1.6F).clientTrackingRange(12).build("ruler_anchor"));
+    /** タイムルーラーの技の自作エフェクト（光の文字盤・刃・柱・立方体・一閃。2026-10-19） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.RulerFxEntity>> RULER_FX =
+            ENTITY_TYPES.register("ruler_fx", () ->
+                    EntityType.Builder.<com.automatavalkyries.entity.chrono.RulerFxEntity>of(com.automatavalkyries.entity.chrono.RulerFxEntity::new, MobCategory.MISC)
+                            .sized(0.5F, 0.5F).clientTrackingRange(10).updateInterval(20).noSave().fireImmune().build("ruler_fx"));
     /** 山なりの砲弾（曲射砲・前哨司令機の砲撃要請。2026-10-15） */
     public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.MortarShellEntity>> MORTAR_SHELL =
             ENTITY_TYPES.register("mortar_shell", () ->

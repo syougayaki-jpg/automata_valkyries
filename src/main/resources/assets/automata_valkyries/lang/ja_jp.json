@@ -2312,6 +2312,7 @@
   "entity.automata_valkyries.time_ruler": "総司令機 タイムルーラー",
   "entity.automata_valkyries.ruler_anchor": "因果の歯車",
   "entity.automata_valkyries.ruler_needle": "時空剪定の針",
+  "entity.automata_valkyries.ruler_fx": "時の光",
   "item.automata_valkyries.time_ruler_spawn_egg": "総司令機 タイムルーラーのスポーンエッグ",
   "item.automata_valkyries.chrono_key": "時の鍵",
   "item.automata_valkyries.chrono_key.desc": "空中庭園要塞の眠れる時の門に使うと、門が目覚める（要塞守護機を倒してから）。目覚めた門は時の狭間へ通じる",

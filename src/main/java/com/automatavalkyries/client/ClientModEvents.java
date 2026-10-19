@@ -72,6 +72,7 @@ public class ClientModEvents {
         event.registerEntityRenderer(ModEntities.TIME_RULER.get(), c -> new ChronoBaseRenderer<>(c, "time_ruler", 2.0F));   // 総司令機タイムルーラー（2026-10-19）
         event.registerEntityRenderer(ModEntities.RULER_ANCHOR.get(), c -> new ChronoBaseRenderer<>(c, "ruler_anchor", 0.5F));
         event.registerEntityRenderer(ModEntities.RULER_NEEDLE.get(), RulerNeedleRenderer::new);
+        event.registerEntityRenderer(ModEntities.RULER_FX.get(), RulerFxRenderer::new);
         event.registerEntityRenderer(ModEntities.BASTION_KEEPER.get(), c -> new ChronoBaseRenderer<>(c, "bastion_keeper", 1.4F));   // 浮遊要塞（2026-10-19）
         event.registerEntityRenderer(ModEntities.CHRONO_INTERCEPTOR.get(), c -> new ChronoBaseRenderer<>(c, "chrono_interceptor", 0.5F));
         event.registerEntityRenderer(ModEntities.DELAY_NODE.get(), c -> new ChronoBaseRenderer<>(c, "delay_node", 0.4F));
