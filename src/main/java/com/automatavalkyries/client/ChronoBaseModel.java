@@ -248,7 +248,8 @@ public class ChronoBaseModel<T extends Mob & GeoEntity> extends DefaultedEntityG
      * 呼吸・腕の揺れ・首の傾げ・ぶら下がる脚・2 つの波で揺れるマント。動く向きへの前傾と横傾き（脚とマントがなびく）。
      * 技ごとの構え: 針（左腕で突く）・一閃（右腕を振りかぶって振り下ろす）・掃射（両腕を広げて反る）・消去（右腕で指す）・
      * 時間停止の予告（両腕を天へ、光輪が広がる）・因果逆転（腕を前で交差して身を丸める）・刻の終焉（両腕を大きく広げる）。
-     * 被弾でのけぞり、撃破で前へ崩れて腕が垂れ、光輪が落ちる。形態が進むほど速く大きく。腕は rotX が負で前・上へ、
+     * 被弾でのけぞり、撃破で前へ崩れて腕が垂れ、光輪が落ちる。形態が進むほど速く大きく。前後（rotX）はゲームで逆だったので、
+     * 下の式の符号のまま最後に裏返して入れる（2026-10-19 ユーザー指定「モーションは全体的に前後が逆でした」。この骨では rotX が正で前・上へ）。
      * rotZ は右腕が正・左腕が負で外へ（いままでの動きと同じ向き）
      */
     private void animateRuler(TimeRulerEntity r, float age, float pt, float pitch) {
@@ -287,13 +288,13 @@ public class ChronoBaseModel<T extends Mob & GeoEntity> extends DefaultedEntityG
         CoreGeoBone body = bone("body");
         if (body != null) {
             body.setPosY(bob);
-            body.setRotX(bodyX);
+            body.setRotX(-bodyX);                                                          // 前後はゲームで逆だった（2026-10-19）ので裏返す
             body.setRotY(bodyY);
             body.setRotZ(bodyZ);
         }
 
         // ---- 頭: 相手を見上げ・見下ろし、首をわずかに傾げる。崩れると垂れる
-        set("head", -pitch * 0.5F + rewind * 0.3F + dying * 0.6F - cast * 0.3F,
+        set("head", -(-pitch * 0.5F + rewind * 0.3F + dying * 0.6F - cast * 0.3F),
                 Mth.sin(age * 0.023F) * 0.08F, Mth.sin(age * 0.037F) * 0.06F);
         CoreGeoBone visor = bone("visor");
         if (visor != null) {
@@ -311,8 +312,8 @@ public class ChronoBaseModel<T extends Mob & GeoEntity> extends DefaultedEntityG
         float ly = 0.3F * needle + 0.6F * rewind;
         float lz = -0.12F - 1.2F * sweep - 0.25F * cast + 0.7F * rewind - 1.35F * finale - lean * -0.3F;
         float limp = 1.0F - dying;
-        set("arm_right", rx * limp, ry * limp, rz * limp + dying * 0.1F);
-        set("arm_left", lx * limp, ly * limp, lz * limp - dying * 0.1F);
+        set("arm_right", -rx * limp, ry * limp, rz * limp + dying * 0.1F);
+        set("arm_left", -lx * limp, ly * limp, lz * limp - dying * 0.1F);
 
         // ---- 脚: 左右の位相をずらしてぶら下がり、動くと後ろへなびく
         for (String leg : new String[]{"leg_right", "leg_left"}) {
@@ -320,12 +321,12 @@ public class ChronoBaseModel<T extends Mob & GeoEntity> extends DefaultedEntityG
             if (b == null) continue;
             float ph = leg.equals("leg_left") ? 1.3F : 0.0F;
             b.setPosY(bob);
-            b.setRotX(0.12F + Mth.sin(age * 0.05F * pace + ph) * 0.09F + moving * 0.35F + lean * 0.6F - finale * 0.15F + dying * 0.4F);
+            b.setRotX(-(0.12F + Mth.sin(age * 0.05F * pace + ph) * 0.09F + moving * 0.35F + lean * 0.6F - finale * 0.15F + dying * 0.4F));
             b.setRotZ((leg.equals("leg_left") ? -1 : 1) * (0.03F + sweep * 0.08F + finale * 0.12F) - roll * 0.5F);
         }
 
         // ---- マント: 2 つの波、動くと後ろへなびく、掃射・終焉で広がる
-        set("cape", 0.08F + Mth.sin(age * 0.09F) * 0.05F + Mth.sin(age * 0.23F + 0.6F) * 0.025F + moving * 0.45F + sweep * 0.15F + finale * 0.25F - dying * 0.05F,
+        set("cape", -(0.08F + Mth.sin(age * 0.09F) * 0.05F + Mth.sin(age * 0.23F + 0.6F) * 0.025F + moving * 0.45F + sweep * 0.15F + finale * 0.25F - dying * 0.05F),
                 0.0F, Mth.sin(age * 0.05F) * 0.03F);
 
         // ---- 光輪: 回り、上下し、予告・終焉で広がり速く回る。崩れると落ちる
@@ -349,7 +350,7 @@ public class ChronoBaseModel<T extends Mob & GeoEntity> extends DefaultedEntityG
         CoreGeoBone dial = bone("dial");
         if (dial != null) {
             dial.setRotZ(Mth.sin(age * 0.02F) * 0.05F + dying * 0.4F);
-            dial.setRotX(dying * 0.3F);
+            dial.setRotX(-dying * 0.3F);
             float ds = 1.0F + cast * 0.08F * (1.0F + Mth.sin(age * 0.8F)) + finale * 0.12F;
             dial.setScaleX(ds);
             dial.setScaleY(ds);
