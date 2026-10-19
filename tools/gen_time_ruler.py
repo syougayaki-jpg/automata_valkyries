@@ -36,7 +36,8 @@ g.MAT.update({
     'tabard': (0x6A2CA0, 0x9A5AD0, 0x34105E, 'plain', False),   # 紫の前垂れ（白い十字）
     'band': (0x5A2290, 0x8048C0, 0x2C0C50, 'plain', False),     # 文字盤の紫の帯（金の数字）
     'visor': (0x2A1440, 0x7A50B0, 0x10081C, 'plain', False),    # 暗い紫の面頬（つやの映り込み）
-    'bladew': (0xE8ECF4, 0xFFFFFF, 0xA8B0C0, 'plain', False),   # 足先の白銀の刃
+    'bladew': (0xE8ECF4, 0xFFFFFF, 0xA8B0C0, 'plain', False),   # 白銀の刃（いまは使っていない）
+    'leather': (0x2A1C16, 0x5A4034, 0x120A08, 'plain', False),  # 革靴の靴底と踵（つやのある暗い革）
     'frame': (0x2A2C38, 0x444858, 0x14151C, 'plain', False),    # 暗い骨組み（金の回路の線）
     'gglow': (0xFFD166, 0xFFF0B0, 0xC08A20, 'glow', True),      # 金の光（光輪・数字の芯・宝石の縁）
     'vglow': (0xB070FF, 0xE0C8FF, 0x6A30C0, 'glow', True),      # 紫の光（宝石）
@@ -123,9 +124,17 @@ def time_ruler():
         B(name, (X - 0.5, 10.8, -3.8), (X + 0.5, 20.2, -3.4), 'purple', rot=(-6, 0, 0), pivot=(X, 21, -2.9))      # 紫の筋
         octo(B, name, (X - 1.8, 7, -1.8), (X + 1.8, 10.2, 1.8), 'frame')                                           # 足首
         octo(B, name, (X - 2.2, 7.6, -2.2), (X + 2.2, 9.0, 2.2), 'goldp')
-        for i, (w2, y0, y1) in enumerate(((1.6, 0.0, 7.2), (1.2, -6.0, 0.2), (0.8, -10.0, -5.8), (0.4, -12.6, -9.8))):   # 下へ細くなる刃
-            B(name, (X - w2 / 2, y0, -0.9 + i * 0.15), (X + w2 / 2, y1, 0.9 - i * 0.15), 'bladew', rot=(14, 0, 0), pivot=(X, 7, 0))
-        spike(B, name, (X, 6.0, 1.2), 1.4, 5.0, 'bladew', rot=(-150, 0, 0))                                      # 後ろへ尖る小さな刃
+        # 尖った革靴の形の足（2026-10-19 ユーザー指定「足先を革靴のようにシャープに」）: 踵・甲・先へ細くなる爪先・金の爪先、暗い革の靴底と踵。
+        # 浮いているので、足首を軸に爪先を斜め下へ向ける（x が正で前が下がる）
+        foot = dict(rot=(38, 0, 0), pivot=(X, 7.6, 0))
+        B(name, (X - 2.1, 3.8, -1.2), (X + 2.1, 7.8, 2.7), 'white', top='goldp', **foot)                         # 踵と足首を包む甲
+        B(name, (X - 1.95, 3.8, -4.2), (X + 1.95, 6.8, -1.2), 'whites', **foot)                                  # 甲
+        B(name, (X - 1.6, 3.8, -6.4), (X + 1.6, 5.9, -4.2), 'whites', **foot)                                    # 前へ細く
+        B(name, (X - 1.15, 3.8, -8.0), (X + 1.15, 5.1, -6.4), 'goldp', **foot)                                   # 金の爪先
+        B(name, (X - 0.6, 3.8, -9.3), (X + 0.6, 4.6, -8.0), 'gold', **foot)                                      # 尖った先
+        B(name, (X - 2.2, 3.3, -8.2), (X + 2.2, 3.85, 2.8), 'leather', **foot)                                  # 革の靴底
+        B(name, (X - 1.5, 2.0, 0.7), (X + 1.5, 3.35, 2.6), 'leather', **foot)                                    # 踵
+        B(name, (X - 2.15, 5.6, -1.25), (X + 2.15, 6.2, 2.75), 'goldp', **foot)                                 # 足首の金の帯
 
     # ---- 胴（細い腰・尖った前垂れ・重ねた腰の板・八角の胸・V の胸当て・尖った襟）
     m.bone('body', 'root', (0, 40, 0))
@@ -194,8 +203,12 @@ def time_ruler():
             B('head', (side * 2.5 - w2 / 2, 69.8, z0), (side * 2.5 + w2 / 2, 72.2 - i * 0.5, z0 + ln), 'whites' if i < 2 else 'gglow',
               top='goldp' if i == 0 else 'whites', rot=(22, side * -12, 0), pivot=(side * 2.5, 71, 4))
     m.bone('visor', 'head', (0, 67, -4.8))
-    B('visor', (-3.7, 64.6, -5.3), (3.7, 70.2, -4.6), 'visor', sides='gold', top='gold', bottom='gold')
-    B('visor', (-2.6, 63.2, -5.25), (2.6, 66.0, -4.65), 'visor', rot=(0, 0, 45), pivot=(0, 64.6, -4.95))  # 面頬の下の尖り
+    # T 字の面頬（2026-10-19 ユーザー指定「顔面のバイザーを T 字に」）: 白い面頬に、目の高さの横の切れ込みと真ん中を下る縦の切れ込み（暗い紫、奥がかすかに光る）
+    B('visor', (-3.7, 63.8, -5.2), (3.7, 70.2, -4.6), 'whites', sides='gold', top='gold', bottom='gold')
+    B('visor', (-3.3, 67.6, -5.42), (3.3, 68.9, -5.15), 'visor')                                            # 横の切れ込み（目）
+    B('visor', (-0.6, 64.4, -5.42), (0.6, 67.7, -5.15), 'visor')                                            # 縦の切れ込み
+    B('visor', (-3.5, 68.9, -5.38), (3.5, 69.3, -5.1), 'gold')                                              # 切れ込みの上の金の縁
+    B('visor', (-1.8, 62.6, -5.15), (1.8, 65.0, -4.65), 'whites', rot=(0, 0, 45), pivot=(0, 63.8, -4.9))   # 面頬の下の尖り
     B('visor', (-3.9, 69.9, -5.4), (3.9, 70.6, -4.5), 'gold')
     octo(B, 'head', (-5.4, 72, -5.4), (5.4, 74.2, 5.4), 'goldp', top='gold')                               # 冠の輪（八角）
     for k in range(10):                                                                                  # 冠の尖った突起と宝石
@@ -328,15 +341,21 @@ def paint(base, glow, u, v, w, h, mat, face, rnd, ctx=None):
                 col = _mix(col, edge, (d - 0.65) * 2.5)
                 P(x, y, col, True)
         return
-    if mat == 'visor':
+    if mat == 'visor':                                                                  # T 字の切れ込み: 暗い紫、真ん中ほど奥がかすかに光る
+        for y in range(h):
+            for x in range(w):
+                d = max(abs((x + 0.5) / w - 0.5), abs((y + 0.5) / h - 0.5)) * 2
+                col = _mix(_c(0x8A50D0), _c(0x10081C), d * 1.3)
+                P(x, y, col, d < 0.45)
+        return
+    if mat == 'leather':                                                                # つやのある暗い革（上の縁に光の筋）
         for y in range(h):
             for x in range(w):
                 t = (y + 0.5) / h
-                col = _mix(_c(0x4A2470), _c(0x12081E), t)
-                k = (x - y * 0.8) / max(1, w)
-                if 0.15 < k < 0.28 or 0.36 < k < 0.4:
-                    col = _mix(col, (220, 200, 255), 0.55)                               # 斜めの映り込み
-                P(x, y, col, 0.15 < k < 0.28)
+                col = _mix(_c(0x5A4034), _c(0x1A100C), t)
+                if y == 1 or (x + y) % 11 == 0:
+                    col = _mix(col, (200, 170, 150), 0.35)
+                P(x, y, col)
         return
     if mat == 'bladew':
         for y in range(h):
