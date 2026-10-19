@@ -31,7 +31,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
-import net.minecraft.world.entity.ai.control.FlyingMoveControl;
+import net.minecraft.world.entity.ai.control.MoveControl;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.ai.navigation.FlyingPathNavigation;
 import net.minecraft.world.entity.ai.navigation.PathNavigation;
@@ -115,7 +115,7 @@ public class TimeRulerEntity extends Monster implements GeoEntity, ChronoGazer, 
 
     public TimeRulerEntity(EntityType<? extends Monster> type, Level level) {
         super(type, level);
-        this.moveControl = new FlyingMoveControl(this, 20, true);
+        this.moveControl = new HoverMoveControl(this);
         this.bossEvent = new ServerBossEvent(Component.translatable(type.getDescriptionId()), BossEvent.BossBarColor.YELLOW, BossEvent.BossBarOverlay.NOTCHED_20);
         this.xpReward = 2000;
         setNoGravity(true);
@@ -245,6 +245,7 @@ public class TimeRulerEntity extends Monster implements GeoEntity, ChronoGazer, 
     @Override
     public void aiStep() {
         super.aiStep();
+        faceTarget();
         if (!(level() instanceof ServerLevel server)) return;
         if (!introDone) {
             tickIntro(server);
@@ -264,6 +265,55 @@ public class TimeRulerEntity extends Monster implements GeoEntity, ChronoGazer, 
         tickRewind(server);
         tickFinale(server);
         tickStrikes(server);
+    }
+
+    /**
+     * 相手がいる間は、体・頭・向きをいつも相手へ（1 Tick に {@value #TURN} 度まで、なめらかに）。
+     * 移動（{@link HoverMoveControl}）は向きを変えないので、回り込んでも背を向けず、頭と体が逆を向いてがくがくしない
+     * （2026-10-19 ユーザー指定「攻撃している時背を向けてがくがくする」）
+     */
+    static final float TURN = 12.0F;
+
+    void faceTarget() {
+        if (level().isClientSide || isDefeated()) return;
+        LivingEntity t = getTarget();
+        if (t == null) return;
+        double dx = t.getX() - getX(), dz = t.getZ() - getZ();
+        if (dx * dx + dz * dz < 1.0e-4) return;
+        float want = (float) (net.minecraft.util.Mth.atan2(dz, dx) * (180.0 / Math.PI)) - 90.0F;
+        float yaw = net.minecraft.util.Mth.approachDegrees(getYRot(), want, TURN);
+        setYRot(yaw);
+        yBodyRot = yaw;
+        yHeadRot = yaw;
+        double dy = t.getEyeY() - getEyeY(), flat = Math.sqrt(dx * dx + dz * dz);
+        setXRot(net.minecraft.util.Mth.approachDegrees(getXRot(), (float) -(net.minecraft.util.Mth.atan2(dy, flat) * (180.0 / Math.PI)), TURN));
+    }
+
+    /** 浮かんで動く（向きは変えない。目標へなめらかに加速し、近づくと減速して止まる。行き過ぎて戻る揺れを抑える） */
+    static class HoverMoveControl extends MoveControl {
+        HoverMoveControl(TimeRulerEntity mob) {
+            super(mob);
+        }
+
+        @Override
+        public void tick() {
+            if (operation != Operation.MOVE_TO) {
+                mob.setDeltaMovement(mob.getDeltaMovement().scale(0.8));
+                return;
+            }
+            Vec3 to = new Vec3(wantedX, wantedY, wantedZ).subtract(mob.position());
+            double d = to.length();
+            if (d < 0.6) {
+                operation = Operation.WAIT;
+                mob.setDeltaMovement(mob.getDeltaMovement().scale(0.6));
+                return;
+            }
+            double top = 0.32 * speedModifier;                                   // 目標へ向かう速さ（近いほど遅く）
+            Vec3 want = to.scale(Math.min(top, d * 0.08) / d);
+            Vec3 v = mob.getDeltaMovement();
+            mob.setDeltaMovement(v.add(want.subtract(v).scale(0.15)));           // なめらかに近づける
+            mob.setSpeed(0.0F);
+        }
     }
 
     // ---- 現れる・退く ----
