@@ -17,7 +17,7 @@
   bastion_keeper  : root > body > head > eye、body > halo、body > plate_0..plate_3（2026-10-19 浮遊要塞の中ボス）
   chrono_interceptor : root > body > wing_left / wing_right / engine（2026-10-19 浮遊要塞の迎撃機）
   delay_node      : root > core、root > ring_a、root > ring_b（2026-10-19 浮遊要塞の時間干渉機）
-  time_ruler      : root > body > head > visor、body > arm_left / arm_right、body > dial > hand_hour / hand_minute、body > blades、
+  time_ruler      : （粗い版。今の見た目は tools/gen_time_ruler.py）root > body > head > visor、body > arm_left / arm_right、body > dial > hand_hour / hand_minute、body > blades、
                     root > gear_ring、root > gear_inner（2026-10-19 総司令機タイムルーラー）
   ruler_anchor    : root > gear > core（2026-10-19 タイムルーラーの因果の歯車）
   ruler_needle    : root > needle（2026-10-19 時空剪定の針。切っ先が +Y）
@@ -457,6 +457,6 @@ if __name__ == '__main__':
     for fn in (chrono_guardian, mimic_container, phase_condenser, ruler_anchor):
         g.write(fn())
     g.TEX = 512  # 中ボスは面が大きいので 512
-    for fn in (crane_loader, outpost_watcher, foundry_master, bastion_keeper, time_ruler):
+    for fn in (crane_loader, outpost_watcher, foundry_master, bastion_keeper):  # time_ruler は tools/gen_time_ruler.py の細かい版で書き出す（2026-10-19）
         g.write(fn())
     g.TEX = 128
