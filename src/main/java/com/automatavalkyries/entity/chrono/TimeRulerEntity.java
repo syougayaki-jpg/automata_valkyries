@@ -193,6 +193,20 @@ public class TimeRulerEntity extends Monster implements GeoEntity, ChronoGazer, 
         return LuxionEntity.scaledFor(target, damage * trialAttack);
     }
 
+    /**
+     * セリフ（2026-10-19 ユーザー指定「撤退と撃破のセリフを設定して」）: 「総司令機 タイムルーラー」の名とセリフを金の斜体でチャットに。
+     * 撤退（相手がいなくなって退く）は {@link #getDefeatSpeech}（正規退場がサーバー全体へ）、撃破は {@link #speak}（近くの者へ）
+     */
+    Component line(String key) {
+        return Component.translatable("entity.automata_valkyries.time_ruler.speech",
+                Component.translatable("entity.automata_valkyries.time_ruler").withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD),
+                Component.translatable("entity.automata_valkyries.time_ruler." + key).withStyle(ChatFormatting.YELLOW, ChatFormatting.ITALIC));
+    }
+
+    void speak(ServerLevel server, String key) {
+        for (ServerPlayer p : server.getPlayers(p -> p.distanceToSqr(this) < 128 * 128)) p.sendSystemMessage(line(key));
+    }
+
     void say(String key, ChatFormatting... style) {
         if (!(level() instanceof ServerLevel server)) return;
         for (ServerPlayer p : server.getPlayers(p -> p.distanceToSqr(this) < 96 * 96)) {
@@ -348,7 +362,6 @@ public class TimeRulerEntity extends Monster implements GeoEntity, ChronoGazer, 
         if (!isAlive() || isDefeated() || retreating || protect.isDespawning()) return false;
         retreating = true;
         retreatTicks = 0;
-        say("retreat", ChatFormatting.GOLD, ChatFormatting.ITALIC);
         return true;
     }
 
@@ -694,7 +707,7 @@ public class TimeRulerEntity extends Monster implements GeoEntity, ChronoGazer, 
         if (!(level() instanceof ServerLevel server)) return;
         if (deathTime == 1) {
             cleanup(server);
-            say("defeat", ChatFormatting.GOLD, ChatFormatting.ITALIC);
+            speak(server, "defeat");                                            // 撃破のセリフ（チャット）
         }
         setDeltaMovement(0, -0.02, 0);
         move(net.minecraft.world.entity.MoverType.SELF, getDeltaMovement());
@@ -729,7 +742,7 @@ public class TimeRulerEntity extends Monster implements GeoEntity, ChronoGazer, 
 
     @Override
     public Component getDefeatSpeech() {
-        return Component.translatable("entity.automata_valkyries.time_ruler.defeat").withStyle(ChatFormatting.GOLD, ChatFormatting.ITALIC);
+        return line("retreat");                                                    // 退くとき（Eprotect の正規退場がチャットに出す）
     }
 
     // ------------------------------------------------------------------ Eprotect・ボスバー・保存

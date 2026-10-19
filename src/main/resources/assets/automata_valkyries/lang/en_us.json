@@ -2325,12 +2325,13 @@
   "entity.automata_valkyries.time_ruler.rewind_broken": "The causality gears shattered - the Ruler is staggered!",
   "entity.automata_valkyries.time_ruler.rewound": "Time has been rewound",
   "entity.automata_valkyries.time_ruler.finale": "The End of All Hours - every soul on the dial shall be marked",
-  "entity.automata_valkyries.time_ruler.retreat": "...I withdraw for now. Time comes around again",
-  "entity.automata_valkyries.time_ruler.defeat": "...Time comes around. Toward your future...",
+  "entity.automata_valkyries.time_ruler.retreat": "...The pruning is done. Let your time remain stopped here",
+  "entity.automata_valkyries.time_ruler.defeat": "...Well done. The stopped hours begin to tick again. Go - toward your future",
   "death.attack.automata_valkyries.time_erasure": "%1$s was erased along with their coordinates",
   "death.attack.automata_valkyries.time_erasure.player": "%1$s was erased along with their coordinates by %2$s",
   "message.automata_valkyries.ruler_portal.keeper": "The fortress's Keeper guards the gate - defeat it first",
   "message.automata_valkyries.ruler_portal.awaken": "The Chrono Key turns - the gate awakens",
   "message.automata_valkyries.ruler_portal.return_dormant": "The return gate sleeps... defeat the Time Ruler",
-  "message.automata_valkyries.time_rift.gate_open": "The return gate has awakened"
+  "message.automata_valkyries.time_rift.gate_open": "The return gate has awakened",
+  "entity.automata_valkyries.time_ruler.speech": "%s: \"%s\""
 }
