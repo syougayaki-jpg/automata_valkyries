@@ -4,7 +4,7 @@
 
     python tools/gen_time_ruler.py
 
-出力: geo/entity/time_ruler.geo.json、textures/entity/time_ruler.png（＋ _glowmask.png、1024x1024・1px に 4.6 texel。paint で細かく塗る）。
+出力: geo/entity/time_ruler.geo.json、textures/entity/time_ruler.png（＋ _glowmask.png、1024x1024・1px に 4.2 texel。paint で細かく塗る）。
 箱・UV の詰め込みは tools/gen_chrono_gazers.py の write_hd を使う。
 骨の名前と pivot は Java 側（client/ChronoBaseModel）と一致させること:
   root > body（0,40,0）> gear_back（背の大きな歯車 0,51,9.4）/ gear_back_small（7.6,59.4,9.9）/ gear_back_low（-7.2,42.2,9.9）/ gear_chest（胸 0,53.5,-9.9）
@@ -12,7 +12,7 @@
        > body > head（首 0,63,0）> visor（0,67,-4.8）、head > halo_top（0,80,0）/ halo_left（9,71,0）/ halo_right（-9,71,0）
                        > arm_right（右肩 -11,57,0）/ arm_left（左肩 11,57,0）
                        > cape（背のマント 0,58,5）
-                       > dial（背の文字盤。体の左上の後ろ 10,62,11）> hand_hour / hand_minute（文字盤の真ん中）
+                       > dial（背の文字盤。体の左上の後ろ 10,62,11）> hand_hour / hand_minute（文字盤の真ん中）、dial_inner（回る内輪と星。2026-10-19）
        > leg_right（右の股関節 -4.5,36,0）/ leg_left（4.5,36,0）
 動かす骨には初期の向きを付けない（傾きは箱ごとの回転で付ける）。
 箱の回転の向き（GeckoLib 4.8 の BakedModelFactory・RenderUtils を読んで確かめた。2026-10-19）: geo の座標で Rz(-z)・Ry(+y)・Rx(-x) の順に効く。
@@ -366,23 +366,80 @@ def time_ruler():
             px, py = x + off * math.cos(a), y + off * math.sin(a)
             B('dial', (px - w2 / 2, py, cz - 0.6), (px + w2 / 2, py + ln * l2, cz + 0.6), 'gold' if i < 2 else 'gglow', rot=(0, 0, deg), pivot=(px, py, cz))
     ring(B, 'dial', cx, cy, cz - 0.5, 24.0, 60, (0.4, 1.2, 0.6), 'gold')
-    for k in range(12):                                                                                  # 中の尖った花弁
+    # ---- 豪華な文字盤（2026-10-19 ユーザー指定「背後の時計を豪華にして」）
+    def rad(r, a):
+        return cx + r * math.cos(a), cy + r * math.sin(a)
+    ring(B, 'dial', cx, cy, cz - 0.4, 34.6, 72, (3.0, 0.7, 1.4), 'gold')                                   # 外の細い金の縁
+    for k in range(36):                                                                                  # 外の縁の金の菱形の飾り
+        a = 2 * math.pi * (k + 0.5) / 36
+        x, y = rad(35.6, a)
+        B('dial', (x - 0.8, y - 0.8, cz - 0.5), (x + 0.8, y + 0.8, cz + 0.5), 'goldp' if k % 2 else 'gold', rot=(0, 0, 45 - math.degrees(a)), pivot=(x, y, cz))
+    for k in range(12):                                                                                  # 棘の付け根の宝石（3・6・9・12 時は紫）
         a = 2 * math.pi * k / 12
-        x, y = cx + 7.0 * math.cos(a), cy + 7.0 * math.sin(a)
-        B('dial', (x - 1.1, y - 2.4, cz - 0.6), (x + 1.1, y + 2.4, cz + 0.4), 'goldp', rot=(0, 0, 90 - math.degrees(a)), pivot=(x, y, cz))
-        x2, y2 = cx + 9.6 * math.cos(a), cy + 9.6 * math.sin(a)
-        B('dial', (x2 - 0.7, y2 - 0.7, cz - 0.6), (x2 + 0.7, y2 + 0.7, cz + 0.4), 'gold', rot=(0, 0, math.degrees(a) + 45), pivot=(x2, y2, cz))
+        x, y = rad(33.0, a)
+        big = k % 3 == 0
+        w = 1.3 if big else 0.9
+        B('dial', (x - w, y - w, cz - 1.5), (x + w, y + w, cz - 0.6), 'vglow' if big else 'gglow', sides='gold', rot=(0, 0, 45), pivot=(x, y, cz))
+        gx, gy = rad(27.2, a)
+        B('dial', (gx - 0.7, gy - 0.7, cz - 1.4), (gx + 0.7, gy + 0.7, cz - 0.6), 'vglow', rot=(0, 0, 45), pivot=(gx, gy, cz))   # 内の金の輪の上の 12 の宝石
+    # 上の冠の飾り（12 時の外）と下の垂れ飾り（6 時の外）
+    tx, ty = cx, cy + 36.2
+    B('dial', (tx - 3.2, ty, cz - 0.7), (tx + 3.2, ty + 1.6, cz + 0.7), 'goldp')
+    for k, (dx, h) in enumerate(((-2.4, 3.6), (0.0, 6.0), (2.4, 3.6))):
+        B('dial', (tx + dx - 0.6, ty + 1.6, cz - 0.5), (tx + dx + 0.6, ty + 1.6 + h, cz + 0.5), 'gold')
+        B('dial', (tx + dx - 0.7, ty + 1.6 + h - 0.4, cz - 0.6), (tx + dx + 0.7, ty + 1.6 + h + 1.0, cz + 0.6), 'vglow' if k == 1 else 'gglow', rot=(0, 0, 45), pivot=(tx + dx, ty + 1.6 + h + 0.3, cz))
+    bx, by = cx, cy - 36.2
+    B('dial', (bx - 2.6, by - 1.6, cz - 0.7), (bx + 2.6, by, cz + 0.7), 'goldp')
+    B('dial', (bx - 1.6, by - 4.4, cz - 0.6), (bx + 1.6, by - 1.2, cz + 0.6), 'goldp', rot=(0, 0, 45), pivot=(bx, by - 2.8, cz))
+    B('dial', (bx - 0.9, by - 3.7, cz - 1.0), (bx + 0.9, by - 1.9, cz - 0.5), 'vglow', rot=(0, 0, 45), pivot=(bx, by - 2.8, cz))
+    for dx in (-1.6, 0.0, 1.6):                                                                          # 垂れ飾りの房
+        B('dial', (bx + dx - 0.3, by - 8.0 + abs(dx), cz - 0.3), (bx + dx + 0.3, by - 4.2, cz + 0.3), 'gold')
+        B('dial', (bx + dx - 0.5, by - 8.8 + abs(dx), cz - 0.5), (bx + dx + 0.5, by - 7.8 + abs(dx), cz + 0.5), 'gglow')
+    for sx in (-1, 1):                                                                                   # 3 時と 9 時の外の鋼の歯車
+        gear(B, 'dial', (cx + sx * 37.4, cy, cz - 0.2), 2.6, 10, 0.9, rim='steel', tooth='steel', hub='goldp')
+    for k in range(24):                                                                                  # 文字盤の奥から放つ光の筋
+        a = 2 * math.pi * (k + 0.5) / 24
+        x, y = rad(6.0, a)
+        ln = 15.5 if k % 2 == 0 else 11.0
+        B('dial', (x - 0.15, y, cz + 0.3), (x + 0.15, y + ln, cz + 0.6), 'gglow', rot=(0, 0, 90 - math.degrees(a)), pivot=(x, y, cz + 0.45))
     for k in range(4):
         B('dial', (cx - 0.5, cy + 3, cz - 0.3), (cx + 0.5, cy + 27, cz + 0.5), 'gold', rot=(0, 0, k * 90 + 45), pivot=(cx, cy, cz))
-    B('dial', (cx - 2.4, cy - 2.4, cz - 1.2), (cx + 2.4, cy + 2.4, cz + 1.0), 'gglow', sides='gold', rot=(0, 0, 45), pivot=(cx, cy, cz))
+    # 回る内輪（逆へゆっくり回る）: 金の輪、文字のような光の点、8 本の尖った星
+    m.bone('dial_inner', 'dial', (cx, cy, cz))
+    ring(B, 'dial_inner', cx, cy, cz - 0.7, 20.0, 48, (2.7, 0.9, 1.0), 'goldp')
+    ring(B, 'dial_inner', cx, cy, cz - 0.7, 17.4, 48, (2.3, 0.5, 0.8), 'gold')
+    for k in range(24):                                                                                  # 文字のような光の点
+        a = 2 * math.pi * k / 24
+        x, y = rad(18.7, a)
+        if k % 2 == 0:
+            B('dial_inner', (x - 0.35, y - 0.9, cz - 1.0), (x + 0.35, y + 0.9, cz - 0.6), 'gglow', rot=(0, 0, 90 - math.degrees(a)), pivot=(x, y, cz))
+        else:
+            B('dial_inner', (x - 0.45, y - 0.45, cz - 1.0), (x + 0.45, y + 0.45, cz - 0.6), 'gglow', rot=(0, 0, 45), pivot=(x, y, cz))
+    for k in range(8):                                                                                   # 8 本の尖った星（長短）
+        a = 2 * math.pi * k / 8
+        ln = 15.0 if k % 2 == 0 else 10.0
+        deg = 90 - math.degrees(a)
+        for i2, (w2, f0, f1) in enumerate(((2.4, 0.0, 0.45), (1.5, 0.45, 0.78), (0.7, 0.78, 1.0))):
+            x0, y0 = rad(4.0 + ln * f0, a)
+            B('dial_inner', (x0 - w2 / 2, y0, cz - 1.1), (x0 + w2 / 2, y0 + ln * (f1 - f0), cz - 0.5), 'goldp' if i2 == 0 else 'gold', rot=(0, 0, deg), pivot=(x0, y0, cz))
+        x1, y1 = rad(4.0 + ln * 0.2, a)
+        B('dial_inner', (x1 - 0.25, y1, cz - 1.25), (x1 + 0.25, y1 + ln * 0.7, cz - 1.05), 'gglow', rot=(0, 0, deg), pivot=(x1, y1, cz))   # 星の芯の光
+    ring(B, 'dial_inner', cx, cy, cz - 0.9, 4.4, 16, (1.8, 0.8, 1.0), 'gold')                              # 星の付け根の輪
+    B('dial', (cx - 2.4, cy - 2.4, cz - 1.6), (cx + 2.4, cy + 2.4, cz + 1.0), 'gglow', sides='gold', rot=(0, 0, 45), pivot=(cx, cy, cz))   # 真ん中の光
     m.bone('hand_hour', 'dial', (cx, cy, cz - 1.5))
     for i, (w2, y0, y1) in enumerate(((2.0, 0, 12), (1.4, 12, 17), (0.8, 17, 20))):                     # 先へ細くなる短針
         B('hand_hour', (cx - w2 / 2, cy + y0, cz - 2.0), (cx + w2 / 2, cy + y1, cz - 1.2), 'gold', front='gglow')
     B('hand_hour', (cx - 1.7, cy + 14.3, cz - 2.0), (cx + 1.7, cy + 17.7, cz - 1.2), 'goldp', rot=(0, 0, 45), pivot=(cx, cy + 16, cz - 1.6))
+    B('hand_hour', (cx - 0.7, cy + 15.3, cz - 2.3), (cx + 0.7, cy + 16.7, cz - 1.9), 'vglow', rot=(0, 0, 45), pivot=(cx, cy + 16, cz - 2.1))   # 短針の宝石
+    for yy in (5.0, 9.0):                                                                                # 透かしの菱形
+        B('hand_hour', (cx - 1.4, cy + yy - 1.4, cz - 2.1), (cx + 1.4, cy + yy + 1.4, cz - 1.5), 'gold', rot=(0, 0, 45), pivot=(cx, cy + yy, cz - 1.8))
     m.bone('hand_minute', 'dial', (cx, cy, cz - 2.0))
     for i, (w2, y0, y1) in enumerate(((1.5, -6, 24), (1.0, 24, 36), (0.5, 36, 40))):                    # 輪の外まで伸びる、先へ細くなる長針
         B('hand_minute', (cx - w2 / 2, cy + y0, cz - 2.6), (cx + w2 / 2, cy + y1, cz - 1.8), 'gold', front='gglow')
     B('hand_minute', (cx - 1.27, cy - 9.3, cz - 2.6), (cx + 1.27, cy - 4.7, cz - 1.8), 'goldp', rot=(0, 0, 45), pivot=(cx, cy - 7, cz - 2.2))   # 菱形の重り
+    B('hand_minute', (cx - 0.7, cy - 7.7, cz - 2.9), (cx + 0.7, cy - 6.3, cz - 2.5), 'vglow', rot=(0, 0, 45), pivot=(cx, cy - 7, cz - 2.7))   # 重りの宝石
+    for yy in (10.0, 18.0, 30.0):                                                                        # 長針の透かしの菱形
+        B('hand_minute', (cx - 1.2, cy + yy - 1.2, cz - 2.8), (cx + 1.2, cy + yy + 1.2, cz - 2.2), 'gold', rot=(0, 0, 45), pivot=(cx, cy + yy, cz - 2.5))
     for k in range(7):                                                                                   # 先の三日月の飾り（光る、細い）
         a = math.radians(190 + k * 27)
         x, y = cx + 2.8 * math.cos(a), cy + 42.4 + 2.8 * math.sin(a)
@@ -392,7 +449,7 @@ def time_ruler():
 
 
 # ------------------------------------------------------------------ 細かい塗り
-TEX_HD, DENSITY = 1024, 4.6
+TEX_HD, DENSITY = 1024, 4.2
 
 
 def _c(h):
