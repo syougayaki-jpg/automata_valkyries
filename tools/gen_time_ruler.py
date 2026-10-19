@@ -1,6 +1,6 @@
 """
 総司令機【タイムルーラー】の細かい GeckoLib モデルとテクスチャ（2026-10-19 ユーザー指定「タイムルーラーのモデルをぐんと解像度あげて」、
-同日「（参考の絵）これをもとにクロノルーラーを改良して」で騎士の姿に作り直した）。
+同日「（参考の絵）これをもとにクロノルーラーを改良して」で騎士の姿に、「四角く見えないように全体的にシャープに」で八角の柱・段々に細くなる部品・尖りに作り直した）。
 
     python tools/gen_time_ruler.py
 
@@ -13,6 +13,8 @@
                        > dial（背の文字盤。体の左上の後ろ 10,62,11）> hand_hour / hand_minute（文字盤の真ん中）
        > leg_right（右の股関節 -4.5,36,0）/ leg_left（4.5,36,0）
 動かす骨には初期の向きを付けない（傾きは箱ごとの回転で付ける）。
+箱の回転の向き（GeckoLib 4.8 の BakedModelFactory・RenderUtils を読んで確かめた。2026-10-19）: geo の座標で Rz(-z)・Ry(+y)・Rx(-x) の順に効く。
+つまり z が正なら正面から見て時計回り、x が正なら上の端が前（-Z）へ倒れる。
 見た目: 白（0xF2EEE4）と金（0xE0B048）の鎧の騎士。脚があり、足先は下を向いた白い刃。暗い紫の面頬、宝石の付いた金の冠、頭の上と左右に金の光輪。
 肩から紫のマント（金の縁と房）、紫に白い十字の前垂れ、肩当ての下の紫の垂れ布。背の文字盤は紫の帯に金の数字、金の縁と光の棘、
 輪の外まで伸びる長針の先に三日月の飾り。一般的な騎士・時計の意匠だけを使い、特定の作品の形は写さない（DESIGN_VALKYRIE_VISUAL_DB §8）
@@ -49,13 +51,54 @@ def ring(B, bone, cx, cy, cz, r, n, size, mat, plane='xy', offset=0.0, every=Non
         mat_k = alt if (alt and every and k % every == 0) else mat
         if plane == 'xy':
             x, y = cx + r * math.cos(a), cy + r * math.sin(a)
-            B(bone, (x - sx / 2, y - sy / 2, cz - sz / 2), (x + sx / 2, y + sy / 2, cz + sz / 2), mat_k, rot=(0, 0, math.degrees(a) + 90), pivot=(x, y, cz), **f)
+            B(bone, (x - sx / 2, y - sy / 2, cz - sz / 2), (x + sx / 2, y + sy / 2, cz + sz / 2), mat_k, rot=(0, 0, -(math.degrees(a) + 90)), pivot=(x, y, cz), **f)
         elif plane == 'xz':
             x, z = cx + r * math.cos(a), cz + r * math.sin(a)
             B(bone, (x - sx / 2, cy - sy / 2, z - sz / 2), (x + sx / 2, cy + sy / 2, z + sz / 2), mat_k, rot=(0, -math.degrees(a) + 90, 0), pivot=(x, cy, z), **f)
         else:
             z, y = cz + r * math.cos(a), cy + r * math.sin(a)
-            B(bone, (cx - sz / 2, y - sy / 2, z - sx / 2), (cx + sz / 2, y + sy / 2, z + sx / 2), mat_k, rot=(-math.degrees(a) - 90, 0, 0), pivot=(cx, y, z), **f)
+            B(bone, (cx - sz / 2, y - sy / 2, z - sx / 2), (cx + sz / 2, y + sy / 2, z + sx / 2), mat_k, rot=(math.degrees(a) + 90, 0, 0), pivot=(cx, y, z), **f)
+
+
+def octo(B, bone, a, c, mat, rot=None, pivot=None, **f):
+    """縦長の箱を、断面が八角の柱にする（少し細めた箱と、Y で 45 度回した箱を重ねる。角が落ちて四角く見えない）"""
+    (x0, y0, z0), (x1, y1, z1) = a, c
+    cx, cz = (x0 + x1) / 2, (z0 + z1) / 2
+    w, d = abs(x1 - x0), abs(z1 - z0)
+    B(bone, (cx - w * 0.41, y0, cz - d * 0.41), (cx + w * 0.41, y1, cz + d * 0.41), mat, rot=rot, pivot=pivot, **f)
+    s = 0.37
+    piv = pivot if pivot else (cx, (y0 + y1) / 2, cz)
+    r2 = (rot[0], rot[1] + 45, rot[2]) if rot else (0, 45, 0)
+    B(bone, (cx - w * s, y0 + 0.05, cz - d * s), (cx + w * s, y1 - 0.05, cz + d * s), mat, rot=r2, pivot=piv, **f)
+
+
+def taper(B, bone, a, c, mat, steps=3, k=0.7, top_wide=True, **f):
+    """y の向きに段々に細くなる八角の柱（top_wide なら上が太い）"""
+    (x0, y0, z0), (x1, y1, z1) = a, c
+    cx, cz = (x0 + x1) / 2, (z0 + z1) / 2
+    w, d = abs(x1 - x0), abs(z1 - z0)
+    hh = (y1 - y0) / steps
+    for i in range(steps):
+        t = (i + 0.5) / steps
+        sc = (k + (1 - k) * t) if top_wide else (1 - (1 - k) * t)
+        ya, yb = y0 + i * hh, y0 + (i + 1) * hh + 0.02
+        octo(B, bone, (cx - w * sc / 2, ya, cz - d * sc / 2), (cx + w * sc / 2, yb, cz + d * sc / 2), mat, **f)
+
+
+def spike(B, bone, at, size, length, mat, rot=(0, 0, 0)):
+    """尖り: 細くなる 3 つの菱形（Z で 45 度）を rot の向きへ伸ばす。at は付け根、rot は付け根を軸にした向き（度）"""
+    x, y, z = at
+    for i, (sc, ln) in enumerate(((1.0, 0.45), (0.65, 0.35), (0.32, 0.2))):
+        y0 = y + length * sum(l for _, l in ((1.0, 0.45), (0.65, 0.35), (0.32, 0.2))[:i])
+        s = size * sc / 2
+        B(bone, (x - s, y0, z - s), (x + s, y0 + length * ln, z + s), mat, rot=(rot[0], rot[1] + 45, rot[2]), pivot=at)
+
+
+def rz(p, pivot, z_rot):
+    """点 p を pivot のまわりに、geo の箱の回転 (0, 0, z_rot) と同じだけ回す（尖った先の菱形を板の先へ置くため）"""
+    a = math.radians(-z_rot)
+    dx, dy = p[0] - pivot[0], p[1] - pivot[1]
+    return (pivot[0] + dx * math.cos(a) - dy * math.sin(a), pivot[1] + dx * math.sin(a) + dy * math.cos(a), p[2])
 
 
 def time_ruler():
@@ -63,141 +106,186 @@ def time_ruler():
     B, MB = m.box, m.mbox
     m.bone('root')
 
-    # ---- 脚（太もも・金の膝の歯車・脛・足首・下を向いた白銀の刃）
+    # ---- 脚（八角の太もも・尖った膝・細くなる脛・尖った足先の刃）
     for name, s in (('leg_right', -1), ('leg_left', 1)):
         m.bone(name, 'root', (s * 4.5, 36, 0))
+        X = s * 4.6
+        taper(B, name, (X - 3.1, 26, -3.2), (X + 3.1, 36, 3.2), 'white', steps=2, k=0.82, top_wide=True)       # 太もも
+        octo(B, name, (X - 3.4, 30, -3.5), (X + 3.4, 31.2, 3.5), 'goldp')                                         # 太ももの金の帯
+        B(name, (X - 2.4, 21.6, -4.6), (X + 2.4, 26.2, -2.8), 'goldp', rot=(-12, 0, 0), pivot=(X, 24, -3.7))      # 膝当て
+        spike(B, name, (X, 25.0, -4.4), 2.2, 4.0, 'gold', rot=(70, 0, 0))                                        # 膝の前へ尖る角
+        ring(B, name, X, 23.4, -4.9, 2.2, 10, (1.2, 0.9, 0.7), 'gold')                                            # 膝の金の歯車
+        B(name, (X - 0.8, 22.6, -5.3), (X + 0.8, 24.2, -4.6), 'vglow')
+        taper(B, name, (X - 2.8, 10, -3.1), (X + 2.8, 22, 3.1), 'white', steps=3, k=0.62, top_wide=True)       # 脛（下へ細く）
+        octo(B, name, (X - 3.0, 18, -3.3), (X + 3.0, 19.2, 3.3), 'goldp')
+        B(name, (X - 1.6, 10.5, -3.6), (X + 1.6, 21, -2.2), 'whites', rot=(-6, 0, 0), pivot=(X, 21, -2.9))        # 脛の前の板
+        B(name, (X - 1.13, 8.6, -3.3), (X + 1.13, 11.0, -2.5), 'whites', rot=(-6, 0, 45), pivot=(X, 10.5, -2.9))  # 板の下の尖り
+        B(name, (X - 0.5, 10.8, -3.8), (X + 0.5, 20.2, -3.4), 'purple', rot=(-6, 0, 0), pivot=(X, 21, -2.9))      # 紫の筋
+        octo(B, name, (X - 1.8, 7, -1.8), (X + 1.8, 10.2, 1.8), 'frame')                                           # 足首
+        octo(B, name, (X - 2.2, 7.6, -2.2), (X + 2.2, 9.0, 2.2), 'goldp')
+        for i, (w2, y0, y1) in enumerate(((1.6, 0.0, 7.2), (1.2, -6.0, 0.2), (0.8, -10.0, -5.8), (0.4, -12.6, -9.8))):   # 下へ細くなる刃
+            B(name, (X - w2 / 2, y0, -0.9 + i * 0.15), (X + w2 / 2, y1, 0.9 - i * 0.15), 'bladew', rot=(14, 0, 0), pivot=(X, 7, 0))
+        spike(B, name, (X, 6.0, 1.2), 1.4, 5.0, 'bladew', rot=(-150, 0, 0))                                      # 後ろへ尖る小さな刃
 
-        def L(a, c, mat, rot=None, pivot=None, **f):
-            r2 = (rot[0], rot[1] * -s, rot[2] * -s) if rot else None
-            B(name, (s * a[0], a[1], a[2]), (s * c[0], c[1], c[2]), mat, rot=r2, pivot=(s * pivot[0], pivot[1], pivot[2]) if pivot else None, **f)
-        L((1.6, 26, -3.2), (7.6, 36, 3.2), 'white', front='whites', out='whites')                      # 太もも
-        L((1.3, 30, -3.5), (7.9, 31.2, 3.5), 'goldp')                                                     # 太ももの金の帯
-        L((2.0, 21.5, -4.4), (7.2, 26.5, -2.6), 'goldp', rot=(-8, 0, 0), pivot=(4.6, 24, -3.5))           # 膝当て
-        ring(B, name, s * 4.6, 24, -4.6, 2.5, 10, (1.4, 1.0, 0.8), 'gold')                                # 膝の金の歯車
-        B(name, (s * 4.6 - 0.9, 23.1, -5.0), (s * 4.6 + 0.9, 24.9, -4.3), 'vglow')                       # 膝の紫の宝石
-        L((1.9, 10, -3.1), (7.3, 22, 3.1), 'white', front='whites', out='whites')                      # 脛
-        L((1.6, 18, -3.4), (7.6, 19.2, 3.4), 'goldp')                                                     # 脛の金の帯
-        L((3.9, 10.5, -3.5), (5.3, 18, -3.0), 'purple')                                                   # 脛の前の紫の筋
-        L((2.6, 7, -2.6), (6.6, 10, 2.6), 'frame')                                                        # 足首
-        L((2.2, 7.6, -3.0), (7.0, 9.0, 3.0), 'goldp')                                                     # 足首の金の輪
-        L((3.8, -9, -1.0), (5.4, 7.2, 1.0), 'bladew', rot=(14, 0, 0), pivot=(4.6, 7, 0))                 # 下を向いた刃（少し前へ）
-        L((4.2, -11.5, -0.7), (5.0, -8.5, 0.7), 'bladew', rot=(14, 0, 0), pivot=(4.6, 7, 0))              # 刃の先
-        L((3.4, 2.0, 0.6), (5.8, 7.2, 2.0), 'bladew', rot=(-24, 0, 0), pivot=(4.6, 7, 1))                 # 後ろの小さな刃
-
-    # ---- 胴（腰・前垂れ・横の垂れ布・腹・胸・襟・首）
+    # ---- 胴（細い腰・尖った前垂れ・重ねた腰の板・八角の胸・V の胸当て・尖った襟）
     m.bone('body', 'root', (0, 40, 0))
-    B('body', (-6.5, 34, -4.6), (6.5, 40, 4.6), 'frame')                                                 # 腰
-    B('body', (-7.2, 38, -5.2), (7.2, 40.6, 5.2), 'goldp')                                               # 帯
-    B('body', (-1.6, 37.6, -5.9), (1.6, 40.9, -5.1), 'vglow', sides='gold')                              # 帯の宝石
-    B('body', (-3.2, 13, -5.9), (3.2, 38, -5.0), 'tabard', back='purple', rot=(-5, 0, 0), pivot=(0, 38, -5.4))   # 紫の前垂れ（白い十字）
-    MB('body', (-3.8, 13, -6.0), (-3.0, 38, -4.9), 'gold', rot=(-5, 0, 0), pivot=(0, 38, -5.4))          # 前垂れの金の縁
-    B('body', (-3.8, 12.2, -6.1), (3.8, 13.2, -4.8), 'gold', rot=(-5, 0, 0), pivot=(0, 38, -5.4))
-    MB('body', (-8.8, 24, -4.6), (-7.2, 38, 4.6), 'purple', out='purple', rot=(0, 0, 9), pivot=(-8, 38, 0))   # 横の垂れ布
-    for k in range(5):                                                                                   # 横の垂れ布の金の房
-        z = -3.6 + k * 1.8
-        MB('body', (-8.6, 21.6, z - 0.4), (-7.6, 24.2, z + 0.4), 'gold', rot=(0, 0, 9), pivot=(-8, 38, 0))
-    for i, y in enumerate((40.5, 42.6, 44.7)):                                                          # 重ねた腹の板
-        MB('body', (-6.4, y, -5.8 - i * 0.15), (-0.3, y + 2.3, -4.6), 'white' if i % 2 == 0 else 'whites', rot=(-10, -8, 4), pivot=(-0.3, y + 2.3, -5.2))
-    B('body', (-8.5, 46, -5.5), (8.5, 60, 5.5), 'frame', back='frame')                                   # 胸の骨組み
-    MB('body', (-9.6, 50, -7.8), (-0.5, 59.4, -5.2), 'white', front='whites', top='goldp', rot=(10, -14, -6), pivot=(-0.5, 54.7, -6.5))   # 胸当て
-    MB('body', (-9.0, 46.2, -7.0), (-0.8, 50.4, -5.2), 'whites', rot=(-8, -12, 5), pivot=(-0.8, 48.3, -6.1))
-    MB('body', (-10.2, 46.5, -5.0), (-8.4, 59, 5.0), 'white', out='whites', rot=(0, 0, -8), pivot=(-8.4, 59, 0))
-    B('body', (-1.1, 46, -8.6), (1.1, 59.4, -6.2), 'goldp', rot=(0, 45, 0), pivot=(0, 52.7, -7.4))       # 竜骨
-    ring(B, 'body', 0, 54, -8.9, 2.4, 10, (1.4, 0.8, 0.8), 'gold')                                        # 胸の金の飾り
-    B('body', (-1.4, 52.6, -9.2), (1.4, 55.4, -8.6), 'vglow', sides='gold')                              # 胸の紫の宝石
-    MB('body', (-7.0, 59.2, -5.2), (-0.8, 61.8, 5.2), 'goldp', top='gold', rot=(-6, 0, 14), pivot=(-0.8, 59.2, 0))   # 襟
-    B('body', (-2.4, 59.5, -2.4), (2.4, 63.5, 2.4), 'frame')                                             # 首
-    B('body', (-4.2, 46, 5.4), (4.2, 60, 7.4), 'white')                                                  # 背の板
-    B('body', (-1.6, 56, 7.2), (1.6, 63, 10.4), 'goldp')                                                 # 文字盤の支え
+    octo(B, 'body', (-6.0, 34, -4.4), (6.0, 40, 4.4), 'frame')                                              # 細い腰
+    octo(B, 'body', (-7.0, 38, -5.0), (7.0, 40.6, 5.0), 'goldp')                                            # 帯
+    B('body', (-1.2, 38.0, -5.9), (1.2, 40.4, -5.1), 'vglow', sides='gold', rot=(0, 0, 45), pivot=(0, 39.2, -5.5))   # 帯の菱形の宝石
+    B('body', (-3.0, 15.5, -5.9), (3.0, 38, -5.0), 'tabard', back='purple', rot=(-5, 0, 0), pivot=(0, 38, -5.4))     # 紫の前垂れ
+    B('body', (-2.12, 12.6, -5.85), (2.12, 16.8, -5.05), 'tabard', back='purple', rot=(-5, 0, 45), pivot=(0, 15.5, -5.4))   # 前垂れの尖った裾
+    MB('body', (-3.6, 15.5, -6.0), (-2.8, 38, -4.9), 'gold', rot=(-5, 0, 0), pivot=(0, 38, -5.4))
+    for side in (-1, 1):                                                                                  # 腰の左右に重ねた尖った板（外へ開く）
+        for i in range(3):
+            x = side * (5.0 + i * 1.6)
+            zr = -side * (8 + i * 6)
+            B('body', (x - 1.4, 25 - i * 1.5, -4.6 + i * 0.6), (x + 1.4, 38, 4.6 - i * 0.6), 'purple' if i < 2 else 'white',
+              rot=(0, 0, zr), pivot=(x, 38, 0))
+            tx, ty, _ = rz((x, 25 - i * 1.5, 0), (x, 38, 0), zr)
+            B('body', (tx - 0.99, ty - 1.4, -4.0 + i * 0.6), (tx + 0.99, ty + 1.4, 4.0 - i * 0.6), 'gold',
+              rot=(0, 0, zr + 45), pivot=(tx, ty, 0))                                                    # 板の尖った先
+    for i, y in enumerate((40.5, 42.6, 44.7)):                                                           # 重ねた腹の板（V の向き）
+        MB('body', (-6.2, y, -5.8 - i * 0.15), (-0.2, y + 2.3, -4.6), 'white' if i % 2 == 0 else 'whites', rot=(-10, -10, 12), pivot=(-0.2, y + 2.3, -5.2))
+    octo(B, 'body', (-8.5, 46, -5.5), (8.5, 60, 5.5), 'frame')                                              # 胸の骨組み（八角）
+    MB('body', (-9.6, 50, -7.8), (-0.5, 59.4, -5.2), 'white', front='whites', top='goldp', rot=(10, -16, -8), pivot=(-0.5, 54.7, -6.5))   # 胸当て
+    MB('body', (-8.4, 46.0, -7.2), (-0.6, 50.6, -5.2), 'whites', rot=(-8, -14, 14), pivot=(-0.6, 48.3, -6.2))   # 胸の下の板（V に下がる）
+    B('body', (-1.6, 44.2, -7.6), (1.6, 47.4, -5.6), 'goldp', rot=(0, 0, 45), pivot=(0, 45.8, -6.6))       # 胸の V の尖り
+    MB('body', (-10.2, 46.5, -5.0), (-8.4, 59, 5.0), 'white', out='whites', rot=(0, 0, -10), pivot=(-8.4, 59, 0))
+    B('body', (-1.1, 46, -8.6), (1.1, 59.4, -6.2), 'goldp', rot=(0, 45, 0), pivot=(0, 52.7, -7.4))         # 竜骨
+    ring(B, 'body', 0, 54, -8.9, 2.4, 10, (1.4, 0.8, 0.8), 'gold')
+    B('body', (-1.1, 52.9, -9.2), (1.1, 55.1, -8.6), 'vglow', sides='gold', rot=(0, 0, 45), pivot=(0, 54, -8.9))
+    MB('body', (-7.0, 59.2, -5.2), (-0.8, 61.8, 5.2), 'goldp', top='gold', rot=(-6, 0, 18), pivot=(-0.8, 59.2, 0))   # 襟
+    spike(B, 'body', (-6.4, 61.0, -3.2), 1.6, 3.6, 'gold', rot=(0, 0, -50))                                 # 襟の外へ尖る角
+    spike(B, 'body', (6.4, 61.0, -3.2), 1.6, 3.6, 'gold', rot=(0, 0, 50))
+    octo(B, 'body', (-2.4, 59.5, -2.4), (2.4, 63.5, 2.4), 'frame')                                          # 首
+    octo(B, 'body', (-4.2, 46, 5.2), (4.2, 60, 7.4), 'white')                                               # 背の板
+    B('body', (-1.6, 56, 7.2), (1.6, 63, 10.4), 'goldp', rot=(0, 0, 0))                                    # 文字盤の支え
 
-    # ---- 背の紫のマント（肩から、金の縁と房）
+    # ---- 背のマント（体に沿って曲がる 3 枚ずつ、尖った裾と金の房）
     m.bone('cape', 'body', (0, 58, 5))
-    MB('cape', (-14.5, 16, 5.2), (-1.5, 58, 6.4), 'purple', rot=(10, 0, -7), pivot=(-8, 58, 5.8))
-    MB('cape', (-14.8, 15.2, 5.0), (-1.2, 16.4, 6.6), 'goldp', rot=(10, 0, -7), pivot=(-8, 58, 5.8))      # 裾の金の縁
-    MB('cape', (-15.0, 16, 5.0), (-14.2, 58, 6.6), 'gold', rot=(10, 0, -7), pivot=(-8, 58, 5.8))          # 外の縁
-    for k in range(8):                                                                                   # 裾の金の房
-        x = -14 + k * 1.7
-        MB('cape', (x - 0.4, 12.6, 5.4), (x + 0.4, 15.4, 6.2), 'gold', rot=(10, 0, -7), pivot=(-8, 58, 5.8))
-        MB('cape', (x - 0.6, 12.0, 5.2), (x + 0.6, 12.8, 6.4), 'gglow', rot=(10, 0, -7), pivot=(-8, 58, 5.8))
+    for side in (-1, 1):
+        for i in range(3):
+            x0, x1 = 1.0 + i * 4.3, 6.0 + i * 4.3                                                        # 隣と少し重ねる
+            bottom = 15.0 - i * 1.2
+            zr = -side * (3 + i * 4)                                                                     # 外へ開く
+            piv = (side * (x0 + x1) / 2, 58, 5.8)
+            B('cape', (side * x0, bottom, 5.2 + i * 0.05), (side * x1, 58, 6.4 + i * 0.05), 'purple', rot=(0, 0, zr), pivot=piv)
+            B('cape', (side * x0, bottom - 0.6, 5.0), (side * x1, bottom + 0.6, 6.6), 'goldp', rot=(0, 0, zr), pivot=piv)   # 裾の金の縁
+            if i == 2:
+                B('cape', (side * (x1 - 0.7), bottom, 5.0), (side * x1, 58, 6.6), 'gold', rot=(0, 0, zr), pivot=piv)         # 外の縁
+            tx, ty, _ = rz((side * (x0 + x1) / 2, bottom - 0.2, 0), piv, zr)
+            B('cape', (tx - 1.6, ty - 1.6, 5.3), (tx + 1.6, ty + 1.6, 6.3), 'purple', rot=(0, 0, zr + 45), pivot=(tx, ty, 5.8))   # 尖った裾
+            px2, py2, _ = rz((side * (x0 + x1) / 2, bottom - 2.6, 0), piv, zr)
+            B('cape', (px2 - 0.35, py2 - 2.4, 5.5), (px2 + 0.35, py2 + 0.4, 6.1), 'gold', rot=(0, 0, zr), pivot=(px2, py2, 5.8))  # 先の金の房
+            B('cape', (px2 - 0.55, py2 - 3.0, 5.3), (px2 + 0.55, py2 - 2.2, 6.3), 'gglow', rot=(0, 0, zr), pivot=(px2, py2, 5.8))
 
-    # ---- 頭（兜・暗い紫の面頬・金の稜線と頬当て・宝石の冠・3 つの光輪）
+    # ---- 頭（八角の兜・尖った顎と稜線・後ろへ流れる刃の飾り・面頬・冠・光輪）
     m.bone('head', 'body', (0, 63, 0))
-    B('head', (-4.6, 63, -4.6), (4.6, 72.4, 4.6), 'white', front='whites')
-    B('head', (-0.9, 67, -5.6), (0.9, 73.6, 2.0), 'goldp', top='gold', rot=(-18, 0, 0), pivot=(0, 70, -2))   # 額の稜線
-    MB('head', (-5.6, 63.2, -4.4), (-4.4, 69.2, 3.0), 'goldp', rot=(0, -10, 0), pivot=(-4.4, 66, -1))       # 頬当て
-    MB('head', (-4.0, 69.5, 3.6), (-1.0, 72.4, 8.4), 'whites', top='goldp', rot=(-28, -10, 0), pivot=(-2.5, 71, 4))   # 後ろへ流れる飾り
+    taper(B, 'head', (-4.6, 63, -4.6), (4.6, 72.4, 4.6), 'white', steps=2, k=0.86, top_wide=False)          # 兜（八角、上へ少し細く）
+    B('head', (-2.1, 61.2, -5.4), (2.1, 64.8, -2.6), 'whites', rot=(10, 0, 45), pivot=(0, 63, -4.0))        # 尖った顎
+    B('head', (-0.9, 67, -5.8), (0.9, 74.4, 2.4), 'goldp', top='gold', rot=(-20, 0, 0), pivot=(0, 70, -2))  # 額の稜線
+    spike(B, 'head', (0, 73.0, -3.4), 1.8, 4.2, 'gold', rot=(-20, 0, 0))                                   # 稜線の先の角（少し後ろへ）
+    MB('head', (-5.6, 63.4, -4.2), (-4.4, 69.4, 2.6), 'goldp', rot=(0, -14, 6), pivot=(-4.4, 66, -1))      # 頬当て
+    spike(B, 'head', (-5.0, 64.0, 1.2), 1.4, 3.8, 'gold', rot=(-70, 0, 10))                                 # 頬当ての後ろ上へ尖る
+    spike(B, 'head', (5.0, 64.0, 1.2), 1.4, 3.8, 'gold', rot=(-70, 0, -10))
+    for side in (-1, 1):                                                                                 # 後ろへ流れる刃の飾り（細くなる）
+        for i, (w2, ln) in enumerate(((3.0, 5.0), (2.0, 4.0), (1.0, 3.0))):
+            z0 = 4.0 + sum(l for _, l in ((3.0, 5.0), (2.0, 4.0), (1.0, 3.0))[:i])
+            B('head', (side * 2.5 - w2 / 2, 69.8, z0), (side * 2.5 + w2 / 2, 72.2 - i * 0.5, z0 + ln), 'whites' if i < 2 else 'gglow',
+              top='goldp' if i == 0 else 'whites', rot=(22, side * -12, 0), pivot=(side * 2.5, 71, 4))
     m.bone('visor', 'head', (0, 67, -4.8))
-    B('visor', (-3.7, 64.2, -5.3), (3.7, 70.2, -4.6), 'visor', sides='gold', top='gold', bottom='gold')   # 暗い紫の面頬
+    B('visor', (-3.7, 64.6, -5.3), (3.7, 70.2, -4.6), 'visor', sides='gold', top='gold', bottom='gold')
+    B('visor', (-2.6, 63.2, -5.25), (2.6, 66.0, -4.65), 'visor', rot=(0, 0, 45), pivot=(0, 64.6, -4.95))  # 面頬の下の尖り
     B('visor', (-3.9, 69.9, -5.4), (3.9, 70.6, -4.5), 'gold')
-    B('head', (-5.4, 72, -5.4), (5.4, 74.2, 5.4), 'goldp', top='gold')                                   # 冠の輪
-    for k in range(10):                                                                                  # 冠の突起（前ほど高い）と紫の宝石
+    octo(B, 'head', (-5.4, 72, -5.4), (5.4, 74.2, 5.4), 'goldp', top='gold')                               # 冠の輪（八角）
+    for k in range(10):                                                                                  # 冠の尖った突起と宝石
         a = 2 * math.pi * k / 10 - math.pi / 2
         x, z = 4.6 * math.cos(a), 4.6 * math.sin(a)
-        h = 3.0 + (2.6 if k == 0 else 1.4 if k in (1, 9) else 0.0)
-        B('head', (x - 0.7, 74.2, z - 0.7), (x + 0.7, 74.2 + h, z + 0.7), 'gold', rot=(0, 45, 0), pivot=(x, 75, z))
-        B('head', (x - 0.6, 74.2 + h - 0.2, z - 0.6), (x + 0.6, 74.2 + h + 1.0, z + 0.6), 'vglow' if k % 2 == 0 else 'gglow', rot=(0, 45, 45), pivot=(x, 74.2 + h + 0.4, z))
-    B('head', (-1.2, 74.6, -5.8), (1.2, 77.0, -5.0), 'vglow', sides='gold')                              # 冠の正面の大きな宝石
+        h = 3.6 + (3.0 if k == 0 else 1.6 if k in (1, 9) else 0.0)
+        spike(B, 'head', (x, 74.2, z), 1.5, h, 'gold')
+        B('head', (x - 0.5, 74.2 + h * 0.45, z - 0.5), (x + 0.5, 74.2 + h * 0.45 + 1.0, z + 0.5), 'vglow' if k % 2 == 0 else 'gglow', rot=(0, 45, 45), pivot=(x, 74.2 + h * 0.45 + 0.5, z))
+    B('head', (-0.85, 74.8, -5.8), (0.85, 76.5, -5.0), 'vglow', sides='gold', rot=(0, 0, 45), pivot=(0, 75.65, -5.4))
     m.bone('halo_top', 'head', (0, 81, 0))
-    ring(B, 'halo_top', 0, 81, 0, 6.2, 24, (1.8, 0.7, 0.9), 'gglow', plane='xz')                         # 頭の上の光輪
+    ring(B, 'halo_top', 0, 81, 0, 6.2, 32, (1.4, 0.6, 0.8), 'gglow', plane='xz')
     for name, s in (('halo_left', 1), ('halo_right', -1)):
         m.bone(name, 'head', (s * 9, 71, 0))
-        ring(B, name, s * 9, 71, 0, 3.4, 16, (1.4, 0.6, 0.6), 'gglow', plane='zy')                       # 頭の左右の光輪
+        ring(B, name, s * 9, 71, 0, 3.4, 20, (1.1, 0.5, 0.5), 'gglow', plane='zy')
 
-    # ---- 腕（肩当て・紫の垂れ布と房・二の腕・肘・籠手・手）
+    # ---- 腕（重ねた尖った肩当て・紫の垂れ布・八角の腕・尖った肘・広がる籠手の縁・尖った指）
     for name, s in (('arm_right', -1), ('arm_left', 1)):
         m.bone(name, 'body', (s * 11, 57, 0))
 
         def X(a, c, mat, rot=None, pivot=None, **f):
             r2 = (rot[0], rot[1] * -s, rot[2] * -s) if rot else None
             B(name, (s * a[0], a[1], a[2]), (s * c[0], c[1], c[2]), mat, rot=r2, pivot=(s * pivot[0], pivot[1], pivot[2]) if pivot else None, **f)
-        X((8.0, 54, -5.4), (17.0, 61.5, 5.4), 'white', top='goldp', out='whites', rot=(0, 0, 16), pivot=(9, 58, 0))   # 肩当て
-        X((8.6, 52.4, -5.8), (17.6, 54.2, 5.8), 'goldp', rot=(0, 0, 16), pivot=(9, 58, 0))                        # 肩当ての金の縁
-        X((14.5, 57, -2.2), (16.6, 60.6, 2.2), 'goldp', rot=(0, 0, 16), pivot=(9, 58, 0))                         # 肩の金の飾り
-        X((15.4, 57.8, -1.0), (16.9, 59.8, 1.0), 'vglow', rot=(0, 0, 16), pivot=(9, 58, 0))
-        X((9.0, 46.5, -5.2), (16.4, 52.6, 5.2), 'purple', out='purple', rot=(0, 0, 10), pivot=(10, 52.6, 0))     # 肩の下の紫の垂れ布
-        for k in range(5):
-            z = -4.0 + k * 2.0
-            X((15.2, 44.2, z - 0.4), (16.2, 46.8, z + 0.4), 'gold', rot=(0, 0, 10), pivot=(10, 52.6, 0))         # 垂れ布の金の房
-        X((9.0, 46, -2.8), (13.6, 56, 2.8), 'frame')                                                             # 二の腕
-        X((8.6, 43.4, -3.3), (14.0, 46.4, 3.3), 'goldp')                                                         # 肘
-        X((8.4, 34, -3.4), (14.4, 43.6, 3.4), 'white', front='whites', out='whites')                            # 籠手
-        X((8.0, 41.6, -3.8), (14.8, 43.6, 3.8), 'goldp')                                                         # 籠手の金の縁
-        X((7.8, 36, -1.2), (8.4, 41, 1.2), 'gold')
-        X((9.4, 30, -2.4), (13.4, 34, 2.4), 'frame')                                                             # 手
-        for k in range(3):
-            X((9.6 + k * 1.3, 27.6, -2.4), (10.7 + k * 1.3, 30, -1.1), 'gold')                                  # 指
 
-    # ---- 背の文字盤（体の左上の後ろ。紫の帯に金の数字、金の内輪・外輪、12 の光の棘）
+        def SP(at, size, length, mat, rot=(0, 0, 0)):
+            spike(B, name, (s * at[0], at[1], at[2]), size, length, mat, rot=(rot[0], rot[1] * -s, rot[2] * -s))
+        for i in range(3):                                                                                # 重ねた肩当て（外ほど下がって尖る）
+            X((8.0 + i * 1.4, 53.0 - i * 1.6, -5.4 + i * 0.3), (16.6 + i * 1.0, 61.5 - i * 1.4, 5.4 - i * 0.3), 'white' if i != 1 else 'whites',
+              top='goldp' if i == 0 else 'white', rot=(0, 0, -(12 + i * 10)), pivot=(9, 58, 0))
+            X((9.0 + i * 1.4, 52.2 - i * 1.6, -5.7 + i * 0.3), (17.2 + i * 1.0, 53.3 - i * 1.6, 5.7 - i * 0.3), 'goldp', rot=(0, 0, -(12 + i * 10)), pivot=(9, 58, 0))
+        SP((12.0, 60.6, 0.0), 2.4, 6.0, 'gold', rot=(0, 0, -25))                                           # 肩の上へ尖る角（外へ）
+        SP((14.0, 59.0, -3.4), 1.6, 3.6, 'gold', rot=(20, 0, -45))
+        SP((14.0, 59.0, 3.4), 1.6, 3.6, 'gold', rot=(-20, 0, -45))
+        X((15.0, 56.6, -1.0), (16.4, 58.6, 1.0), 'vglow', rot=(0, 0, 45), pivot=(15.7, 57.6, 0))
+        X((9.0, 46.5, -5.2), (16.0, 52.6, 5.2), 'purple', out='purple', rot=(0, 0, 10), pivot=(10, 52.6, 0))   # 肩の下の紫の垂れ布
+        for k in range(4):
+            z = -3.6 + k * 2.4
+            X((14.4, 44.0, z - 1.0), (16.0, 47.4, z + 1.0), 'purple', rot=(0, 0, 10 + 0), pivot=(10, 52.6, 0))
+            X((14.6, 42.6, z - 0.35), (15.8, 44.4, z + 0.35), 'gold', rot=(0, 0, 10), pivot=(10, 52.6, 0))
+        taper(B, name, (s * 11.3 - 2.3, 46, -2.6), (s * 11.3 + 2.3, 56, 2.6), 'frame', steps=2, k=0.85)    # 二の腕
+        octo(B, name, (s * 11.3 - 2.7, 43.4, -3.2), (s * 11.3 + 2.7, 46.4, 3.2), 'goldp')                    # 肘
+        SP((11.3, 44.6, 2.4), 1.6, 4.0, 'gold', rot=(-120, 0, 0))                                          # 肘の後ろへ尖る角
+        taper(B, name, (s * 11.4 - 3.0, 34, -3.3), (s * 11.4 + 3.0, 43.6, 3.3), 'white', steps=3, k=0.72, top_wide=True)   # 籠手（手首へ細く）
+        for zz in (-1, 1):                                                                                # 籠手の上の広がる縁（尖る）
+            X((8.0, 41.0, zz * 3.6 - 0.5), (14.8, 44.4, zz * 3.6 + 0.5), 'goldp', rot=(-zz * 22, 0, 0), pivot=(11.4, 41.0, zz * 3.6))
+        X((7.6, 41.0, -3.6), (8.6, 44.6, 3.6), 'goldp', rot=(0, 0, 20), pivot=(8.4, 41.0, 0))
+        X((8.5, 36.0, -1.0), (9.0, 41.0, 1.0), 'gglow')
+        octo(B, name, (s * 11.4 - 1.9, 30, -2.3), (s * 11.4 + 1.9, 34, 2.3), 'frame')                         # 手
+        for k in range(3):
+            X((9.8 + k * 1.2, 27.2, -2.2), (10.7 + k * 1.2, 30.2, -1.2), 'gold', rot=(-15, 0, 0), pivot=(10.2 + k * 1.2, 30.2, -1.7))
+            X((9.95 + k * 1.2, 25.8, -2.0), (10.55 + k * 1.2, 27.4, -1.4), 'gold', rot=(-30, 0, 0), pivot=(10.2 + k * 1.2, 27.4, -1.7))   # 尖った指先
+
+    # ---- 背の文字盤（体の左上の後ろ。紫の帯に金の数字、金の内輪・外輪、12 の尖った光の棘）
     cx, cy, cz = 10, 62, 11
     m.bone('dial', 'body', (cx, cy, cz))
-    ring(B, 'dial', cx, cy, cz, 30, 48, (4.1, 4.6, 1.6), 'band')                                         # 紫の帯
-    ring(B, 'dial', cx, cy, cz - 0.3, 27.2, 48, (3.7, 1.2, 1.8), 'goldp')                                # 金の内輪
-    ring(B, 'dial', cx, cy, cz - 0.3, 33.0, 48, (4.4, 1.6, 1.8), 'goldp', every=4, alt='gold')           # 金の外輪
-    for k in range(12):                                                                                  # 外へ伸びる光の棘と金の飾り
+    ring(B, 'dial', cx, cy, cz, 30, 60, (3.3, 4.6, 1.6), 'band')
+    ring(B, 'dial', cx, cy, cz - 0.3, 27.2, 60, (3.0, 1.2, 1.8), 'goldp')
+    ring(B, 'dial', cx, cy, cz - 0.3, 33.0, 60, (3.6, 1.6, 1.8), 'goldp', every=5, alt='gold')
+    for k in range(12):                                                                                  # 外へ尖る光の棘
         a = 2 * math.pi * k / 12
-        x, y = cx + 35.6 * math.cos(a), cy + 35.6 * math.sin(a)
         long = k % 3 == 0
-        B('dial', (x - 0.8, y - (2.6 if long else 1.6), cz - 0.6), (x + 0.8, y + (2.6 if long else 1.6), cz + 0.6), 'gold', rot=(0, 0, math.degrees(a) + 90), pivot=(x, y, cz))
-        x2, y2 = cx + (38.6 if long else 37.4) * math.cos(a), cy + (38.6 if long else 37.4) * math.sin(a)
-        B('dial', (x2 - 0.7, y2 - 0.7, cz - 0.5), (x2 + 0.7, y2 + 0.7, cz + 0.5), 'gglow', rot=(0, 0, 45), pivot=(x2, y2, cz))
-    ring(B, 'dial', cx, cy, cz - 0.5, 24.0, 60, (0.4, 1.2, 0.6), 'gold')                                 # 分の刻み
-    for k in range(12):                                                                                  # 中のロゼット
+        x, y = cx + 33.8 * math.cos(a), cy + 33.8 * math.sin(a)
+        ln = 6.0 if long else 3.6
+        deg = 90 - math.degrees(a)
+        for i, (w2, l2) in enumerate(((1.6, 0.5), (1.0, 0.3), (0.5, 0.2))):
+            off = ln * sum(l for _, l in ((1.6, 0.5), (1.0, 0.3), (0.5, 0.2))[:i])
+            px, py = x + off * math.cos(a), y + off * math.sin(a)
+            B('dial', (px - w2 / 2, py, cz - 0.6), (px + w2 / 2, py + ln * l2, cz + 0.6), 'gold' if i < 2 else 'gglow', rot=(0, 0, deg), pivot=(px, py, cz))
+    ring(B, 'dial', cx, cy, cz - 0.5, 24.0, 60, (0.4, 1.2, 0.6), 'gold')
+    for k in range(12):                                                                                  # 中の尖った花弁
         a = 2 * math.pi * k / 12
         x, y = cx + 7.0 * math.cos(a), cy + 7.0 * math.sin(a)
-        B('dial', (x - 1.3, y - 2.6, cz - 0.6), (x + 1.3, y + 2.6, cz + 0.4), 'goldp', rot=(0, 0, math.degrees(a) + 90), pivot=(x, y, cz))
-    for k in range(4):                                                                                   # 4 本の支え
-        B('dial', (cx - 0.6, cy + 3, cz - 0.3), (cx + 0.6, cy + 27, cz + 0.5), 'gold', rot=(0, 0, k * 90 + 45), pivot=(cx, cy, cz))
-    B('dial', (cx - 2.8, cy - 2.8, cz - 1.2), (cx + 2.8, cy + 2.8, cz + 1.0), 'gglow', sides='gold')     # 真ん中の光
+        B('dial', (x - 1.1, y - 2.4, cz - 0.6), (x + 1.1, y + 2.4, cz + 0.4), 'goldp', rot=(0, 0, 90 - math.degrees(a)), pivot=(x, y, cz))
+        x2, y2 = cx + 9.6 * math.cos(a), cy + 9.6 * math.sin(a)
+        B('dial', (x2 - 0.7, y2 - 0.7, cz - 0.6), (x2 + 0.7, y2 + 0.7, cz + 0.4), 'gold', rot=(0, 0, math.degrees(a) + 45), pivot=(x2, y2, cz))
+    for k in range(4):
+        B('dial', (cx - 0.5, cy + 3, cz - 0.3), (cx + 0.5, cy + 27, cz + 0.5), 'gold', rot=(0, 0, k * 90 + 45), pivot=(cx, cy, cz))
+    B('dial', (cx - 2.4, cy - 2.4, cz - 1.2), (cx + 2.4, cy + 2.4, cz + 1.0), 'gglow', sides='gold', rot=(0, 0, 45), pivot=(cx, cy, cz))
     m.bone('hand_hour', 'dial', (cx, cy, cz - 1.5))
-    B('hand_hour', (cx - 1.1, cy, cz - 2.0), (cx + 1.1, cy + 18, cz - 1.2), 'gold', front='gglow')
-    B('hand_hour', (cx - 2.4, cy + 15.6, cz - 2.0), (cx + 2.4, cy + 20.4, cz - 1.2), 'goldp', rot=(0, 0, 45), pivot=(cx, cy + 18, cz - 1.6))
+    for i, (w2, y0, y1) in enumerate(((2.0, 0, 12), (1.4, 12, 17), (0.8, 17, 20))):                     # 先へ細くなる短針
+        B('hand_hour', (cx - w2 / 2, cy + y0, cz - 2.0), (cx + w2 / 2, cy + y1, cz - 1.2), 'gold', front='gglow')
+    B('hand_hour', (cx - 1.7, cy + 14.3, cz - 2.0), (cx + 1.7, cy + 17.7, cz - 1.2), 'goldp', rot=(0, 0, 45), pivot=(cx, cy + 16, cz - 1.6))
     m.bone('hand_minute', 'dial', (cx, cy, cz - 2.0))
-    B('hand_minute', (cx - 0.8, cy - 6, cz - 2.6), (cx + 0.8, cy + 40, cz - 1.8), 'gold', front='gglow')   # 輪の外まで伸びる長針
-    B('hand_minute', (cx - 1.8, cy - 8, cz - 2.6), (cx + 1.8, cy - 4.5, cz - 1.8), 'goldp')                # 釣り合いの重り
-    for k in range(5):                                                                                   # 先の三日月の飾り（光る）
-        a = math.radians(200 + k * 35)
-        x, y = cx + 2.6 * math.cos(a), cy + 42.4 + 2.6 * math.sin(a)
-        B('hand_minute', (x - 0.8, y - 0.8, cz - 2.7), (x + 0.8, y + 0.8, cz - 1.7), 'gglow', rot=(0, 0, math.degrees(a)), pivot=(x, y, cz - 2.2))
+    for i, (w2, y0, y1) in enumerate(((1.5, -6, 24), (1.0, 24, 36), (0.5, 36, 40))):                    # 輪の外まで伸びる、先へ細くなる長針
+        B('hand_minute', (cx - w2 / 2, cy + y0, cz - 2.6), (cx + w2 / 2, cy + y1, cz - 1.8), 'gold', front='gglow')
+    B('hand_minute', (cx - 1.27, cy - 9.3, cz - 2.6), (cx + 1.27, cy - 4.7, cz - 1.8), 'goldp', rot=(0, 0, 45), pivot=(cx, cy - 7, cz - 2.2))   # 菱形の重り
+    for k in range(7):                                                                                   # 先の三日月の飾り（光る、細い）
+        a = math.radians(190 + k * 27)
+        x, y = cx + 2.8 * math.cos(a), cy + 42.4 + 2.8 * math.sin(a)
+        wk = 1.2 - abs(k - 3) * 0.22
+        B('hand_minute', (x - wk / 2, y - wk / 2, cz - 2.7), (x + wk / 2, y + wk / 2, cz - 1.7), 'gglow', rot=(0, 0, math.degrees(a) + 45), pivot=(x, y, cz - 2.2))
     return m
 
 
