@@ -59,7 +59,7 @@ import java.util.List;
 /**
  * 総司令機【タイムルーラー】（全体仕様書 §4.3。2026-10-19 ユーザー指定「クロノルーラーを制作」。質問で: 時計の機械神・専用の次元「時の狭間」・本当に世界ごと止める（8 秒、
  * 特異点コアの兵姫と持ち主は動ける）・HP 80,000 の 3 形態・落とし物は心臓・針・スター。数値は【仮】）。
- * 背に巨大な文字盤の光輪、周りに針の剣、下半身は回る歯車の輪の、浮かぶ時計の機械神。即死系の守りは付けるが被弾の上限は無し（AEC 級と同じ）。
+ * 白と金の鎧に紫のマントの騎士の姿の、浮かぶ時計の機械神（背に巨大な文字盤、宝石の冠と 3 つの光輪。見た目は tools/gen_time_ruler.py）。即死系の守りは付けるが被弾の上限は無し（AEC 級と同じ）。
  * <ul>
  *   <li>剪定の針: 周りの針を相手へ（第 1 形態 6 本・第 2 形態 8・第 3 形態 12）。少し止まってから飛ぶ</li>
  *   <li>文字盤の掃射: 12 本の光線を腰の高さで回す（跳べば越えられる）</li>
@@ -207,6 +207,12 @@ public class TimeRulerEntity extends Monster implements GeoEntity, ChronoGazer, 
         super.baseTick();
         if (level().isClientSide) {
             protect.clientTick();
+            if (!isDefeated() && random.nextInt(2) == 0) { // まとわりつく紫・水色・金の光の粒（2026-10-19 参考の絵）
+                int[] colors = {VIOLET, 0x7FE4FF, GOLD, 0xD8B0FF};
+                double a = random.nextDouble() * Math.PI * 2, r = 1.6 + random.nextDouble() * 2.4;
+                level().addParticle(MementoMoriEntity.glow(colors[random.nextInt(colors.length)], 0.12F + random.nextFloat() * 0.1F, 30),
+                        getX() + Math.cos(a) * r, getY() + 1.0 + random.nextDouble() * 4.5, getZ() + Math.sin(a) * r, 0, 0.01, 0);
+            }
             return;
         }
         protect.tick();
