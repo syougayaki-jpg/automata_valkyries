@@ -219,6 +219,26 @@ public class CorruptedBaseGameTests {
         helper.succeed();
     }
 
+    /** 瞬間転移の端末（2026-10-19）: 開けた所では見ている向きへ 10 m 先、壁があれば壁の手前で止まる */
+    @GameTest(template = "empty", batch = "corrupted_base", timeoutTicks = 20)
+    public static void blinkDeviceStopsShortOfWalls(GameTestHelper helper) {
+        var level = helper.getLevel();
+        var player = helper.makeMockPlayer();
+        Vec3 start = helper.absoluteVec(new Vec3(1.5, 2.0, 1.5));
+        player.moveTo(start.x, start.y, start.z, -90.0F, 0.0F); // +X を向く
+        Vec3 open = com.automatavalkyries.item.BlinkItem.destination(level, player);
+        helper.assertTrue(open != null && Math.abs(open.x - start.x - 10.0) < 0.01 && Math.abs(open.y - start.y) < 0.01, "open blink went to " + open);
+        net.minecraft.core.BlockPos wall = net.minecraft.core.BlockPos.containing(start.x + 6, start.y, start.z);
+        for (int dy = -1; dy <= 3; dy++) for (int dz = -2; dz <= 2; dz++) level.setBlockAndUpdate(wall.offset(0, dy, dz), net.minecraft.world.level.block.Blocks.STONE.defaultBlockState());
+        try {
+            Vec3 stopped = com.automatavalkyries.item.BlinkItem.destination(level, player);
+            helper.assertTrue(stopped != null && stopped.x + 0.3 <= wall.getX() && stopped.x > start.x + 3.0, "blink went through or too short of the wall: " + stopped + ", wall at x " + wall.getX());
+        } finally {
+            for (int dy = -1; dy <= 3; dy++) for (int dz = -2; dz <= 2; dz++) level.setBlockAndUpdate(wall.offset(0, dy, dz), net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
+        }
+        helper.succeed();
+    }
+
     /** 時間干渉機（2026-10-19）: 輪の中の相手の飛び道具を遅くし、相手を鈍らせる。仲間の弾は遅らせない。Tick を待たずに直に 1 回動かして確かめる */
     @GameTest(template = "empty", batch = "corrupted_base", timeoutTicks = 20)
     public static void delayNodeSlowsForeignProjectiles(GameTestHelper helper) {

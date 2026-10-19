@@ -85,6 +85,10 @@ public class ModItems {
     public static final RegistryObject<Item> BASE_GENERATOR = ITEMS.register("base_generator", () ->
             new com.automatavalkyries.item.BaseGeneratorItem(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC)));
 
+    /** 瞬間転移の端末（見ている向きへ 10 m 先へ跳ぶ。作り方は無し。2026-10-19） */
+    public static final RegistryObject<Item> BLINK_DEVICE = ITEMS.register("blink_device", () ->
+            new com.automatavalkyries.item.BlinkItem(new Item.Properties().stacksTo(1).rarity(Rarity.RARE)));
+
     // ---- スポーンエッグ ----
     public static final RegistryObject<Item> ELENOR_SPAWN_EGG = ITEMS.register("elenor_spawn_egg", () ->
             new ForgeSpawnEggItem(ModEntities.ELENOR, 0x512da8, 0xe040fb, new Item.Properties()));

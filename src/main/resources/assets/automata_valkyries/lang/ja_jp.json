@@ -2303,5 +2303,8 @@
   "structure.automata_valkyries.dimension_foundry": "ディメンション・ファウンドリ",
   "structure.automata_valkyries.chrono_bastion": "クロノ・バスティオン（空中庭園要塞）",
   "block.automata_valkyries.ruler_gate_frame": "時の門の枠",
-  "block.automata_valkyries.ruler_gate_keystone": "時の門の要石"
+  "block.automata_valkyries.ruler_gate_keystone": "時の門の要石",
+  "item.automata_valkyries.blink_device": "瞬間転移の端末",
+  "item.automata_valkyries.blink_device.desc": "右クリックで、見ている向きへ 10 m 先へ跳ぶ（壁の手前で止まる）",
+  "item.automata_valkyries.blink_device.blocked": "跳べる所が無い"
 }

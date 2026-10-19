@@ -2303,5 +2303,8 @@
   "structure.automata_valkyries.dimension_foundry": "Dimension Foundry",
   "structure.automata_valkyries.chrono_bastion": "Chrono Bastion (Sky Garden Fortress)",
   "block.automata_valkyries.ruler_gate_frame": "Gate of Time Frame",
-  "block.automata_valkyries.ruler_gate_keystone": "Gate of Time Keystone"
+  "block.automata_valkyries.ruler_gate_keystone": "Gate of Time Keystone",
+  "item.automata_valkyries.blink_device": "Blink Device",
+  "item.automata_valkyries.blink_device.desc": "Right-click to blink 10 m in the direction you are looking (stops short of walls)",
+  "item.automata_valkyries.blink_device.blocked": "Nowhere to blink to"
 }
