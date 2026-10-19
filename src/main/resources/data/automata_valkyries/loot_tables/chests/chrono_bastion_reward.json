@@ -7,7 +7,17 @@
         {
           "type": "minecraft:item",
           "name": "automata_valkyries:star_chronos",
-          "weight": 1
+          "weight": 1,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 2
+              }
+            }
+          ]
         }
       ]
     },
@@ -17,7 +27,17 @@
         {
           "type": "minecraft:item",
           "name": "automata_valkyries:star_luminal",
-          "weight": 1
+          "weight": 1,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 2
+              }
+            }
+          ]
         }
       ]
     },
@@ -27,7 +47,97 @@
         {
           "type": "minecraft:item",
           "name": "automata_valkyries:star_nano",
-          "weight": 1
+          "weight": 1,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 2
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "automata_valkyries:orb_chronos",
+          "weight": 1,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 2,
+                "max": 3
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "automata_valkyries:orb_luminal",
+          "weight": 1,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 2,
+                "max": 3
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "automata_valkyries:orb_nano",
+          "weight": 1,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 2,
+                "max": 3
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "automata_valkyries:alloy_chrono_fortress",
+          "weight": 1,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 6,
+                "max": 10
+              }
+            }
+          ]
         }
       ]
     },
@@ -43,8 +153,8 @@
               "function": "minecraft:set_count",
               "count": {
                 "type": "minecraft:uniform",
-                "min": 2,
-                "max": 4
+                "min": 3,
+                "max": 5
               }
             }
           ]
@@ -63,8 +173,8 @@
               "function": "minecraft:set_count",
               "count": {
                 "type": "minecraft:uniform",
-                "min": 1,
-                "max": 2
+                "min": 2,
+                "max": 3
               }
             }
           ]
@@ -74,66 +184,56 @@
     {
       "rolls": {
         "type": "minecraft:uniform",
-        "min": 3,
-        "max": 4
+        "min": 4,
+        "max": 5
       },
       "entries": [
         {
           "type": "minecraft:item",
-          "name": "automata_valkyries:orb_chronos",
-          "weight": 6,
+          "name": "minecraft:netherite_ingot",
+          "weight": 4,
           "functions": [
             {
               "function": "minecraft:set_count",
               "count": {
                 "type": "minecraft:uniform",
-                "min": 2,
-                "max": 3
+                "min": 1,
+                "max": 2
               }
             }
           ]
         },
         {
           "type": "minecraft:item",
-          "name": "automata_valkyries:orb_luminal",
-          "weight": 6,
-          "functions": [
-            {
-              "function": "minecraft:set_count",
-              "count": {
-                "type": "minecraft:uniform",
-                "min": 2,
-                "max": 3
-              }
-            }
-          ]
+          "name": "minecraft:elytra",
+          "weight": 2
         },
         {
           "type": "minecraft:item",
-          "name": "automata_valkyries:orb_nano",
-          "weight": 6,
-          "functions": [
-            {
-              "function": "minecraft:set_count",
-              "count": {
-                "type": "minecraft:uniform",
-                "min": 2,
-                "max": 3
-              }
-            }
-          ]
+          "name": "minecraft:totem_of_undying",
+          "weight": 3
         },
         {
           "type": "minecraft:item",
-          "name": "automata_valkyries:alloy_chrono_fortress",
-          "weight": 6,
+          "name": "minecraft:enchanted_golden_apple",
+          "weight": 2
+        },
+        {
+          "type": "minecraft:item",
+          "name": "minecraft:nether_star",
+          "weight": 2
+        },
+        {
+          "type": "minecraft:item",
+          "name": "minecraft:diamond",
+          "weight": 5,
           "functions": [
             {
               "function": "minecraft:set_count",
               "count": {
                 "type": "minecraft:uniform",
-                "min": 4,
-                "max": 6
+                "min": 6,
+                "max": 12
               }
             }
           ]
@@ -147,28 +247,23 @@
               "function": "minecraft:set_count",
               "count": {
                 "type": "minecraft:uniform",
-                "min": 3,
-                "max": 6
+                "min": 4,
+                "max": 8
               }
             }
           ]
         },
         {
           "type": "minecraft:item",
-          "name": "minecraft:netherite_ingot",
-          "weight": 2
-        },
-        {
-          "type": "minecraft:item",
-          "name": "minecraft:diamond",
+          "name": "automata_valkyries:lens_luminal",
           "weight": 4,
           "functions": [
             {
               "function": "minecraft:set_count",
               "count": {
                 "type": "minecraft:uniform",
-                "min": 4,
-                "max": 8
+                "min": 2,
+                "max": 3
               }
             }
           ]
