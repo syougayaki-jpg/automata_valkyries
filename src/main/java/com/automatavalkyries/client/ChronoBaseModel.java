@@ -215,6 +215,14 @@ public class ChronoBaseModel<T extends Mob & GeoEntity> extends DefaultedEntityG
             float stop = age - ruler.stopTick;
             if (stop >= 0 && stop < 40) rotZ("hand_minute", -Mth.PI * 2 * (stop / 40.0F)); // 予告の鐘: 長針がひと回り
             rotZ("dial", Mth.sin(age * 0.02F) * 0.05F);
+            float gs = age * 0.03F * speed;                                    // 歯車（2026-10-19 もっとメカニカルに）: かみ合う向きに逆へ回る。歯の数の比で速さを変える
+            rotZ("gear_back", gs);
+            rotZ("dial_inner", -age * 0.012F * speed);                       // 文字盤の回る内輪と星（逆へゆっくり）
+            rotZ("gear_back_small", -gs * 7.4F / 3.6F);
+            rotZ("gear_back_low", -gs * 7.4F / 4.4F);
+            rotZ("gear_chest", gs * 1.5F);
+            rotX("gear_hip_left", gs * 2.0F);
+            rotX("gear_hip_right", -gs * 2.0F);
             float slash = (age - ruler.slashTick) / 15.0F;
             rotX("arm_right", slash >= 0 && slash < 1 ? -1.8F * Mth.sin(slash * Mth.PI) : Mth.sin(age * 0.04F) * 0.08F);
             float needle = (age - ruler.needleTick) / 12.0F;
