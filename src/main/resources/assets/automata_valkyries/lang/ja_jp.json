@@ -2332,5 +2332,8 @@
   "message.automata_valkyries.ruler_portal.keeper": "門は要塞の守護機に守られている――先に守護機を倒せ",
   "message.automata_valkyries.ruler_portal.awaken": "時の鍵が回った――門が目覚める",
   "message.automata_valkyries.ruler_portal.return_dormant": "帰りの門は眠っている……タイムルーラーを倒せ",
-  "message.automata_valkyries.time_rift.gate_open": "帰りの門が目覚めた"
+  "message.automata_valkyries.time_rift.gate_open": "帰りの門が目覚めた",
+  "entity.automata_valkyries.time_ruler.title_rank": "総司令機",
+  "entity.automata_valkyries.time_ruler.title_name": "タイムルーラー",
+  "entity.automata_valkyries.time_ruler.title_sub": "― 時を統べる者 ―"
 }

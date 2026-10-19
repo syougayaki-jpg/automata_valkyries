@@ -2332,5 +2332,8 @@
   "message.automata_valkyries.ruler_portal.keeper": "The fortress's Keeper guards the gate - defeat it first",
   "message.automata_valkyries.ruler_portal.awaken": "The Chrono Key turns - the gate awakens",
   "message.automata_valkyries.ruler_portal.return_dormant": "The return gate sleeps... defeat the Time Ruler",
-  "message.automata_valkyries.time_rift.gate_open": "The return gate has awakened"
+  "message.automata_valkyries.time_rift.gate_open": "The return gate has awakened",
+  "entity.automata_valkyries.time_ruler.title_rank": "Supreme Commander",
+  "entity.automata_valkyries.time_ruler.title_name": "TIME RULER",
+  "entity.automata_valkyries.time_ruler.title_sub": "- Sovereign of Time -"
 }

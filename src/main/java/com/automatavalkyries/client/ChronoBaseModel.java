@@ -387,6 +387,108 @@ public class ChronoBaseModel<T extends Mob & GeoEntity> extends DefaultedEntityG
         rotX("gear_hip_left", gs * 2.0F);
         rotX("gear_hip_right", -gs * 2.0F);
         rotZ("dial_inner", -age * (0.012F + sweep * 0.05F + finale * 0.03F) * speed - rewind * age * 0.04F);
+        // ---- 出現・撤退・撃破の演出（2026-10-19 ユーザー指定「撃破演出出現演出退場演出まで自作して作りこんで」。時間割は TimeRulerEntity の各 tick*）
+        scale("root", 1.0F);                                                                              // 骨は同じ種類の個体どうしで共有なので、毎回戻してから演出を重ねる
+        CoreGeoBone root0 = bone("root");
+        if (root0 != null) root0.setRotY(0.0F);
+        scale("halo_left", 1.0F);
+        scale("halo_right", 1.0F);
+        CoreGeoBone haloY = bone("halo_top");
+        if (haloY != null) haloY.setScaleY(1.0F);
+        CoreGeoBone visorZ = bone("visor");
+        if (visorZ != null) visorZ.setScaleZ(1.0F);
+        CoreGeoBone dialZ = bone("dial");
+        if (dialZ != null) dialZ.setScaleZ(1.0F);
+        float introT = age - r.introTick;
+        if (introT >= 0 && introT < TimeRulerEntity.INTRO_TICKS + 10) rulerIntro(introT);
+        float retreatT = age - r.retreatTick;
+        if (retreatT >= 0 && retreatT < TimeRulerEntity.RETREAT_TICKS + 10) rulerRetreat(retreatT);
+        if (r.deathTime > 0) rulerDeath(r.deathTime + pt);
+    }
+
+    /** 0〜1 へなめらかに（t が a から b の間） */
+    private static float smooth(float t, float a, float b) {
+        float k = Mth.clamp((t - a) / (b - a), 0.0F, 1.0F);
+        return k * k * (3.0F - 2.0F * k);
+    }
+
+    private void scale(String name, float s) {
+        CoreGeoBone b = bone(name);
+        if (b == null) return;
+        b.setScaleX(s);
+        b.setScaleY(s);
+        b.setScaleZ(s);
+    }
+
+    /** いまの向きから (x, y, z) へ w だけ寄せる */
+    private void blend(String name, float x, float y, float z, float w) {
+        CoreGeoBone b = bone(name);
+        if (b == null || w <= 0) return;
+        b.setRotX(Mth.lerp(w, b.getRotX(), x));
+        b.setRotY(Mth.lerp(w, b.getRotY(), y));
+        b.setRotZ(Mth.lerp(w, b.getRotZ(), z));
+    }
+
+    /**
+     * 出現: 20〜55 で足元から組み上がる（root を大きくする）。腕は前で交差したまま 90〜105 で広げて構える。50〜75 文字盤が針を速く回しながら展開する。
+     * 60〜80 マントがほどける（上へたたまれていたのが下りる）。70〜80 面頬が灯る。75〜85 光輪がはまる（少し大きくなって戻る）
+     */
+    private void rulerIntro(float t) {
+        scale("root", Math.max(0.001F, smooth(t, 20, 55)));
+        float crossed = 1.0F - smooth(t, 90, 105);
+        blend("arm_right", 0.9F, -0.6F, -0.7F, crossed);
+        blend("arm_left", 0.9F, 0.6F, 0.7F, crossed);
+        blend("forearm_right", 1.4F, 0, 0, crossed);
+        blend("forearm_left", 1.4F, 0, 0, crossed);
+        float unfold = smooth(t, 50, 72);
+        scale("dial", Math.max(0.001F, unfold * (1.0F + 0.12F * Mth.sin(unfold * Mth.PI))));
+        CoreGeoBone dial = bone("dial");
+        if (dial != null) dial.setRotZ(dial.getRotZ() + (1.0F - unfold) * Mth.TWO_PI * 2.0F);
+        if (t < 80) rotZ("hand_minute", -t * 0.6F);
+        blend("cape", 1.4F, 0, 0, 1.0F - smooth(t, 60, 80));
+        scale("visor", Math.max(0.001F, smooth(t, 70, 78)));
+        float halo = smooth(t, 75, 82) * (1.0F + 0.25F * Mth.sin(smooth(t, 75, 88) * Mth.PI));
+        scale("halo_top", Math.max(0.001F, halo));
+        scale("halo_left", Math.max(0.001F, halo));
+        scale("halo_right", Math.max(0.001F, halo));
+    }
+
+    /** 撤退: 右腕を掲げ、文字盤の針と内輪を逆へ速く回し、30〜52 で回りながら縮んで点になる */
+    private void rulerRetreat(float t) {
+        float raise = smooth(t, 0, 12);
+        blend("arm_right", 2.7F, 0, 0.3F, raise);
+        blend("forearm_right", 0.1F, 0, 0, raise);
+        rotZ("hand_minute", t * 0.8F);
+        rotZ("hand_hour", t * 0.2F);
+        rotZ("dial_inner", t * 0.5F);
+        float gone = smooth(t, 30, 52);
+        scale("root", Math.max(0.001F, 1.0F - gone));
+        CoreGeoBone root = bone("root");
+        if (root != null) root.setRotY(gone * Mth.TWO_PI * 3.0F);
+    }
+
+    /**
+     * 撃破: 20〜100 文字盤の針が狂ったように逆回り、30〜45 光輪が明滅して落ちる。60〜100 膝をついて崩れる（太ももは前、膝は深く、体は前へ、頭は垂れる）。
+     * 100〜120 文字盤が膨らみ、120〜124 で砕けて消える。145〜160 体が小さくなって消える
+     */
+    private void rulerDeath(float d) {
+        if (d > 20) {
+            rotZ("hand_minute", (d - 20) * 0.55F);
+            rotZ("hand_hour", (d - 20) * 0.12F);
+        }
+        if (d > 30 && d < 45) scale("halo_top", ((int) d % 4 < 2) ? 1.0F : 0.4F);
+        float kneel = smooth(d, 60, 100);
+        blend("leg_right", 1.2F, 0, 0.1F, kneel);
+        blend("leg_left", 1.0F, 0, -0.1F, kneel);
+        blend("shin_right", -1.9F, 0, 0, kneel);
+        blend("shin_left", -1.7F, 0, 0, kneel);
+        CoreGeoBone body = bone("body");
+        if (body != null) body.setRotX(body.getRotX() + kneel * 0.45F);
+        blend("head", 0.6F, 0, 0, kneel);
+        float swell = smooth(d, 100, 118);
+        float shatter = smooth(d, 120, 124);
+        scale("dial", Math.max(0.001F, (1.0F + swell * 0.3F) * (1.0F - shatter)));
+        if (d > 145) scale("root", Math.max(0.001F, 1.0F - smooth(d, 145, 160)));
     }
 
     private void rotX(String name, float v) {

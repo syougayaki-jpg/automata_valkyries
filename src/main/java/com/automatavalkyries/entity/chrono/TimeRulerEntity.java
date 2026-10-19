@@ -78,9 +78,9 @@ import java.util.List;
 public class TimeRulerEntity extends Monster implements GeoEntity, ChronoGazer, IProviderWithSpeech, com.automatavalkyries.entity.RetreatableBoss {
 
     public static final float MAX_HP = 80000.0F, NEEDLE = 10.0F, STOP_NEEDLE = 6.0F, SWEEP = 8.0F, SPIKE = 14.0F, ERASE = 40.0F, SLASH = 20.0F, HANDS = 12.0F;
-    public static final int STOP_TICKS = 160, STOP_WARN = 40, REWIND_TICKS = 160, FINALE_TICKS = 300, INTRO_TICKS = 60, DEFEAT_TICKS = 80;
+    public static final int STOP_TICKS = 160, STOP_WARN = 40, REWIND_TICKS = 160, FINALE_TICKS = 300, INTRO_TICKS = 120, DEFEAT_TICKS = 160, RETREAT_TICKS = 60;
     public static final ResourceKey<DamageType> ERASURE = ResourceKey.create(Registries.DAMAGE_TYPE, ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "time_erasure"));
-    public static final byte EVENT_NEEDLE = 90, EVENT_SWEEP = 91, EVENT_STOP = 92, EVENT_ERASE = 93, EVENT_REWIND = 94, EVENT_SLASH = 95, EVENT_FINALE = 96;
+    public static final byte EVENT_NEEDLE = 90, EVENT_SWEEP = 91, EVENT_STOP = 92, EVENT_ERASE = 93, EVENT_REWIND = 94, EVENT_SLASH = 95, EVENT_FINALE = 96, EVENT_INTRO = 97, EVENT_RETREAT = 98;
     static final int GOLD = 0xFFD166, PALE = 0xFFF0B0, INDIGO = 0x6A5CFF, VIOLET = 0xB070FF, WHITE = 0xFFFFFF, RED = 0xFF4060;
 
     private static final EntityDataAccessor<Byte> PHASE = SynchedEntityData.defineId(TimeRulerEntity.class, EntityDataSerializers.BYTE);
@@ -94,6 +94,8 @@ public class TimeRulerEntity extends Monster implements GeoEntity, ChronoGazer, 
 
     /** 描く側の技の時刻（エンティティの出来事で届く） */
     public int needleTick = -100, sweepTick = -100, stopTick = -100, eraseTick = -100, rewindTick = -100, slashTick = -100, finaleTick = -100;
+    /** 出現・撤退の演出が始まった時刻（描く側。始まっていなければずっと前） */
+    public int introTick = -10000, retreatTick = -10000;
 
     private boolean trialBoss, introDone, lootDropped, rewind2Done, rewind3Done, finaleDone, retreating;
     private float trialAttack = 1.0F;
@@ -184,6 +186,12 @@ public class TimeRulerEntity extends Monster implements GeoEntity, ChronoGazer, 
             case EVENT_REWIND -> rewindTick = tickCount;
             case EVENT_SLASH -> slashTick = tickCount;
             case EVENT_FINALE -> finaleTick = tickCount;
+            case EVENT_INTRO -> {
+                introTick = tickCount;
+                net.minecraftforge.fml.DistExecutor.unsafeRunWhenOn(net.minecraftforge.api.distmarker.Dist.CLIENT,
+                        () -> () -> com.automatavalkyries.client.ClientRulerShow.intro(this, 90));                  // 題字は光の柱と一緒に
+            }
+            case EVENT_RETREAT -> retreatTick = tickCount;
             default -> super.handleEntityEvent(id);
         }
     }
@@ -330,42 +338,82 @@ public class TimeRulerEntity extends Monster implements GeoEntity, ChronoGazer, 
 
     // ---- 現れる・退く ----
 
+    /**
+     * 出現の演出（{@value #INTRO_TICKS} Tick、受けない。2026-10-19 ユーザー指定「出現演出まで自作して作りこんで」）:
+     * 0〜24 鐘が 3 つ鳴り、床に巨大な文字盤の魔法陣（金）と紫の魔法陣が広がる。0〜50 金と藍の光が渦を巻いて集まり、昇る光の輪。
+     * 20〜55 体が足元から組み上がる（描く側で骨を大きくする）、組み立ての音。50〜75 背の文字盤が針を速く回しながら展開する（鐘の上がる音）。
+     * 60〜80 マントがほどける。70 面頬が灯る。75 光輪がはまる。90 光の柱・大きな衝撃波・閃光と題字（描く側）。90〜105 交差した腕を広げて構える
+     */
     void tickIntro(ServerLevel server) {
         int t = introTicks++;
-        Vec3 c = position().add(0, 3.0, 0);
-        if (t == 0) {
-            playSound(SoundEvents.BELL_BLOCK, 4.0F, 0.5F);
-            say("intro", ChatFormatting.GOLD, ChatFormatting.ITALIC);
-        }
-        if (t < 50) {
-            for (int i = 0; i < 4; i++) {
-                double a = t * 0.25 + i * Math.PI / 2;
-                double r = 8.0 * (1.0 - t / 55.0);
-                Vec3 p = c.add(Math.cos(a) * r, Math.sin(t * 0.2 + i) * 2.0, Math.sin(a) * r);
-                Fx.one(server, MementoMoriEntity.glow(i % 2 == 0 ? GOLD : INDIGO, 0.4F, 14), p, c.subtract(p).scale(0.06));
+        Vec3 feet = position(), c = feet.add(0, 3.0, 0);
+        if (t == 0) level().broadcastEntityEvent(this, EVENT_INTRO);
+        if (t == 0 || t == 12 || t == 24) playSound(SoundEvents.BELL_BLOCK, 4.0F, 0.45F + t * 0.008F);
+        if (t == 2) Fx.mandala(server, feet.add(0, 0.15, 0), GOLD, 11.0F, 115, false, true);                // 床の巨大な文字盤
+        if (t == 14) Fx.mandala(server, feet.add(0, 0.2, 0), VIOLET, 7.0F, 100, false, false);
+        if (t < 50 && t % 2 == 0) {                                                                        // 渦を巻いて集まる光
+            for (int i = 0; i < 6; i++) {
+                double a = t * 0.3 + i * Math.PI / 3, r = 10.0 - t * 0.12;
+                Vec3 p = c.add(Math.cos(a) * r, (i - 2.5) * 1.2, Math.sin(a) * r);
+                Fx.one(server, MementoMoriEntity.glow(i % 2 == 0 ? GOLD : INDIGO, 0.4F, 16), p, c.subtract(p).scale(1.0 / 16));
             }
         }
-        if (t % 10 == 0) playSound(SoundEvents.NOTE_BLOCK_BELL.value(), 2.0F, 0.5F + t / 120.0F);
-        if (t == 30) Fx.mandala(server, position().add(0, 0.2, 0), GOLD, 8.0F, 60, false, true);
-        if (t >= INTRO_TICKS) {
-            introDone = true;
-            Fx.burst(server, MementoMoriEntity.glow(PALE, 0.6F, 24), c, 50, 0.3);
-            Fx.shockwave(server, c, GOLD, 10.0F, 20);
-            playSound(SoundEvents.BELL_RESONATE, 4.0F, 1.0F);
+        if (t < 50 && t % 8 == 0) Fx.beamRing(server, feet.add(0, 0.2 + t * 0.08, 0), new Vec3(0, 1, 0), GOLD, 5.5F, 14);   // 昇る光の輪
+        if (t >= 20 && t < 60 && t % 4 == 0) {                                                             // 組み上がる体の火花と音
+            Fx.burst(server, MementoMoriEntity.glow(PALE, 0.25F, 10), feet.add(0, (t - 20) * 0.15, 0), 8, 0.15);
+            playSound(SoundEvents.IRON_GOLEM_REPAIR, 1.0F, 1.2F + (t - 20) * 0.01F);
         }
+        if (t >= 50 && t <= 74 && t % 4 == 2) playSound(SoundEvents.NOTE_BLOCK_CHIME.value(), 2.5F, 0.6F + (t - 50) * 0.05F);   // 文字盤の展開
+        if (t == 70) {                                                                                     // 面頬が灯る
+            playSound(SoundEvents.BEACON_ACTIVATE, 2.5F, 1.4F);
+            Fx.burst(server, MementoMoriEntity.glow(0x7FE4FF, 0.3F, 12), position().add(0, 4.2, 0), 16, 0.12);
+        }
+        if (t == 75) {                                                                                     // 光輪がはまる
+            playSound(SoundEvents.AMETHYST_BLOCK_RESONATE, 3.0F, 1.6F);
+            Fx.beamRing(server, position().add(0, 5.1, 0), new Vec3(0, 1, 0), GOLD, 2.0F, 12);
+        }
+        if (t == 90) {                                                                                     // 光の柱・衝撃波・閃光（題字は描く側）
+            Fx.line(server, MementoMoriEntity.glow(GOLD, 0.7F, 30), feet, feet.add(0, 40, 0), 0.5);
+            Fx.shockwave(server, feet.add(0, 0.3, 0), GOLD, 18.0F, 30);
+            Fx.shockwave(server, c, VIOLET, 10.0F, 24);
+            Fx.burst(server, MementoMoriEntity.glow(PALE, 0.6F, 26), c, 60, 0.35);
+            server.sendParticles(ParticleTypes.FLASH, getX(), getY(3.0), getZ(), 1, 0, 0, 0, 0);
+            playSound(SoundEvents.BELL_RESONATE, 5.0F, 0.9F);
+            playSound(SoundEvents.END_PORTAL_SPAWN, 2.0F, 1.4F);
+            say("intro", ChatFormatting.GOLD, ChatFormatting.ITALIC);
+        }
+        if (t >= INTRO_TICKS) introDone = true;
     }
 
+    /**
+     * 撤退の演出（{@value #RETREAT_TICKS} Tick。2026-10-19 ユーザー指定「退場演出まで自作して作りこんで」）: 片手を掲げ、背の文字盤を逆へ速く回す。
+     * 時が巻き戻るように光が逆に吸い込まれ（逆回りの魔法陣・下がっていく時計の音）、30〜52 で体が縮んで回りながら点になり、55 で閃光とともに消える。
+     * 消えるとき、地の文がサーバー全体に出る（{@link #getDefeatSpeech}）
+     */
     @Override
     public boolean beginRetreat() {
         if (!isAlive() || isDefeated() || retreating || protect.isDespawning()) return false;
         retreating = true;
         retreatTicks = 0;
+        level().broadcastEntityEvent(this, EVENT_RETREAT);
+        playSound(SoundEvents.BEACON_DEACTIVATE, 3.0F, 0.5F);
         return true;
     }
 
     void tickRetreat(ServerLevel server) {
-        if (retreatTicks++ % 4 == 0) Fx.burst(server, MementoMoriEntity.glow(GOLD, 0.4F, 16), position().add(0, 3.0, 0), 10, 0.2);
-        if (retreatTicks >= 40) {
+        int t = retreatTicks++;
+        Vec3 c = position().add(0, 3.0, 0);
+        if (t == 4) Fx.mandala(server, position().add(0, 0.2, 0), INDIGO, 8.0F, 50, false, false);       // 逆回りの魔法陣
+        if (t < 50 && t % 2 == 0) Fx.gather(server, MementoMoriEntity.glow(t % 4 == 0 ? GOLD : INDIGO, 0.35F, 12), c, 6, 6.0, 12);   // 逆に吸い込まれる光
+        if (t < 50 && t % 6 == 0) playSound(SoundEvents.NOTE_BLOCK_HAT.value(), 1.5F, 1.8F - t * 0.025F);  // 下がっていく時計の音
+        if (t >= 30 && t < 52 && t % 3 == 0) Fx.burst(server, MementoMoriEntity.glow(PALE, 0.3F, 10), c, 6, 0.08);
+        if (t == 55) {
+            server.sendParticles(ParticleTypes.FLASH, c.x, c.y, c.z, 1, 0, 0, 0, 0);
+            Fx.shockwave(server, c, GOLD, 8.0F, 16);
+            playSound(SoundEvents.ENDERMAN_TELEPORT, 3.0F, 0.5F);
+            playSound(SoundEvents.BELL_BLOCK, 3.0F, 1.6F);
+        }
+        if (t >= RETREAT_TICKS) {
             cleanup(server);
             protect.triggerDespawn();
         }
@@ -694,32 +742,83 @@ public class TimeRulerEntity extends Monster implements GeoEntity, ChronoGazer, 
         dropFromLootTable(source, getLastHurtByMob() instanceof Player);
     }
 
-    /** 撃破: 文字盤が割れ、歯車が落ち、砕けて金の光になる。時の狭間なら帰りの門が開く */
+    /** 背の文字盤の真ん中（世界の座標） */
+    Vec3 dialPos() {
+        Vec3 back = Vec3.directionFromRotation(0, yBodyRot).scale(-11.0 / 16.0);
+        return position().add(0, 60.0 / 16.0, 0).add(back);
+    }
+
+    /**
+     * 撃破の演出（{@value #DEFEAT_TICKS} Tick。2026-10-19 ユーザー指定「撃破演出まで自作して作りこんで」）:
+     * 0〜20 時が凍ったように固まり、低い鐘。20〜100 文字盤の針が狂ったように逆回り（描く側）、ひびから金の光が漏れ、鐘が下がりながら鳴る。40 光輪が明滅して落ちる。
+     * 60〜100 ゆっくり沈んで膝をつく。100〜120 文字盤へ光が集まって膨らみ、120 で砕けて輪の形に破片が飛び散り、光の柱。
+     * 140 最後の閃光と大きな衝撃波、画面に大きく「終末の時は止まった」（描く側）と地の文。160 で消え、落とし物。時の狭間なら帰りの門が開く
+     */
     @Override
     protected void tickDeath() {
         ++deathTime;
         if (level().isClientSide) {
-            if (deathTime % 2 == 0) level().addParticle(ParticleTypes.END_ROD, getRandomX(1.5), getY() + random.nextDouble() * 6.0, getRandomZ(1.5), 0, 0.05, 0);
+            if (deathTime == 1) net.minecraftforge.fml.DistExecutor.unsafeRunWhenOn(net.minecraftforge.api.distmarker.Dist.CLIENT,
+                    () -> () -> com.automatavalkyries.client.ClientRulerShow.flash(this, 8, 0xFFF0B0));
+            if (deathTime == 140) net.minecraftforge.fml.DistExecutor.unsafeRunWhenOn(net.minecraftforge.api.distmarker.Dist.CLIENT, () -> () -> {
+                com.automatavalkyries.client.ClientRulerShow.flash(this, 24, 0xFFFFFF);
+                com.automatavalkyries.client.ClientRulerShow.defeat(this);
+            });
+            if (deathTime > 20 && deathTime < 120 && deathTime % 2 == 0) {                                  // ひびから漏れる光
+                level().addParticle(MementoMoriEntity.glow(GOLD, 0.18F, 18), getRandomX(1.2), getY() + 1.0 + random.nextDouble() * 4.5, getRandomZ(1.2), 0, 0.03, 0);
+            }
             return;
         }
         if (!(level() instanceof ServerLevel server)) return;
-        if (deathTime == 1) {
+        int d = deathTime;
+        Vec3 c = position().add(0, 3.0, 0);
+        if (d == 1) {
             cleanup(server);
-            speak(server, "defeat");                                            // 撃破のセリフ（チャット）
+            playSound(SoundEvents.BELL_RESONATE, 4.0F, 0.4F);
+            server.sendParticles(ParticleTypes.FLASH, c.x, c.y, c.z, 1, 0, 0, 0, 0);
         }
-        setDeltaMovement(0, -0.02, 0);
-        move(net.minecraft.world.entity.MoverType.SELF, getDeltaMovement());
-        if (deathTime % 10 == 0) playSound(SoundEvents.BELL_BLOCK, 3.0F, 1.6F - deathTime / 100.0F);
-        if (deathTime % 4 == 0) Fx.burst(server, MementoMoriEntity.glow(GOLD, 0.35F, 16), position().add(random.nextGaussian(), 3.0 + random.nextGaussian(), random.nextGaussian()), 6, 0.15);
-        if (deathTime == 40) {
-            Fx.shockwave(server, position().add(0, 4.5, 0), GOLD, 8.0F, 20);
-            playSound(SoundEvents.GLASS_BREAK, 4.0F, 0.5F);
+        if (d < 20) setDeltaMovement(Vec3.ZERO);                                                         // 時が凍ったように固まる
+        if (d == 20) {
+            playSound(SoundEvents.GLASS_BREAK, 3.0F, 0.4F);
+            Fx.shockwave(server, c, GOLD, 5.0F, 14);
         }
-        if (deathTime >= DEFEAT_TICKS && !DirectRead.isRemoved(this)) {
-            Fx.burst(server, MementoMoriEntity.glow(PALE, 0.8F, 30), position().add(0, 3.0, 0), 60, 0.4);
-            Fx.shockwave(server, position().add(0, 1.0, 0), GOLD, 16.0F, 30);
-            server.sendParticles(ParticleTypes.FLASH, getX(), getY(3.0), getZ(), 1, 0, 0, 0, 0);
+        if (d >= 20 && d < 100) {
+            if (d % 4 == 0) Fx.burst(server, MementoMoriEntity.glow(GOLD, 0.3F, 14), c.add(random.nextGaussian() * 0.8, random.nextGaussian() * 1.4, random.nextGaussian() * 0.8), 6, 0.12);
+            if (d % 15 == 5) playSound(SoundEvents.BELL_BLOCK, 3.0F, 1.5F - (d - 20) * 0.012F);
+        }
+        if (d == 40) playSound(SoundEvents.AMETHYST_BLOCK_BREAK, 3.0F, 0.7F);                           // 光輪が落ちる
+        if (d >= 60 && d < 100) {                                                                          // ゆっくり沈んで膝をつく
+            setDeltaMovement(0, -0.03, 0);
+            move(net.minecraft.world.entity.MoverType.SELF, getDeltaMovement());
+            if (d % 6 == 0) server.sendParticles(ParticleTypes.ELECTRIC_SPARK, c.x, c.y, c.z, 6, 0.8, 1.2, 0.8, 0.1);
+        }
+        Vec3 dial = dialPos();
+        if (d == 100) playSound(SoundEvents.BEACON_POWER_SELECT, 3.0F, 0.4F);
+        if (d >= 100 && d < 120 && d % 2 == 0) Fx.gather(server, MementoMoriEntity.glow(d % 4 == 0 ? GOLD : VIOLET, 0.35F, 10), dial, 8, 4.0, 10);
+        if (d == 120) {                                                                                    // 文字盤が砕ける
+            Vec3 fwd = Vec3.directionFromRotation(0, yBodyRot), right = new Vec3(-fwd.z, 0, fwd.x);
+            for (int i = 0; i < 48; i++) {
+                double a = Math.PI * 2 * i / 48;
+                Vec3 dir = right.scale(Math.cos(a)).add(0, Math.sin(a), 0);
+                Fx.one(server, MementoMoriEntity.glow(i % 3 == 0 ? VIOLET : GOLD, 0.45F, 26), dial.add(dir.scale(1.9)), dir.scale(0.35));
+            }
+            Fx.beamRing(server, dial, fwd, GOLD, 4.0F, 20);
+            Fx.line(server, MementoMoriEntity.glow(PALE, 0.6F, 30), position(), position().add(0, 36, 0), 0.5);
+            playSound(SoundEvents.GLASS_BREAK, 5.0F, 0.6F);
+            playSound(SoundEvents.GLASS_BREAK, 5.0F, 1.1F);
+            playSound(SoundEvents.ANVIL_DESTROY, 3.0F, 0.8F);
+        }
+        if (d == 140) {                                                                                    // 最後の閃光・大きな衝撃波・地の文
+            Fx.burst(server, MementoMoriEntity.glow(PALE, 0.8F, 30), c, 70, 0.45);
+            Fx.shockwave(server, position().add(0, 1.0, 0), GOLD, 22.0F, 34);
+            Fx.shockwave(server, c, VIOLET, 12.0F, 26);
+            server.sendParticles(ParticleTypes.FLASH, c.x, c.y, c.z, 1, 0, 0, 0, 0);
             playSound(SoundEvents.BELL_RESONATE, 5.0F, 1.2F);
+            playSound(SoundEvents.END_PORTAL_SPAWN, 2.0F, 0.6F);
+            speak(server, "defeat");                                                                   // 撃破の地の文（チャット）
+        }
+        if (d >= DEFEAT_TICKS && !DirectRead.isRemoved(this)) {
+            Fx.burst(server, MementoMoriEntity.glow(GOLD, 0.5F, 20), c, 30, 0.2);
             ensureLoot();
             if (TimeRift.isRift(server)) TimeRift.onRulerDefeated(server);
             protect.finishDeath();
