@@ -4,6 +4,7 @@ import com.automatavalkyries.AutomataValkyries;
 import com.automatavalkyries.registry.ModItems;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.living.LivingAttackEvent;
@@ -75,10 +76,18 @@ public final class InvincibleCharm {
         if (changed && !player.level().isClientSide) CharmDiagnostics.changed(player, "invincible", ACTIVE.contains(player.getUUID()));
     }
 
+    /** 護符を切った: 無敵の名残（{@link #LINGER_TICKS}）も待たずに外す（持ち物に入った他の護符があれば次の refresh で戻る） */
+    public static void disableNow(Player player) {
+        ACTIVE.remove(player.getUUID());
+        LINGER.remove(player.getUUID());
+        refresh(player);
+    }
+
     private static boolean hasCharm(Player player) {
         Inventory inventory = player.getInventory();
         for (int i = 0; i < inventory.getContainerSize(); i++) {
-            if (inventory.getItem(i).is(ModItems.INVINCIBLE_CHARM.get())) return true;
+            ItemStack stack = inventory.getItem(i);
+            if (stack.is(ModItems.INVINCIBLE_CHARM.get()) && com.automatavalkyries.item.InvincibleCharmItem.enabled(stack)) return true;   // 切った護符は数えない
         }
         return false;
     }
