@@ -28,13 +28,19 @@ import net.minecraft.world.phys.AABB;
 /**
  * 専用の次元「時の狭間」（2026-10-19 ユーザー指定「クロノルーラーを制作」。質問で: 専用の次元）。星空の闇に浮かぶ文字盤の闘技場（半径 {@value #R}、床 Y={@value #Y}）。
  * 目覚めた眠れる時の門から入ると、闘技場（初めて入る時に描く）の南に着き、タイムルーラーがいなければ北に現れる。
- * 南の甲板の帰りの門は、タイムルーラーを倒すと目覚め、入った所（門の前）へ帰す。闘技場の外は奈落
+ * 南の甲板の帰りの門は、タイムルーラーを倒すと目覚め、入った所（門の前）へ帰す。闘技場の外は奈落。
+ * 2026-10-20 ユーザー指定（帰還の門が次の時の狭間につながる・突入時に奈落に落ちる）で:
+ * 帰り先は入った門の 2.5 m 手前（門の中に戻されて、目覚めたままの門にもう一度入っていた）にし、門を出入りした後 {@value #GATE_COOLDOWN} Tick は門に入らない。
+ * 入る時に着く所の床か真ん中が欠けていれば（戦いで壊れた）闘技場を描き直す。闘技場の下へ落ちたら（Y {@value #Y} より 40 下）着いた所へ戻す
  */
+@net.minecraftforge.fml.common.Mod.EventBusSubscriber(modid = AutomataValkyries.MODID)
 public final class TimeRift {
 
     public static final ResourceKey<Level> RIFT = ResourceKey.create(Registries.DIMENSION, ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "time_rift"));
     public static final int Y = 100, R = 34, GATE_Z = 40;
     static final String RETURN = AutomataValkyries.MODID + ".rift_return";
+    static final String COOLDOWN = AutomataValkyries.MODID + ".rift_gate_cooldown";
+    public static final int GATE_COOLDOWN = 100;
 
     private TimeRift() {
     }
@@ -50,13 +56,20 @@ public final class TimeRift {
         if (rift == null) return;
         CompoundTag back = new CompoundTag();
         back.putString("Dim", player.level().dimension().location().toString());
-        back.putDouble("X", player.getX());
-        back.putDouble("Y", player.getY());
-        back.putDouble("Z", player.getZ());
+        net.minecraft.world.phys.Vec3 look = player.getLookAngle().multiply(1, 0, 1);
+        if (look.lengthSqr() < 1.0e-4) look = new net.minecraft.world.phys.Vec3(0, 0, 1);
+        net.minecraft.world.phys.Vec3 out = safeReturn((ServerLevel) player.level(), player.position(), look.normalize());   // 門の手前の、足場のある所へ帰す
+        back.putDouble("X", out.x);
+        back.putDouble("Y", out.y);
+        back.putDouble("Z", out.z);
         player.getPersistentData().put(RETURN, back);
         ensureArena(rift);
+        if (arenaBroken(rift)) build(rift);                                         // 戦いで床が壊れていたら描き直す
+        ensureLanding(rift);
+        startCooldown(player);
         player.setPortalCooldown();
         player.teleportTo(rift, 0.5, Y + 1, GATE_Z - 10 + 0.5, 180.0F, 0.0F);
+        player.fallDistance = 0.0F;
         rift.playSound(null, BlockPos.containing(0, Y + 1, GATE_Z - 10), SoundEvents.PORTAL_TRAVEL, SoundSource.PLAYERS, 0.6F, 1.4F);
         if (rift.getEntitiesOfClass(TimeRulerEntity.class, arenaBox(), e -> e.isAlive() && !e.isDefeated()).isEmpty()) {
             TimeRulerEntity ruler = ModEntities.TIME_RULER.get().create(rift);
@@ -79,6 +92,7 @@ public final class TimeRift {
             ResourceLocation id = ResourceLocation.tryParse(back.getString("Dim"));
             if (id != null) dest = server.getLevel(ResourceKey.create(Registries.DIMENSION, id));
         }
+        startCooldown(player);
         player.setPortalCooldown();
         if (dest == null) {
             ServerLevel over = server.overworld();
@@ -88,6 +102,108 @@ public final class TimeRift {
             player.teleportTo(dest, back.getDouble("X"), back.getDouble("Y"), back.getDouble("Z"), player.getYRot(), 0.0F);
         }
         player.getPersistentData().remove(RETURN);
+    }
+
+    /** 門を出入りしたばかりか（その間は門に入らない） */
+    public static boolean onGateCooldown(ServerPlayer player) {
+        return player.getServer() != null && player.getServer().getTickCount() < player.getPersistentData().getLong(COOLDOWN);
+    }
+
+    static void startCooldown(ServerPlayer player) {
+        if (player.getServer() != null) player.getPersistentData().putLong(COOLDOWN, player.getServer().getTickCount() + GATE_COOLDOWN);
+    }
+
+    /** 着く所の床・真ん中の要石・帰りの門の甲板のどれかが欠けているか、盤の 24 か所のうち 4 か所以上が欠けているか（2026-10-20 に見る所を増やした） */
+    static boolean arenaBroken(ServerLevel rift) {
+        if (rift.getBlockState(new BlockPos(0, Y, GATE_Z - 10)).isAir() || rift.getBlockState(new BlockPos(0, Y, 0)).isAir()
+                || rift.getBlockState(new BlockPos(0, Y, GATE_Z)).isAir()) return true;
+        int missing = 0;
+        for (int i = 0; i < 24; i++) {
+            double a = Math.PI * 2 * i / 24, r = i % 2 == 0 ? 10 : 25;
+            if (rift.getBlockState(BlockPos.containing(Math.cos(a) * r, Y, Math.sin(a) * r)).isAir()) missing++;
+        }
+        return missing >= 4;
+    }
+
+    /** 着く所のまわり 5×5 の床が欠けていれば埋める（描き直すほどでない小さな穴でも落ちないように） */
+    public static void ensureLanding(ServerLevel rift) {
+        for (int dx = -2; dx <= 2; dx++) for (int dz = -2; dz <= 2; dz++) {
+            BlockPos pos = new BlockPos(dx, Y, GATE_Z - 10 + dz);
+            if (rift.getBlockState(pos).isAir()) rift.setBlock(pos, Blocks.CALCITE.defaultBlockState(), 2);
+        }
+    }
+
+    /** 足元 6 ブロック以内に足場があるか */
+    static boolean grounded(ServerLevel level, net.minecraft.world.phys.Vec3 at) {
+        BlockPos feet = BlockPos.containing(at);
+        for (int k = 0; k <= 6; k++) {
+            if (!level.getBlockState(feet.below(k)).getCollisionShape(level, feet.below(k)).isEmpty()) return true;
+        }
+        return false;
+    }
+
+    /**
+     * 帰り先: 入った所から入ってきた側へ 2.5〜4.5 m のうち、足場があって体が入る所（門の中・宙ではない所）。見つからなければ 2.5 m 手前（2026-10-20）
+     */
+    static net.minecraft.world.phys.Vec3 safeReturn(ServerLevel level, net.minecraft.world.phys.Vec3 at, net.minecraft.world.phys.Vec3 dir) {
+        net.minecraft.world.phys.Vec3 side = new net.minecraft.world.phys.Vec3(-dir.z, 0, dir.x);
+        for (double back = 2.5; back <= 4.5; back += 1.0) {
+            for (double sideways : new double[]{0, 1.5, -1.5}) {
+                net.minecraft.world.phys.Vec3 c = at.subtract(dir.scale(back)).add(side.scale(sideways));
+                BlockPos feet = BlockPos.containing(c);
+                for (int dy = 1; dy >= -2; dy--) {
+                    BlockPos f = feet.above(dy);
+                    boolean floor = !level.getBlockState(f.below()).getCollisionShape(level, f.below()).isEmpty();
+                    boolean room = level.getBlockState(f).getCollisionShape(level, f).isEmpty() && level.getBlockState(f.above()).getCollisionShape(level, f.above()).isEmpty()
+                            && !level.getBlockState(f).is(ModTechBlocks.RULER_PORTAL.get()) && !level.getBlockState(f.above()).is(ModTechBlocks.RULER_PORTAL.get());
+                    if (floor && room) return new net.minecraft.world.phys.Vec3(c.x, f.getY(), c.z);
+                }
+            }
+        }
+        return at.subtract(dir.scale(2.5));
+    }
+
+    /** 門以外（/tp・入り直し・生き返り）で時の狭間に来て、足元に足場が無ければ着く所へ（2026-10-20 ユーザー指定「入る時の位置が奈落にならないように」） */
+    static void landSafely(ServerPlayer player) {
+        if (!isRift(player.level()) || player.isSpectator()) return;
+        ServerLevel rift = (ServerLevel) player.level();
+        ensureArena(rift);
+        if (arenaBroken(rift)) build(rift);
+        ensureLanding(rift);
+        if (grounded(rift, player.position())) return;
+        player.teleportTo(rift, 0.5, Y + 1, GATE_Z - 10 + 0.5, player.getYRot(), 0.0F);
+        player.fallDistance = 0.0F;
+    }
+
+    @net.minecraftforge.eventbus.api.SubscribeEvent
+    public static void onChangedDimension(net.minecraftforge.event.entity.player.PlayerEvent.PlayerChangedDimensionEvent event) {
+        if (event.getEntity() instanceof ServerPlayer p && event.getTo() == RIFT) landSafely(p);
+    }
+
+    @net.minecraftforge.eventbus.api.SubscribeEvent
+    public static void onLoggedIn(net.minecraftforge.event.entity.player.PlayerEvent.PlayerLoggedInEvent event) {
+        if (event.getEntity() instanceof ServerPlayer p) landSafely(p);
+    }
+
+    @net.minecraftforge.eventbus.api.SubscribeEvent
+    public static void onRespawn(net.minecraftforge.event.entity.player.PlayerEvent.PlayerRespawnEvent event) {
+        if (event.getEntity() instanceof ServerPlayer p) landSafely(p);
+    }
+
+    /** 闘技場の下へ落ちたら、着いた所へ戻す */
+    @net.minecraftforge.eventbus.api.SubscribeEvent
+    public static void onPlayerTick(net.minecraftforge.event.TickEvent.PlayerTickEvent event) {
+        if (event.phase != net.minecraftforge.event.TickEvent.Phase.END || !(event.player instanceof ServerPlayer player) || !isRift(player.level())) return;
+        if (player.getY() > Y - 40 || player.isSpectator() || player.tickCount % 5 != 0) return;
+        ServerLevel rift = (ServerLevel) player.level();
+        if (arenaBroken(rift)) {
+            build(rift);
+            setGate(rift, rift.getEntitiesOfClass(TimeRulerEntity.class, arenaBox(), e -> e.isAlive() && !e.isDefeated()).isEmpty());   // 描き直すと門は眠るので、ルーラーがいなければ目覚めさせる
+        }
+        player.teleportTo(rift, 0.5, Y + 1, GATE_Z - 10 + 0.5, player.getYRot(), 0.0F);
+        player.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
+        player.fallDistance = 0.0F;
+        player.displayClientMessage(Component.translatable("message.automata_valkyries.time_rift.rescued").withStyle(ChatFormatting.LIGHT_PURPLE), true);
     }
 
     /** タイムルーラーが倒れた: 帰りの門が目覚める */

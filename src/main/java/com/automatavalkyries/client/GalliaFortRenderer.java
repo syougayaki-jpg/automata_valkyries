@@ -44,6 +44,13 @@ public class GalliaFortRenderer extends ChronoGazerRenderer<GalliaFortEntity> {
         return 0.0F;
     }
 
+    /** 被弾の間だけ赤く光らせ、撃破の演出の間は赤くしない（2026-10-20 ユーザー指定「他の AEC 級のボスも撃破時赤くならないように」） */
+    @Override
+    public int getPackedOverlay(GalliaFortEntity fort, float u) {
+        return net.minecraft.client.renderer.texture.OverlayTexture.pack(net.minecraft.client.renderer.texture.OverlayTexture.u(u),
+                net.minecraft.client.renderer.texture.OverlayTexture.v(fort.hurtTime > 0 && fort.deathTime == 0));
+    }
+
     @Override
     public boolean shouldRender(GalliaFortEntity fort, net.minecraft.client.renderer.culling.Frustum frustum, double x, double y, double z) {
         // 召喚・退場の門は上空にあるので、体が画面の外でも描く

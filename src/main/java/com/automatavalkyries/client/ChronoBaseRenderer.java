@@ -29,4 +29,21 @@ public class ChronoBaseRenderer<T extends Mob & GeoEntity> extends GeoEntityRend
             }
         });
     }
+
+    /**
+     * タイムルーラーの撃破の演出（8 秒）の間は、倒れた時の赤い色と横倒しを付けない（2026-10-20 ユーザー指定「撃破演出で赤く倒れないようにして」。
+     * 崩れる動きは ChronoBaseModel.rulerDeath が付ける）。生きている間の被弾の赤い光はそのまま
+     */
+    @Override
+    public int getPackedOverlay(T animatable, float u) {
+        if (animatable instanceof com.automatavalkyries.entity.chrono.TimeRulerEntity ruler && ruler.deathTime > 0) {
+            return OverlayTexture.pack(OverlayTexture.u(u), OverlayTexture.v(false));
+        }
+        return super.getPackedOverlay(animatable, u);
+    }
+
+    @Override
+    protected float getDeathMaxRotation(T animatable) {
+        return animatable instanceof com.automatavalkyries.entity.chrono.TimeRulerEntity ? 0.0F : super.getDeathMaxRotation(animatable);
+    }
 }

@@ -298,6 +298,119 @@ public class CorruptedBaseGameTests {
         helper.succeed();
     }
 
+    /**
+     * タイムルーラーの因果停止（2026-10-20）: 止まっている間はその場に縫い留められ回復もせず、明けると防具・耐性 V・衝撃吸収を通して倒れる。不死のトーテムを持つ者だけは耐える。
+     * Tick を待たずに見張りの処理を直に呼んで確かめる
+     */
+    @GameTest(template = "empty", batch = "corrupted_base", timeoutTicks = 20)
+    public static void causalLockSeversThroughEverythingButTotem(GameTestHelper helper) {
+        var level = helper.getLevel();
+        Vec3 c = helper.absoluteVec(new Vec3(1.5, 2.0, 1.5));
+        java.util.List<net.minecraft.world.entity.monster.Zombie> zombies = new java.util.ArrayList<>();
+        for (int i = 0; i < 2; i++) {
+            var z = EntityType.ZOMBIE.create(level);
+            z.moveTo(c.x + i * 2, c.y, c.z, 0, 0);
+            z.setNoAi(true);
+            for (var slot : new net.minecraft.world.entity.EquipmentSlot[]{net.minecraft.world.entity.EquipmentSlot.HEAD, net.minecraft.world.entity.EquipmentSlot.CHEST,
+                    net.minecraft.world.entity.EquipmentSlot.LEGS, net.minecraft.world.entity.EquipmentSlot.FEET}) {
+                var item = switch (slot) {
+                    case HEAD -> net.minecraft.world.item.Items.NETHERITE_HELMET;
+                    case CHEST -> net.minecraft.world.item.Items.NETHERITE_CHESTPLATE;
+                    case LEGS -> net.minecraft.world.item.Items.NETHERITE_LEGGINGS;
+                    default -> net.minecraft.world.item.Items.NETHERITE_BOOTS;
+                };
+                var stack = new net.minecraft.world.item.ItemStack(item);
+                stack.enchant(net.minecraft.world.item.enchantment.Enchantments.ALL_DAMAGE_PROTECTION, 4);
+                z.setItemSlot(slot, stack);
+            }
+            z.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.DAMAGE_RESISTANCE, 200, 4));
+            z.setAbsorptionAmount(40.0F);
+            if (i == 1) z.setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.TOTEM_OF_UNDYING));
+            level.addFreshEntity(z);
+            zombies.add(z);
+        }
+        try {
+            var plain = zombies.get(0);
+            Vec3 held = plain.position();
+            plain.setHealth(10.0F);
+            float before = plain.getHealth();
+            com.automatavalkyries.entity.chrono.CausalLock.lock(plain, 2, null);
+            plain.heal(10.0F);
+            helper.assertTrue(plain.getHealth() == before, "a causally locked zombie healed: " + before + " -> " + plain.getHealth());
+            plain.setPos(held.x + 3, held.y, held.z);
+            net.minecraftforge.event.entity.living.LivingEvent.LivingTickEvent tick = new net.minecraftforge.event.entity.living.LivingEvent.LivingTickEvent(plain);
+            com.automatavalkyries.entity.chrono.CausalLock.onLivingTick(tick);
+            helper.assertTrue(plain.position().distanceTo(held) < 0.05, "the locked zombie was not held in place: " + plain.position() + " vs " + held);
+            helper.assertTrue(plain.isAlive(), "the zombie died before the lock ran out");
+            com.automatavalkyries.entity.chrono.CausalLock.onLivingTick(tick);
+            helper.assertTrue(plain.isDeadOrDying(), "netherite + protection IV + resistance V + absorption survived the severance: hp " + plain.getHealth());
+            var totem = zombies.get(1);
+            com.automatavalkyries.entity.chrono.CausalLock.sever(totem, null);
+            helper.assertTrue(totem.isAlive() && !totem.isDeadOrDying(), "the totem did not save the zombie");
+            helper.assertTrue(!totem.getMainHandItem().is(net.minecraft.world.item.Items.TOTEM_OF_UNDYING), "the totem was not used up");
+        } finally {
+            for (var z : zombies) z.discard();
+        }
+        helper.succeed();
+    }
+
+    /** 因果断ちの大剣の帯（2026-10-20）: 根元から倒れる向きへ長さ 40・幅 4.4 の帯の上だけ。跳んで 6 m 上に居ても当たり、帯の横や根元の後ろは外れる */
+    @GameTest(template = "empty", batch = "corrupted_base", timeoutTicks = 20)
+    public static void causalBladeHitsOnlyItsLine(GameTestHelper helper) {
+        var level = helper.getLevel();
+        Vec3 pivot = helper.absoluteVec(new Vec3(1.5, 2.0, 1.5)), d = new Vec3(1, 0, 0);
+        var z = EntityType.ZOMBIE.create(level);
+        java.util.function.Function<Vec3, Boolean> at = off -> {
+            z.setPos(pivot.x + off.x, pivot.y + off.y, pivot.z + off.z);
+            return com.automatavalkyries.entity.chrono.TimeRulerEntity.onBladeLine(pivot, d, z);
+        };
+        helper.assertTrue(at.apply(new Vec3(20, 0, 0)), "on the line in the middle");
+        helper.assertTrue(at.apply(new Vec3(38, 0, 1.5)), "near the tip, inside the band");
+        helper.assertTrue(at.apply(new Vec3(10, 6, 0)), "jumping or flying 6 m up still on the line");
+        helper.assertFalse(at.apply(new Vec3(20, 0, 3.5)), "beside the band");
+        helper.assertFalse(at.apply(new Vec3(-4, 0, 0)), "behind the hilt");
+        helper.assertFalse(at.apply(new Vec3(45, 0, 0)), "past the tip");
+        helper.succeed();
+    }
+
+    /** 時の狭間の着く所（2026-10-20）: 着く所の床に穴が開いていても、入る前に埋まる（奈落に落ちない） */
+    @GameTest(template = "empty", batch = "corrupted_base", timeoutTicks = 20)
+    public static void timeRiftLandingIsNeverVoid(GameTestHelper helper) {
+        var rift = helper.getLevel().getServer().getLevel(com.automatavalkyries.world.TimeRift.RIFT);
+        helper.assertTrue(rift != null, "no time rift dimension");
+        com.automatavalkyries.world.TimeRift.ensureArena(rift);
+        var landing = new net.minecraft.core.BlockPos(0, com.automatavalkyries.world.TimeRift.Y, com.automatavalkyries.world.TimeRift.GATE_Z - 10);
+        var beside = landing.offset(1, 0, 1);
+        var old = rift.getBlockState(beside);
+        rift.setBlock(beside, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 2);
+        try {
+            com.automatavalkyries.world.TimeRift.ensureLanding(rift);
+            helper.assertFalse(rift.getBlockState(landing).isAir(), "no floor where players land");
+            helper.assertFalse(rift.getBlockState(beside).isAir(), "a hole next to the landing spot was not filled");
+        } finally {
+            rift.setBlock(beside, old, 2);
+        }
+        helper.succeed();
+    }
+
+    /** 無敵の護符の入・切（2026-10-20）: 切った護符は持っていても効かず、無敵の名残も残らない。入れ直すと戻る */
+    @GameTest(template = "empty", batch = "corrupted_base", timeoutTicks = 20)
+    public static void invincibleCharmToggles(GameTestHelper helper) {
+        var player = helper.makeMockPlayer();
+        var charm = new net.minecraft.world.item.ItemStack(com.automatavalkyries.registry.ModItems.INVINCIBLE_CHARM.get());
+        player.getInventory().setItem(9, charm);
+        var held = player.getInventory().getItem(9);
+        com.automatavalkyries.protect.InvincibleCharm.refresh(player);
+        helper.assertTrue(com.automatavalkyries.protect.InvincibleCharm.isActive(player), "a fresh charm is not active");
+        held.getOrCreateTag().putBoolean("Off", true);
+        com.automatavalkyries.protect.InvincibleCharm.disableNow(player);
+        helper.assertFalse(com.automatavalkyries.protect.InvincibleCharm.isActive(player), "a switched-off charm still protects");
+        held.removeTagKey("Off");
+        com.automatavalkyries.protect.InvincibleCharm.refresh(player);
+        helper.assertTrue(com.automatavalkyries.protect.InvincibleCharm.isActive(player), "switching back on did not protect");
+        helper.succeed();
+    }
+
     /** 瞬間転移の端末（2026-10-19）: 開けた所では見ている向きへ 10 m 先、壁があれば壁の手前で止まる */
     @GameTest(template = "empty", batch = "corrupted_base", timeoutTicks = 20)
     public static void blinkDeviceStopsShortOfWalls(GameTestHelper helper) {

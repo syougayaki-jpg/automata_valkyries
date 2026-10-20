@@ -283,12 +283,25 @@ public class ChronoBaseModel<T extends Mob & GeoEntity> extends DefaultedEntityG
         float erase = pulse(age - r.eraseTick, 6, 28, 8);
         float cast = pulse(age - r.stopTick, 10, 30, 12);                                          // 時間停止の予告
         float rewind = back ? 1.0F : 0.0F;
-        float finale = pulse(age - r.finaleTick, 20, 260, 20);
+        float finale = pulse(age - r.finaleTick, 20, TimeRulerEntity.FINALE_TICKS - 40 + TimeRulerEntity.STOP_TICKS, 20);   // 終焉の終わりの時間停止の分も
         float eraseKick = pulse(age - r.eraseTick - 40, 1, 2, 8);                                  // 座標が消える瞬間の反動
         float snap = pulse(age - r.stopTick - 40, 2, 6, 14);                                       // 時が止まる瞬間に腕を広げて胸を反らす
         float conduct = ClientTimeStop.running() ? 1.0F : 0.0F;                                   // 止まった時の中で指揮をする
+        // 2026-10-20 に足した技: 大剣は両腕を天へ掲げて溜め、倒れる瞬間に振り下ろす。歯車は両腕を広げてから前で打ち合わせる。場は右の掌を床へかざす。残像は胸を反らして腕を後ろへ広げる
+        float bladeT = age - r.bladeTick;
+        float bladeRaise = pulse(bladeT, 12, TimeRulerEntity.BLADE_SWING - 18, 4);
+        float bladeDown = pulse(bladeT - (TimeRulerEntity.BLADE_SWING - 4), 2, 6, 14);
+        float gearSpread = pulse(age - r.gearTick, 6, 30, 12);
+        float gearClap = pulse(age - r.gearTick - 52, 3, 6, 10);
+        float field = pulse(age - r.fieldTick, 6, 24, 12);
+        float echo = pulse(age - r.echoTick, 6, 20, 14);
+        // 大技（2026-10-20）: 大渦は両腕を大きく広げて体ごとゆっくり回し、終末時計は両腕を天へ掲げたまま鐘ごとに胸を反らす
+        float mael = pulse(age - r.maelTick, 10, TimeRulerEntity.MAEL_TICKS - 20, 12);
+        float doom = pulse(age - r.doomTick, 10, TimeRulerEntity.DOOM_TICKS - 10, 14);
+        float chime = doom * Math.max(0.0F, 1.0F - ((age - r.doomTick - 20) % 14.0F) / 6.0F);
         // 落ち着き: 技をしていない度合い（2026-10-19 ユーザー指定「立ち姿は少し前に膝を曲げ手を引きゆうゆうとたたずむように」）
-        float calm = 1.0F - Mth.clamp(needleWind + needle + windup + strike + sweep + erase + eraseKick + cast + snap + conduct + rewind + finale + dying, 0.0F, 1.0F);
+        float calm = 1.0F - Mth.clamp(needleWind + needle + windup + strike + sweep + erase + eraseKick + cast + snap + conduct + rewind + finale + dying
+                + bladeRaise + bladeDown + gearSpread + gearClap + field + echo + mael + doom, 0.0F, 1.0F);
         // ふだんのしぐさ（落ち着いている間だけ）: ときどき左の掌を上に向けて差し出し見下ろす・首を巡らせて辺りを見回す
         float present = pulse((age % 320.0F) - 200.0F, 25, 40, 25) * calm;
         float lookAround = pulse((age % 460.0F) - 300.0F, 20, 50, 20) * calm;
@@ -297,8 +310,8 @@ public class ChronoBaseModel<T extends Mob & GeoEntity> extends DefaultedEntityG
         float breath = Mth.sin(age * 0.06F * pace);
         float bob = Mth.sin(age * 0.05F * pace) * 1.5F + finale * 2.0F + cast * 1.2F - dying * 6.0F;
         float bodyX = 0.04F * breath + lean - hurt * 0.25F - cast * 0.18F - sweep * 0.12F + rewind * 0.25F + needle * 0.08F - needleWind * 0.05F + dying * 0.7F
-                - eraseKick * 0.15F - snap * 0.22F;
-        float bodyY = windup * 0.35F - strike * 0.55F;
+                - eraseKick * 0.15F - snap * 0.22F - bladeRaise * 0.15F + bladeDown * 0.35F + field * 0.1F - echo * 0.2F + gearClap * 0.1F - doom * 0.12F - chime * 0.12F;
+        float bodyY = windup * 0.35F - strike * 0.55F + mael * Mth.sin(age * 0.08F) * 0.35F;
         float bodyZ = -roll + Mth.sin(age * 0.031F) * 0.03F;
         CoreGeoBone body = bone("body");
         if (body != null) {
@@ -320,19 +333,22 @@ public class ChronoBaseModel<T extends Mob & GeoEntity> extends DefaultedEntityG
 
         // ---- 腕（右: 一閃・消去で指す。左: 針で突く。両方: 掃射で広げる・予告で天へ・逆転で交差・終焉で大きく広げる。崩れると垂れる）
         float idleR = Mth.sin(age * 0.045F * pace) * 0.07F, idleL = Mth.sin(age * 0.045F * pace + 1.7F) * 0.07F;
-        float rx = idleR + 0.8F * windup - 1.9F * strike - 1.55F * erase - 0.4F * eraseKick - 2.7F * cast - 1.0F * rewind - 0.4F * finale - 0.9F * conduct + dying * 0.3F;
+        float rx = idleR + 0.8F * windup - 1.9F * strike - 1.55F * erase - 0.4F * eraseKick - 2.7F * cast - 1.0F * rewind - 0.4F * finale - 0.9F * conduct + dying * 0.3F
+                - 2.9F * bladeRaise - 1.5F * bladeDown - 1.4F * gearClap - 1.3F * field + 0.4F * echo - 2.8F * doom - 0.3F * mael;
         float ry = -0.5F * windup + 0.4F * strike - 0.6F * rewind;
         float rz = 0.12F + 0.5F * windup + 1.2F * sweep + 0.25F * cast + 1.0F * snap - 0.7F * rewind + 1.35F * finale - lean * 0.3F
-                + Mth.sin(age * 0.15F) * 0.5F * conduct + 0.25F * hurt;
-        float lx = idleL - 1.5F * needle + 0.35F * needleWind - 2.7F * cast - 1.0F * rewind - 0.4F * finale - 0.7F * present + dying * 0.3F;
+                + Mth.sin(age * 0.15F) * 0.5F * conduct + 0.25F * hurt + 0.15F * bladeRaise + 1.3F * gearSpread - 0.6F * gearClap + 0.8F * echo + 1.4F * mael + 0.2F * doom;
+        float lx = idleL - 1.5F * needle + 0.35F * needleWind - 2.7F * cast - 1.0F * rewind - 0.4F * finale - 0.7F * present + dying * 0.3F
+                - 2.9F * bladeRaise - 1.5F * bladeDown - 1.4F * gearClap + 0.4F * echo - 2.8F * doom - 0.3F * mael;
         float ly = 0.3F * needle + 0.6F * rewind + 0.3F * present;
-        float lz = -0.12F - 1.2F * sweep - 0.25F * cast - 1.0F * snap + 0.7F * rewind - 1.35F * finale - lean * -0.3F + 0.2F * present - 0.25F * hurt;
+        float lz = -0.12F - 1.2F * sweep - 0.25F * cast - 1.0F * snap + 0.7F * rewind - 1.35F * finale - lean * -0.3F + 0.2F * present - 0.25F * hurt
+                - 0.15F * bladeRaise - 1.3F * gearSpread + 0.6F * gearClap - 0.8F * echo - 1.4F * mael - 0.2F * doom;
         float limp = 1.0F - dying;
         set("arm_right", -rx * limp - 0.3F * calm - 0.3F * moving, ry * limp, rz * limp + dying * 0.1F + 0.08F * calm);   // たたずむ: 手を後ろへ引く
         set("arm_left", -lx * limp - 0.3F * calm - 0.3F * moving, ly * limp, lz * limp - dying * 0.1F - 0.08F * calm);
         // 肘（rotX が正で前腕が前・上へ曲がる）: たたずむ間は軽く曲げ、振りかぶり・交差で深く、突く・振り下ろす・指す・掲げる・広げるで伸ばす
-        float elbowR = 0.55F * calm + 1.2F * windup + 0.15F * strike + 1.4F * rewind + 0.2F * sweep + 0.4F * conduct + 0.5F * dying + Mth.sin(age * 0.04F) * 0.04F * calm;
-        float elbowL = 0.55F * calm + 0.25F * needle + 1.1F * needleWind + 1.4F * rewind + 0.2F * sweep + 0.6F * present + 0.5F * dying + Mth.sin(age * 0.04F + 1.3F) * 0.04F * calm;
+        float elbowR = 0.55F * calm + 0.3F * bladeRaise + 0.25F * field + 1.2F * windup + 0.15F * strike + 1.4F * rewind + 0.2F * sweep + 0.4F * conduct + 0.5F * dying + Mth.sin(age * 0.04F) * 0.04F * calm;
+        float elbowL = 0.55F * calm + 0.3F * bladeRaise + 0.25F * needle + 1.1F * needleWind + 1.4F * rewind + 0.2F * sweep + 0.6F * present + 0.5F * dying + Mth.sin(age * 0.04F + 1.3F) * 0.04F * calm;
         rotX("forearm_right", elbowR);
         rotX("forearm_left", elbowL);
 
@@ -354,7 +370,7 @@ public class ChronoBaseModel<T extends Mob & GeoEntity> extends DefaultedEntityG
                 0.0F, Mth.sin(age * 0.05F) * 0.03F);
 
         // ---- 光輪: 回り、上下し、予告・終焉で広がり速く回る。崩れると落ちる
-        float haloSpin = 0.04F * pace + cast * 0.25F + finale * 0.2F;
+        float haloSpin = 0.04F * pace + cast * 0.25F + finale * 0.2F + bladeRaise * 0.3F + echo * 0.2F + mael * 0.25F + doom * 0.3F;
         CoreGeoBone halo = bone("halo_top");
         if (halo != null) {
             halo.setRotY(age * haloSpin);
@@ -375,7 +391,7 @@ public class ChronoBaseModel<T extends Mob & GeoEntity> extends DefaultedEntityG
         if (dial != null) {
             dial.setRotZ(Mth.sin(age * 0.02F) * 0.05F + dying * 0.4F);
             dial.setRotX(-dying * 0.3F);
-            float ds = 1.0F + cast * 0.08F * (1.0F + Mth.sin(age * 0.8F)) + finale * 0.12F;
+            float ds = 1.0F + cast * 0.08F * (1.0F + Mth.sin(age * 0.8F)) + finale * 0.12F + doom * 0.15F + chime * 0.08F;
             dial.setScaleX(ds);
             dial.setScaleY(ds);
         }
@@ -399,6 +415,8 @@ public class ChronoBaseModel<T extends Mob & GeoEntity> extends DefaultedEntityG
         if (visorZ != null) visorZ.setScaleZ(1.0F);
         CoreGeoBone dialZ = bone("dial");
         if (dialZ != null) dialZ.setScaleZ(1.0F);
+        CoreGeoBone capeY = bone("cape");
+        if (capeY != null) capeY.setScaleY(1.0F);
         float introT = age - r.introTick;
         if (introT >= 0 && introT < TimeRulerEntity.INTRO_TICKS + 10) rulerIntro(introT);
         float retreatT = age - r.retreatTick;
@@ -445,7 +463,11 @@ public class ChronoBaseModel<T extends Mob & GeoEntity> extends DefaultedEntityG
         CoreGeoBone dial = bone("dial");
         if (dial != null) dial.setRotZ(dial.getRotZ() + (1.0F - unfold) * Mth.TWO_PI * 2.0F);
         if (t < 80) rotZ("hand_minute", -t * 0.6F);
-        blend("cape", 1.4F, 0, 0, 1.0F - smooth(t, 60, 80));
+        // マント: 背へはね上げてたたみ、60〜80 で肩から下へほどける（2026-10-20 ユーザー指定「出現時にマントが前に出ないようにして」。はじめは前へ回して体を突き抜けていた）
+        float cloak = 1.0F - smooth(t, 60, 80);
+        blend("cape", -1.1F, 0, 0, cloak);
+        CoreGeoBone cape = bone("cape");
+        if (cape != null) cape.setScaleY(Math.max(0.05F, 1.0F - 0.8F * cloak));
         scale("visor", Math.max(0.001F, smooth(t, 70, 78)));
         float halo = smooth(t, 75, 82) * (1.0F + 0.25F * Mth.sin(smooth(t, 75, 88) * Mth.PI));
         scale("halo_top", Math.max(0.001F, halo));

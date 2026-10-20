@@ -42,6 +42,13 @@ public class MementoMoriRenderer extends ChronoGazerRenderer<MementoMoriEntity> 
         return 0.0F;
     }
 
+    /** 被弾の間だけ赤く光らせ、撃破の演出の間は赤くしない（2026-10-20 ユーザー指定「他の AEC 級のボスも撃破時赤くならないように」） */
+    @Override
+    public int getPackedOverlay(MementoMoriEntity mori, float u) {
+        return net.minecraft.client.renderer.texture.OverlayTexture.pack(net.minecraft.client.renderer.texture.OverlayTexture.u(u),
+                net.minecraft.client.renderer.texture.OverlayTexture.v(mori.hurtTime > 0 && mori.deathTime == 0));
+    }
+
     @Override
     public boolean shouldRender(MementoMoriEntity mori, Frustum frustum, double x, double y, double z) {
         return mori.isAlive() || mori.isDefeatedSynced() ? frustum.isVisible(mori.getBoundingBox().inflate(mori.stage() != MementoMoriEntity.STAGE_NONE || mori.isDefeatedSynced() ? 18.0 : 6.0))

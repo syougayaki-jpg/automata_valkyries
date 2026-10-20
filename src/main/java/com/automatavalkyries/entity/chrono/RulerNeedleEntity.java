@@ -27,7 +27,8 @@ import java.util.UUID;
 /**
  * タイムルーラーの「時空剪定の針」（2026-10-19）。置かれた所で {@link #hold} Tick の間、狙う向きへ切っ先を向けて光りながら止まり、それからまっすぐ飛ぶ。
  * 時間停止の間は Tick が止まるので、止まった時の中に並べた針は、時が動き出してから少し待って一斉に飛ぶ（避ける間がある）。
- * 当たった相手にダメージ（無敵時間は普通に効く）。壁に当たるか、飛んで 60 Tick で消える。保存しない
+ * 当たった相手にダメージ（無敵時間は普通に効く）。壁に当たるか、飛んで 60 Tick で消える。保存しない。
+ * 巻き戻しの弾（{@link #rewindAfter}、2026-10-20 ユーザー指定）は、飛んで決めた Tick（か壁）で止まり、逆再生のように同じ道を戻ってくる（行きも帰りも貫いて当たる。帰り着いたら消える）
  */
 public class RulerNeedleEntity extends Entity implements GeoEntity {
 
@@ -41,6 +42,10 @@ public class RulerNeedleEntity extends Entity implements GeoEntity {
     private UUID owner;
     private float damage = 8.0F, speed = 1.4F;
     private int flown;
+    /** 巻き戻しの弾: 行きに飛ぶ Tick（0 なら巻き戻らない）、戻っているか、行きに飛んだ Tick、この行き（帰り）で当てた相手 */
+    private int rewindAfter, outward;
+    private boolean returning;
+    private final java.util.Set<UUID> hitThisPass = new java.util.HashSet<>();
 
     public RulerNeedleEntity(EntityType<? extends RulerNeedleEntity> type, Level level) {
         super(type, level);
@@ -60,6 +65,12 @@ public class RulerNeedleEntity extends Entity implements GeoEntity {
         n.entityData.set(HOLD, hold);
         shooter.level().addFreshEntity(n);
         return n;
+    }
+
+    /** 巻き戻しの弾にする（ticks 飛んだら止まって、同じ道を戻る） */
+    public RulerNeedleEntity rewinding(int ticks) {
+        this.rewindAfter = ticks;
+        return this;
     }
 
     @Override
@@ -102,14 +113,34 @@ public class RulerNeedleEntity extends Entity implements GeoEntity {
             if (wall.getType() != HitResult.Type.MISS) to = wall.getLocation();
             for (Entity e : level().getEntities(this, getBoundingBox().expandTowards(to.subtract(from)).inflate(0.4), ChronoGazer::canHurt)) {
                 if (e.getBoundingBox().inflate(0.3).clip(from, to).isPresent()) {
+                    if (rewindAfter > 0 && !hitThisPass.add(e.getUUID())) continue;   // 巻き戻しの弾は貫く（1 回の行き・帰りに 1 度ずつ）
                     Entity src = owner != null && level() instanceof ServerLevel server ? server.getEntity(owner) : null;
                     DamageSource ds = src instanceof LivingEntity l ? damageSources().mobProjectile(this, l) : damageSources().magic();
                     e.hurt(ds, damage);
+                    if (rewindAfter > 0) continue;
                     shatter();
                     return;
                 }
             }
-            if (wall.getType() != HitResult.Type.MISS || ++flown > 60) {
+            ++flown;
+            if (rewindAfter > 0 && !returning && (wall.getType() != HitResult.Type.MISS || flown >= rewindAfter)) {   // 止まって、逆再生のように戻る
+                setPos(to.x, to.y, to.z);
+                returning = true;
+                outward = flown;
+                flown = 0;
+                hitThisPass.clear();
+                setAim(aim().scale(-1));
+                entityData.set(HOLD, 8);
+                playSound(SoundEvents.NOTE_BLOCK_HAT.value(), 0.8F, 0.5F);
+                if (level() instanceof ServerLevel server) Fx.burst(server, MementoMoriEntity.glow(0xB070FF, 0.25F, 10), position(), 8, 0.08);
+                return;
+            }
+            if (returning && flown >= outward) {                                           // 帰り着いた
+                shatter();
+                return;
+            }
+            if (returning && level() instanceof ServerLevel server && tickCount % 2 == 0) Fx.one(server, MementoMoriEntity.glow(0xB070FF, 0.22F, 8), position(), Vec3.ZERO);
+            if ((wall.getType() != HitResult.Type.MISS && !returning) || flown > 60) {
                 shatter();
                 return;
             }

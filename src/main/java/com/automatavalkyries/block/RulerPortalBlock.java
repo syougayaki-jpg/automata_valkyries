@@ -98,7 +98,7 @@ public class RulerPortalBlock extends Block {
             if (player.tickCount % 40 == 0) dormant(level, pos, player);
             return;
         }
-        if (player.isOnPortalCooldown() || player.isPassenger()) return;
+        if (player.isOnPortalCooldown() || player.isPassenger() || com.automatavalkyries.world.TimeRift.onGateCooldown(player)) return;   // 出入りした直後は入らない
         if (com.automatavalkyries.world.TimeRift.isRift(level)) {
             com.automatavalkyries.world.TimeRift.leave(player);
         } else {

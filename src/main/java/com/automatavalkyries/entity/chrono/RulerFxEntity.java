@@ -21,14 +21,21 @@ import net.minecraft.world.phys.Vec3;
  *   <li>{@link #PILLAR}: 空から落ちる光の柱と巻き付いて昇る螺旋の輪</li>
  *   <li>{@link #CUBE}: 確定座標消去の赤い光の立方体（中で回る紫の八面体、上下する走査の面）</li>
  *   <li>{@link #SLASH}: 時針の一閃の巨大な三日月の光の刃</li>
+ *   <li>{@link #BLADE}: 因果断ちの大剣。置いた所を根元に、空へ立った巨大な時空剪定の針が {@link #mode()} Tick かけて yaw の向きへゆっくり倒れ、床の赤い帯へ落ちる（2026-10-20）</li>
+ *   <li>{@link #CAUSAL}: 因果停止と因果断絶（{@link CausalLock}。2026-10-20 ユーザー指定「因果断絶の演出を自作して美麗に」）。mode Tick の間は止まった者を縛る因果の糸・止まっていく 3 つの輪・時の結晶の殻・ひび割れる床の文字盤、明けると一閃で糸が断たれ殻が砕け散る（size = 止まった者の背の高さ）</li>
+ *   <li>{@link #PENDULUM}・{@link #HOURGLASS}・{@link #SECTOR}・{@link #LANE}: 振り子の断頭台・砂時計の牢・崩れる文字盤の扇・時空疾走の道（2026-10-20）。{@link #SWEEP} は mode に刃の本数（0 なら 12）</li>
+ *   <li>{@link #GEAR}: 時の歯車の挟撃の、床を転がる巨大な縦の歯車（yaw の向きへ 1 Tick に spin ずつ進み、進んだ分だけ回る。2026-10-20）</li>
  * </ul>
+ * 文字盤は {@link #HANDS_FAST}・{@link #HANDS_SLOW} で針の速さを、{@link #FILL} で盤を薄く塗る（加速と減速の場）
  * 時間停止の間は（止められているので）エフェクトも止まる。保存しない。{@link #life()} Tick で消える
  */
 public class RulerFxEntity extends Entity {
 
-    public static final int CLOCK = 0, SWEEP = 1, PILLAR = 2, CUBE = 3, SLASH = 4;
-    public static final int FLAT = 0, FACING = 1, HANDS_REVERSE = 2, HANDS_TO_TWELVE = 4, HANDS_FINALE = 8;
-    public static final int GOLD = 0xFFD166, VIOLET = 0xB070FF, RED = 0xFF4060, WHITE = 0xFFF8E8;
+    public static final int CLOCK = 0, SWEEP = 1, PILLAR = 2, CUBE = 3, SLASH = 4, BLADE = 5, GEAR = 6, CAUSAL = 7, PENDULUM = 8, HOURGLASS = 9, SECTOR = 10, LANE = 11;
+    public static final int FLAT = 0, FACING = 1, HANDS_REVERSE = 2, HANDS_TO_TWELVE = 4, HANDS_FINALE = 8, HANDS_FAST = 16, HANDS_SLOW = 32, FILL = 64;
+    /** 因果停止（{@link #CAUSAL}）が明けてから消えるまでの Tick（因果断絶の演出） */
+    public static final int SEVER_TICKS = 34;
+    public static final int GOLD = 0xFFD166, VIOLET = 0xB070FF, RED = 0xFF4060, WHITE = 0xFFF8E8, BLUE = 0x60A8FF;
 
     private static final EntityDataAccessor<Integer> KIND = SynchedEntityData.defineId(RulerFxEntity.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Integer> MODE = SynchedEntityData.defineId(RulerFxEntity.class, EntityDataSerializers.INT);
@@ -100,7 +107,18 @@ public class RulerFxEntity extends Entity {
     @Override
     public void tick() {
         super.tick();
+        if (kind() == GEAR && tickCount <= mode()) {                                 // 転がる歯車は両方の側で同じだけ進める（mode = 転がる Tick）
+            float y = yaw(), step = spin();
+            setPos(getX() + Math.cos(y) * step, getY(), getZ() + Math.sin(y) * step);
+        }
         if (!level().isClientSide && tickCount >= life()) discard();
+    }
+
+    /** 転がる歯車は自分で進むので、サーバーから届く位置（少し前の位置）で引き戻さない */
+    @Override
+    public void lerpTo(double x, double y, double z, float yRot, float xRot, int steps, boolean teleport) {
+        if (kind() == GEAR) return;
+        super.lerpTo(x, y, z, yRot, xRot, steps, teleport);
     }
 
     @Override

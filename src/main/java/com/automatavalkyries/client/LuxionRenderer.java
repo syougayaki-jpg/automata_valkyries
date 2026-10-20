@@ -40,6 +40,13 @@ public class LuxionRenderer extends ChronoGazerRenderer<LuxionEntity> {
         return 0.0F;
     }
 
+    /** 被弾の間だけ赤く光らせ、撃破の演出の間は赤くしない（2026-10-20 ユーザー指定「他の AEC 級のボスも撃破時赤くならないように」） */
+    @Override
+    public int getPackedOverlay(LuxionEntity lux, float u) {
+        return net.minecraft.client.renderer.texture.OverlayTexture.pack(net.minecraft.client.renderer.texture.OverlayTexture.u(u),
+                net.minecraft.client.renderer.texture.OverlayTexture.v(lux.hurtTime > 0 && lux.deathTime == 0));
+    }
+
     @Override
     public void render(LuxionEntity lux, float entityYaw, float partialTick, PoseStack pose, MultiBufferSource buffers, int light) {
         // 身長 5 ブロック（モデル・光・残光をまとめて {@link LuxionEntity#SIZE} 倍に。2026-10-08 ユーザー指定）

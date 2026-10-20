@@ -239,6 +239,12 @@ public class ModEntities {
             ENTITY_TYPES.register("ruler_fx", () ->
                     EntityType.Builder.<com.automatavalkyries.entity.chrono.RulerFxEntity>of(com.automatavalkyries.entity.chrono.RulerFxEntity::new, MobCategory.MISC)
                             .sized(0.5F, 0.5F).clientTrackingRange(10).updateInterval(20).noSave().fireImmune().build("ruler_fx"));
+
+    /** タイムルーラーの残像の分身（2026-10-20。見た目だけの人形） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.RulerEchoEntity>> RULER_ECHO =
+            ENTITY_TYPES.register("ruler_echo", () ->
+                    EntityType.Builder.<com.automatavalkyries.entity.chrono.RulerEchoEntity>of(com.automatavalkyries.entity.chrono.RulerEchoEntity::new, MobCategory.MISC)
+                            .sized(2.6F, 6.0F).clientTrackingRange(16).updateInterval(1).noSave().fireImmune().build("ruler_echo"));
     /** 山なりの砲弾（曲射砲・前哨司令機の砲撃要請。2026-10-15） */
     public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.MortarShellEntity>> MORTAR_SHELL =
             ENTITY_TYPES.register("mortar_shell", () ->

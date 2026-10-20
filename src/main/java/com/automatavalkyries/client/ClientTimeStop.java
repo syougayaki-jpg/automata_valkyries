@@ -51,6 +51,11 @@ public final class ClientTimeStop {
         return left > 0;
     }
 
+    /** 時が動き出すまでの残りの Tick（タイムルーラーのボスバーが秒を出す） */
+    public static int remainingTicks() {
+        return Math.max(0, left);
+    }
+
     public static boolean locked() {
         return left > 0 && !exempt;
     }
