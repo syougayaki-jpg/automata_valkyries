@@ -157,6 +157,9 @@ public final class ValkyrieCombat {
         if (attacker instanceof ValkyrieEntity v && v.hasOmegaCore() && event.getEntity() != v) {
             event.setAmount(event.getAmount() * ValkyrieEntity.OMEGA_MULTIPLIER);
         }
+        if (attacker instanceof ValkyrieEntity v && event.getEntity() != v && v.syncMultiplier() > 1.0F) {   // 同調率で与えるダメージが上がる（20% ごとに +4%）
+            event.setAmount(event.getAmount() * v.syncMultiplier());
+        }
         // 近接のステップの封印を解く: 狙っている相手を一度殴った / 狙っている相手以外のモブか、飛び道具に撃たれた
         if (attacker instanceof ValkyrieEntity v && event.getEntity() == v.getTarget()) v.combat().stepLocked = false;
         if (event.getEntity() instanceof ValkyrieEntity v) {

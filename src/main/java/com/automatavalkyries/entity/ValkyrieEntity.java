@@ -109,6 +109,9 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
     private static final UUID OVERWEIGHT_ID = UUID.fromString("5b6f6d3e-2c1a-4f39-9b0a-7a1e0c4d2f10");
     private static final UUID SYNC_SPEED_ID = UUID.fromString("8e2a1c55-7d3b-4f0e-a6c9-1b2d3e4f5a60");
     private static final UUID SYNC_ATTACK_ID = UUID.fromString("c41d9e70-3a5b-4c8d-9e1f-2a3b4c5d6e70");
+    private static final UUID SYNC_HEALTH_ID = UUID.fromString("5b1e7c2a-9d34-4f8a-b6c1-0e2f3a4b5c61");
+    private static final UUID SYNC_ARMOR_ID = UUID.fromString("a7c3e9f1-2b4d-4e6a-8c0b-1d3f5a7b9c62");
+    private static final UUID SYNC_TOUGHNESS_ID = UUID.fromString("3f8d2b6e-7a1c-4b9e-9d5f-6c2a8e4b1d63");
     /** ステラ・ジェネシス・オメガの全ステータス 3 倍（全体仕様書 §3.4 のコアの表。2026-10-05 実装） */
     public static final float OMEGA_MULTIPLIER = 3.0F;
     private static final UUID OMEGA_HEALTH_ID = UUID.fromString("0d7a3c91-5e2b-4f68-a1c4-9b8e7d6f5a41");
@@ -637,7 +640,7 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
     }
 
     public float getMaxShield() {
-        return (getBody().maxShield + com.automatavalkyries.entity.ai.ValkyrieUnitEffects.frameShield(this)) * omegaMultiplier();
+        return (getBody().maxShield + com.automatavalkyries.entity.ai.ValkyrieUnitEffects.frameShield(this)) * omegaMultiplier() * syncMultiplier();
     }
 
     /** HP・シールドを今の最大まで下げる（外装・コアを外したとき） */
@@ -663,7 +666,7 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
     public void bonusShieldRegen(float ticks) {
         float shield = getShield();
         if (isShutdown() || shield >= getMaxShield() || ticksSinceHurt() < SHIELD_DELAY) return;
-        entityData.set(SHIELD, Math.min(getMaxShield(), shield + SHIELD_REGEN * omegaMultiplier() / 20.0F * ticks));
+        entityData.set(SHIELD, Math.min(getMaxShield(), shield + SHIELD_REGEN * omegaMultiplier() * syncMultiplier() / 20.0F * ticks));
     }
 
     public int getEnergy() {
@@ -747,7 +750,12 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         clampVitals();
     }
 
-    /** 同調率の能力上昇の倍率（20% ごとに段階的、100% で 1.2 倍【仮】） */
+    /**
+     * 同調率の能力上昇の倍率（20% ごとに段階的、100% で 1.2 倍【仮】）。2026-10-20 ユーザー指定「同調率でのステータスアップを実装して」（質問で: 兵装の威力・
+     * 最大 HP と装甲・兵装の速さ・シールドと電力の全部、上がり幅は今の +20% のまま、20% ごとの段階）で、次の全部に掛ける:
+     * 与えるダメージ（{@code ValkyrieCombat.onHurt}。兵装の技・飛び道具・近接すべて）、最大 HP・装甲・装甲強度・移動速度（属性）、
+     * 攻撃の間隔と技の再使用（{@code ValkyrieUnitEffects.attackIntervalScale}）、シールドの最大と回復、電力の消費（{@code ValkyrieUnitEffects.powerScale}。割る）
+     */
     public float syncMultiplier() {
         int steps = (int) (getSyncRate() / 20.0F);
         if (level().getGameTime() < commandLinkUntil) steps = Math.min(steps + 1, 5); // コマンドリンクで 1 段上げ
@@ -801,7 +809,7 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         // シールドの回復（最後の被弾から SHIELD_DELAY 後、毎秒 SHIELD_REGEN）
         float shield = getShield();
         if (!isShutdown() && shield < getMaxShield() && tickCount - lastHurtTick >= SHIELD_DELAY) {
-            float add = Math.min(SHIELD_REGEN * omegaMultiplier() / 20.0F, getMaxShield() - shield);
+            float add = Math.min(SHIELD_REGEN * omegaMultiplier() * syncMultiplier() / 20.0F, getMaxShield() - shield);
             int cost = (int) Math.ceil(add * SHIELD_COST);
             if (energy >= cost) {
                 energy -= cost;
@@ -825,10 +833,18 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
             life().onWake();
         }
         if (!isShutdown() && !isAsleep()) uptime++;
+        applySyncBonus();
+        applyOmega();
+    }
+
+    /** 同調率の能力上昇を属性に掛ける（最大 HP・装甲・装甲強度・移動速度。毎 Tick と GameTest から） */
+    public void applySyncBonus() {
         double bonus = syncMultiplier() - 1.0;
         applyModifier(Attributes.MOVEMENT_SPEED, SYNC_SPEED_ID, "valkyrie sync speed", bonus);
-        applyModifier(Attributes.ATTACK_DAMAGE, SYNC_ATTACK_ID, "valkyrie sync attack", bonus);
-        applyOmega();
+        applyModifier(Attributes.ATTACK_DAMAGE, SYNC_ATTACK_ID, "valkyrie sync attack", 0.0);       // 与えるダメージは ValkyrieCombat.onHurt で全部に掛ける（近接だけ二重にならないよう外す）
+        applyModifier(Attributes.MAX_HEALTH, SYNC_HEALTH_ID, "valkyrie sync health", bonus);
+        applyModifier(Attributes.ARMOR, SYNC_ARMOR_ID, "valkyrie sync armor", bonus);
+        applyModifier(Attributes.ARMOR_TOUGHNESS, SYNC_TOUGHNESS_ID, "valkyrie sync toughness", bonus);
     }
 
     /** GameTest 用: 保護を通らない消去（他 MOD が無理やり消した）を真似る。バックアップは残すので見張りが戻す */

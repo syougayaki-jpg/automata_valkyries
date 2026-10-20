@@ -445,7 +445,7 @@ public final class ValkyrieUnitEffects {
 
     /** 兵装・スラスター・ユニットの電力消費の倍率（ルミナス一式で 0.7） */
     public static float powerScale(ValkyrieEntity v) {
-        return inv(v).frameSet() == FrameType.LUMINOUS ? 0.7F : 1.0F;
+        return (inv(v).frameSet() == FrameType.LUMINOUS ? 0.7F : 1.0F) / v.syncMultiplier();   // 同調率で軽くなる（100% で 1/1.2）
     }
 
     /** 充電スタンドの充電の倍率（メンテナンス一式で 1.5） */
@@ -469,7 +469,7 @@ public final class ValkyrieUnitEffects {
         if (inv(v).frameSet() == FrameType.HELIOS && ranged(v)) s *= 0.8F;
         if (overdrive(v)) s /= 1.5F;
         if (ValkyrieSupportUnits.accelerated(v)) s *= 0.7F; // アクセラレーター
-        return s;
+        return s / v.syncMultiplier();                       // 同調率で速くなる（100% で 1/1.2）
     }
 
     /** 持った兵装が射撃の型か */

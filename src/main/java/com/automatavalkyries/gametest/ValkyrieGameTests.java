@@ -69,6 +69,34 @@ public class ValkyrieGameTests {
     }
 
     /** 追従は持ち主ごとに 4 体まで */
+    /**
+     * 同調率の能力上昇（2026-10-20）: 100% で 1.2 倍。最大 HP・装甲・シールドの最大は 1.2 倍、電力の消費・攻撃の間隔は 1/1.2。0% では何も変わらない。
+     * Tick を待たずに属性を直に掛けて確かめる
+     */
+    @GameTest(template = TEMPLATE, batch = "valkyrie")
+    public static void valkyrieSyncRateRaisesStats(GameTestHelper helper) {
+        ValkyrieEntity v = helper.spawn(ModEntities.VALKYRIE.get(), 1, 2, 1);
+        try {
+            v.applySyncBonus();
+            float hp0 = v.getMaxHealth(), shield0 = v.getMaxShield();
+            double armor0 = v.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ARMOR);
+            float power0 = com.automatavalkyries.entity.ai.ValkyrieUnitEffects.powerScale(v), interval0 = com.automatavalkyries.entity.ai.ValkyrieUnitEffects.attackIntervalScale(v);
+            helper.assertTrue(v.syncMultiplier() == 1.0F, "0% sync is not neutral: " + v.syncMultiplier());
+            v.addSync(100.0F, "test");
+            v.applySyncBonus();
+            helper.assertTrue(Math.abs(v.syncMultiplier() - 1.2F) < 1.0e-4F, "100% sync multiplier: " + v.syncMultiplier());
+            helper.assertTrue(Math.abs(v.getMaxHealth() - hp0 * 1.2F) < 0.01F, "max health " + hp0 + " -> " + v.getMaxHealth());
+            helper.assertTrue(Math.abs(v.getMaxShield() - shield0 * 1.2F) < 0.01F, "max shield " + shield0 + " -> " + v.getMaxShield());
+            double armor = v.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ARMOR);
+            helper.assertTrue(Math.abs(armor - armor0 * 1.2) < 0.01, "armor " + armor0 + " -> " + armor);
+            helper.assertTrue(Math.abs(com.automatavalkyries.entity.ai.ValkyrieUnitEffects.powerScale(v) - power0 / 1.2F) < 1.0e-4F, "power cost did not drop");
+            helper.assertTrue(Math.abs(com.automatavalkyries.entity.ai.ValkyrieUnitEffects.attackIntervalScale(v) - interval0 / 1.2F) < 1.0e-4F, "attack interval did not shorten");
+        } finally {
+            v.discard();
+        }
+        helper.succeed();
+    }
+
     @GameTest(template = TEMPLATE, batch = "valkyrie", timeoutTicks = 200)
     public static void valkyrieFollowerLimit(GameTestHelper helper) {
         UUID owner = UUID.randomUUID();
