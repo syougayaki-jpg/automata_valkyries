@@ -40,6 +40,10 @@ public final class BossRetreatWatch {
 
     /** 毎 Tick（サーバー側）。退く時が来ていたら true（退くまで true を返し続ける） */
     public boolean tick(Mob boss) {
+        if (FateDuels.dueling(boss)) {                                                 // 宿命の結び糸の対決の間は退かない（2026-10-20）
+            noChallengerTicks = 0;
+            return false;
+        }
         if (boss.getTarget() instanceof Player player && !player.isCreative() && !player.isSpectator()) engaged.add(player.getUUID());
         if (engaged.isEmpty()) return false;
         if (allEngagedDown(boss)) return true;

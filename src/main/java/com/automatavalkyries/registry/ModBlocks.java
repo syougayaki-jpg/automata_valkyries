@@ -111,6 +111,10 @@ public class ModBlocks {
     public static final RegistryObject<Block> DAMAGED_INTERFACE = register("damaged_interface", () -> new com.automatavalkyries.block.DamagedInterfaceBlock(
             BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_GRAY).requiresCorrectToolForDrops().strength(8.0F, 600.0F).sound(SoundType.METAL).lightLevel(s -> 4)));
 
+    /** スライム湧かなくする君（置くとまわり 128 ブロックでスライムが自然に湧かない。2026-10-20） */
+    public static final RegistryObject<Block> SLIME_WARD = register("slime_ward", () -> new com.automatavalkyries.block.SlimeWardBlock(
+            BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_LIGHT_GREEN).strength(1.5F, 6.0F).sound(SoundType.METAL).lightLevel(s -> 7)));
+
     /** ブロックと、同じ名前のブロックアイテム（クリエイティブタブは ModItems の登録順に並ぶ） */
     private static RegistryObject<Block> register(String name, Supplier<Block> factory) {
         RegistryObject<Block> block = BLOCKS.register(name, factory);

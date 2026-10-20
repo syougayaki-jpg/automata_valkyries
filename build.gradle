@@ -397,6 +397,7 @@ repositories {
 
     flatDir {
         dir 'libs'
+        dir 'libs/bossmods'   // -PwithBossMods の Wither Storm と CrackersLib（tools/prepare_boss_mods.py が置く）
     }
 }
 
@@ -476,6 +477,41 @@ dependencies {
     if (project.hasProperty('withCheatMods')) {
         runtimeOnly fg.deobf("maven.modrinth:manaitaplus-legacy:2.0.6.5")        // ManaitaPlus Legacy 2.0.6.5（まな板。神装備・作業台の倍増）
         runtimeOnly fg.deobf("maven.modrinth:manaitamtk:1.7.4")                  // ManaitaMTK 1.7.4（まな板の作り直し版）
+    }
+    // 他の MOD のボスとタイムルーラーなどを戦わせる（-PwithBossMods、2026-10-20 ユーザー指定「他の MOD のボスと戦わせたい」。戦わせるのは宿命の結び糸 fate_thread）
+    //   ./gradlew runClient -PwithBossMods
+    if (project.hasProperty('withBossMods')) {
+        runtimeOnly fg.deobf("curse.maven:titans-world-1392578:9046541")                         // Titans World 1.3（MCreator 製。巨大な怪物のタイタン）
+        runtimeOnly fg.deobf("curse.maven:titans-api-1392566:7771996")                           // TitansAPI 2.0（Titans World の前提）
+        runtimeOnly fg.deobf("maven.modrinth:attributefix:ihWybkI9")                             // AttributeFix 21.0.5（Titans World の前提）
+        runtimeOnly fg.deobf("maven.modrinth:craziness-awakened-orespawn-remake:XJRIi1hU")       // Craziness Awakened 5.1.1（OreSpawn の後継）
+        // Pehkui は Craziness Awakened の任意の前提（mandatory=false）。3.8.2 はこの開発環境では起動で落ちる（ForgeGradle が MC を組み直したラムダの引数の順と、
+        // 互換 Mixin compat1204minus.ScreenHandlerMixin の @Local の順が合わない。2026-10-20）ので入れない
+        // 2026-10-20 ユーザー指定「推奨の五つをいれて」で追加（DOOM The Titans は Java エージェント同梱なので -PwithDoomTitans に分けた）
+        runtimeOnly fg.deobf("maven.modrinth:l_enders-cataclysm:C3H0azzB")                     // L_Ender's Cataclysm 3.31（Ignis・ハービンジャー・リヴァイアサン・ネザライトの怪物など）
+        runtimeOnly fg.deobf("maven.modrinth:lionfish-api:CPftDBcY")                            // Lionfish-API 3.0（Cataclysm の前提）
+        runtimeOnly fg.deobf("maven.modrinth:curios:5.14.1+1.20.1")                             // Curios API（Cataclysm・Terramity の前提）
+        runtimeOnly fg.deobf("maven.modrinth:terramity:cjrb1wmA")                               // Terramity 0.9.8（Terraria 風のボス）
+        runtimeOnly fg.deobf("maven.modrinth:caelus:mRry0DgY")                                  // Caelus API 3.2.0（Terramity の前提）
+        runtimeOnly fg.deobf("maven.modrinth:patchouli:94dtOLgZ")                               // Patchouli 85（Terramity の前提）
+        runtimeOnly fg.deobf("maven.modrinth:bosses-of-mass-destruction-forge:2Kw4xPhp")        // Bosses of Mass Destruction 1.1.2（ナイトリッチ・オブシディリス・ガントレット・ヴォイドブロッサム）
+        runtimeOnly fg.deobf("maven.modrinth:cloth-config:t8TXrZvZ")                            // Cloth Config 11.1.136（BOMD の前提）
+        runtimeOnly fg.deobf("maven.modrinth:cerbons-api:XWZQbKsr")                             // CERBON's API 1.1.0（BOMD の前提）
+        // Cracker's Wither Storm Mod 4.2.1: 前提の CrackersLib を jar の中に入れて配っていて、入れ子はデオブフされないので、
+        // tools/prepare_boss_mods.py で取り出した 2 つ（libs/bossmods）を読む
+        if (project.file('libs/bossmods/witherstormmod-1.20.1-4.2.1.jar').exists()) {
+            runtimeOnly fg.deobf("libs:witherstormmod-1.20.1:4.2.1")
+            runtimeOnly fg.deobf("libs:crackerslib-forge-1.20.1:0.4.1")
+        } else {
+            logger.warn('[withBossMods] Wither Storm を読むには先に python tools/prepare_boss_mods.py を実行する')
+        }
+    }
+    // DOOM The Titans 5.0.0（中身は MOD ID transfinity_improved。1.7.10 の The Titans Mod の作り直しで、より強いタイタンと OP 装備）。
+    // 自分で付く Java エージェント（runtime-agent: GodHelper・HealthGuard・EventBusFixer・HardenedThread など）を同梱し、実行中にクラスを書き換えるので、
+    // 他のボス MOD と分けて -PwithDoomTitans で読む（2026-10-20）
+    //   ./gradlew runClient -PwithDoomTitans
+    if (project.hasProperty('withDoomTitans')) {
+        runtimeOnly fg.deobf("maven.modrinth:doom-the-titans:u6A0rDMr")
     }
     //   ./gradlew runClient -PwithFantasyEnding   （クライアント専用: 専用サーバーではクライアントの設定を読んで起動に失敗する。
     //                                             Java エージェント agent-any を同梱し、LivingEntity を実行中に書き換える）

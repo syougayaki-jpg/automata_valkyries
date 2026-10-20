@@ -32,6 +32,7 @@ forge*changelog.txt
 .run/
 libs/*.jar
 libs/disabled/
+libs/bossmods/
 agents/*.jar
 
 # Local reference material (third-party wiki transcriptions, not for publishing)

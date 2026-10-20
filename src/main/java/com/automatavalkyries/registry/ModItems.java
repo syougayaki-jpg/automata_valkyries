@@ -85,6 +85,10 @@ public class ModItems {
     public static final RegistryObject<Item> BASE_GENERATOR = ITEMS.register("base_generator", () ->
             new com.automatavalkyries.item.BaseGeneratorItem(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC)));
 
+    /** 宿命の結び糸（クリエイティブ用。見ている 2 体を結んで戦わせる。他の MOD のボスとも。2026-10-20） */
+    public static final RegistryObject<Item> FATE_THREAD = ITEMS.register("fate_thread", () ->
+            new com.automatavalkyries.item.FateThreadItem(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC)));
+
     /** 瞬間転移の端末（見ている向きへ 10 m 先へ跳ぶ。作り方は無し。2026-10-19） */
     public static final RegistryObject<Item> BLINK_DEVICE = ITEMS.register("blink_device", () ->
             new com.automatavalkyries.item.BlinkItem(new Item.Properties().stacksTo(1).rarity(Rarity.RARE)));

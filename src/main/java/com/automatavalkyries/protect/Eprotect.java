@@ -584,6 +584,9 @@ public class Eprotect {
      * 下げられると HP がそこまで切り詰められて 1 撃で倒せる残量になり、桁外れに上げられると 1 撃の上限（最大 HP の
      * {@link EprotectProfile#maxHitRatio}）が意味をなさず戦闘が成り立たない。どちらも他 MOD の属性上限の解除や /attribute で起こる。
      */
+    /** 出てすぐとみなす Tick（この間に最大 HP を下げられたら HP も満タンへ戻す） */
+    static final int FRESH_SPAWN_TICKS = 40;
+
     private boolean restoreMaxHealth() {
         AttributeInstance attribute = owner.getAttribute(Attributes.MAX_HEALTH);
         if (attribute == null) return false;
@@ -603,6 +606,12 @@ public class Eprotect {
         float max = owner.getMaxHealth();
         if (lastValidHealth > max) lastValidHealth = max;
         if (!(DirectRead.health(owner) <= max)) owner.setHealth(max); // NaN も含めて切り詰める
+        else if (owner.tickCount < FRESH_SPAWN_TICKS && oldValue < max) {
+            // 出てすぐ（他 MOD が出現時に最大 HP をばらつかせる。Craziness Awakened の healthvariation 0.8〜1.2 など）に下げられた分は、
+            // HP も下げた最大まで切り詰められているので満タンへ戻す（2026-10-20 ユーザー指定「沸かせたときちょっとだけダメージを喰らっているのはなぜ」）
+            owner.setHealth(max);
+            lastValidHealth = max;
+        }
         AutomataValkyries.LOGGER.warn("[eprotect] Restored tampered max health of {} ({} -> {}, {} foreign modifiers removed)",
                 owner, oldValue, max, removed);
         AttackLog.repaired(owner, "max_health");
