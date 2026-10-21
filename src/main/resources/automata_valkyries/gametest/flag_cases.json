@@ -1,16 +1,25 @@
 {
-  "_comment": "フラグ辞書の守る側の確かめ用の名前（docs/SPEC_FLAG_DICTIONARY_V2.md §5）。reset: 保護対象に付いていたら戻すべき名前（取りこぼしは 0 であること）。keep: 戻してはいけない名前（他の MOD の正しい状態・記録。拾いすぎの数を baseline 以下に保ち、直したら baseline を下げる）。FlagDictionaryGameTests.defensiveCasesDoNotRegress が数える",
+  "_comment": "フラグ辞書の守る側の確かめ用の名前（docs/SPEC_FLAG_DICTIONARY_V2.md §5）。reset: 保護対象に付いていたら戻すべき名前（取りこぼしは 0 であること）。keep: 戻してはいけない名前（他の MOD の正しい状態・記録。拾いすぎの数を baseline 以下に保ち、直したら baseline を下げる）。2026-10-21 に実在 30 MOD（libs/ と -PwithXxx のチート/即死/ボス系。中華の神仙/秒殺系を含む）＋見本 1 本の定数プール採掘で得た実名で増強した。FlagDictionaryGameTests.defensiveCasesDoNotRegress が数える",
   "reset": [
     "isMarkedForDeath", "DeadFlag", "nosugar:erased", "the_mod$soulDamage", "frozen", "healthDelta", "SET_NOVELIZED",
     "imds$forceDead", "bypassProtection", "timeStopped", "aiDisabled", "lockedHealth", "forceZero", "banishedToVoid",
     "noRender", "hideBossBar", "condemned", "cursedByVoid", "stasisTicks", "chronoLocked", "markedForErasure",
-    "fakemod$condemned", "ignoreInvulnerability", "trueDamageTarget", "forceInvisible"
+    "fakemod$condemned", "ignoreInvulnerability", "trueDamageTarget", "forceInvisible",
+    "FORCE_DEAD_UUIDS", "IMDS_MobFreeze", "AutoKill_AlwaysActive", "EnableAllKillAttack", "IMDS_KillMode",
+    "KILL_PLAYERS", "KILL_OTHER_ENTITIES", "BYPASS_TAGS", "playerDestroy", "removeAll", "IS_DEAD_OR_DYING",
+    "RemoveBeneficialEffects"
   ],
   "keep": [
     "soldier", "studied", "reapply", "soulProtected", "checkDespawnImmunity", "level", "invulnerable", "lastHurtTime",
     "deltaMovement", "resistanceLevel", "sleepingPos", "ticketCount", "counterAttack", "graveStoneId", "soulboundItems",
     "deathCount", "lastDeathPos", "removalReason", "scaleData", "curiosInventory", "shieldBlockTicks", "frozenTicks",
-    "vanishingCurse", "rootDirectory", "bindingSlot", "trapdoorState", "removeTimer", "voidDamageResistance"
+    "vanishingCurse", "rootDirectory", "bindingSlot", "trapdoorState", "removeTimer", "voidDamageResistance",
+    "stopAttackAnimation", "lockedXRot", "isFovLocked", "isUvLocked", "rotationLock", "lockedPose", "stopSitting",
+    "stopGroupAnimations", "GUARDIAN_MELEE_ATTACK_RANGE", "ender_guardian", "trial_guardian", "guardian_archer",
+    "CONCEALMENT_SCARF", "queueLock", "PHANTOM_HALBERD", "lockedTargetId", "lockedEntities", "strictMusicLock",
+    "blockRenderer", "repairIngredient", "voidguard_pendant", "guardcounter",
+    "collapseWhitespace", "rootTag", "displacement", "isHidden", "extinguish", "removeNode", "pinned"
   ],
-  "baseline": { "missedReset": 0, "falseReset": 12 }
+  "_note_exclude": "2026-10-21 段 3: 上の良性名のうち拾いすぎていた 19 件（deltaMovement・sleepingPos・graveStoneId・soulboundItems・deathCount・lastDeathPos・removalReason・frozenTicks・vanishingCurse・rootDirectory・bindingSlot・removeTimer・collapseWhitespace・rootTag・displacement・isHidden・extinguish・removeNode・pinned）を flag_dictionary.json の exclude で外した。単語の前方一致は残している。baseline の falseReset を 12→0 に下げた",
+  "baseline": { "missedReset": 0, "falseReset": 0 }
 }

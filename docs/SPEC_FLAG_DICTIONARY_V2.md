@@ -124,8 +124,20 @@ Antigravity のファイル（例: `annihilate/FlagKillPredicates.java`）へ移
   定数プール採掘して現行辞書で分類（ツール: scratchpad の `mine_vocab.py`）。**結論: 語彙はほぼ出揃っている**（IMDS は取りこぼし 0、他も良性語のみ）。
   即死は vanilla メソッド呼び（die/kill/remove/setHealth、入口 Mixin＋既存語で受け）か既知の名前で、新語はごく僅か（例 epic-core-api `lockMaxHealth`→HEALTH_TAMPER）。
   **効くのは語彙拡充より精度**（過度に広い項目: `execute`・`collapse`・`extinguish`・`displac`・`root`・`hidden`(geckolib ボーン)・`annihil`(ae2 ブロック)・`remov`・`delta`）
-- **次（1b を待たずに進める）**: 段 4（候補の流れ）、`words()` の短い接頭辞落とし、corpus を実名でハードニング（調査で得た良性名を keep[] へ）
-- **次（1b 調整が要る＝辞書内容）**: 精度の段 3（上の過度に広い項目を `exclude`・重みで絞る）、`lockMaxHealth` 等の僅かな追加
+- **corpus のハードニング 済み（未コミット。1b 非依存）**: 調査で得た実名で `flag_cases.json` を増強（reset 24→36・keep 28→50）。
+  reset に有害な実名（`FORCE_DEAD_UUIDS`・`IMDS_MobFreeze`・`KILL_PLAYERS`・`BYPASS_TAGS`・`playerDestroy` 等）、keep に良性の実名
+  （アニメ `stopAttackAnimation`・カメラ `lockedXRot`/`isFovLocked`・mob/アイテム名 `ender_guardian`/`CONCEALMENT_SCARF`・スレッド `queueLock` 等）。
+  **感度を落とさないため baseline は 0/12 据え置き**（追加はすべて正しく扱える名前）。現在誤爆する良性名 7 件（`collapseWhitespace`・`rootTag`・`displacement`・
+  `isHidden`・`extinguish`・`removeNode`・`pinned`）は `_stage3_falseHitTargets` に別記（段 3 で exclude 後に keep[] へ移す）。GameTest で確認
+- **次（1b を待たずに進める）**: 段 4（候補の流れ）、`words()` の短い接頭辞落とし
+- **精度の段 3（exclude）済み（未コミット）**: `flag_dictionary.json` に `exclude`（連結名の完全一致で当てない。単語の前方一致は残す）を足し、
+  採掘で確認した拾いすぎの良性名 19 件（`deltaMovement`・`sleepingPos`・`graveStoneId`・`soulboundItems`・`deathCount`・`lastDeathPos`・`removalReason`・
+  `frozenTicks`・`vanishingCurse`・`rootDirectory`・`bindingSlot`・`removeTimer`・`collapseWhitespace`・`collapseSegmentBreaks`・`rootTag`・`rootContext`・
+  `displacement`・`isHidden`・`extinguish`・`removeNode`・`pinned`）を外した。`FlagDictionary.BUILT_IN_EXCLUDE`（`loadBuiltInExclude`）で読み、
+  `classify()` が `ignored` と同じ所で弾く。**これはカテゴリの並びとは別の集合なので、辞書のエージェントの写しの修復では戻らず、段 1b 前でもゲーム内で効く**
+  （ただし抹殺側も同じ良性名を対象にしないよう、Antigravity に知らせる）。corpus の baseline を **falseReset 12→0** に下げた。GameTest `defensiveCasesDoNotRegress` と
+  記録・リスポーン系テストで回帰なしを確認
+- **次（1b 調整が要る＝辞書内容）**: `lockMaxHealth` 等の僅かな語の追加（カテゴリの並びに入るので、エージェントの写し＝段 1b と足並みを揃える）、重み・値の型（段 3 の残り）
 
 ## 10. 見張りの点数付けの改善（2026-10-21。守る側・未コミット。StateScanner の探す範囲は触らない）
 

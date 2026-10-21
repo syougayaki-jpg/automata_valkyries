@@ -1,6 +1,12 @@
 {
   "format": 2,
-  "_comment": "フラグ辞書（docs/SPEC_FLAG_DICTIONARY_V2.md §3）。MOD（protect/flag/FlagDictionary）と辞書のエージェントの両方がこのファイルを読む。項目: kill=どれかの単語が kill で始まる、=die=どれかの単語がちょうど die、*forcedead=単語をつなげた名前に含まれる",
+  "_comment": "フラグ辞書（docs/SPEC_FLAG_DICTIONARY_V2.md §3・§5）。MOD（protect/flag/FlagDictionary）と辞書のエージェントの両方がこのファイルを読む。項目: kill=どれかの単語が kill で始まる、=die=どれかの単語がちょうど die、*forcedead=単語をつなげた名前に含まれる。exclude=連結名が完全一致したら当てない（単語の前方一致は残す。拾いすぎの良性名だけ外す。実在 MOD の採掘で確認）",
+  "exclude": [
+    "deltaMovement", "sleepingPos", "graveStoneId", "soulboundItems", "deathCount", "lastDeathPos", "removalReason",
+    "frozenTicks", "vanishingCurse", "rootDirectory", "bindingSlot", "removeTimer",
+    "collapseWhitespace", "collapseSegmentBreaks", "rootTag", "rootContext", "displacement", "isHidden", "extinguish",
+    "removeNode", "pinned"
+  ],
   "categories": {
     "KILL": {
       "description": "死亡・消去・抹消・呪いの印",

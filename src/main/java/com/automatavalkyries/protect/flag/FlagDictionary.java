@@ -86,6 +86,31 @@ public final class FlagDictionary {
      */
     private static final Map<Category, List<String>> BUILT_IN = loadBuiltIn();
 
+    /**
+     * 当てない名前（段 3 の精度、2026-10-21）。単語の前方一致そのものは残したまま、拾いすぎる良性の実名だけを
+     * 連結名（{@link #compact}）の完全一致で外す（見落としは増やさない）。実在 MOD の採掘で確認した名前。
+     * docs/SPEC_FLAG_DICTIONARY_V2.md §5。分類の結果を削るだけの別集合なので、辞書のエージェントの写しの修復では戻されない
+     * （カテゴリの並びとは別。段 1b 前でもゲーム内では効く）
+     */
+    private static final Set<String> BUILT_IN_EXCLUDE = loadBuiltInExclude();
+
+    private static Set<String> loadBuiltInExclude() {
+        Set<String> out = new LinkedHashSet<>();
+        try (InputStream in = FlagDictionary.class.getResourceAsStream(RESOURCE)) {
+            if (in == null) return Set.of();
+            JsonObject root = JsonParser.parseReader(new InputStreamReader(in, StandardCharsets.UTF_8)).getAsJsonObject();
+            if (root.has("exclude")) {
+                for (JsonElement e : root.getAsJsonArray("exclude")) {
+                    String c = compact(e.getAsString());
+                    if (!c.isEmpty()) out.add(c);
+                }
+            }
+        } catch (Exception ex) {
+            AutomataValkyries.LOGGER.error("[eprotect] Could not read the flag dictionary exclude list from {}", RESOURCE, ex);
+        }
+        return Set.copyOf(out);
+    }
+
     private static Map<Category, List<String>> loadBuiltIn() {
         Map<Category, List<String>> out = new EnumMap<>(Category.class);
         for (Category category : Category.values()) out.put(category, List.of());
@@ -205,7 +230,7 @@ public final class FlagDictionary {
         Set<Category> result = EnumSet.noneOf(Category.class);
         List<String> words = words(name);
         String compact = String.join("", words);
-        if (compact.isEmpty() || ignored.contains(compact)) return Set.of();
+        if (compact.isEmpty() || ignored.contains(compact) || BUILT_IN_EXCLUDE.contains(compact)) return Set.of();
         active.forEach((category, entries) -> {
             for (String entry : entries) {
                 if (matches(entry, words, compact)) {
