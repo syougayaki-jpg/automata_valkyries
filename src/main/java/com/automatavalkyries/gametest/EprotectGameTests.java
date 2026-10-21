@@ -443,6 +443,35 @@ public class EprotectGameTests {
         helper.succeed();
     }
 
+    /**
+     * 守る側のエージェント（-PwithLifeGuard / -PwithValkyrieProtect）の呼び出し先に入れた判断を他の MOD が外しても、MOD 側の点検が入れ直して記録する
+     * （黙って守りが止まらない。2026-10-21）。エージェントが無ければ何もしない
+     */
+    @GameTest(template = TEMPLATE)
+    public static void agentHooksAreRestoredWhenRemoved(GameTestHelper helper) {
+        try {
+            if (com.automatavalkyries.protect.LifeGuardLink.isInstalled()) {
+                Class<?> hooks = Class.forName("com.automatavalkyries.lifeguard.hooks.LifeHooks", false, null);
+                Class<?> filterType = Class.forName("com.automatavalkyries.lifeguard.hooks.LifeHooks$LifeFilter", false, null);
+                hooks.getMethod("install", filterType).invoke(null, new Object[]{null});
+                helper.assertTrue(hooks.getMethod("current").invoke(null) == null, "test setup: the LifeGuard hook was not removed");
+                com.automatavalkyries.protect.LifeGuardLink.verifyHook();
+                helper.assertTrue(hooks.getMethod("current").invoke(null) != null, "The removed LifeGuard hook was not put back");
+            }
+            if (com.automatavalkyries.protect.valkyrie.ValkyrieAgentLink.isInstalled()) {
+                Class<?> hooks = Class.forName("com.automatavalkyries.valkyrieprotect.hooks.ValkyrieHooks", false, null);
+                Class<?> filterType = Class.forName("com.automatavalkyries.valkyrieprotect.hooks.ValkyrieHooks$Filter", false, null);
+                hooks.getMethod("install", filterType).invoke(null, new Object[]{null});
+                helper.assertTrue(hooks.getMethod("current").invoke(null) == null, "test setup: the valkyrie hook was not removed");
+                com.automatavalkyries.protect.valkyrie.ValkyrieAgentLink.verifyHook();
+                helper.assertTrue(hooks.getMethod("current").invoke(null) != null, "The removed valkyrie-protect hook was not put back");
+            }
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
+        helper.succeed();
+    }
+
     /** 時間停止で包み（guardEntityTick）の入口から Tick を打ち切られても、保護対象は入口を飛ばして動き続ける（EndingLibrary の再現） */
     @GameTest(template = TEMPLATE, timeoutTicks = 100)
     public static void timeStopAtTickWrapperIsBypassed(GameTestHelper helper) {

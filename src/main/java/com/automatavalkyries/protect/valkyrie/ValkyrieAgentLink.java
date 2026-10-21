@@ -51,6 +51,22 @@ public final class ValkyrieAgentLink {
         }
     }
 
+    /**
+     * 入っている判断が自分のものか確かめ、違えば入れ直して攻撃の記録に残す（他の MOD が呼び出し先の判断を外す・差し替えると、
+     * 黙って守りが止まるため。2026-10-21）。サーバーの周期処理から呼ぶ
+     */
+    public static void verifyHook() {
+        if (!installed) return;
+        try {
+            if (ValkyrieAgentInstaller.intact()) return;
+            ValkyrieAgentInstaller.install();
+            com.automatavalkyries.protect.attack.AttackLog.detected(null, "agent_hook_tampered:valkyrie_protect");
+            AutomataValkyries.LOGGER.warn("[valkyrie-protect] The agent hook was replaced or removed by something else; put it back");
+        } catch (Throwable t) {
+            AutomataValkyries.LOGGER.debug("[valkyrie-protect] agent hook check failed: {}", t.toString());
+        }
+    }
+
     public static String status() {
         if (!installed) return "Valkyrie protect agent: not loaded";
         try {

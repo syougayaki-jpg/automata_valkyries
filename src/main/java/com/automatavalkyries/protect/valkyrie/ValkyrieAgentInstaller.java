@@ -7,8 +7,16 @@ final class ValkyrieAgentInstaller {
 
     private ValkyrieAgentInstaller() {}
 
+    /** 入れた判断（毎秒、これが入っているか確かめる） */
+    private static final ValkyrieAgentFilter FILTER = new ValkyrieAgentFilter();
+
     static void install() {
-        ValkyrieHooks.filter = new ValkyrieAgentFilter();
+        ValkyrieHooks.install(FILTER);
+    }
+
+    /** 入っている判断が自分のものか */
+    static boolean intact() {
+        return ValkyrieHooks.current() == FILTER;
     }
 
     static void ensureLast() {

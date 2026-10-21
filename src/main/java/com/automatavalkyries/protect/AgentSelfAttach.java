@@ -133,8 +133,11 @@ public final class AgentSelfAttach {
         try {
             Path dir = FMLPaths.GAMEDIR.get().resolve(MODID).resolve("agents");
             Files.createDirectories(dir);
-            Path jar = extract(agent.jar(), dir);
-            if (agent.hooks() != null) extract(agent.hooks(), dir);
+            Extracted agentFile = extract(agent.jar(), dir);
+            Extracted hooksFile = agent.hooks() != null ? extract(agent.hooks(), dir) : null;
+            agentFile.verify();
+            if (hooksFile != null) hooksFile.verify();
+            Path jar = agentFile.path();
             String java = ProcessHandle.current().info().command()
                     .orElse(Path.of(System.getProperty("java.home"), "bin", "java").toString());
             List<String> command = new ArrayList<>(Arrays.asList(java, "-cp", jar.toString(), ATTACHER,
@@ -155,7 +158,7 @@ public final class AgentSelfAttach {
     }
 
     /** jar の中のエージェントを取り出す（同じ中身なら書き直さない。使用中で書けなければ今あるものを使う） */
-    private static Path extract(String name, Path dir) throws IOException {
+    private static Extracted extract(String name, Path dir) throws IOException {
         Path target = dir.resolve(name);
         byte[] bytes;
         try (InputStream in = AgentSelfAttach.class.getResourceAsStream(RESOURCE_DIR + name)) {
@@ -167,15 +170,27 @@ public final class AgentSelfAttach {
                 bytes = Files.readAllBytes(built);
             }
         }
-        if (Files.exists(target) && Arrays.equals(Files.readAllBytes(target), bytes)) return target;
+        if (Files.exists(target) && Arrays.equals(Files.readAllBytes(target), bytes)) return new Extracted(target, bytes);
         try {
             Path tmp = Files.createTempFile(dir, name, ".tmp");
             Files.write(tmp, bytes);
             Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
-            if (!Files.exists(target)) throw e;
-            AutomataValkyries.LOGGER.warn("[agents] {} is in use and could not be updated; using the existing copy", target);
+            // 使用中で書き直せなかった。中身が同梱のものと違うなら使わない（取り出し先を書き換えられても、確かめずに付けない。2026-10-21）
+            if (!Files.exists(target) || !Arrays.equals(Files.readAllBytes(target), bytes)) {
+                throw new IOException(target + " could not be updated and differs from the bundled copy; refusing to attach it", e);
+            }
         }
-        return target;
+        return new Extracted(target, bytes);
+    }
+
+    /** 取り出したファイルと、同梱の中身（付ける直前に照合する） */
+    private record Extracted(Path path, byte[] bytes) {
+        /** 付ける直前の照合。取り出してから付けるまでの間に差し替えられていないか */
+        void verify() throws IOException {
+            if (!Files.exists(path) || !Arrays.equals(Files.readAllBytes(path), bytes)) {
+                throw new IOException(path + " no longer matches the bundled copy; refusing to attach it");
+            }
+        }
     }
 }

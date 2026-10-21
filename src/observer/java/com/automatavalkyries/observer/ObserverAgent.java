@@ -50,6 +50,8 @@ public final class ObserverAgent {
                         String operation, List<String> caller) {}
 
     private static Instrumentation instrumentation;
+    /** 実行中に付いたか（読み込み済みのクラスの元の形を覚えていない） */
+    private static volatile boolean lateAttached;
     private static final Map<String, ClassSummary> BASELINES = new ConcurrentHashMap<>();
     private static final LinkedBlockingQueue<Task> QUEUE = new LinkedBlockingQueue<>(MAX_QUEUE);
     private static final Set<String> KNOWN_TRANSFORMERS = ConcurrentHashMap.newKeySet();
@@ -88,6 +90,7 @@ public final class ObserverAgent {
     private static synchronized void start(Instrumentation inst, boolean lateAttach, String args) {
         if (instrumentation != null) return;
         instrumentation = inst;
+        lateAttached = lateAttach;
         // 変換の最中に初めて読み込むと、読み込みの入れ子になるので先に読んでおく
         ClassSummary.class.getName();
         ClassSummary.MethodInfo.class.getName();
@@ -223,6 +226,14 @@ public final class ObserverAgent {
 
     private static void work() {
         long lastScan = 0L;
+        if (lateAttached && IntegrityGuard.enabled()) {
+            try {
+                int captured = IntegrityGuard.captureLoaded();
+                ObserverBridge.event("note", "-", "-", "", "", "", "後から付いたので、読み込み済みのこのMOD のクラス " + captured + " 個の元の形を読み込み元から取った（改ざん防止）");
+            } catch (Throwable t) {
+                ObserverBridge.event("error", "-", "-", "", "", "", String.valueOf(t));
+            }
+        }
         while (true) {
             try {
                 Task task = QUEUE.poll(1, TimeUnit.SECONDS);

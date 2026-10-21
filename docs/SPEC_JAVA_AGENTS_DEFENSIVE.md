@@ -84,3 +84,20 @@
 GameTest: `ObserverGameTests`（改ざん防止の自己点検・SuperSteve の安全モード）、`lifeguardReportsTrueLife…`、`ValkyrieGameTests`（エージェントの層）。エージェントが付いていなければ素通りで成功する。
 
 2026-10-08 の結果（守る側 3 つ＋Eprotect+）: 並べ直しは 0 回、改ざん防止が戻したのは自己点検のクラスだけ。落ちたのは前からの羊のテストと、Eprotect+ の `retransformEnforcerAndStackCloaking`（Eprotect+ だけで起動しても落ちる。Antigravity 側）。
+
+## 7. 守りを黙って外されないための点検（2026-10-21）
+
+エージェントの洗い出し（改良候補）のうち、黙って守りが止まる 4 つを直した。
+
+| 穴 | 直したこと |
+|---|---|
+| 呼び出し先の判断（`LifeHooks.filter`・`ValkyrieHooks.filter`）を誰でも `null` や別物に書き換えられた | フックの `filter` を `private` にし、`install` / `current` 経由にした。MOD 側が毎秒（`EprotectManager`）入っているのが自分の判断か確かめ（`LifeGuardLink.verifyHook` / `ValkyrieAgentLink.verifyHook`）、違えば入れ直して攻撃の記録に `agent_hook_tampered:*`（DETECTED）を残す。同じ JVM の中の悪意ある呼び出しは防げない（反射で書ける）。気づけて戻せる、まで |
+| 設定での自動付与が、取り出し先を更新できないとき中身を確かめずに今あるファイルを付けた（`AgentSelfAttach`） | 更新できず、中身が同梱と違えば付けない。付ける直前にも同梱の中身と照合する（Eprotect+ 側が足す `BundledAgents` も同じ道を通る） |
+| 「このMOD 自身の再変換か」をクラス名の接頭辞だけで決めていた（`InHouse`） | 読み込み元（jar・フォルダ）の名前が `automata_valkyries` を含むことも確かめる。読み込み元が取れないクラス（Forge のモジュール読み込み）は従来どおり名前で通す（並べ直し合いを起こさない側に倒す） |
+| 設定で後から付くと、改ざん防止が読み込み済みのクラスの元の形を持たず、何も戻せなかった（`IntegrityGuard`） | 後から付いたとき、読み込み済みのこのMOD のクラスの元の形を読み込み元の .class から取る（`captureLoaded`）。戻しの見回りは元から 1 秒ごと |
+
+確かめた範囲: `-PwithObserver -PwithLifeGuard -PwithValkyrieProtect`（`-javaagent` 付与）と通常の GameTest（387 件。落ちたのは前からの 2 件のみ）。新しいテスト `agentHooksAreRestoredWhenRemoved`。
+**GameTest で通っていないもの**: 設定での自動付与（`agentmain`）で動く 2 と 4。これは `runClient` で `agents.*.enabled` を true にして確かめる。
+
+残りの改良候補（未着手）: 並べ直しの上限が生涯 64 回（使い切らせる攻撃）、外側を取られたことに気づく見張り、`present()` がクラス名だけの判定、
+`AgentHijackGuard.ensureAgtCallbackNeutralized` の名前と中身の食い違い（Antigravity の `EprotectSuperSteveCounter` から呼ばれる）、LifeGuard の対象が `LivingEntity` の中だけ、ボスへの入口の守りの拡張。

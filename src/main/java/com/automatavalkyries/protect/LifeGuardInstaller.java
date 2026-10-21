@@ -7,8 +7,16 @@ final class LifeGuardInstaller {
 
     private LifeGuardInstaller() {}
 
+    /** 入れた判断（毎秒、これが入っているか確かめる） */
+    private static final TrueLife FILTER = new TrueLife();
+
     static void install() {
-        LifeHooks.filter = new TrueLife();
+        LifeHooks.install(FILTER);
+    }
+
+    /** 入っている判断が自分のものか */
+    static boolean intact() {
+        return LifeHooks.current() == FILTER;
     }
 
     static void ensureLast() {

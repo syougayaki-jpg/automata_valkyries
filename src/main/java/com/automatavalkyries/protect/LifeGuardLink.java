@@ -52,6 +52,22 @@ public final class LifeGuardLink {
         }
     }
 
+    /**
+     * 入っている判断が自分のものか確かめ、違えば入れ直して攻撃の記録に残す（他の MOD が呼び出し先の判断を外す・差し替えると、
+     * 黙って守りが止まるため。2026-10-21）。サーバーの周期処理から呼ぶ
+     */
+    public static void verifyHook() {
+        if (!installed) return;
+        try {
+            if (LifeGuardInstaller.intact()) return;
+            LifeGuardInstaller.install();
+            com.automatavalkyries.protect.attack.AttackLog.detected(null, "agent_hook_tampered:lifeguard");
+            AutomataValkyries.LOGGER.warn("[eprotect] The LifeGuard hook was replaced or removed by something else; put it back");
+        } catch (Throwable t) {
+            AutomataValkyries.LOGGER.debug("[eprotect] LifeGuard hook check failed: {}", t.toString());
+        }
+    }
+
     public static String status() {
         if (!installed) return "LifeGuard: not loaded";
         try {

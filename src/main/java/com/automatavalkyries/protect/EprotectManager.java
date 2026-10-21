@@ -39,6 +39,9 @@ public class EprotectManager {
     /** バイトコード整合性の定期点検間隔（Tick: 60秒 = 1200 ticks） */
     private static final int BYTECODE_INTEGRITY_CHECK_INTERVAL = 1200;
 
+    /** 守る側のエージェントの呼び出し先に、自分の判断が入っているかの点検間隔（Tick: 1 秒） */
+    private static final int AGENT_HOOK_CHECK_INTERVAL = 20;
+
     private final Map<UUID, Eprotect> protectedEntities = new HashMap<>();
     private int tickCounter = 0;
 
@@ -146,6 +149,10 @@ public class EprotectManager {
             com.automatavalkyries.protect.plus.EprotectPlusLink.enforceBytecodeIntegrity();
         }
         EventBusGuardian.ensureEventBusIntegrity();
+        if (tickCounter % AGENT_HOOK_CHECK_INTERVAL == 0) {
+            LifeGuardLink.verifyHook();
+            com.automatavalkyries.protect.valkyrie.ValkyrieAgentLink.verifyHook();
+        }
         if (tickCounter % REGISTRY_SCAN_INTERVAL == 0 && event.getServer().isRunning()) {
             restoreFromRegistries(event.getServer());
         }

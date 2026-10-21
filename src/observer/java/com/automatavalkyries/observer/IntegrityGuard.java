@@ -78,6 +78,30 @@ final class IntegrityGuard {
         if (enabled && className.startsWith(OWN_PREFIX)) ORIGINAL.putIfAbsent(className, bytes.clone());
     }
 
+    /**
+     * 後から付いた（agentmain）場合に、もう読み込み済みのこのMOD のクラスの元の形を、読み込み元（jar・クラスのフォルダ）の .class から取る
+     * （設定での自動付与は後から付くので、読み込みの最中に覚える方法だけでは元の形が無く、書き換えられても戻せなかった。2026-10-21）。
+     * ディスク上の形なので、付ける前に書き換えられていても影響を受けない。観察のスレッドから 1 回呼ぶ。
+     */
+    static int captureLoaded() {
+        if (!enabled) return 0;
+        int captured = 0;
+        for (Class<?> type : instrumentation.getAllLoadedClasses()) {
+            String name = type.getName().replace('.', '/');
+            if (!name.startsWith(OWN_PREFIX) || ORIGINAL.containsKey(name) || !instrumentation.isModifiableClass(type)) continue;
+            ClassLoader loader = type.getClassLoader();
+            if (loader == null) continue;
+            try (java.io.InputStream in = loader.getResourceAsStream(name + ".class")) {
+                if (in == null) continue;
+                ORIGINAL.putIfAbsent(name, in.readAllBytes());
+                captured++;
+            } catch (Throwable ignored) {
+                // 読めないクラスは覚えないだけ（戻せないが、守りの失敗で何も止めない）
+            }
+        }
+        return captured;
+    }
+
     /** このMOD のクラスが再変換・再定義された */
     static void noteRewrite(String className) {
         if (enabled && className.startsWith(OWN_PREFIX) && Thread.currentThread() != restoringThread && !inHouseRetransform()

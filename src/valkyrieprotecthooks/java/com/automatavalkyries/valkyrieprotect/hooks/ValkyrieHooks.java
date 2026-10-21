@@ -16,14 +16,24 @@ public final class ValkyrieHooks {
         boolean refuse(Object entity, String op, Object arg);
     }
 
-    /** MOD が入れる */
-    public static volatile Filter filter;
+    /** MOD が入れた判断（直接は書き換えられない。{@link #install} と {@link #current} 経由。MOD が毎秒、入っているのが自分のものか確かめる。2026-10-21） */
+    private static volatile Filter filter;
     /** エージェントが入れる: 自分の変換を最後（いちばん外側）へ並べ直し、対象のクラスを再変換する */
     public static volatile Runnable ensureLast;
     /** エージェントが入れる: 状態の表示 */
     public static volatile java.util.function.Supplier<String> status;
 
     private ValkyrieHooks() {}
+
+    /** MOD が判断を入れる（入れ直しにも使う） */
+    public static void install(Filter f) {
+        filter = f;
+    }
+
+    /** 今入っている判断（MOD が自分のものか確かめる用） */
+    public static Filter current() {
+        return filter;
+    }
 
     public static boolean refuse(Object entity, String op, Object arg) {
         Filter f = filter;
