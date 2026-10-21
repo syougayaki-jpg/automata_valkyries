@@ -582,6 +582,38 @@ public class EprotectGameTests {
         });
     }
 
+    /**
+     * 配布環境（SRG 名）でだけ起きる取り違えを、開発環境で防ぐ静的な確認（2026-10-21）。MadnessAnnihilation は Entity の id を
+     * {@code "id"} が見つからないときの代わりに SRG 名で引くが、f_19843_（ENTITY_COUNTER。静的な AtomicInteger）と取り違えて、
+     * ランチャーで抹殺機構が動くたびにサーバーが落ちた。開発環境は公式名で引けるので実行時には出ない。
+     * ビルドが作るマッピング表で SRG 名が指すフィールドを確かめ、クラスに埋め込まれた名前にも誤った方が無いことを見る
+     */
+    @GameTest(template = TEMPLATE)
+    public static void entityIdentityFieldNamesMatchTheMappings(GameTestHelper helper) throws java.io.IOException {
+        if (com.automatavalkyries.protect.McNames.loaded()) {
+            helper.assertTrue("id".equals(com.automatavalkyries.protect.McNames.official("f_19848_")),
+                    "f_19848_ is not Entity.id: " + com.automatavalkyries.protect.McNames.official("f_19848_"));
+            helper.assertTrue("uuid".equals(com.automatavalkyries.protect.McNames.official("f_19820_")),
+                    "f_19820_ is not Entity.uuid: " + com.automatavalkyries.protect.McNames.official("f_19820_"));
+            helper.assertTrue("ENTITY_COUNTER".equals(com.automatavalkyries.protect.McNames.official("f_19843_")),
+                    "f_19843_ is expected to be the static ENTITY_COUNTER: " + com.automatavalkyries.protect.McNames.official("f_19843_"));
+        }
+        // クラス名の文字列と資源の読み出しだけで見る（クラスを直接参照しない。ほかの担当のファイルで、無い版でもこのテストをコンパイルできるように）
+        byte[] bytes;
+        try (java.io.InputStream in = EprotectGameTests.class.getClassLoader()
+                .getResourceAsStream("com/automatavalkyries/annihilate/MadnessAnnihilation.class")) {
+            if (in == null) {
+                helper.succeed(); // このクラスが無い版では見るものが無い
+                return;
+            }
+            bytes = in.readAllBytes();
+        }
+        String text = new String(bytes, java.nio.charset.StandardCharsets.ISO_8859_1);
+        helper.assertTrue(text.contains("f_19848_"), "MadnessAnnihilation does not look up Entity.id by its SRG name f_19848_");
+        helper.assertFalse(text.contains("f_19843_"), "MadnessAnnihilation looks up Entity.id as f_19843_, which is the static ENTITY_COUNTER");
+        helper.succeed();
+    }
+
     /** 時間停止で包み（guardEntityTick）の入口から Tick を打ち切られても、保護対象は入口を飛ばして動き続ける（EndingLibrary の再現） */
     @GameTest(template = TEMPLATE, timeoutTicks = 100)
     public static void timeStopAtTickWrapperIsBypassed(GameTestHelper helper) {

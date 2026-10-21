@@ -77,3 +77,29 @@ Antigravity に回す。
   Claude は他 MOD の守りを破って倒す作業を引き受けない（2026-10-01 からの分担）。判定メソッド（`isDeathStateField`・`isTerminationMethod`・
   `hasDangerousFlag` 等）は段 2 で Antigravity のファイルへ移す予定のものなので、移した先で直してほしい。語彙を辞書へ足すこと自体は、
   JSON の形式（設計書 §3）どおりなら Antigravity が足してよい（守る側の判定に効く語は、足したと Claude に知らせてほしい）
+
+## 6. ランチャーで見つかった不具合: `MadnessAnnihilation.readIdentity` が SRG 名の取り違えで落ちる（2026-10-21。Claude が 1 行直した）
+
+**起きたこと**: ランチャー（配布環境）で SuperSteve を入れて新しいワールドに入ると、約 1 分後に統合サーバーが落ちた。
+`TerminusEngine.processAreaJobs` → `executeTerminus` → `TrueAnnihilationEngine.annihilateEntity` → `MadnessAnnihilation.uuid` → `readIdentity`
+で `IllegalArgumentException: Attempt to get java.util.concurrent.atomic.AtomicInteger field "net.minecraft.world.entity.Entity.f_19843_" with illegal data type conversion to int`。
+クラッシュ報告は `C:\Users\sfdge\mc-test-supersteve\crash-reports\crash-2026-10-21_22.30.35-server.txt`。SuperSteve は関係なく、抹殺機構が動けば同じ所で落ちる。
+
+**原因**: `MadnessAnnihilation.java:70` の `declaredField(Entity.class, "id", "f_19843_").getInt(target)`。ビルドが作るマッピング表
+（`automata_valkyries_mcnames.txt`）では `f_19843_` は `Entity.ENTITY_COUNTER`（静的な `AtomicInteger`）で、`Entity.id` は **`f_19848_`**（`uuid` は `f_19820_` で正しい）。
+開発環境は公式名の `id` で引けるので、`f_19843_` の候補までは進まず、GameTest では出なかった。配布環境では `id` が見つからず、2 つ目の候補（実在する別のフィールド）に落ちる。
+
+**直したこと**（ユーザーの許可を得て Claude が編集した。担当外のファイルを触ったのはこの 1 行だけ）: `"f_19843_"` → `"f_19848_"`。
+あわせて回帰テスト `EprotectGameTests.entityIdentityFieldNamesMatchTheMappings` を足した（マッピング表で `f_19848_`=id・`f_19820_`=uuid・`f_19843_`=ENTITY_COUNTER を確かめ、
+`MadnessAnnihilation.class` に `f_19848_` があって `f_19843_` が無いことを見る）。ファイルは今日できた**未コミット**のまま。コミットは Antigravity の作業と一緒にお願いする。
+
+**確かめていないこと・お願い**:
+- 同じファイルの他の SRG 名のうち、マッピング表に無くて照合できなかったもの: `f_169321_`（209 行付近）・`f_198383_`（124 行付近）・`f_695182_`・`f_699991_`・`m_691848_`。
+  後ろの 3 つは Madness 自身の隠した名前に見える。残りは Minecraft の名前かもしれないので、配布環境で確かめてほしい。
+- 作りの弱さ: `declaredField(owner, names...)` は、最初に見つかった名前を返す。名前が実在しても別のフィールドなら黙って誤ったものを返す。
+  型を渡して確かめる（例: id は `int.class` でなければ次の候補へ・例外）形にすると、同じ種類の取り違えを実行時に防げる。
+- 開発環境の GameTest は公式名で動くので、SRG 名の取り違えは出ない。抹殺機構・Madness まわりは、**ランチャーでの確認**が要る。
+  Claude が用意したゲームフォルダ: `C:\Users\sfdge\mc-test-supersteve`（SuperSteve）・`C:\Users\sfdge\mc-test-madness`（Madness Entities）。
+  どちらも今日のビルドの jar と GeckoLib 4.8.4 が入っていて、エージェントは設定で OFF のまま。起動構成は公式ランチャーで `1.20.1-forge-47.4.23`、ゲームディレクトリをそのフォルダにする。
+  ログは `logs\latest.log`・`logs\automata_valkyries-attacks.log`・`crash-reports\`。
+- 今日のビルド（`build/libs/automata_valkyries-0.1.0.jar`）は、Antigravity の未コミットの作業を含んだ作業ツリーから作っている。
