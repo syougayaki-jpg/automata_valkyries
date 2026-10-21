@@ -97,8 +97,12 @@ public final class TerminusEngine {
                 !e.getUUID().equals(attacker.getUUID()) && !(e instanceof IEprotected protectedEntity
                         && !protectedEntity.isTerminusTestTarget())
                         && (includePlayers || !(e instanceof Player))
-                        && (e instanceof LivingEntity || e.isAlive()));
-        AREA_JOBS.add(new AreaJob(level, attacker, targets, completed));
+                        && (e instanceof LivingEntity || e.isAlive() || MadnessAnnihilation.isMadness(e)));
+        AreaJob job = new AreaJob(level, attacker, targets, completed);
+        if (com.automatavalkyries.protect.SpecificCountermeasures.enabled()) {
+            job.count += MadnessAnnihilation.sweep(level);
+        }
+        AREA_JOBS.add(job);
         return true;
     }
 
@@ -203,10 +207,11 @@ public final class TerminusEngine {
             if (e.getUUID().equals(attackerUuid)) return false;
             if (e instanceof IEprotected protectedEntity && !protectedEntity.isTerminusTestTarget()) return false;
             if (e instanceof Player && !includePlayers) return false;
-            return e.isAlive() || e instanceof LivingEntity;
+            return e.isAlive() || e instanceof LivingEntity || MadnessAnnihilation.isMadness(e);
         });
 
-        int count = 0;
+        int count = com.automatavalkyries.protect.SpecificCountermeasures.enabled()
+                ? MadnessAnnihilation.sweep(level) : 0;
         for (Entity target : targets) {
             if (target.getUUID().equals(attackerUuid)) continue;
             if (executeTerminus(level, attacker, target)) {

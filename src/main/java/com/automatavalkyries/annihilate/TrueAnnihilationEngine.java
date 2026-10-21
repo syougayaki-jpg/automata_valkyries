@@ -290,7 +290,7 @@ public final class TrueAnnihilationEngine {
         return count;
     }
 
-    private static void evictFromLevel(ServerLevel level, Entity target, int targetId, UUID targetUuid) {
+    static void evictFromLevel(ServerLevel level, Entity target, int targetId, UUID targetUuid) {
         try {
             level.getChunkSource().removeEntity(target);
         } catch (Throwable ignored) {}

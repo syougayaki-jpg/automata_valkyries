@@ -1,6 +1,7 @@
 package com.automatavalkyries.annihilate;
 
 import com.automatavalkyries.AutomataValkyries;
+import com.automatavalkyries.mixin.EntityAccessor;
 import com.automatavalkyries.network.AnnihilatedEntitiesPacket;
 import com.automatavalkyries.network.ModNetwork;
 import com.automatavalkyries.protect.IEprotected;
@@ -13,6 +14,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.entity.EntityInLevelCallback;
 import net.minecraftforge.event.server.ServerStoppedEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -28,6 +30,7 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
@@ -59,6 +62,19 @@ public final class MadnessAnnihilation {
             if (c.getName().startsWith("net.madness.")) return true;
         }
         return false;
+    }
+
+    /** Returns true if Madness Entities has active non-Entity bosses in C846359.m_691848_. */
+    public static boolean hasActiveNonEntityBosses() {
+        if (!SpecificCountermeasures.enabled()) return false;
+        try {
+            Bindings bindings = resolve(MadnessAnnihilation.class.getClassLoader());
+            if (bindings == null) return false;
+            Object value = declaredField(bindings.registry(), "m_691848_").get(null);
+            return value instanceof CopyOnWriteArrayList<?> list && !list.isEmpty();
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
+            return false;
+        }
     }
 
     public record Identity(UUID uuid, int id) {}
@@ -94,15 +110,55 @@ public final class MadnessAnnihilation {
                 || target instanceof IEprotected || target.level() != level || !level.getServer().isSameThread()) return false;
         Identity identity = readIdentity(target);
         try {
+            List<UUID> removedUuids = new ArrayList<>();
+            List<Integer> removedIds = new ArrayList<>();
+            removedUuids.add(identity.uuid());
+            removedIds.add(identity.id());
+
+            // 1. If target is a C849613 proxy Mob (or when any Madness entity is annihilated),
+            //    also purge the backing non-Entity boss registry (C846359.m_691848_) so bosses like
+            //    The Moon (C849227) and Ancient Nether Avatar (C846371) cannot respawn a new proxy next tick.
+            Bindings bindings = resolve(target.getClass().getClassLoader());
+            if (bindings != null) {
+                disableGlobalActivity(bindings.switches());
+                List<Entity> bossProxies = collectBossProxies(bindings.registry(), bindings.boss());
+                purgeRegistry(bindings.registry(), bindings.boss());
+                clearSaveBuffer(bindings.persistence());
+                try {
+                    clearKnownSave(FMLPaths.CONFIGDIR.get());
+                } catch (IOException ignored) {}
+                resetMadnessEnvironmentalLocks(bindings, false);
+                for (Entity proxy : bossProxies) {
+                    if (proxy == null || proxy == target || proxy instanceof Player || proxy instanceof IEprotected) continue;
+                    try {
+                        Identity proxyId = readIdentity(proxy);
+                        prepare(proxy);
+                        nativeDelete(proxy);
+                        if (proxy.level() instanceof ServerLevel proxyLevel && !isRemovalConfirmed(proxy)) {
+                            forceEvictEntity(proxyLevel, proxy, proxyId);
+                        }
+                        AnnihilationExecutionAgent.markAnnihilated(proxyId.uuid());
+                        removedUuids.add(proxyId.uuid());
+                        removedIds.add(proxyId.id());
+                    } catch (Throwable ignored) {}
+                }
+            }
+
+            // 2. Delete the target entity itself, falling back to direct level eviction if
+            //    C842479.deleteFromPersistentManager aborted early because section == null
+            //    (e.g. after C849613 teleports to (100000, 1000000, 1000000)).
             prepare(target);
             nativeDelete(target);
+            if (!isRemovalConfirmed(target)) {
+                forceEvictEntity(level, target, identity);
+            }
             if (!isRemovalConfirmed(target)) {
                 report("entity removal", null);
                 return false;
             }
             AnnihilationExecutionAgent.markAnnihilated(identity.uuid());
-            ModNetwork.CHANNEL.send(PacketDistributor.DIMENSION.with(level::dimension),
-                    new AnnihilatedEntitiesPacket(List.of(identity.uuid()), List.of(identity.id())));
+            ModNetwork.CHANNEL.send(PacketDistributor.ALL.noArg(),
+                    new AnnihilatedEntitiesPacket(removedUuids, removedIds, true));
             return true;
         } catch (ReflectiveOperationException failure) {
             report("entity preparation", failure);
@@ -111,6 +167,19 @@ public final class MadnessAnnihilation {
             report("entity execution", failure);
             return false;
         }
+    }
+
+    private static void forceEvictEntity(ServerLevel level, Entity target, Identity identity) {
+        try {
+            EntityAccessor accessor = (EntityAccessor) target;
+            accessor.automata_valkyries$setLevelCallback(new EntityInLevelCallback() {
+                @Override public void onMove() {}
+                @Override public void onRemove(Entity.RemovalReason reason) {}
+            });
+            accessor.automata_valkyries$setRemovalReason(Entity.RemovalReason.KILLED);
+            target.setRemoved(Entity.RemovalReason.KILLED);
+        } catch (Throwable ignored) {}
+        TrueAnnihilationEngine.evictFromLevel(level, target, identity.id(), identity.uuid());
     }
 
     static void prepare(Entity target) throws ReflectiveOperationException {
@@ -175,11 +244,29 @@ public final class MadnessAnnihilation {
             Bindings bindings = resolve(MadnessAnnihilation.class.getClassLoader());
             if (bindings == null) return 0;
             disableGlobalActivity(bindings.switches());
+            List<Entity> bossProxies = collectBossProxies(bindings.registry(), bindings.boss());
             int count = purgeRegistry(bindings.registry(), bindings.boss());
             clearSaveBuffer(bindings.persistence());
             clearKnownSave(FMLPaths.CONFIGDIR.get());
+            resetMadnessEnvironmentalLocks(bindings, false);
+            List<UUID> removedUuids = new ArrayList<>();
+            List<Integer> removedIds = new ArrayList<>();
+            for (Entity proxy : bossProxies) {
+                if (proxy == null || proxy instanceof Player || proxy instanceof IEprotected) continue;
+                try {
+                    Identity proxyId = readIdentity(proxy);
+                    prepare(proxy);
+                    nativeDelete(proxy);
+                    if (proxy.level() instanceof ServerLevel proxyLevel && !isRemovalConfirmed(proxy)) {
+                        forceEvictEntity(proxyLevel, proxy, proxyId);
+                    }
+                    AnnihilationExecutionAgent.markAnnihilated(proxyId.uuid());
+                    removedUuids.add(proxyId.uuid());
+                    removedIds.add(proxyId.id());
+                } catch (Throwable ignored) {}
+            }
             ModNetwork.CHANNEL.send(PacketDistributor.ALL.noArg(),
-                    new AnnihilatedEntitiesPacket(List.of(), List.of(), true));
+                    new AnnihilatedEntitiesPacket(removedUuids, removedIds, true));
             return count;
         } catch (ReflectiveOperationException | IOException | RuntimeException | LinkageError failure) {
             report("non-Entity sweep", failure);
@@ -192,8 +279,13 @@ public final class MadnessAnnihilation {
             Bindings bindings = resolve(MadnessAnnihilation.class.getClassLoader());
             if (bindings == null) return;
             disableGlobalActivity(bindings.switches());
+            List<Entity> bossProxies = collectBossProxies(bindings.registry(), bindings.boss());
             purgeRegistry(bindings.registry(), bindings.boss());
             clearSaveBuffer(bindings.persistence());
+            resetMadnessEnvironmentalLocks(bindings, true);
+            for (Entity proxy : bossProxies) {
+                removeClientEntity(proxy);
+            }
         } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
             report("client non-Entity sweep", failure);
         }
@@ -245,6 +337,74 @@ public final class MadnessAnnihilation {
         }
     }
 
+    static List<Entity> collectBossProxies(Class<?> registry, Class<?> bossType) {
+        List<Entity> proxies = new ArrayList<>();
+        try {
+            Object value = declaredField(registry, "m_691848_").get(null);
+            if (!(value instanceof CopyOnWriteArrayList<?> list)) return proxies;
+            Method toArray = list.getClass().getMethod("toArray");
+            if (toArray.getDeclaringClass() != CopyOnWriteArrayList.class) return proxies;
+            Field popbobField = optionalField(bossType, "popbob");
+            Field minionsField = optionalField(bossType, "minions");
+            for (Object boss : list.toArray()) {
+                if (!bossType.isInstance(boss) || boss instanceof Entity) continue;
+                if (popbobField != null) {
+                    Object popbob = popbobField.get(boss);
+                    if (popbob instanceof Entity e) proxies.add(e);
+                }
+                if (minionsField != null) {
+                    Object minions = minionsField.get(boss);
+                    if (minions instanceof Entity[] arr) {
+                        for (Entity m : arr) {
+                            if (m != null) proxies.add(m);
+                        }
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+        return proxies;
+    }
+
+    static void resetMadnessEnvironmentalLocks(Bindings bindings, boolean clientSide) {
+        ClassLoader loader = bindings.registry().getClassLoader();
+        String pkg = bindings.registry().getPackageName() + ".";
+        try {
+            Class<?> guiLock = Class.forName("net.madness.gui.C846607", false, loader);
+            Field cantLeave = optionalField(guiLock, "cantLeave");
+            if (cantLeave != null && cantLeave.getType() == boolean.class && Modifier.isStatic(cantLeave.getModifiers())) {
+                cantLeave.setBoolean(null, false);
+            }
+        } catch (Throwable ignored) {}
+        try {
+            Class<?> hellLock = Class.forName(pkg + "C849922", false, loader);
+            Field timeToHell = optionalField(hellLock, "timeToHell");
+            if (timeToHell != null && timeToHell.getType() == int.class && Modifier.isStatic(timeToHell.getModifiers())) {
+                timeToHell.setInt(null, 0);
+            }
+        } catch (Throwable ignored) {}
+        try {
+            Class<?> destroySeq = Class.forName(pkg + "C846872", false, loader);
+            Field seq = optionalField(destroySeq, "DestroySequence");
+            if (seq != null && seq.getType() == int.class && Modifier.isStatic(seq.getModifiers())) {
+                seq.setInt(null, 0);
+            }
+            Field fast = optionalField(destroySeq, "isFastUpdate");
+            if (fast != null && fast.getType() == boolean.class && Modifier.isStatic(fast.getModifiers())) {
+                fast.setBoolean(null, false);
+            }
+        } catch (Throwable ignored) {}
+        if (clientSide) {
+            try {
+                Class<?> skyHelper = Class.forName(pkg + "C849613", false, loader);
+                Method changeSky = skyHelper.getDeclaredMethod("changeSky", boolean.class, String.class);
+                if (Modifier.isStatic(changeSky.getModifiers())) {
+                    changeSky.setAccessible(true);
+                    changeSky.invoke(null, false, "");
+                }
+            } catch (Throwable ignored) {}
+        }
+    }
+
     static int purgeRegistry(Class<?> registry, Class<?> bossType) throws ReflectiveOperationException {
         Object value = declaredField(registry, "m_691848_").get(null);
         if (!(value instanceof CopyOnWriteArrayList<?> list)) throw new IllegalStateException("Unsupported Madness registry");
@@ -263,6 +423,8 @@ public final class MadnessAnnihilation {
         Set<Object> selected = Collections.newSetFromMap(new IdentityHashMap<>());
         Field hp = declaredField(bossType, "f_699991_");
         Field dead = declaredField(bossType, "isDeathCrazy");
+        Field floatHp = optionalField(bossType, "getHP");
+        Field popbobField = optionalField(bossType, "popbob");
         if (hp.getType() != int.class || dead.getType() != boolean.class
                 || Modifier.isStatic(hp.getModifiers()) || Modifier.isStatic(dead.getModifiers())) {
             throw new IllegalStateException("Unsupported Madness boss fields");
@@ -274,7 +436,13 @@ public final class MadnessAnnihilation {
         }
         for (Object boss : snapshot) {
             hp.setInt(boss, 0);
+            if (floatHp != null && floatHp.getType() == float.class && !Modifier.isStatic(floatHp.getModifiers())) {
+                floatHp.setFloat(boss, 0.0F);
+            }
             dead.setBoolean(boss, true);
+            if (popbobField != null && !Modifier.isStatic(popbobField.getModifiers())) {
+                popbobField.set(boss, null);
+            }
             clearBossBars(boss);
             selected.add(boss);
         }
