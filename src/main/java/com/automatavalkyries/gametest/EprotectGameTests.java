@@ -472,6 +472,39 @@ public class EprotectGameTests {
         helper.succeed();
     }
 
+    /**
+     * オートマタヴァルキリー protect のエージェント（-PwithValkyrieProtect）は、保護対象のボスの消去と die も入口で断る
+     * （Mixin を飛ばして vanilla の実装を直に呼ばれても守る。2026-10-21）。保護していない個体には触らない。エージェントが無ければ何もしない
+     */
+    @GameTest(template = TEMPLATE, timeoutTicks = 60)
+    public static void agentGuardsProtectedBossAtTheEntry(GameTestHelper helper) {
+        if (!com.automatavalkyries.protect.valkyrie.ValkyrieAgentLink.isInstalled()) {
+            helper.succeed();
+            return;
+        }
+        ElenorEntity elenor = spawnElenor(helper);
+        net.minecraft.world.entity.monster.Zombie zombie = helper.spawnWithNoFreeWill(net.minecraft.world.entity.EntityType.ZOMBIE, new BlockPos(4, 2, 4));
+        helper.runAfterDelay(3, () -> {
+            try {
+                Class<?> hooks = Class.forName("com.automatavalkyries.valkyrieprotect.hooks.ValkyrieHooks", false, null);
+                java.lang.reflect.Method refuse = hooks.getMethod("refuse", Object.class, String.class, Object.class);
+                net.minecraft.world.entity.Entity.RemovalReason killed = net.minecraft.world.entity.Entity.RemovalReason.KILLED;
+                helper.assertTrue((Boolean) refuse.invoke(null, elenor, "remove", killed), "The agent let a KILLED remove() of a protected boss through");
+                helper.assertTrue((Boolean) refuse.invoke(null, elenor, "setRemoved", killed), "The agent let a KILLED setRemoved() of a protected boss through");
+                helper.assertTrue((Boolean) refuse.invoke(null, elenor, "die", elenor.damageSources().genericKill()),
+                        "The agent let a direct die() of a protected boss through");
+                helper.assertFalse((Boolean) refuse.invoke(null, zombie, "remove", killed), "The agent refused a remove() of an unprotected entity");
+                helper.assertFalse((Boolean) refuse.invoke(null, zombie, "die", zombie.damageSources().genericKill()), "The agent refused a die() of an unprotected entity");
+            } catch (ReflectiveOperationException e) {
+                throw new RuntimeException(e);
+            } finally {
+                zombie.discard();
+                elenor.getEprotect().triggerDespawn();
+            }
+            helper.succeed();
+        });
+    }
+
     /** 時間停止で包み（guardEntityTick）の入口から Tick を打ち切られても、保護対象は入口を飛ばして動き続ける（EndingLibrary の再現） */
     @GameTest(template = TEMPLATE, timeoutTicks = 100)
     public static void timeStopAtTickWrapperIsBypassed(GameTestHelper helper) {

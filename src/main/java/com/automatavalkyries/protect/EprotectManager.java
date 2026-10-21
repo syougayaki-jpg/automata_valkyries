@@ -51,6 +51,15 @@ public class EprotectManager {
         return INSTANCE;
     }
 
+    /** LifeGuard の差し込みが通っているかを確かめるために getHealth を呼ぶ個体（保護対象のうち、まだ生きているもの 1 つ。無ければ null） */
+    private LivingEntity hookCanary() {
+        for (Eprotect protect : protectedEntities.values()) {
+            LivingEntity owner = protect != null ? protect.getOwner() : null;
+            if (owner != null && !owner.isRemoved() && !owner.level().isClientSide) return owner;
+        }
+        return null;
+    }
+
     public void register(Eprotect protect) {
         UUID uuid = protect.getOwner().getUUID();
         if (protectedEntities.get(uuid) != protect) {
@@ -150,7 +159,7 @@ public class EprotectManager {
         }
         EventBusGuardian.ensureEventBusIntegrity();
         if (tickCounter % AGENT_HOOK_CHECK_INTERVAL == 0) {
-            LifeGuardLink.verifyHook();
+            LifeGuardLink.verifyHook(hookCanary());
             com.automatavalkyries.protect.valkyrie.ValkyrieAgentLink.verifyHook();
         }
         if (tickCounter % REGISTRY_SCAN_INTERVAL == 0 && event.getServer().isRunning()) {

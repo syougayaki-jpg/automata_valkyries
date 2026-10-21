@@ -19,6 +19,11 @@ final class ValkyrieAgentInstaller {
         return ValkyrieHooks.current() == FILTER;
     }
 
+    /** 判断が出した例外の回数 */
+    static long errors() {
+        return ValkyrieHooks.errors();
+    }
+
     static void ensureLast() {
         Runnable r = ValkyrieHooks.ensureLast;
         if (r != null) r.run();

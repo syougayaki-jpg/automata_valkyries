@@ -12,6 +12,7 @@ public final class ValkyrieAgentLink {
 
     private static final String HOOKS = "com.automatavalkyries.valkyrieprotect.hooks.ValkyrieHooks";
     private static volatile boolean installed;
+    private static long lastErrors;
 
     private ValkyrieAgentLink() {}
 
@@ -58,10 +59,17 @@ public final class ValkyrieAgentLink {
     public static void verifyHook() {
         if (!installed) return;
         try {
-            if (ValkyrieAgentInstaller.intact()) return;
-            ValkyrieAgentInstaller.install();
-            com.automatavalkyries.protect.attack.AttackLog.detected(null, "agent_hook_tampered:valkyrie_protect");
-            AutomataValkyries.LOGGER.warn("[valkyrie-protect] The agent hook was replaced or removed by something else; put it back");
+            if (!ValkyrieAgentInstaller.intact()) {
+                ValkyrieAgentInstaller.install();
+                com.automatavalkyries.protect.attack.AttackLog.detected(null, "agent_hook_tampered:valkyrie_protect");
+                AutomataValkyries.LOGGER.warn("[valkyrie-protect] The agent hook was replaced or removed by something else; put it back");
+            }
+            long errors = ValkyrieAgentInstaller.errors();
+            if (errors > lastErrors) {
+                lastErrors = errors;
+                com.automatavalkyries.protect.attack.AttackLog.detected(null, "agent_hook_errors:valkyrie_protect");
+                AutomataValkyries.LOGGER.warn("[valkyrie-protect] The agent hook threw {} exception(s) so far (swallowed; the call was let through)", errors);
+            }
         } catch (Throwable t) {
             AutomataValkyries.LOGGER.debug("[valkyrie-protect] agent hook check failed: {}", t.toString());
         }

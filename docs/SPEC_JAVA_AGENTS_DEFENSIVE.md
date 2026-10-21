@@ -99,5 +99,16 @@ GameTest: `ObserverGameTests`（改ざん防止の自己点検・SuperSteve の�
 確かめた範囲: `-PwithObserver -PwithLifeGuard -PwithValkyrieProtect`（`-javaagent` 付与）と通常の GameTest（387 件。落ちたのは前からの 2 件のみ）。新しいテスト `agentHooksAreRestoredWhenRemoved`。
 **GameTest で通っていないもの**: 設定での自動付与（`agentmain`）で動く 2 と 4。これは `runClient` で `agents.*.enabled` を true にして確かめる。
 
-残りの改良候補（未着手）: 並べ直しの上限が生涯 64 回（使い切らせる攻撃）、外側を取られたことに気づく見張り、`present()` がクラス名だけの判定、
-`AgentHijackGuard.ensureAgtCallbackNeutralized` の名前と中身の食い違い（Antigravity の `EprotectSuperSteveCounter` から呼ばれる）、LifeGuard の対象が `LivingEntity` の中だけ、ボスへの入口の守りの拡張。
+### 7.1 残りの改良（同日。GameTest 388 件・エージェント付きと通常、落ちたのは前からの 2 件のみ）
+
+| 項目 | 内容 |
+|---|---|
+| 並べ直しの上限（`OutermostKeeper`） | 起動からの通算 64 回をやめ、10 分に 32 回の窓にした。他のエージェントに 64 回再変換されて以後ずっと並べ直さなくなる（使い切らせる）穴を塞ぐ。窓が明ければまた並べ直す |
+| 外側に通っているかの確認（`LifeGuardLink.verifyHook`） | 1 秒ごとに保護対象の getHealth を 1 回呼び、フックの呼び出し回数（`LifeHooks.calls`）が増えるか見る。増えなければ変換を捨てられた・上書きされたということなので `agent_not_in_path:lifeguard` を記録し、並べ直しを頼む（30 秒に 1 回まで）。getHealth を上書きしている個体は確かめに使わない。オートマタヴァルキリー protect には同じ確認が無い（呼ぶだけでは通ったか分からない） |
+| フックの例外の監視 | 判断が出した例外は握りつぶして素通しにするので気づけなかった。回数（`errors`）を数え、増えていれば `agent_hook_errors:*` を記録する |
+| `present()`（`AgentSelfAttach`） | 目印のクラスがあるだけでは付いたと数えない。呼び出し先に `status` があるものは、エージェントが動き出して入れた後でないと数えない |
+| `AgentHijackGuard.ensureAgtCallbackNeutralized` | 説明を「検知だけ」に直した（挙動は同じ。呼び出し元は Antigravity の `EprotectSuperSteveCounter` なので名前は変えていない） |
+| LifeGuard の対象 | 呼び出し箇所の差し替え（Fantasy Ending 型）を直す vanilla のクラスに `Mob`・`Player`・`ServerPlayer` を足した。並びがあるときだけ書き換える。**Fantasy Ending はこの開発環境で起動できないので、足した分の実際の効き目は確かめていない** |
+| ボスへの入口の守り（`ValkyrieAgentFilter`） | 保護対象のボス（`IEprotected`）の remove / setRemoved / die も、エージェントの入口で Eprotect の判断（`shouldBlockRemoval` / `interceptDie`）で断る。Mixin を飛ばして vanilla の実装を直に呼ばれても守る。setHealth は Eprotect の HP の入口が見る。テスト `agentGuardsProtectedBossAtTheEntry` |
+
+入れなかったもの: ワールドの一覧から直接外す・removalReason の直書き（ゲーム内の層の入り直しが直している）、設定での自動付与をまとめて 1 回にする（観察者を最初に付ける順番に意味があり、並列やまとめ付けは前提が崩れる）、remove の二重の記録（見た目だけ）。

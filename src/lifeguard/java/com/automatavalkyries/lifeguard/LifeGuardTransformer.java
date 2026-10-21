@@ -62,8 +62,18 @@ final class LifeGuardTransformer implements ClassFileTransformer {
         return null;
     }
 
+    /**
+     * 呼び出し箇所の差し替え（Fantasy Ending の StaticHealthManagerVisitor が作る形）だけを直す vanilla のクラス（2026-10-21）。
+     * 戻り値の包み（return の直前）は LivingEntity だけ。ここのクラスは、生死の getter を呼んだ直後に他 MOD の static な値の差し替えが
+     * 続く並びがあるときだけ書き換える（無ければ何も変えず、変換器は null を返す）
+     */
+    private static final Set<String> CALL_SITE_ONLY = Set.of(
+            "net/minecraft/world/entity/Mob",
+            "net/minecraft/world/entity/player/Player",
+            "net/minecraft/server/level/ServerPlayer");
+
     static boolean isTarget(String className) {
-        return LIVING.equals(className);
+        return LIVING.equals(className) || CALL_SITE_ONLY.contains(className);
     }
 
     @Override

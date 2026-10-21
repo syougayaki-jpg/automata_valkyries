@@ -43,9 +43,10 @@ public final class AgentHijackGuard {
     }
 
     /**
-     * SuperSteve の AgtCallback.INST を検査し、他エージェント破棄トラップが仕掛けられている場合は監視・解除する
+     * SuperSteve の AgtCallback.INST を検査する。<b>検知だけで、解除はしない</b>（名前は昔のまま。呼び出し元は Antigravity の
+     * EprotectSuperSteveCounter なので変えていない）。乗っ取りそのものは {@link #beforeModsLoad()} の安全モードで止めている
      *
-     * @return 介入・修復が行われたか
+     * @return AgtCallback.INST が入っている（＝安全モードでなければ、他のエージェントの変換結果を捨てる状態）か
      */
     public static boolean ensureAgtCallbackNeutralized() {
         try {
@@ -55,7 +56,7 @@ public final class AgentHijackGuard {
             Object inst = instField.get(null);
             if (inst != null) {
                 // INST が設定されている場合、AgtCallback.afterTransform は SuperSteve 以外の
-                // 全ての Java エージェントのバイトコード変換を強制破棄（null 返却）する。
+                // 全ての Java エージェントのバイトコード変換を強制破棄（null 返却）する。ここでは見つけたと返すだけ。
                 return true;
             }
         } catch (Throwable ignored) {}

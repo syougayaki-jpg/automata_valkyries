@@ -5,7 +5,7 @@ package com.automatavalkyries.valkyrieprotect.hooks;
  * {@code Entity} / {@code LivingEntity} の消去・即死の入口（remove / setRemoved / kill / die / setHealth）の先頭に差し込む呼び出し先。
  * <p>
  * ブートストラップのクラスパスに置く（エージェント jar の Boot-Class-Path）。どのクラスローダーのクラスからも見えるように JDK だけに依存する。
- * 判断（戦術兵姫なら断る・機能停止に置き換える）は MOD が {@link #filter} に入れる。入っていなければ素通し。
+ * 判断（戦術兵姫・保護対象のボスなら断る・機能停止に置き換える）は MOD が {@link #install} で入れる。入っていなければ素通し。
  * </p>
  */
 public final class ValkyrieHooks {
@@ -23,6 +23,9 @@ public final class ValkyrieHooks {
     /** エージェントが入れる: 状態の表示 */
     public static volatile java.util.function.Supplier<String> status;
 
+    /** 判断が例外を出した回数（例外は握りつぶして素通しにする。起こり続けていないか MOD が見る。原子的には増やさない） */
+    private static volatile long errors;
+
     private ValkyrieHooks() {}
 
     /** MOD が判断を入れる（入れ直しにも使う） */
@@ -35,12 +38,17 @@ public final class ValkyrieHooks {
         return filter;
     }
 
+    public static long errors() {
+        return errors;
+    }
+
     public static boolean refuse(Object entity, String op, Object arg) {
         Filter f = filter;
         if (f == null) return false;
         try {
             return f.refuse(entity, op, arg);
         } catch (Throwable t) {
+            errors++;
             return false;
         }
     }

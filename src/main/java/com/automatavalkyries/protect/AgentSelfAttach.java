@@ -120,10 +120,19 @@ public final class AgentSelfAttach {
         }
     }
 
+    /**
+     * エージェントが読み込まれているか。目印のクラスがあるだけでは足りない（同じ名前のクラスを置かれると、付いたと誤認して付けるのを飛ばす）。
+     * 呼び出し先の jar に {@code status} があるものは、エージェントが動き出して状態の表示を入れた後でなければ、付いたとは数えない（2026-10-21）
+     */
     private static boolean present(Agent agent) {
         try {
-            Class.forName(agent.marker(), false, agent.bootstrap() ? null : ClassLoader.getSystemClassLoader());
-            return true;
+            Class<?> marker = Class.forName(agent.marker(), false, agent.bootstrap() ? null : ClassLoader.getSystemClassLoader());
+            if (!agent.bootstrap()) return true;
+            try {
+                return marker.getField("status").get(null) != null;
+            } catch (NoSuchFieldException noStatus) {
+                return true; // 状態の表示を持たない呼び出し先は、目印のクラスだけで見る
+            }
         } catch (Throwable t) {
             return false;
         }

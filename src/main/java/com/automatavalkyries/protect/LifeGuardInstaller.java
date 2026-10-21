@@ -19,6 +19,16 @@ final class LifeGuardInstaller {
         return LifeHooks.current() == FILTER;
     }
 
+    /** フックが呼ばれた回数（生死の getter を呼んで増えるか見る） */
+    static long calls() {
+        return LifeHooks.calls();
+    }
+
+    /** 判断が出した例外の回数 */
+    static long errors() {
+        return LifeHooks.errors();
+    }
+
     static void ensureLast() {
         Runnable r = LifeHooks.ensureLast;
         if (r != null) r.run();
