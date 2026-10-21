@@ -23,9 +23,24 @@ final class ClassSummary {
     final Map<String, MethodInfo> methods = new LinkedHashMap<>();
     /** 参照しているメソッド・フィールド（"所有クラス.名前"） */
     final Set<String> refs = new LinkedHashSet<>();
+    /** 定数プールで参照しているクラス名（内部形式 "pkg/ClassName"） */
+    final Set<String> referencedClasses = new LinkedHashSet<>();
 
     private ClassSummary(String name) {
         this.name = name;
+    }
+
+    boolean hasHaltOrExitTrap() {
+        for (String ref : refs) {
+            if (ref.equals("java/lang/Runtime.halt")
+                    || ref.equals("java/lang/System.exit")
+                    || ref.equals("java/lang/Runtime.exit")
+                    || ref.equals("jdk/internal/misc/VM.shutdown")
+                    || ref.equals("java/lang/Shutdown.halt")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     static ClassSummary parse(byte[] bytes) throws IOException {
@@ -84,7 +99,12 @@ final class ClassSummary {
             }
         }
         for (int i = 1; i < count; i++) {
-            if (tags[i] == 9 || tags[i] == 10 || tags[i] == 11) {
+            if (tags[i] == 7) {
+                String cn = className(pool, links, i);
+                if (cn != null && !cn.startsWith("[") && !cn.equals(summary.name)) {
+                    summary.referencedClasses.add(cn);
+                }
+            } else if (tags[i] == 9 || tags[i] == 10 || tags[i] == 11) {
                 String owner = className(pool, links, links[i][0]);
                 int[] nameAndType = links[links[i][1]];
                 summary.refs.add(owner + "." + pool[nameAndType[0]]);

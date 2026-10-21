@@ -38,6 +38,8 @@ public final class TerminusEngine {
     public static final long RESISTANCE_THRESHOLD_MS = 10_000L;
     /** 終焉耐性判定の閾値（Ticks: 200 ticks = 10秒） */
     public static final long RESISTANCE_THRESHOLD_TICKS = 200L;
+    private static final int[] RETRY_DELAYS_TICKS = {2, 10, 40};
+    private static final int MAX_RETRIES_PER_TICK = 2;
 
     public static final class TargetRecord {
         public final UUID uuid;
@@ -46,6 +48,9 @@ public final class TerminusEngine {
         public final long startTimeMs;
         public final long startNanos = System.nanoTime();
         public volatile boolean reinforcementTriggered = false;
+        private WeakReference<Entity> attackerRef;
+        private int retries;
+        private long nextRetryTick = Long.MAX_VALUE;
 
         public TargetRecord(Entity entity, long startTick, long startTimeMs) {
             this.uuid = entity.getUUID();
@@ -171,12 +176,11 @@ public final class TerminusEngine {
         Player playerAttacker = attacker instanceof Player p ? p : null;
 
         // 1. プレイヤー対象の場合: TerminusPlayerExecutor による絶対死執行
-        if (target instanceof ServerPlayer serverPlayer) {
-            return TerminusPlayerExecutor.executeOnPlayer(level, playerAttacker, serverPlayer);
-        }
-
-        // 2. MOB: one pipeline captures controllers before dismantling and erasing memory.
-        return TrueAnnihilationEngine.annihilateEntity(level, playerAttacker, target);
+        boolean confirmed = target instanceof ServerPlayer serverPlayer
+                ? TerminusPlayerExecutor.executeOnPlayer(level, playerAttacker, serverPlayer)
+                : TrueAnnihilationEngine.annihilateEntity(level, playerAttacker, target);
+        if (!confirmed) scheduleRetry(target, attacker, level);
+        return confirmed;
     }
 
     /**
@@ -225,6 +229,13 @@ public final class TerminusEngine {
                         : new TargetRecord(target, currentTick, System.currentTimeMillis()));
     }
 
+    private static void scheduleRetry(Entity target, Entity attacker, ServerLevel level) {
+        TargetRecord record = TRACKED_TARGETS.get(target.getUUID());
+        if (record == null || record.getEntity() != target || record.nextRetryTick != Long.MAX_VALUE) return;
+        record.attackerRef = new WeakReference<>(attacker);
+        record.nextRetryTick = level.getServer().getTickCount() + RETRY_DELAYS_TICKS[0];
+    }
+
     @SubscribeEvent
     public static void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
@@ -238,6 +249,7 @@ public final class TerminusEngine {
     public static void checkResistanceAll() {
         if (TRACKED_TARGETS.isEmpty()) return;
         long nowNanos = System.nanoTime();
+        int retriesThisTick = 0;
 
         Iterator<Map.Entry<UUID, TargetRecord>> it = TRACKED_TARGETS.entrySet().iterator();
         while (it.hasNext()) {
@@ -251,6 +263,40 @@ public final class TerminusEngine {
                     : EprotectPlusLink.isAnnihilationConfirmed(entity))) {
                 it.remove();
                 continue;
+            }
+
+            if (record.nextRetryTick != Long.MAX_VALUE && retriesThisTick < MAX_RETRIES_PER_TICK
+                    && entity.level() instanceof ServerLevel level
+                    && level.getServer().getTickCount() >= record.nextRetryTick) {
+                // Retry the same individual only. A replacement with another UUID belongs to the spawn guard.
+                if ((entity instanceof IEprotected protectedEntity && !protectedEntity.isTerminusTestTarget())
+                        || com.automatavalkyries.protect.AgentPlayerProtection.isProtected(entity)
+                        || (!(entity instanceof ServerPlayer) && level.getEntity(entity.getUUID()) != entity)) {
+                    it.remove();
+                    continue;
+                }
+                retriesThisTick++;
+                record.nextRetryTick = Long.MAX_VALUE;
+                try {
+                    Entity attacker = record.attackerRef == null ? null : record.attackerRef.get();
+                    if (entity instanceof ServerPlayer player) {
+                        TerminusPlayerExecutor.verifyAndRemediatePlayerDeath(level, player);
+                    } else {
+                        TrueAnnihilationEngine.annihilateEntity(level, attacker instanceof Player p ? p : null, entity);
+                    }
+                } catch (RuntimeException failure) {
+                    AutomataValkyries.LOGGER.warn("[TerminusEngine] Retry failed for {}", entity.getName().getString(), failure);
+                }
+                if (entity instanceof ServerPlayer player
+                        ? TerminusPlayerExecutor.isPlayerProperlyKilled(player)
+                        : EprotectPlusLink.isAnnihilationConfirmed(entity)) {
+                    it.remove();
+                    continue;
+                }
+                record.retries++;
+                if (record.retries < RETRY_DELAYS_TICKS.length) {
+                    record.nextRetryTick = level.getServer().getTickCount() + RETRY_DELAYS_TICKS[record.retries];
+                }
             }
 
             long elapsedMs = (nowNanos - record.startNanos) / 1_000_000L;

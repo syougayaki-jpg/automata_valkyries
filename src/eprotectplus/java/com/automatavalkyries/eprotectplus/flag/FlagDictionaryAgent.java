@@ -18,6 +18,7 @@ import java.security.ProtectionDomain;
 public final class FlagDictionaryAgent {
 
     private static volatile Instrumentation instrumentation;
+    private static final ThreadLocal<Boolean> OBSERVING_LATE_INPUT = ThreadLocal.withInitial(() -> false);
     private static final com.automatavalkyries.eprotectplus.BaselineStore BASELINE_BYTECODE = new com.automatavalkyries.eprotectplus.BaselineStore();
 
     private static final String FLAG_DICT_INTERNAL = "com/automatavalkyries/protect/flag/FlagDictionary";
@@ -26,12 +27,13 @@ public final class FlagDictionaryAgent {
         @Override
         public byte[] transform(ClassLoader loader, String className, Class<?> classBeingRedefined,
                                 ProtectionDomain protectionDomain, byte[] classfileBuffer) {
+            if (com.automatavalkyries.eprotectplus.AgentCollisionPolicy.isPassive()) return null;
             if (className == null) return null;
             if (!className.equals(FLAG_DICT_INTERNAL) && !className.startsWith("com/automatavalkyries/protect/flag/")) {
                 return null;
             }
 
-            // 初回ロード時: 未改ざんのオリジナルバイトコードを保存
+            // 初回ロード時の変換入力を保存（先行変換済みの場合もあり、未改ざんとは保証しない）。
             if (classBeingRedefined == null) {
                 BASELINE_BYTECODE.capture(loader, className, classfileBuffer);
                 return null;
@@ -39,8 +41,13 @@ public final class FlagDictionaryAgent {
 
             // 再定義・再変換（他 MOD による改ざんの試み）を検知
             byte[] baseline = BASELINE_BYTECODE.get(loader, className);
+            if (baseline == null && OBSERVING_LATE_INPUT.get()) {
+                BASELINE_BYTECODE.capture(loader, className, classfileBuffer);
+                return null;
+            }
             if (baseline != null && !java.util.Arrays.equals(baseline, classfileBuffer)
                     && !com.automatavalkyries.eprotectplus.EprotectPlusAgent.isInternalTransformCall()) {
+                if (!com.automatavalkyries.eprotectplus.AgentCollisionPolicy.allowReplacement(className)) return null;
                 EprotectPlusBridge.recordProtection(className, "ExternalCaller", "baseline_returned",
                         "保存した変換入力を返却。後続の変換とJVMへの適用結果はここでは確認できない");
                 return baseline.clone();
@@ -53,27 +60,58 @@ public final class FlagDictionaryAgent {
     private FlagDictionaryAgent() {}
 
     public static void premain(String args, Instrumentation inst) {
-        start(inst, false);
+        start(inst, false, args);
     }
 
     public static void agentmain(String args, Instrumentation inst) {
-        start(inst, true);
+        start(inst, true, args);
     }
 
-    public static synchronized void start(Instrumentation inst, boolean lateAttach) {
+    public static synchronized void start(Instrumentation inst, boolean lateAttach, String args) {
         if (instrumentation != null) return;
         EprotectPlusBridge.init(lateAttach);
         try {
-            inst.addTransformer(TRANSFORMER, inst.isRetransformClassesSupported());
+            com.automatavalkyries.eprotectplus.AgentCollisionPolicy.configure(args);
+            if (!com.automatavalkyries.eprotectplus.AgentCollisionPolicy.isPassive())
+                inst.addTransformer(TRANSFORMER, inst.isRetransformClassesSupported());
             instrumentation = inst;
+            com.automatavalkyries.eprotectplus.HiddenAgentVault.storeFlagInstrumentation(inst);
             EprotectPlusBridge.recordEvent("初期化", "FlagDictionaryAgent", "JVM-Agent", "start", "起動完了",
                     "CanRetransform=" + inst.isRetransformClassesSupported());
+            if (lateAttach && inst.isRetransformClassesSupported()
+                    && !com.automatavalkyries.eprotectplus.AgentCollisionPolicy.isPassive()) observeLoadedInputs(inst);
         } catch (Throwable t) {
             EprotectPlusBridge.recordEvent("エラー", "FlagDictionaryAgent", "JVM-Agent", "start", "失敗", t.getMessage());
         }
     }
 
     public static boolean hasInstrumentation() {
-        return instrumentation != null;
+        Instrumentation current = instrumentation;
+        if (current != null) return true;
+        Instrumentation vaulted = com.automatavalkyries.eprotectplus.HiddenAgentVault.loadFlagInstrumentation();
+        if (vaulted != null) {
+            instrumentation = vaulted;
+            return true;
+        }
+        return false;
+    }
+
+    private static void observeLoadedInputs(Instrumentation inst) {
+        OBSERVING_LATE_INPUT.set(true);
+        try {
+            for (Class<?> type : inst.getAllLoadedClasses()) {
+                if (!type.getName().startsWith("com.automatavalkyries.protect.flag.")
+                        || !inst.isModifiableClass(type)) continue;
+                try { inst.retransformClasses(type); }
+                catch (Throwable failure) {
+                    EprotectPlusBridge.recordEvent("警告", type.getName(), "FlagDictionaryAgent", "late_attach_input",
+                            "観測失敗", failure.toString());
+                }
+            }
+            EprotectPlusBridge.recordEvent("監査", "FlagDictionary", "FlagDictionaryAgent", "late_attach_input",
+                    "現在の入力を観測", "Inputs observed after attachment may already have been modified");
+        } finally {
+            OBSERVING_LATE_INPUT.remove();
+        }
     }
 }

@@ -14,6 +14,7 @@ import java.lang.reflect.Modifier;
 public final class UnsafeHelper {
 
     private static final Unsafe THE_UNSAFE;
+    private static final java.lang.invoke.MethodHandle INTERNAL_OBJECT_FIELD_OFFSET;
 
     static {
         Unsafe unsafe = null;
@@ -36,6 +37,20 @@ public final class UnsafeHelper {
             }
         }
         THE_UNSAFE = unsafe;
+        java.lang.invoke.MethodHandle internalOffset = null;
+        if (unsafe != null) {
+            try {
+                Field lookupField = java.lang.invoke.MethodHandles.Lookup.class.getDeclaredField("IMPL_LOOKUP");
+                var trusted = (java.lang.invoke.MethodHandles.Lookup) unsafe.getObject(
+                        unsafe.staticFieldBase(lookupField), unsafe.staticFieldOffset(lookupField));
+                Field internalField = Unsafe.class.getDeclaredField("theInternalUnsafe");
+                Object internalUnsafe = unsafe.getObject(
+                        unsafe.staticFieldBase(internalField), unsafe.staticFieldOffset(internalField));
+                internalOffset = trusted.findVirtual(internalUnsafe.getClass(), "objectFieldOffset",
+                        java.lang.invoke.MethodType.methodType(long.class, Field.class)).bindTo(internalUnsafe);
+            } catch (Throwable ignored) {}
+        }
+        INTERNAL_OBJECT_FIELD_OFFSET = internalOffset;
     }
 
     private UnsafeHelper() {}
@@ -67,6 +82,11 @@ public final class UnsafeHelper {
         try {
             return THE_UNSAFE.objectFieldOffset(field);
         } catch (Throwable t) {
+            if (INTERNAL_OBJECT_FIELD_OFFSET != null) {
+                try {
+                    return (long) INTERNAL_OBJECT_FIELD_OFFSET.invokeExact(field);
+                } catch (Throwable ignored) {}
+            }
             return -1L;
         }
     }
@@ -218,22 +238,51 @@ public final class UnsafeHelper {
     }
 
     /**
-     * 削除を拒否する ArrayList（Omni-Mobs の ProtectedArrayList など）から、条件に合う要素を内部配列ごと詰めて取り除く。
+     * 削除を拒否する ArrayList（Omni-Mobs の ProtectedArrayList など）や CopyOnWriteArrayList（Madness の C848734 など）から、
+     * 条件に合う要素を内部配列ごと詰めて取り除く。
      * <p>
      * 拒否する実装に {@code Iterator.remove()} を使ってはいけない: 内部の {@code remove(int)} が何もせずに戻ると、
      * イテレータは位置を巻き戻して同じ要素を返し続け、無限ループになる。
-     * ArrayList のオフセットで書くので、ArrayList 以外には書かない（メモリ破壊になる）。
      * </p>
-     * @return 取り除いた数（ArrayList でない・Unsafe が使えないときは 0）
+     * @return 取り除いた数（対応コレクションでない・Unsafe が使えないときは 0）
      */
     public static int removeFromArrayList(Object list, java.util.function.Predicate<Object> shouldRemove) {
-        if (!(list instanceof java.util.ArrayList<?>) || THE_UNSAFE == null) return 0;
+        if (THE_UNSAFE == null || list == null) return 0;
+        if (list instanceof java.util.concurrent.CopyOnWriteArraySet<?> cowSet) {
+            try {
+                long alOffset = objectFieldOffset(java.util.concurrent.CopyOnWriteArraySet.class.getDeclaredField("al"));
+                if (alOffset >= 0) return removeFromArrayList(getObject(cowSet, alOffset), shouldRemove);
+            } catch (Throwable ignored) {}
+            return 0;
+        }
+        if (list instanceof java.util.concurrent.CopyOnWriteArrayList<?> cowList) {
+            try {
+                long arrayOffset = objectFieldOffset(java.util.concurrent.CopyOnWriteArrayList.class.getDeclaredField("array"));
+                if (arrayOffset < 0) return 0;
+                if (!(THE_UNSAFE.getObjectVolatile(cowList, arrayOffset) instanceof Object[] data)
+                        || data.length > StaticReferencePurger.MAX_SIZE) return 0;
+                Object[] temp = new Object[data.length];
+                int kept = 0;
+                for (Object item : data) {
+                    if (!shouldRemove.test(item)) temp[kept++] = item;
+                }
+                int removed = data.length - kept;
+                if (removed > 0) {
+                    THE_UNSAFE.putObjectVolatile(cowList, arrayOffset, java.util.Arrays.copyOf(temp, kept, Object[].class));
+                }
+                return removed;
+            } catch (Throwable t) {
+                return 0;
+            }
+        }
+        if (!(list instanceof java.util.ArrayList<?>)) return 0;
         try {
             long sizeOffset = objectFieldOffset(java.util.ArrayList.class.getDeclaredField("size"));
             long dataOffset = objectFieldOffset(java.util.ArrayList.class.getDeclaredField("elementData"));
             if (sizeOffset < 0 || dataOffset < 0) return 0;
             if (!(getObject(list, dataOffset) instanceof Object[] data)) return 0;
             int size = Math.min(getInt(list, sizeOffset), data.length);
+            if (size <= 0 || size > StaticReferencePurger.MAX_SIZE) return 0;
             int kept = 0;
             for (int i = 0; i < size; i++) {
                 if (!shouldRemove.test(data[i])) data[kept++] = data[i];
@@ -280,7 +329,26 @@ public final class UnsafeHelper {
                 if (THE_UNSAFE != null) {
                     Object base = THE_UNSAFE.staticFieldBase(f);
                     long offset = THE_UNSAFE.staticFieldOffset(f);
-                    THE_UNSAFE.putObject(base, offset, value);
+                    Class<?> type = f.getType();
+                    if (type == boolean.class && value instanceof Boolean b) {
+                        THE_UNSAFE.putBoolean(base, offset, b);
+                    } else if (type == int.class && value instanceof Number n) {
+                        THE_UNSAFE.putInt(base, offset, n.intValue());
+                    } else if (type == long.class && value instanceof Number n) {
+                        THE_UNSAFE.putLong(base, offset, n.longValue());
+                    } else if (type == float.class && value instanceof Number n) {
+                        THE_UNSAFE.putFloat(base, offset, n.floatValue());
+                    } else if (type == double.class && value instanceof Number n) {
+                        THE_UNSAFE.putDouble(base, offset, n.doubleValue());
+                    } else if (type == byte.class && value instanceof Number n) {
+                        THE_UNSAFE.putByte(base, offset, n.byteValue());
+                    } else if (type == short.class && value instanceof Number n) {
+                        THE_UNSAFE.putShort(base, offset, n.shortValue());
+                    } else if (type == char.class && value instanceof Character c) {
+                        THE_UNSAFE.putChar(base, offset, c);
+                    } else if (!type.isPrimitive()) {
+                        THE_UNSAFE.putObject(base, offset, value);
+                    }
                     return;
                 }
                 f.set(null, value);

@@ -177,7 +177,7 @@ public final class EprotectPlusBridge {
      */
     public static void runCloaked(Runnable action) {
         // Compatibility name; the JVM stack is not hidden by this scope.
-        runPrivileged(action);
+        runPrivileged(() -> java.util.stream.Stream.of(action).forEach(Runnable::run));
     }
 
     /**
@@ -185,6 +185,10 @@ public final class EprotectPlusBridge {
      */
     public static int retransformCriticalClasses() {
         return EprotectPlusAgent.retransformCriticalClasses();
+    }
+
+    public static int retransformCriticalClassesUrgent() {
+        return EprotectPlusAgent.retransformCriticalClassesUrgent();
     }
 
     // ---- 強化処理（Reinforced Protection）制御 ---------------------------------
@@ -226,7 +230,9 @@ public final class EprotectPlusBridge {
     // ---- MOD 側からの状態読み出し（リフレクション） -----------------------------
 
     public static boolean isActive() {
-        return active;
+        boolean hasInst = EprotectPlusAgent.hasInstrumentation();
+        if (!active && hasInst) active = true;
+        return active && hasInst;
     }
 
     public static boolean isLateAttached() {
@@ -260,6 +266,7 @@ public final class EprotectPlusBridge {
         stats.put("flagDictionaryProtector", String.valueOf(com.automatavalkyries.eprotectplus.flag.FlagDictionaryAgent.hasInstrumentation()));
         stats.put("droppedLogs", Long.toString(DROPPED_LOGS.get()));
         stats.put("logErrors", Long.toString(LOG_ERRORS.get()));
+        stats.put("hiddenVault", String.valueOf(HiddenAgentVault.isHiddenActive()));
         stats.putAll(EprotectPlusAgent.getAuditStats());
         stats.putAll(com.automatavalkyries.eprotectplus.flag.FlagDictionaryProtector.getStats());
         return stats;
@@ -281,6 +288,30 @@ public final class EprotectPlusBridge {
 
     public static Map<String, String> getFlagProtectorStats() {
         return com.automatavalkyries.eprotectplus.flag.FlagDictionaryProtector.getStats();
+    }
+
+    public static List<Class<?>> findLoadedClassesByPrefix(String packagePrefix, int limit) {
+        return EprotectPlusAgent.findLoadedClassesByPrefix(packagePrefix, limit);
+    }
+
+    public static List<Class<?>> findLoadedClassesByOwner(Class<?> referenceClass, String packagePrefix, int limit) {
+        return EprotectPlusAgent.findLoadedClassesByOwner(referenceClass, packagePrefix, limit);
+    }
+
+    public static List<String> getReferencedClasses(Class<?> targetClass) {
+        return EprotectPlusAgent.getReferencedClasses(targetClass);
+    }
+
+    public static boolean hasHaltOrExitTrap(Class<?> targetClass) {
+        return EprotectPlusAgent.hasHaltOrExitTrap(targetClass);
+    }
+
+    public static List<String> getVanillaInjectedHookClasses() {
+        return EprotectPlusAgent.getVanillaInjectedHookClasses();
+    }
+
+    public static List<Class<?>> findForeignAgentAndHiddenClasses(int limit) {
+        return EprotectPlusAgent.findForeignAgentAndHiddenClasses(limit);
     }
 
     public static void clearPlayerFromKillModLists(UUID uuid) {

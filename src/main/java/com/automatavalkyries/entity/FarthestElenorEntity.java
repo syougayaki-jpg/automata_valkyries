@@ -66,7 +66,7 @@ public class FarthestElenorEntity extends ElenorEntity {
             if (target == null || !target.isAlive() || (target instanceof com.automatavalkyries.protect.IEprotected protectedEntity && !protectedEntity.isTerminusTestTarget())) {
                 return false;
             }
-            return target instanceof Player || com.automatavalkyries.protect.flag.FlagDictionary.hasDangerousFlag(target);
+            return target instanceof Player || com.automatavalkyries.annihilate.FlagKillPredicates.hasDangerousFlag(target);
         }
 
         @Override

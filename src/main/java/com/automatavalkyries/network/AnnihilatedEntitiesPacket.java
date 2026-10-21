@@ -18,18 +18,28 @@ import java.util.function.Supplier;
  * このパケットでクライアントにも「抹消済み」を記録させ、残ったものは強制的に取り除かせる。
  * </p>
  */
-public record AnnihilatedEntitiesPacket(List<UUID> uuids, List<Integer> ids) {
+public record AnnihilatedEntitiesPacket(List<UUID> uuids, List<Integer> ids, boolean madnessSweep) {
+
+    public AnnihilatedEntitiesPacket(List<UUID> uuids, List<Integer> ids) {
+        this(uuids, ids, false);
+    }
 
     public static void encode(AnnihilatedEntitiesPacket packet, FriendlyByteBuf buf) {
         buf.writeCollection(packet.uuids, FriendlyByteBuf::writeUUID);
         buf.writeCollection(packet.ids, FriendlyByteBuf::writeVarInt);
+        buf.writeBoolean(packet.madnessSweep);
     }
 
     public static AnnihilatedEntitiesPacket decode(FriendlyByteBuf buf) {
-        return new AnnihilatedEntitiesPacket(buf.readList(FriendlyByteBuf::readUUID), buf.readList(FriendlyByteBuf::readVarInt));
+        List<UUID> uuids = buf.readList(FriendlyByteBuf::readUUID);
+        List<Integer> ids = buf.readList(FriendlyByteBuf::readVarInt);
+        return new AnnihilatedEntitiesPacket(uuids, ids, buf.isReadable() && buf.readBoolean());
     }
 
     public static void handle(AnnihilatedEntitiesPacket packet, Supplier<NetworkEvent.Context> context) {
-        DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientAnnihilation.purge(packet.uuids, packet.ids));
+        DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
+            if (packet.madnessSweep) com.automatavalkyries.annihilate.MadnessAnnihilation.sweepClient();
+            if (!packet.uuids.isEmpty() || !packet.ids.isEmpty()) ClientAnnihilation.purge(packet.uuids, packet.ids);
+        });
     }
 }

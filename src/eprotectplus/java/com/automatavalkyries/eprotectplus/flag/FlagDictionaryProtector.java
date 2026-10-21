@@ -2,13 +2,16 @@ package com.automatavalkyries.eprotectplus.flag;
 
 import com.automatavalkyries.eprotectplus.EprotectPlusBridge;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.EnumMap;
-import java.util.HashMap;
 import java.util.HashSet;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -16,6 +19,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * JVM エージェント常駐型フラグ辞書保護コントローラー（FlagDictionaryProtector）。
@@ -24,93 +29,112 @@ import java.util.concurrent.atomic.AtomicLong;
  * フラグ辞書（{@code FlagDictionary}）の定義・判定を完全に防護・復元する。
  * また、エージェント側自身がチート MOB の解体・真抹殺を実行する際の高精度判定エンジンとしても機能する。
  * </p>
+ * <p>
+ * 2026-10-21（段 1b）: 手書きの写しを廃止し、MOD と同じ {@value #RESOURCE}（JSON）を直接読み込んで
+ * 内容の要約（SHA-256 ダイジェスト）と語彙一覧で点検・復元する（docs/SPEC_FLAG_DICTIONARY_V2.md §2・§3）。
+ * </p>
  */
 public final class FlagDictionaryProtector {
+
+    public static final String RESOURCE = "/automata_valkyries/flag_dictionary.json";
 
     private static final AtomicLong TAMPER_DETECTED_COUNT = new AtomicLong();
     private static final AtomicLong REPAIRED_COUNT = new AtomicLong();
 
-    /** 不変のフラグ辞書マスターデータ（システムクラスローダー保護） */
-    private static final Map<String, List<String>> MASTER_DICTIONARY;
+    /** JSON から読み込んだ不変のフラグ辞書マスターデータ（システムクラスローダー保護） */
+    private static volatile Map<String, List<String>> MASTER_DICTIONARY;
+    /** マスター辞書の SHA-256 要約（ハッシュ） */
+    private static volatile String MASTER_DIGEST;
+
+    private static final Pattern CATEGORY_BLOCK_PATTERN = Pattern.compile(
+            "\"([A-Z_]+)\"\\s*:\\s*\\{[^{}]*?\"entries\"\\s*:\\s*\\[(.*?)\\]\\s*(?:,[^{}]*)?\\}",
+            Pattern.DOTALL);
+    private static final Pattern STRING_LITERAL_PATTERN = Pattern.compile("\"((?:\\\\.|[^\"\\\\])*)\"");
 
     static {
-        Map<String, List<String>> master = new LinkedHashMap<>();
-
-        master.put("KILL", List.of(
-                "dead", "death", "=die", "=dies", "=died", "=dying", "eras", "remov", "novel", "kill", "soul", "doom",
-                "condemn", "curse", "annihil", "obliter", "wipe", "purg", "banish", "delet", "vanish", "exile", "smite",
-                "execut", "assassin", "murder", "butcher", "slaughter", "extinguish", "annul", "nullif", "discard", "suicide",
-                "=reap", "=reaper", "=reaped", "sever", "oblivion", "expire", "mortal", "endlife", "erasure", "abyss", "tomb", "grave",
-                "destruct", "terminus", "=void", "collapse", "shred", "decimat", "dissolv", "vaporiz",
-                "marked", "condemned", "cursed", "branded", "stigmat", "fatality", "instadeath",
-                "judg", "destroy", "eliminat", "terminat", "sentenc", "perish", "slain", "slay",
-                "disintegrat", "nonexist", "unexist", "exterminat", "eradicat", "despawn", "fatal", "doomed",
-                "*forcedead", "*forcekill", "*instakill", "*instantkill", "*markedfordeath", "*forcedeath", "*truekill",
-                "*absolutekill", "*superkill", "*directkill", "*unmake", "*erasetarget", "*cleartarget", "*removeentity",
-                "*setdead", "*forcediscard", "*fatalkill", "*cleardata", "*seterased", "*markerased", "*eraseentity"));
-
-        master.put("CONTROL", List.of(
-                "freez", "frozen", "stun", "paraly", "petrif", "=sealed", "timelock", "chronolock", "chronostop",
-                "ticklock", "frozenevent", "immob", "stasis", "suppress", "lockdown", "=bind", "=bound", "binding",
-                "=root", "=rooted", "rooting", "entangle", "=trap", "=trapped", "sleep", "silence", "sedat", "subdue",
-                "incapacitat", "*timestop", "*stoptime", "*timestopped", "*aidisabled", "*disableai", "*noai", "*cleanai",
-                "*notick", "*tickstopped", "*stoptick", "*skiptick", "*stopticking", "*disablegoal", "*cleargoal",
-                "*stopai", "*pauseai", "*suppressai", "*freezeai",
-                "tether", "*locationlock", "*lockedlocation", "*locklocation", "*positionlock", "*lockedposition", "*lockposition",
-                "*movelock", "*lockmove", "*movementlock", "*lockmovement", "*nomove", "*cantmove", "*disablemove", "*inputlock",
-                "*lockinput", "*lockedinput", "*disableinput", "*pinned", "*pinposition",
-                // 時間停止・Tick 停止（EndingLibrary の TimeStopUtils / timeStopDimensions 等）
-                "*timefreeze", "*freezetime", "*timepause", "*pausetime", "*worldstop", "*stopworld", "*tickfreeze",
-                "*freezetick", "*frozenworld", "*frozentime", "*timehalt", "*halttime", "*stoppedtime", "*timeisstop",
-                "*stoppeddimension", "*frozendimension", "*chronostasis", "*timeskip", "*nogravity", "*disablegravity"));
-
-        master.put("HEALTH_TAMPER", List.of(
-                "zerohp", "hpzero", "drainhp", "hpdrain", "damagecap", "healthlimit", "hpoverride", "sethp", "sethealth", "delta",
-                "*healthdelta", "*hpdelta", "*shielddelta", "*healthoffset", "*healthlock", "*lockhealth", "*lockedhealth", "*fixedhealth",
-                "*healthoverride", "*forcedhealth", "*forcehealth", "*forcezero", "*zerodamage", "*drainhealth",
-                "*nullhealth", "*hpcap", "*currenthp", "*worldanchor", "*healthanchor", "*anchorhealth", "*anchoredhealth",
-                "*healthlockenc", "*lockedhp", "*hplock", "*gethealth", "*healthmodif", "*hpmodif", "*hpoffset"));
-
-        master.put("GUARD", List.of(
-                "protect", "immun", "invuln", "=guard", "guarded", "guarding", "shield", "resist", "immortal", "invinc",
-                "=god", "godmode", "muteki", "undying", "barrier", "exempt", "whitelist", "=ward", "warded", "fumetsu",
-                "deathless", "unkillable", "indestruct", "*dimensionalcore", "phasing", "intangib", "aegis", "sanctuary",
-                "impervious", "defiance", "witherzilla", "perpetual", "eternal", "unbreakable", "unyielding", "adamant",
-                "fullset", "=halo", "bless", "blessing", "snack",
-                "*forcefullset", "*wasfullset", "*forcehalo", "*hasfullset", "*snackprotector",
-                "*damagenegation", "*negatedamage", "*infinitehp", "*infinitehealth", "*infinitedefense", "*infinitelife",
-                "*immortalstate", "*invulnerablestate", "*godstate",
-                "=invul", "=invuls", "=defence", "=defense", "*defencemode", "*defensemode", "*godprotect", "*absoluteprotect"));
-
-        master.put("BYPASS", List.of(
-                "bypass", "penetrat", "pierc", "*ignoreprotect", "*ignoreinvul", "*ignoreimmun", "*truedamage",
-                "*unblockable", "*ignoredefense", "*overrideguard", "*antiinvul", "*antiprotect", "*directdamage",
-                "*absolutedamage", "*bypasstotem", "*ignorebarrier"));
-
-        master.put("REVIVE", List.of("reviv", "respawn", "resurrect", "rebirth", "reincarnat", "=lives", "extralives", "*undyingcore", "*respawntick",
-                "*allreturn", "*returnall", "*autoreturn", "*autorevive", "*selfrevive", "*comeback", "*restorelife", "*lifeback"));
-
-        master.put("CONCEAL", List.of(
-                "=invisible", "*forceinvisible", "*setinvisible", "*keepinvisible", "*invisiblemode", "=hidden", "*hideentity",
-                "*hiderender", "*norender", "*cancelrender", "*disablerender", "*skiprender", "*stoprender", "*hidebossbar",
-                "*nobossbar", "*removebossbar", "*clearbossbar", "*hidebar", "*cloaked", "*clientdelete", "*deleteclient",
-                "*clientremove", "*removeclient", "*hidefromclient", "*untracked", "*stoptracking"));
-
-        master.put("RESPAWN_BLOCK", List.of(
-                "*norespawn", "*antirespawn", "*respawnlock", "*lockrespawn", "*blockrespawn", "*respawnblock", "*denyrespawn",
-                "*cancelrespawn", "*preventrespawn", "*respawnban", "*banrespawn", "*disablerespawn", "*respawndisabled",
-                "*disallowrespawn", "*respawnforbid", "*forbidrespawn", "*permadeath", "*permanentdeath", "*keepdead",
-                "*staydead", "*deathlock", "*lockdeath", "*lockeddeath", "*deathscreenlock", "*nodeathscreenclose"));
-
-        master.put("COUNT", List.of("count", "=left", "remaining", "=times", "charges", "=lives", "=num", "=amount"));
-
-        master.put("TIMER", List.of("delay", "timer", "cooldown", "tick", "=time", "wait", "interval", "duration", "until", "expir", "respawntick", "erasetime"));
-
-        master.put("BANISH", List.of(
-                "banish", "voidfall", "relocat", "displace", "=rift", "*voiddrop", "*forcevoid", "*forcedimension",
-                "*banishment", "*dimensionfall"));
-
+        Map<String, List<String>> master = loadFromJsonResource();
         MASTER_DICTIONARY = Collections.unmodifiableMap(master);
+        MASTER_DIGEST = digestOf(MASTER_DICTIONARY);
+        com.automatavalkyries.eprotectplus.HiddenAgentVault.storeDictionary(MASTER_DICTIONARY, MASTER_DIGEST);
+    }
+
+    private static Map<String, List<String>> loadFromJsonResource() {
+        Map<String, List<String>> out = new LinkedHashMap<>();
+        InputStream in = FlagDictionaryProtector.class.getResourceAsStream(RESOURCE);
+        if (in == null) {
+            in = ClassLoader.getSystemResourceAsStream(RESOURCE.substring(1));
+        }
+        if (in == null) {
+            return out;
+        }
+        try (InputStream stream = in) {
+            String json = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+            int catIdx = json.indexOf("\"categories\"");
+            if (catIdx < 0) return out;
+            Matcher blockMatcher = CATEGORY_BLOCK_PATTERN.matcher(json.substring(catIdx));
+            while (blockMatcher.find()) {
+                String category = blockMatcher.group(1);
+                String entriesBody = blockMatcher.group(2);
+                List<String> entries = new ArrayList<>();
+                Matcher strMatcher = STRING_LITERAL_PATTERN.matcher(entriesBody);
+                while (strMatcher.find()) {
+                    String value = unescapeJson(strMatcher.group(1)).trim().toLowerCase(Locale.ROOT);
+                    if (!value.isEmpty()) entries.add(value);
+                }
+                out.put(category, List.copyOf(entries));
+            }
+        } catch (IOException ignored) {
+        }
+        return out;
+    }
+
+    private static String unescapeJson(String raw) {
+        if (raw.indexOf('\\') < 0) return raw;
+        StringBuilder sb = new StringBuilder(raw.length());
+        for (int i = 0; i < raw.length(); i++) {
+            char c = raw.charAt(i);
+            if (c == '\\' && i + 1 < raw.length()) {
+                char next = raw.charAt(++i);
+                switch (next) {
+                    case '"', '\\', '/' -> sb.append(next);
+                    case 'n' -> sb.append('\n');
+                    case 'r' -> sb.append('\r');
+                    case 't' -> sb.append('\t');
+                    default -> sb.append(next);
+                }
+            } else {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
+    }
+
+    public static String digestOf(Map<String, List<String>> map) {
+        if (map == null || map.isEmpty()) return "";
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            List<String> keys = new ArrayList<>(map.keySet());
+            Collections.sort(keys);
+            for (String key : keys) {
+                md.update(key.getBytes(StandardCharsets.UTF_8));
+                md.update((byte) ':');
+                List<String> values = map.get(key);
+                if (values != null) {
+                    for (String val : values) {
+                        md.update(val.getBytes(StandardCharsets.UTF_8));
+                        md.update((byte) ',');
+                    }
+                }
+                md.update((byte) ';');
+            }
+            return HexFormat.of().formatHex(md.digest());
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    public static String getMasterDigest() {
+        return masterDigest();
     }
 
     private static final Map<String, Set<String>> LOCAL_CACHE = new ConcurrentHashMap<>();
@@ -118,11 +142,33 @@ public final class FlagDictionaryProtector {
     private FlagDictionaryProtector() {}
 
     public static Map<String, List<String>> getMasterDictionary() {
-        return MASTER_DICTIONARY;
+        return masterDictionary();
+    }
+
+    private static Map<String, List<String>> masterDictionary() {
+        Map<String, List<String>> current = MASTER_DICTIONARY;
+        if (current != null && !current.isEmpty()) return current;
+        Map<String, List<String>> vaulted = com.automatavalkyries.eprotectplus.HiddenAgentVault.loadDictionary();
+        if (vaulted != null && !vaulted.isEmpty()) {
+            MASTER_DICTIONARY = vaulted;
+            return vaulted;
+        }
+        return Map.of();
+    }
+
+    private static String masterDigest() {
+        String current = MASTER_DIGEST;
+        if (current != null && !current.isEmpty()) return current;
+        String vaulted = com.automatavalkyries.eprotectplus.HiddenAgentVault.loadDigest();
+        if (vaulted != null && !vaulted.isEmpty()) {
+            MASTER_DIGEST = vaulted;
+            return vaulted;
+        }
+        return "";
     }
 
     public static List<String> getMasterEntries(String category) {
-        return MASTER_DICTIONARY.getOrDefault(category, Collections.emptyList());
+        return masterDictionary().getOrDefault(category, Collections.emptyList());
     }
 
     // ---- MOD 側 FlagDictionary の整合性検証・強制修復 -------------------------
@@ -142,18 +188,27 @@ public final class FlagDictionaryProtector {
                 active.setAccessible(true);
                 builtIn.setAccessible(true);
                 Map<String, List<String>> expected = expectedActive(flagDictionaryClass);
-                if (MASTER_DICTIONARY.equals(snapshot(builtIn.get(null)))
-                        && expected.equals(snapshot(active.get(null)))) return false;
+                String expectedActiveDigest = digestOf(expected);
+                Map<String, List<String>> currentBuiltIn = snapshot(builtIn.get(null));
+                Map<String, List<String>> currentActive = snapshot(active.get(null));
+                if (masterDigest().equals(digestOf(currentBuiltIn))
+                        && expectedActiveDigest.equals(digestOf(currentActive))
+                        && masterDictionary().equals(currentBuiltIn)
+                        && expected.equals(currentActive)) return false;
                 TAMPER_DETECTED_COUNT.incrementAndGet();
                 repairModFlagDictionary(flagDictionaryClass, active, builtIn);
                 // Do not report a repair merely because reflective writes returned normally.
-                if (!MASTER_DICTIONARY.equals(snapshot(builtIn.get(null)))
-                        || !expected.equals(snapshot(active.get(null)))) {
+                Map<String, List<String>> repairedBuiltIn = snapshot(builtIn.get(null));
+                Map<String, List<String>> repairedActive = snapshot(active.get(null));
+                if (!masterDigest().equals(digestOf(repairedBuiltIn))
+                        || !expectedActiveDigest.equals(digestOf(repairedActive))
+                        || !masterDictionary().equals(repairedBuiltIn)
+                        || !expected.equals(repairedActive)) {
                     EprotectPlusBridge.recordEvent("警告", "FlagDictionary", "integrity", "repair", "未確認", "Content still differs after reload");
                     return false;
                 }
                 REPAIRED_COUNT.incrementAndGet();
-                EprotectPlusBridge.recordProtection("FlagDictionary", "integrity", "integrity_repair", "Built-in content restored; user extra/ignore configuration reapplied");
+                EprotectPlusBridge.recordProtection("FlagDictionary", "integrity", "integrity_repair", "Built-in content restored from flag_dictionary.json; user extra/ignore configuration reapplied");
                 return true;
             } catch (ReflectiveOperationException | RuntimeException exception) {
                 EprotectPlusBridge.recordEvent("警告", "FlagDictionaryProtector", "integrity", "inspect", "失敗", exception.toString());
@@ -179,7 +234,7 @@ public final class FlagDictionaryProtector {
 
     private static Map<String, List<String>> expectedActive(Class<?> dictionary) throws ReflectiveOperationException {
         Map<String, List<String>> expected = new LinkedHashMap<>();
-        MASTER_DICTIONARY.forEach((key, value) -> expected.put(key, new ArrayList<>(value)));
+        masterDictionary().forEach((key, value) -> expected.put(key, new ArrayList<>(value)));
         Class<?> config = Class.forName("com.automatavalkyries.config.EprotectConfig", true, dictionary.getClassLoader());
         Object extra = config.getField("FLAG_EXTRA").get(null);
         java.lang.reflect.Method getter = java.util.Arrays.stream(config.getMethods())
@@ -202,7 +257,7 @@ public final class FlagDictionaryProtector {
         Map map = (Map) builtIn.get(null);
         map.clear();
         for (Object key : category.getEnumConstants())
-            map.put(key, MASTER_DICTIONARY.getOrDefault(key.toString(), List.of()));
+            map.put(key, masterDictionary().getOrDefault(key.toString(), List.of()));
         dictionary.getMethod("reloadFromConfig").invoke(null);
     }
 
@@ -218,7 +273,7 @@ public final class FlagDictionaryProtector {
         String compact = String.join("", words);
         if (compact.isEmpty()) return Collections.emptySet();
 
-        for (Map.Entry<String, List<String>> entry : MASTER_DICTIONARY.entrySet()) {
+        for (Map.Entry<String, List<String>> entry : masterDictionary().entrySet()) {
             for (String pattern : entry.getValue()) {
                 if (matches(pattern, words, compact)) {
                     result.add(entry.getKey());
@@ -364,7 +419,8 @@ public final class FlagDictionaryProtector {
 
     public static Map<String, String> getStats() {
         Map<String, String> stats = new LinkedHashMap<>();
-        stats.put("masterCategories", String.valueOf(MASTER_DICTIONARY.size()));
+        stats.put("masterCategories", String.valueOf(masterDictionary().size()));
+        stats.put("masterDigest", masterDigest());
         stats.put("tamperDetections", String.valueOf(TAMPER_DETECTED_COUNT.get()));
         stats.put("repairs", String.valueOf(REPAIRED_COUNT.get()));
         return stats;

@@ -29,11 +29,20 @@ public final class FlagDictionaryLink {
 
     private FlagDictionaryLink() {}
 
+    public static synchronized void refreshAfterAttach() {
+        checked = false;
+        bridge = null;
+        protector = null;
+        init();
+    }
+
     private static synchronized void init() {
         if (!checked) {
             checked = true;
             try {
                 ClassLoader sysLoader = ClassLoader.getSystemClassLoader();
+                Class<?> agent = Class.forName("com.automatavalkyries.eprotectplus.flag.FlagDictionaryAgent", false, sysLoader);
+                if (!Boolean.TRUE.equals(agent.getMethod("hasInstrumentation").invoke(null))) return;
                 try {
                     bridge = Class.forName(BRIDGE_CLASS, true, sysLoader);
                 } catch (Throwable ignored) {}

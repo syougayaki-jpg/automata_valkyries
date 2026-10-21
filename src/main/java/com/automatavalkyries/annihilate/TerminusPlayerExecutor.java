@@ -106,7 +106,7 @@ public final class TerminusPlayerExecutor {
             try {
                 net.minecraft.nbt.CompoundTag tag = target.getPersistentData();
                 for (String key : new ArrayList<>(tag.getAllKeys())) {
-                    if (FlagDictionary.isDefensiveField(key)) {
+                    if (FlagKillPredicates.isDefensiveField(key)) {
                         tag.remove(key);
                     }
                 }
@@ -122,7 +122,7 @@ public final class TerminusPlayerExecutor {
             // 防御・耐性系エフェクトの確実な個別解除
             for (MobEffectInstance effect : new ArrayList<>(target.getActiveEffects())) {
                 var effectKey = net.minecraft.core.registries.BuiltInRegistries.MOB_EFFECT.getKey(effect.getEffect());
-                if (effectKey != null && FlagDictionary.protectiveOnTarget(effectKey.getPath())) {
+                if (effectKey != null && FlagKillPredicates.protectiveOnTarget(effectKey.getPath())) {
                     target.removeEffect(effect.getEffect());
                 }
             }
@@ -402,12 +402,17 @@ public final class TerminusPlayerExecutor {
             } catch (Throwable ignored) {}
 
             // 8. 死亡イベント発火（die() のみ呼び出し、kill() は絶対に呼ばない）
-            if (!deathAttempted && !wasDead) {
+            // A forced HP/dead flag is not proof that die() completed. Retry a rejected death,
+            // while keeping a completed death from firing its hooks twice.
+            if (!deathProcessed[0]) {
                 final ServerLevel lvl = level;
                 try {
                     AnnihilationExecutionAgent.runWithEventSuppression(() -> {
                         try {
                             deathProcessed[0] = invokePlayerDeath(lvl, target);
+                            if (deathProcessed[0] && deathAttempted) {
+                                target.getPersistentData().putBoolean(DEATH_COMPLETED, true);
+                            }
                         } catch (Throwable t) {
                             AutomataValkyries.LOGGER.debug("[Terminus] Exception during remediating die(): {}", t.getMessage());
                         }
@@ -472,7 +477,7 @@ public final class TerminusPlayerExecutor {
             // インベントリ全体（36スロット）内の身代わり・不死・防御アイテム（Totem等）を走査して消去
             for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
                 ItemStack stack = player.getInventory().getItem(i);
-                if (!stack.isEmpty() && FlagDictionary.isDefensiveItem(stack)) {
+                if (!stack.isEmpty() && FlagKillPredicates.isDefensiveItem(stack)) {
                     player.getInventory().setItem(i, ItemStack.EMPTY);
                 }
             }
@@ -493,7 +498,7 @@ public final class TerminusPlayerExecutor {
                                 if (itemHandler instanceof net.minecraftforge.items.IItemHandlerModifiable modifiable) {
                                     for (int slot = 0; slot < modifiable.getSlots(); slot++) {
                                         ItemStack curio = modifiable.getStackInSlot(slot);
-                                        if (!curio.isEmpty() && FlagDictionary.isDefensiveItem(curio)) {
+                                        if (!curio.isEmpty() && FlagKillPredicates.isDefensiveItem(curio)) {
                                             modifiable.setStackInSlot(slot, ItemStack.EMPTY);
                                         }
                                     }

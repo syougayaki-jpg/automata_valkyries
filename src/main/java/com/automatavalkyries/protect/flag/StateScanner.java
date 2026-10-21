@@ -94,24 +94,32 @@ public final class StateScanner {
     public static final Policy BREAK_TARGET = new Policy() {
         @Override
         public boolean relevant(String name) {
-            return FlagDictionary.is(name, FlagDictionary.Category.BYPASS) || FlagDictionary.protectiveOnTarget(name)
-                    || FlagDictionary.livesCounter(name) || FlagDictionary.isDeathStateField(name);
+            return FlagDictionary.is(name, FlagDictionary.Category.BYPASS) || isExtendedProtectiveOnTarget(name)
+                    || com.automatavalkyries.annihilate.FlagKillPredicates.livesCounter(name) || isExtendedDeathStateField(name)
+                    || isCustomHealthOrValueName(name);
         }
 
         @Override
         public Object decide(String name, Class<?> type, @Nullable Object current) {
             if (type == boolean.class) {
                 if (FlagDictionary.is(name, FlagDictionary.Category.BYPASS)) return Boolean.TRUE.equals(current) ? null : Boolean.TRUE;
-                if (FlagDictionary.isDeathStateField(name)) return Boolean.TRUE.equals(current) ? null : Boolean.TRUE;
-                if (FlagDictionary.protectiveOnTarget(name)) return cleared(type, current);
+                if (isExtendedDeathStateField(name)) return Boolean.TRUE.equals(current) ? null : Boolean.TRUE;
+                if (isExtendedProtectiveOnTarget(name)) return cleared(type, current);
                 return null;
             }
-            return FlagDictionary.livesCounter(name) ? cleared(type, current) : null;
+            if (type == String.class) {
+                if ((com.automatavalkyries.annihilate.FlagKillPredicates.livesCounter(name) || isCustomHealthOrValueName(name))
+                        && (current == null || isPositiveNumericString(current))) {
+                    return "-1.0";
+                }
+                return null;
+            }
+            return (com.automatavalkyries.annihilate.FlagKillPredicates.livesCounter(name) || isCustomHealthOrValueName(name)) ? cleared(type, current) : null;
         }
 
         @Override
         public boolean removeKey(String key) {
-            return FlagDictionary.protectiveOnTarget(key);
+            return isExtendedProtectiveOnTarget(key);
         }
 
         @Override
@@ -120,25 +128,51 @@ public final class StateScanner {
         }
     };
 
+    /**
+     * 抹殺対象が持つ内部コンポーネント用（{@link #BREAK_TARGET} より狭い）: 守り・復活の許可を下ろし、残り復活回数と独自 HP を 0 にするだけ。
+     * 死亡・消滅状態の有効化、見えない setter、一覧の消去はしない（共有されている入れ物を壊さない）
+     */
+    public static final Policy BREAK_COMPONENT = new Policy() {
+        @Override
+        public boolean relevant(String name) {
+            return isExtendedProtectiveOnTarget(name) || com.automatavalkyries.annihilate.FlagKillPredicates.livesCounter(name)
+                    || isCustomHealthOrValueName(name);
+        }
+
+        @Override
+        public Object decide(String name, Class<?> type, @Nullable Object current) {
+            if (type == boolean.class) return isExtendedProtectiveOnTarget(name) ? cleared(type, current) : null;
+            boolean value = com.automatavalkyries.annihilate.FlagKillPredicates.livesCounter(name) || isCustomHealthOrValueName(name);
+            if (type == String.class) return value && isPositiveNumericString(current) ? "-1.0" : null;
+            return value ? cleared(type, current) : null;
+        }
+
+        @Override
+        public boolean removeKey(String key) {
+            return isExtendedProtectiveOnTarget(key);
+        }
+    };
+
     /** プレイヤー用: 守り・無敵・復活の許可を下ろし、残り復活回数を 0 にする（死亡・消滅状態や removalReason、見えない setter には触れない） */
     public static final Policy BREAK_PLAYER_DEFENSES = new Policy() {
         @Override
         public boolean relevant(String name) {
-            return FlagDictionary.protectiveOnTarget(name) || FlagDictionary.livesCounter(name);
+            return com.automatavalkyries.annihilate.FlagKillPredicates.protectiveOnTarget(name)
+                    || com.automatavalkyries.annihilate.FlagKillPredicates.livesCounter(name);
         }
 
         @Override
         public Object decide(String name, Class<?> type, @Nullable Object current) {
             if (type == boolean.class) {
-                if (FlagDictionary.protectiveOnTarget(name)) return cleared(type, current);
+                if (com.automatavalkyries.annihilate.FlagKillPredicates.protectiveOnTarget(name)) return cleared(type, current);
                 return null;
             }
-            return FlagDictionary.livesCounter(name) ? cleared(type, current) : null;
+            return com.automatavalkyries.annihilate.FlagKillPredicates.livesCounter(name) ? cleared(type, current) : null;
         }
 
         @Override
         public boolean removeKey(String key) {
-            return FlagDictionary.protectiveOnTarget(key);
+            return com.automatavalkyries.annihilate.FlagKillPredicates.protectiveOnTarget(key);
         }
 
         @Override
@@ -219,6 +253,10 @@ public final class StateScanner {
                 for (Field field : c.getDeclaredFields()) applyField(entity, field, mod, Source.OWN_FIELD, policy, changes);
             }
         }
+        if (sources.contains(Source.OWN_FIELD) && policy == BREAK_TARGET && isForeign(type)) {
+            applyOwnedComponents(entity, changes);
+            applyPairedHealthFields(entity, changes);
+        }
         if (sources.contains(Source.CAPABILITY)) applyCapabilities(entity, policy, changes);
         if (sources.contains(Source.PERSISTENT)) applyPersistent(entity, policy, changes);
         if (sources.contains(Source.SYNCHED_DATA)) applySynchedData(entity, policy, changes);
@@ -247,18 +285,24 @@ public final class StateScanner {
                 Object value = policy.decide(accessor.name(), accessor.type(), current);
                 if (value == null && accessor.type() == java.util.UUID.class && holder instanceof Entity e) {
                     String setterName = accessor.setter().getName().toLowerCase(java.util.Locale.ROOT);
-                    if (policy == BREAK_TARGET && FlagDictionary.isDeathStateField(accessor.name())) {
-                        if (setterName.startsWith("mark") && !(e instanceof net.minecraft.world.entity.player.Player)) {
+                    if (policy == BREAK_TARGET && com.automatavalkyries.annihilate.FlagKillPredicates.isDeathStateField(accessor.name())) {
+                        if (setterName.startsWith("mark")
+                                && (!(e instanceof net.minecraft.world.entity.player.Player) || isForeign(e.getClass()))) {
                             value = e.getUUID();
                         }
-                    } else if (policy == CLEAN_PROTECTED && FlagDictionary.isDeathStateField(accessor.name())) {
+                    } else if (policy == CLEAN_PROTECTED && com.automatavalkyries.annihilate.FlagKillPredicates.isDeathStateField(accessor.name())) {
                         if (setterName.startsWith("unmark")) {
                             value = e.getUUID();
                         }
                     }
                 }
                 if (value == null) continue;
-                accessor.setter().invoke(holder, value);
+                final Object toWrite = value;
+                java.util.stream.Stream.of(holder).forEach(target -> {
+                    try {
+                        accessor.setter().invoke(target, toWrite);
+                    } catch (Throwable ignored) {}
+                });
                 changes.add(new Change(Source.INTERFACE, accessor.setter().getDeclaringClass().getSimpleName(), accessor.name(), accessor.mod()));
             } catch (Throwable ignored) {}
         }
@@ -268,32 +312,65 @@ public final class StateScanner {
         Set<Class<?>> interfaces = new LinkedHashSet<>();
         for (Class<?> c = type; c != null; c = c.getSuperclass()) collectForeignInterfaces(c, interfaces);
         List<Accessor> result = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
         for (Class<?> api : interfaces) {
             String mod = CallerAttribution.modOf(api);
-            for (Method setter : api.getMethods()) {
-                if (setter.getParameterCount() != 1 || !VALUE_TYPES.contains(setter.getParameterTypes()[0])) continue;
-                String bare = bareName(setter.getName());
-                String lower = bare.toLowerCase(java.util.Locale.ROOT);
-                String property = null;
-                if (lower.startsWith("set") && bare.length() > 3) {
-                    property = bare.substring(3);
-                } else if (lower.startsWith("mark") && bare.length() > 4) {
-                    property = bare.substring(4);
-                } else if (lower.startsWith("unmark") && bare.length() > 6) {
-                    property = bare.substring(6);
-                }
-                if (property == null || property.isEmpty()) continue;
-                Class<?> valueType = setter.getParameterTypes()[0];
-                result.add(new Accessor(findGetter(api, property, valueType), setter, valueType, property, mod));
-            }
+            collectAccessorsFromType(api, api.getMethods(), mod, false, seen, result);
+        }
+        for (Class<?> c = type; c != null && isForeign(c); c = c.getSuperclass()) {
+            String mod = CallerAttribution.modOf(c);
+            collectAccessorsFromType(c, c.getDeclaredMethods(), mod, true, seen, result);
         }
         return List.copyOf(result);
     }
 
+    private static void collectAccessorsFromType(Class<?> owner, Method[] methods, String mod, boolean skipVanillaOverrides,
+                                                 Set<String> seen, List<Accessor> result) {
+        for (Method setter : methods) {
+            if (Modifier.isStatic(setter.getModifiers()) || setter.isSynthetic()
+                    || setter.getParameterCount() != 1 || !VALUE_TYPES.contains(setter.getParameterTypes()[0])) continue;
+            if (skipVanillaOverrides && isVanillaEntityMethod(setter.getName(), setter.getParameterTypes())) continue;
+            String bare = bareName(setter.getName());
+            String lower = bare.toLowerCase(java.util.Locale.ROOT);
+            String property = null;
+            if (lower.startsWith("set") && bare.length() > 3) {
+                property = bare.substring(3);
+            } else if (lower.startsWith("mark") && bare.length() > 4) {
+                property = bare.substring(4);
+            } else if (lower.startsWith("unmark") && bare.length() > 6) {
+                property = bare.substring(6);
+            }
+            if (property == null || property.isEmpty()) continue;
+            Class<?> valueType = setter.getParameterTypes()[0];
+            String sig = bare + "(" + valueType.getName() + ")";
+            if (!seen.add(sig)) continue;
+            try {
+                setter.setAccessible(true);
+            } catch (Throwable ignored) {}
+            Method getter = findGetter(owner, methods, property, valueType);
+            if (getter != null) {
+                try {
+                    getter.setAccessible(true);
+                } catch (Throwable ignored) {}
+            }
+            result.add(new Accessor(getter, setter, valueType, property, mod));
+        }
+    }
+
+    private static boolean isVanillaEntityMethod(String name, Class<?>[] params) {
+        for (Class<?> vanilla : new Class<?>[]{Entity.class, net.minecraft.world.entity.LivingEntity.class, net.minecraft.world.entity.Mob.class}) {
+            try {
+                vanilla.getDeclaredMethod(name, params);
+                return true;
+            } catch (NoSuchMethodException ignored) {}
+        }
+        return false;
+    }
+
     @Nullable
-    private static Method findGetter(Class<?> api, String property, Class<?> type) {
-        for (Method method : api.getMethods()) {
-            if (method.getParameterCount() != 0 || method.getReturnType() != type) continue;
+    private static Method findGetter(Class<?> api, Method[] methods, String property, Class<?> type) {
+        for (Method method : methods) {
+            if (Modifier.isStatic(method.getModifiers()) || method.getParameterCount() != 0 || method.getReturnType() != type) continue;
             String name = bareName(method.getName());
             for (String prefix : new String[]{"get", "is", "has", ""}) {
                 if (name.equalsIgnoreCase(prefix + property)) return method;
@@ -322,18 +399,18 @@ public final class StateScanner {
                         if (col != null) {
                             UUID uuid = entity.getUUID();
                             if (policy == BREAK_TARGET) {
-                                if (FlagDictionary.isDeathStateField(field.getName())) {
-                                    if (!(entity instanceof net.minecraft.world.entity.player.Player)) {
+                                if (com.automatavalkyries.annihilate.FlagKillPredicates.isDeathStateField(field.getName())) {
+                                    if (!(entity instanceof net.minecraft.world.entity.player.Player) || isForeign(entity.getClass())) {
                                         col.add(uuid);
                                         changes.add(new Change(source, field.getDeclaringClass().getSimpleName(), field.getName(), mod));
                                     }
-                                } else if (FlagDictionary.protectiveOnTarget(field.getName())) {
+                                } else if (com.automatavalkyries.annihilate.FlagKillPredicates.protectiveOnTarget(field.getName())) {
                                     if (col.remove(uuid) || col.remove(entity)) {
                                         changes.add(new Change(source, field.getDeclaringClass().getSimpleName(), field.getName(), mod));
                                     }
                                 }
                             } else if (policy == CLEAN_PROTECTED) {
-                                if (FlagDictionary.isDeathStateField(field.getName())) {
+                                if (com.automatavalkyries.annihilate.FlagKillPredicates.isDeathStateField(field.getName())) {
                                     if (col.remove(uuid) || col.remove(entity)) {
                                         changes.add(new Change(source, field.getDeclaringClass().getSimpleName(), field.getName(), mod));
                                     }
@@ -346,7 +423,8 @@ public final class StateScanner {
             return;
         }
 
-        // コレクション・マップのクリア対応（finalであっても中身をクリア可能）
+        // コレクション・マップのクリア対応（finalであっても中身をクリア可能。共有されうるコンポーネントでは消さない）
+        if (policy == BREAK_COMPONENT && (Collection.class.isAssignableFrom(field.getType()) || Map.class.isAssignableFrom(field.getType()))) return;
         if (Collection.class.isAssignableFrom(field.getType())) {
             if (!policy.relevant(field.getName())) return;
             try {
@@ -372,18 +450,188 @@ public final class StateScanner {
             return;
         }
 
-        if (Modifier.isFinal(modifiers) || (!VALUE_TYPES.contains(field.getType()) && !Entity.class.isAssignableFrom(field.getType()))) return;
-        if (!policy.relevant(field.getName())) return;
+        if (CompoundTag.class.isAssignableFrom(field.getType())) {
+            if (policy != BREAK_TARGET) return;
+            try {
+                field.setAccessible(true);
+                if (field.get(holder) instanceof CompoundTag tag && !tag.isEmpty()) {
+                    applyCompound(tag, field.getDeclaringClass().getSimpleName() + "." + field.getName(), policy, changes, 0);
+                }
+            } catch (Throwable ignored) {}
+            return;
+        }
+
+        if (field.getType() == java.util.Optional.class) {
+            applyOptionalField(holder, field, mod, source, policy, changes);
+            return;
+        }
+
+        if (applyWrapperOrArrayField(holder, field, mod, source, policy, changes)) {
+            return;
+        }
+
+        boolean isFinal = Modifier.isFinal(modifiers);
+        boolean canWriteFinal = isFinal && (policy == BREAK_TARGET || policy == BREAK_COMPONENT)
+                && (field.getType().isPrimitive() || field.getType() == String.class);
+        if ((isFinal && !canWriteFinal) || (!VALUE_TYPES.contains(field.getType()) && !Entity.class.isAssignableFrom(field.getType()))) return;
+        boolean relevant = policy.relevant(field.getName());
+        boolean checkHpValue = !relevant && (policy == BREAK_TARGET || policy == BREAK_COMPONENT) && source == Source.OWN_FIELD
+                && hpOwner(holder) instanceof net.minecraft.world.entity.LivingEntity living
+                && (!(living instanceof net.minecraft.world.entity.player.Player) || isForeign(living.getClass()))
+                && isNumericOrStringType(field.getType())
+                && !isIgnoredSpatialOrTimerName(field.getName());
+        if (!relevant && !checkHpValue) return;
         try {
             field.setAccessible(true);
             Object current = field.get(holder);
-            Object value = policy.decide(field.getName(), field.getType(), current);
+            Object value = relevant ? policy.decide(field.getName(), field.getType(), current) : null;
+            if (value == null && checkHpValue && hpOwner(holder) instanceof net.minecraft.world.entity.LivingEntity living) {
+                if (matchesHealthOrObfuscatedPositive(living, field.getName(), current)) {
+                    value = field.getType() == String.class ? "-1.0" : cleared(field.getType(), current);
+                }
+            }
             if (value == null && current == null) return;
-            if (value != null || current != null) {
-                field.set(holder, value);
+            if (value != null || (relevant && current != null && field.getType() != String.class && !field.getType().isPrimitive())) {
+                if (!writeFieldValue(holder, field, value)) return;
                 changes.add(new Change(source, field.getDeclaringClass().getSimpleName(), field.getName(), mod));
             }
         } catch (Throwable ignored) {}
+    }
+
+    private static boolean applyWrapperOrArrayField(Object holder, Field field, String mod, Source source, Policy policy, List<Change> changes) {
+        Class<?> fType = field.getType();
+        boolean isAtomic = fType == java.util.concurrent.atomic.AtomicBoolean.class
+                || fType == java.util.concurrent.atomic.AtomicInteger.class
+                || fType == java.util.concurrent.atomic.AtomicLong.class
+                || fType == java.util.concurrent.atomic.AtomicReference.class;
+        boolean isPrimArray = fType == float[].class || fType == double[].class || fType == int[].class || fType == boolean[].class;
+        if (!isAtomic && !isPrimArray) return false;
+
+        boolean relevant = policy.relevant(field.getName());
+        boolean checkHpValue = !relevant && (policy == BREAK_TARGET || policy == BREAK_COMPONENT) && source == Source.OWN_FIELD
+                && hpOwner(holder) instanceof net.minecraft.world.entity.LivingEntity living
+                && (!(living instanceof net.minecraft.world.entity.player.Player) || isForeign(living.getClass()))
+                && !isIgnoredSpatialOrTimerName(field.getName());
+        if (!relevant && !checkHpValue) return true;
+
+        try {
+            field.setAccessible(true);
+            Object wrapper = field.get(holder);
+            if (wrapper == null) return true;
+            String ownerName = field.getDeclaringClass().getSimpleName();
+            if (wrapper instanceof java.util.concurrent.atomic.AtomicBoolean ab) {
+                Boolean current = ab.get();
+                Object decided = relevant ? policy.decide(field.getName(), boolean.class, current) : null;
+                if (decided instanceof Boolean next && !next.equals(current)) {
+                    ab.set(next);
+                    changes.add(new Change(source, ownerName, field.getName(), mod));
+                }
+            } else if (wrapper instanceof java.util.concurrent.atomic.AtomicInteger ai) {
+                Integer current = ai.get();
+                Object decided = relevant ? policy.decide(field.getName(), int.class, current) : null;
+                if (decided == null && checkHpValue && hpOwner(holder) instanceof net.minecraft.world.entity.LivingEntity living
+                        && matchesHealthOrObfuscatedPositive(living, field.getName(), current)) {
+                    decided = 0;
+                }
+                if (decided instanceof Number next && next.intValue() != current) {
+                    ai.set(next.intValue());
+                    changes.add(new Change(source, ownerName, field.getName(), mod));
+                }
+            } else if (wrapper instanceof java.util.concurrent.atomic.AtomicLong al) {
+                Long current = al.get();
+                Object decided = relevant ? policy.decide(field.getName(), long.class, current) : null;
+                if (decided == null && checkHpValue && hpOwner(holder) instanceof net.minecraft.world.entity.LivingEntity living
+                        && matchesHealthOrObfuscatedPositive(living, field.getName(), current)) {
+                    decided = 0L;
+                }
+                if (decided instanceof Number next && next.longValue() != current) {
+                    al.set(next.longValue());
+                    changes.add(new Change(source, ownerName, field.getName(), mod));
+                }
+            } else if (wrapper instanceof java.util.concurrent.atomic.AtomicReference<?> ar) {
+                @SuppressWarnings("unchecked")
+                java.util.concurrent.atomic.AtomicReference<Object> ref = (java.util.concurrent.atomic.AtomicReference<Object>) ar;
+                Object current = ref.get();
+                Class<?> valType = current instanceof Boolean ? boolean.class
+                        : current instanceof Integer ? int.class
+                        : current instanceof Long ? long.class
+                        : current instanceof Float ? float.class
+                        : current instanceof Double ? double.class
+                        : current instanceof String ? String.class : null;
+                if (valType != null) {
+                    Object decided = relevant ? policy.decide(field.getName(), valType, current) : null;
+                    if (decided == null && checkHpValue && hpOwner(holder) instanceof net.minecraft.world.entity.LivingEntity living
+                            && matchesHealthOrObfuscatedPositive(living, field.getName(), current)) {
+                        decided = valType == String.class ? "-1.0" : cleared(valType, current);
+                    }
+                    if (decided != null && !decided.equals(current)) {
+                        ref.set(decided);
+                        changes.add(new Change(source, ownerName, field.getName(), mod));
+                    }
+                }
+            } else if (checkHpValue && wrapper instanceof float[] arr && arr.length == 2
+                    && arr[0] > 0.0F && arr[0] <= arr[1] && arr[1] >= 20.0F) {
+                arr[0] = 0.0F;
+                changes.add(new Change(source, ownerName, field.getName(), mod));
+            } else if (checkHpValue && wrapper instanceof double[] arr && arr.length == 2
+                    && arr[0] > 0.0D && arr[0] <= arr[1] && arr[1] >= 20.0D) {
+                arr[0] = 0.0D;
+                changes.add(new Change(source, ownerName, field.getName(), mod));
+            } else if (wrapper instanceof float[] arr && arr.length >= 1 && arr.length <= 4) {
+                boolean modified = false;
+                for (int i = 0; i < arr.length; i++) {
+                    Object decided = relevant ? policy.decide(field.getName(), float.class, arr[i]) : null;
+                    if (decided == null && checkHpValue && hpOwner(holder) instanceof net.minecraft.world.entity.LivingEntity living
+                            && matchesHealthOrObfuscatedPositive(living, field.getName(), arr[i])) {
+                        decided = 0.0F;
+                    }
+                    if (decided instanceof Number n && Float.compare(arr[i], n.floatValue()) != 0) {
+                        arr[i] = n.floatValue();
+                        modified = true;
+                    }
+                }
+                if (modified) changes.add(new Change(source, ownerName, field.getName(), mod));
+            } else if (wrapper instanceof double[] arr && arr.length >= 1 && arr.length <= 4) {
+                boolean modified = false;
+                for (int i = 0; i < arr.length; i++) {
+                    Object decided = relevant ? policy.decide(field.getName(), double.class, arr[i]) : null;
+                    if (decided == null && checkHpValue && hpOwner(holder) instanceof net.minecraft.world.entity.LivingEntity living
+                            && matchesHealthOrObfuscatedPositive(living, field.getName(), arr[i])) {
+                        decided = 0.0D;
+                    }
+                    if (decided instanceof Number n && Double.compare(arr[i], n.doubleValue()) != 0) {
+                        arr[i] = n.doubleValue();
+                        modified = true;
+                    }
+                }
+                if (modified) changes.add(new Change(source, ownerName, field.getName(), mod));
+            } else if (wrapper instanceof int[] arr && arr.length >= 1 && arr.length <= 4) {
+                boolean modified = false;
+                for (int i = 0; i < arr.length; i++) {
+                    Object decided = relevant ? policy.decide(field.getName(), int.class, arr[i]) : null;
+                    if (decided == null && checkHpValue && hpOwner(holder) instanceof net.minecraft.world.entity.LivingEntity living
+                            && matchesHealthOrObfuscatedPositive(living, field.getName(), arr[i])) {
+                        decided = 0;
+                    }
+                    if (decided instanceof Number n && arr[i] != n.intValue()) {
+                        arr[i] = n.intValue();
+                        modified = true;
+                    }
+                }
+                if (modified) changes.add(new Change(source, ownerName, field.getName(), mod));
+            } else if (wrapper instanceof boolean[] arr && arr.length >= 1 && arr.length <= 4 && relevant) {
+                boolean modified = false;
+                for (int i = 0; i < arr.length; i++) {
+                    Object decided = policy.decide(field.getName(), boolean.class, arr[i]);
+                    if (decided instanceof Boolean b && arr[i] != b) {
+                        arr[i] = b;
+                        modified = true;
+                    }
+                }
+                if (modified) changes.add(new Change(source, ownerName, field.getName(), mod));
+            }
+        } catch (Throwable ignored) {}
+        return true;
     }
 
     /** 他 MOD のオブジェクト（エンティティ以外）の、自分のクラス階層で宣言されたフィールド */
@@ -401,6 +649,220 @@ public final class StateScanner {
                     || data.getClass().isArray() || !isForeign(data.getClass())) return;
             applyObjectFields(data, Source.INJECTED_FIELD, policy, changes);
         } catch (Throwable ignored) {}
+    }
+
+    // ---- 抹殺対象の内部コンポーネント・ペア HP・Optional（BREAK_TARGET 専用） ------------------------
+
+    private static final int COMPONENT_DEPTH = 2;
+    private static final int COMPONENT_LIMIT = 32;
+    /** コンポーネント（共有されている可能性のあるオブジェクト）を見ている最中か。名前だけの難読化判定は使わない */
+    private static final ThreadLocal<Boolean> IN_COMPONENT = ThreadLocal.withInitial(() -> Boolean.FALSE);
+    /** HP・防御専用のコンテナ（HealthOperator / BossShieldData 等）の内部を見ている最中か */
+    private static final ThreadLocal<Boolean> IN_HEALTH_OR_GUARD_CONTAINER = ThreadLocal.withInitial(() -> Boolean.FALSE);
+    /** コンポーネントを見ているときの持ち主（HP 値の照合用） */
+    private static final ThreadLocal<net.minecraft.world.entity.LivingEntity> COMPONENT_OWNER = new ThreadLocal<>();
+
+    /**
+     * 抹殺対象自身のフィールドが指す、他 MOD のデータ入れ物（BossShieldData・HealthContainer・HealthOperator 等）の中身を 2 段まで見る。
+     * 入れ物が対象を指し返さなくても見る（指し返すものは本体として {@code ModProtectionBreaker} が別に扱う）
+     */
+    private static void applyOwnedComponents(Entity entity, List<Change> changes) {
+        Set<Object> visited = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        Set<Object> healthContainers = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        visited.add(entity);
+        List<Object> frontier = new ArrayList<>();
+        frontier.add(entity);
+        IN_COMPONENT.set(Boolean.TRUE);
+        COMPONENT_OWNER.set(entity instanceof net.minecraft.world.entity.LivingEntity living
+                && (!(living instanceof net.minecraft.world.entity.player.Player) || isForeign(living.getClass()))
+                ? living : null);
+        try {
+            for (int depth = 0; depth < COMPONENT_DEPTH && !frontier.isEmpty(); depth++) {
+                List<Object> next = new ArrayList<>();
+                for (Object owner : frontier) {
+                    boolean ownerIsHealthContainer = healthContainers.contains(owner);
+                    for (Class<?> c = owner.getClass(); c != null && isForeign(c); c = c.getSuperclass()) {
+                        Field[] fields;
+                        try {
+                            fields = c.getDeclaredFields();
+                        } catch (Throwable t) {
+                            continue;
+                        }
+                        for (Field field : fields) {
+                            if (visited.size() >= COMPONENT_LIMIT) break;
+                            if (Modifier.isStatic(field.getModifiers()) || field.getType().isPrimitive()
+                                    || VALUE_TYPES.contains(field.getType())) continue;
+                            try {
+                                field.setAccessible(true);
+                                Object value = field.get(owner);
+                                if (value == null || value instanceof Entity || value instanceof Collection<?>
+                                        || value instanceof Map<?, ?> || value instanceof CompoundTag || value instanceof Class<?>
+                                        || value.getClass().isArray() || value.getClass().isEnum()
+                                        || !isForeign(value.getClass()) || !visited.add(value)
+                                        || referencesOtherEntity(value, entity)) continue;
+                                boolean isHealthContainer = ownerIsHealthContainer
+                                        || isHealthOrGuardContainerField(field.getName(), value.getClass().getSimpleName());
+                                if (isHealthContainer) {
+                                    healthContainers.add(value);
+                                }
+                                boolean prevHealthContainer = IN_HEALTH_OR_GUARD_CONTAINER.get();
+                                IN_HEALTH_OR_GUARD_CONTAINER.set(isHealthContainer);
+                                try {
+                                    applyObjectFields(value, Source.OWN_FIELD, BREAK_COMPONENT, changes);
+                                } finally {
+                                    IN_HEALTH_OR_GUARD_CONTAINER.set(prevHealthContainer);
+                                }
+                                next.add(value);
+                            } catch (Throwable ignored) {}
+                        }
+                    }
+                }
+                frontier = next;
+            }
+        } finally {
+            IN_COMPONENT.set(Boolean.FALSE);
+            IN_HEALTH_OR_GUARD_CONTAINER.set(Boolean.FALSE);
+            COMPONENT_OWNER.remove();
+        }
+    }
+
+    private static boolean isHealthOrGuardContainerField(String fieldName, String typeSimpleName) {
+        String lowerField = bareName(fieldName).toLowerCase(java.util.Locale.ROOT);
+        String lowerType = bareName(typeSimpleName).toLowerCase(java.util.Locale.ROOT);
+        return lowerField.equals("health") || lowerField.equals("hp")
+                || isCustomHealthOrValueName(fieldName)
+                || isExtendedProtectiveOnTarget(fieldName)
+                || lowerType.contains("health") || lowerType.contains("hp")
+                || lowerType.contains("shield")
+                || isCustomHealthOrValueName(typeSimpleName);
+    }
+
+    /** 入れ物が対象以外のエンティティを指していれば共有物とみなす（別の個体の管理物を巻き込まない） */
+    private static boolean referencesOtherEntity(Object holder, Entity owner) {
+        for (Class<?> c = holder.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
+            Field[] fields;
+            try {
+                fields = c.getDeclaredFields();
+            } catch (Throwable t) {
+                return true;
+            }
+            for (Field field : fields) {
+                if (Modifier.isStatic(field.getModifiers()) || field.getType().isPrimitive()) continue;
+                try {
+                    field.setAccessible(true);
+                    Object value = field.get(holder);
+                    if (value instanceof Entity other && other != owner) return true;
+                    if (value instanceof java.lang.ref.Reference<?> ref && ref.get() instanceof Entity other && other != owner) return true;
+                } catch (Throwable ignored) {}
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 名前が難読化されていても、同じ正の値（20 以上）を持つ数値フィールドがちょうど 2 つあれば「現在 HP と最大 HP の組」とみなして 0 にする
+     * （独自のスケールで HP を持ち、vanilla の HP と一致しない MOD 向け）
+     */
+    private static void applyPairedHealthFields(Entity entity, List<Change> changes) {
+        if (!(entity instanceof net.minecraft.world.entity.LivingEntity)
+                || (entity instanceof net.minecraft.world.entity.player.Player && !isForeign(entity.getClass()))) return;
+        Map<Double, List<Field>> groups = new java.util.HashMap<>();
+        for (Class<?> c = entity.getClass(); c != null && isForeign(c); c = c.getSuperclass()) {
+            for (Field field : c.getDeclaredFields()) {
+                int m = field.getModifiers();
+                if (Modifier.isStatic(m)
+                        || (field.getType() != float.class && field.getType() != double.class)
+                        || isIgnoredSpatialOrTimerName(field.getName())) continue;
+                try {
+                    field.setAccessible(true);
+                    double value = ((Number) field.get(entity)).doubleValue();
+                    if (!Double.isFinite(value) || value < 20.0D) continue;
+                    groups.computeIfAbsent(value, k -> new ArrayList<>()).add(field);
+                } catch (Throwable ignored) {}
+            }
+        }
+        for (List<Field> group : groups.values()) {
+            if (group.size() != 2) continue;
+            for (Field field : group) {
+                if (writeFieldValue(entity, field, field.getType() == float.class ? 0.0F : 0.0D)) {
+                    changes.add(new Change(Source.OWN_FIELD, field.getDeclaringClass().getSimpleName(), field.getName(),
+                            CallerAttribution.modOf(field.getDeclaringClass())));
+                }
+            }
+        }
+    }
+
+    /** final ではないフィールドはリフレクションで、final なプリミティブ・String は Unsafe で書き込む */
+    private static boolean writeFieldValue(Object holder, Field field, @Nullable Object value) {
+        if (!Modifier.isFinal(field.getModifiers())) {
+            try {
+                field.set(holder, value);
+                return true;
+            } catch (Throwable ignored) {}
+        }
+        long offset = com.automatavalkyries.util.UnsafeHelper.objectFieldOffset(field);
+        if (offset < 0 || !com.automatavalkyries.util.UnsafeHelper.isAvailable()) return false;
+        Class<?> type = field.getType();
+        try {
+            if (type == boolean.class && value instanceof Boolean b) {
+                com.automatavalkyries.util.UnsafeHelper.putBoolean(holder, offset, b);
+            } else if (type == int.class && value instanceof Number n) {
+                com.automatavalkyries.util.UnsafeHelper.putInt(holder, offset, n.intValue());
+            } else if (type == long.class && value instanceof Number n) {
+                com.automatavalkyries.util.UnsafeHelper.putLong(holder, offset, n.longValue());
+            } else if (type == float.class && value instanceof Number n) {
+                com.automatavalkyries.util.UnsafeHelper.putFloat(holder, offset, n.floatValue());
+            } else if (type == double.class && value instanceof Number n) {
+                com.automatavalkyries.util.UnsafeHelper.putDouble(holder, offset, n.doubleValue());
+            } else if (type == byte.class && value instanceof Number n) {
+                com.automatavalkyries.util.UnsafeHelper.getUnsafe().putByte(holder, offset, n.byteValue());
+            } else if (type == short.class && value instanceof Number n) {
+                com.automatavalkyries.util.UnsafeHelper.getUnsafe().putShort(holder, offset, n.shortValue());
+            } else if (!type.isPrimitive()) {
+                com.automatavalkyries.util.UnsafeHelper.putObject(holder, offset, value);
+            } else {
+                return false;
+            }
+            return true;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    /** {@code Optional<Boolean/Number/String>} に入った状態を書き換える（final でも Unsafe で差し替える） */
+    private static void applyOptionalField(Object holder, Field field, String mod, Source source, Policy policy, List<Change> changes) {
+        if (!policy.relevant(field.getName())) return;
+        try {
+            field.setAccessible(true);
+            if (!(field.get(holder) instanceof java.util.Optional<?> optional) || optional.isEmpty()) return;
+            Object current = optional.get();
+            Class<?> valType = current instanceof Boolean ? boolean.class
+                    : current instanceof Integer ? int.class
+                    : current instanceof Long ? long.class
+                    : current instanceof Float ? float.class
+                    : current instanceof Double ? double.class
+                    : current instanceof String ? String.class : null;
+            if (valType == null) return;
+            Object decided = policy.decide(field.getName(), valType, current);
+            if (decided == null || decided.equals(current)) return;
+            java.util.Optional<Object> replacement = java.util.Optional.of(decided);
+            try {
+                field.set(holder, replacement);
+            } catch (Throwable denied) {
+                com.automatavalkyries.util.UnsafeHelper.putObject(holder,
+                        com.automatavalkyries.util.UnsafeHelper.objectFieldOffset(field), replacement);
+            }
+            changes.add(new Change(source, field.getDeclaringClass().getSimpleName(), field.getName(), mod));
+        } catch (Throwable ignored) {}
+    }
+
+    /** HP の照合に使う持ち主（エンティティ自身か、コンポーネントを見ているときの持ち主）。通常のバニラプレイヤーは除くが他 MOD の Player サブクラスは対象 */
+    @Nullable
+    private static Object hpOwner(Object holder) {
+        if (holder instanceof net.minecraft.world.entity.LivingEntity le) {
+            return (le instanceof net.minecraft.world.entity.player.Player && !isForeign(le.getClass())) ? null : le;
+        }
+        return IN_COMPONENT.get() ? COMPONENT_OWNER.get() : null;
     }
 
     private static void applyObjectFields(Object holder, Source source, Policy policy, List<Change> changes) {
@@ -477,23 +939,112 @@ public final class StateScanner {
     @Nullable
     private static volatile Map<EntityDataAccessor<?>, DataKey> injectedKeys;
 
+    @Nullable
+    private static final Field ENTITY_DATA_FIELD = findFirstField(Entity.class, "entityData", "f_19804_");
+    @Nullable
+    private static final Field SYNCHED_ITEMS_FIELD = findFieldByType(SynchedEntityData.class, it.unimi.dsi.fastutil.ints.Int2ObjectMap.class);
+
+    private static final ClassValue<Set<EntityDataAccessor<?>>> VANILLA_DATA_ACCESSORS = new ClassValue<>() {
+        @Override
+        protected Set<EntityDataAccessor<?>> computeValue(Class<?> type) {
+            Set<EntityDataAccessor<?>> set = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+            for (Class<?> c = type; c != null && c != Object.class; c = c.getSuperclass()) {
+                if (isForeign(c)) continue;
+                for (Field field : c.getDeclaredFields()) {
+                    if (!Modifier.isStatic(field.getModifiers()) || field.getType() != EntityDataAccessor.class) continue;
+                    if (InjectedMembers.fields(c).stream().anyMatch(inf -> inf.field().equals(field))) continue;
+                    try {
+                        field.setAccessible(true);
+                        if (field.get(null) instanceof EntityDataAccessor<?> acc) set.add(acc);
+                    } catch (Throwable ignored) {}
+                }
+            }
+            return set;
+        }
+    };
+
     private static void applySynchedData(Entity entity, Policy policy, List<Change> changes) {
-        SynchedEntityData data = entity.getEntityData();
+        SynchedEntityData data = readEntityData(entity);
+        boolean foreignEntity = isForeign(entity.getClass());
+        Set<EntityDataAccessor<?>> handled = policy == BREAK_TARGET && foreignEntity
+                ? java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>())
+                : null;
         for (DataKey key : DATA_KEYS.get(entity.getClass())) {
-            if (!policy.relevant(key.name())) continue;
+            if (handled != null) handled.add(key.accessor());
+            boolean relevant = policy.relevant(key.name());
+            if (!relevant && !(policy == BREAK_TARGET && foreignEntity && !FlagDictionary.is(key.name(), FlagDictionary.Category.TIMER))) continue;
             try {
                 @SuppressWarnings("unchecked")
                 EntityDataAccessor<Object> accessor = (EntityDataAccessor<Object>) key.accessor();
                 Object current = data.get(accessor); // この個体に無い鍵なら例外（無視する）
                 Class<?> type = current instanceof Boolean ? boolean.class : current instanceof Float ? float.class
-                        : current instanceof Integer ? int.class : null;
+                        : current instanceof Integer ? int.class : current instanceof String ? String.class : null;
+                if (type == null && current instanceof CompoundTag tag && policy == BREAK_TARGET) {
+                    CompoundTag copy = tag.copy();
+                    int before = changes.size();
+                    applyCompound(copy, "data." + key.name(), policy, changes, 0);
+                    if (changes.size() > before) data.set(accessor, copy);
+                    continue;
+                }
                 if (type == null) continue;
-                Object value = policy.decide(key.name(), type, current);
+                Object value = relevant ? policy.decide(key.name(), type, current) : null;
+                if (value == null && policy == BREAK_TARGET && foreignEntity && !FlagDictionary.is(key.name(), FlagDictionary.Category.TIMER)) {
+                    if (current instanceof Float f && f > 0.0F) {
+                        value = 0.0F;
+                    } else if (current instanceof String s && isPositiveNumericString(s)) {
+                        value = "-1.0";
+                    }
+                }
                 if (value == null) continue;
                 data.set(accessor, value);
                 changes.add(new Change(Source.SYNCHED_DATA, "data", key.name(), key.mod()));
             } catch (Throwable ignored) {}
         }
+
+        // 非公開・非 static な EntityDataAccessor を itemsById から直接掃討（BREAK_TARGET かつ他 MOD エンティティ）
+        if (policy == BREAK_TARGET && foreignEntity && SYNCHED_ITEMS_FIELD != null && handled != null) {
+            try {
+                if (SYNCHED_ITEMS_FIELD.get(data) instanceof it.unimi.dsi.fastutil.ints.Int2ObjectMap<?> itemsMap) {
+                    Set<EntityDataAccessor<?>> vanillaAccessors = VANILLA_DATA_ACCESSORS.get(entity.getClass());
+                    String mod = CallerAttribution.modOf(entity.getClass());
+                    for (Object rawItem : itemsMap.values()) {
+                        if (!(rawItem instanceof SynchedEntityData.DataItem<?> item)) continue;
+                        EntityDataAccessor<?> rawAcc = item.getAccessor();
+                        if (handled.contains(rawAcc) || vanillaAccessors.contains(rawAcc)) continue;
+                        Object current = item.getValue();
+                        Object nextValue = null;
+                        if (current instanceof Float f && f > 0.0F) {
+                            nextValue = 0.0F;
+                        } else if (current instanceof String s && isPositiveNumericString(s)) {
+                            nextValue = "-1.0";
+                        } else if (current instanceof CompoundTag tag) {
+                            CompoundTag copy = tag.copy();
+                            int before = changes.size();
+                            applyCompound(copy, "itemsById.id_" + rawAcc.getId(), policy, changes, 0);
+                            if (changes.size() > before) nextValue = copy;
+                        } else if (current instanceof Integer iv && iv > 0 && entity instanceof net.minecraft.world.entity.LivingEntity living
+                                && matchesHealthOrObfuscatedPositive(living, "id_" + rawAcc.getId(), iv)) {
+                            nextValue = 0;
+                        }
+                        if (nextValue != null) {
+                            @SuppressWarnings("unchecked")
+                            EntityDataAccessor<Object> acc = (EntityDataAccessor<Object>) rawAcc;
+                            data.set(acc, nextValue);
+                            changes.add(new Change(Source.SYNCHED_DATA, "itemsById", "id_" + rawAcc.getId(), mod));
+                        }
+                    }
+                }
+            } catch (Throwable ignored) {}
+        }
+    }
+
+    private static SynchedEntityData readEntityData(Entity entity) {
+        if (ENTITY_DATA_FIELD != null) {
+            try {
+                if (ENTITY_DATA_FIELD.get(entity) instanceof SynchedEntityData data) return data;
+            } catch (Throwable ignored) {}
+        }
+        return entity.getEntityData();
     }
 
     /** そのクラス階層の、他 MOD の同期データの鍵（既存クラスに足されたもの＋他 MOD のクラスが宣言したもの） */
@@ -545,20 +1096,28 @@ public final class StateScanner {
     // ---- 永続データ --------------------------------------------------------------
 
     private static void applyPersistent(Entity entity, Policy policy, List<Change> changes) {
-        applyCompound(entity.getPersistentData(), "persistentData", policy, changes, 0);
+        CompoundTag tag = entity.getPersistentData();
+        java.util.stream.Stream.of(tag).forEach(t -> applyCompound(t, "persistentData", policy, changes, 0));
     }
 
     private static void applyCompound(CompoundTag tag, String path, Policy policy, List<Change> changes, int depth) {
         List<String> remove = new ArrayList<>();
+        List<String> zeroHealthKeys = new ArrayList<>();
         for (String key : tag.getAllKeys()) {
             if (key.startsWith(AutomataValkyries.MODID)) continue;
-            if (policy.removeKey(key)) {
+            if (policy == BREAK_TARGET && isCustomHealthOrValueName(key) && tag.get(key) instanceof net.minecraft.nbt.NumericTag) {
+                zeroHealthKeys.add(key);
+            } else if (policy.removeKey(key)) {
                 remove.add(key);
             } else if (tag.getTagType(key) == Tag.TAG_STRING && policy.relevant(tag.getString(key))) {
                 remove.add(key);
             } else if (depth <= 2 && tag.getTagType(key) == Tag.TAG_COMPOUND) {
                 applyCompound(tag.getCompound(key), path + "." + key, policy, changes, depth + 1);
             }
+        }
+        for (String key : zeroHealthKeys) {
+            tag.putFloat(key, -1.0F);
+            changes.add(new Change(Source.PERSISTENT, path, key, modOfKey(key)));
         }
         for (String key : remove) {
             tag.remove(key);
@@ -571,7 +1130,7 @@ public final class StateScanner {
         return colon > 0 ? key.substring(0, colon) : CallerAttribution.UNKNOWN;
     }
 
-    // ---- 読むだけ（辞書の監視用） ----------------------------------------------------
+    // ---- 読むだけ（辞書の監視・ForeignStateBaseline 用） ----------------------------------------------------
 
     /** 読んだ 1 件。値は Boolean か Number */
     public record Observed(Source source, String holder, String name, String mod, Object value) {
@@ -585,7 +1144,7 @@ public final class StateScanner {
     private static final Field PERSISTENT_DATA = findField(Entity.class, "persistentData");
 
     /**
-     * 他 MOD の状態を読むだけ（{@link FlagWatchAgent} 用）。書き込まず、他 MOD のコード（getter）も呼ばない。
+     * 他 MOD の状態を読むだけ（{@link FlagWatchAgent} / {@code ForeignStateBaseline} 用）。書き込まず、他 MOD のコード（getter）も呼ばない。
      * 読む場所は {@link #apply} と同じだが、インターフェースは getter を呼ぶことになるので読まない。
      * 永続データは {@code getPersistentData()} が空の入れ物を作ってしまうので、フィールドを直接読む。
      */
@@ -595,6 +1154,7 @@ public final class StateScanner {
             for (InjectedMembers.InjectedField injected : InjectedMembers.fields(c)) {
                 if (CallerAttribution.SELF.equals(injected.mod())) continue;
                 observeField(entity, injected.field(), injected.mod(), Source.INJECTED_FIELD, out);
+                observeInjectedObject(entity, injected, out);
             }
         }
         for (Class<?> c = type; c != null && isForeign(c); c = c.getSuperclass()) {
@@ -618,11 +1178,68 @@ public final class StateScanner {
         }
     }
 
-    private static void observeField(Object holder, Field field, String mod, Source source, java.util.function.Consumer<Observed> out) {
-        if (Modifier.isStatic(field.getModifiers()) || !VALUE_TYPES.contains(field.getType())) return;
+    private static void observeInjectedObject(Entity entity, InjectedMembers.InjectedField injected, java.util.function.Consumer<Observed> out) {
+        Field field = injected.field();
+        if (Modifier.isStatic(field.getModifiers()) || field.getType().isPrimitive() || VALUE_TYPES.contains(field.getType())) return;
         try {
             field.setAccessible(true);
-            out.accept(new Observed(source, field.getDeclaringClass().getSimpleName(), field.getName(), mod, field.get(holder)));
+            Object data = field.get(entity);
+            if (data == null || data instanceof Entity || data instanceof Collection<?> || data instanceof Map<?, ?>
+                    || data.getClass().isArray() || !isForeign(data.getClass())) return;
+            for (Class<?> c = data.getClass(); c != null && isForeign(c); c = c.getSuperclass()) {
+                String mod = CallerAttribution.modOf(c);
+                for (Field f : c.getDeclaredFields()) observeField(data, f, mod, Source.INJECTED_FIELD, out);
+            }
+        } catch (Throwable ignored) {}
+    }
+
+    private static void observeField(Object holder, Field field, String mod, Source source, java.util.function.Consumer<Observed> out) {
+        if (Modifier.isStatic(field.getModifiers())) return;
+        Class<?> fType = field.getType();
+        if (VALUE_TYPES.contains(fType)) {
+            try {
+                field.setAccessible(true);
+                out.accept(new Observed(source, field.getDeclaringClass().getSimpleName(), field.getName(), mod, field.get(holder)));
+            } catch (Throwable ignored) {}
+            return;
+        }
+        // AtomicBoolean / AtomicInteger / AtomicLong / AtomicReference / Optional / 1要素配列の読み取り
+        boolean isSupportedContainer = fType == java.util.concurrent.atomic.AtomicBoolean.class
+                || fType == java.util.concurrent.atomic.AtomicInteger.class
+                || fType == java.util.concurrent.atomic.AtomicLong.class
+                || fType == java.util.concurrent.atomic.AtomicReference.class
+                || fType == java.util.Optional.class
+                || fType == float[].class || fType == double[].class || fType == int[].class || fType == boolean[].class;
+        if (!isSupportedContainer) return;
+        try {
+            field.setAccessible(true);
+            Object raw = field.get(holder);
+            if (raw == null) return;
+            Object unwrapped = null;
+            if (raw instanceof java.util.concurrent.atomic.AtomicBoolean ab) {
+                unwrapped = ab.get();
+            } else if (raw instanceof java.util.concurrent.atomic.AtomicInteger ai) {
+                unwrapped = ai.get();
+            } else if (raw instanceof java.util.concurrent.atomic.AtomicLong al) {
+                unwrapped = al.get();
+            } else if (raw instanceof java.util.concurrent.atomic.AtomicReference<?> ar) {
+                Object inner = ar.get();
+                if (inner instanceof Boolean || inner instanceof Number) unwrapped = inner;
+            } else if (raw instanceof java.util.Optional<?> opt && opt.isPresent()) {
+                Object inner = opt.get();
+                if (inner instanceof Boolean || inner instanceof Number) unwrapped = inner;
+            } else if (raw instanceof float[] arr && arr.length == 1) {
+                unwrapped = arr[0];
+            } else if (raw instanceof double[] arr && arr.length == 1) {
+                unwrapped = arr[0];
+            } else if (raw instanceof int[] arr && arr.length == 1) {
+                unwrapped = arr[0];
+            } else if (raw instanceof boolean[] arr && arr.length == 1) {
+                unwrapped = arr[0];
+            }
+            if (unwrapped instanceof Boolean || unwrapped instanceof Number) {
+                out.accept(new Observed(source, field.getDeclaringClass().getSimpleName(), field.getName(), mod, unwrapped));
+            }
         } catch (Throwable ignored) {}
     }
 
@@ -680,6 +1297,15 @@ public final class StateScanner {
         }
     }
 
+    @Nullable
+    private static Field findFirstField(Class<?> owner, String... names) {
+        for (String name : names) {
+            Field f = findField(owner, name);
+            if (f != null) return f;
+        }
+        return null;
+    }
+
     // ---- 共通 --------------------------------------------------------------
 
     /** 害の無い値（boolean は false、数値は 0）。既にそうなら null */
@@ -697,6 +1323,83 @@ public final class StateScanner {
         if (type == java.util.UUID.class) return null;
         if (Entity.class.isAssignableFrom(type)) return null;
         return null;
+    }
+
+    public static boolean isCustomHealthOrValueName(String name) {
+        if (name == null || name.isEmpty() || FlagDictionary.is(name, FlagDictionary.Category.TIMER)) return false;
+        if (FlagDictionary.is(name, FlagDictionary.Category.HEALTH_TAMPER)) return true;
+        String lower = bareName(name).toLowerCase(java.util.Locale.ROOT);
+        return lower.contains("helpo") || lower.equals("m_health") || lower.equals("mhealth")
+                || lower.equals("data_value_id") || lower.equals("datavalueid") || lower.equals("data_health_id")
+                || lower.equals("datahealthid") || lower.contains("customhealth") || lower.contains("realhealth")
+                || lower.contains("truehealth") || lower.contains("bosshp") || lower.contains("shieldhp")
+                || lower.contains("realhp") || lower.contains("truehp") || lower.contains("customhp");
+    }
+
+    public static boolean isExtendedDeathStateField(String name) {
+        return com.automatavalkyries.annihilate.FlagKillPredicates.isDeathStateField(name);
+    }
+
+    public static boolean isExtendedProtectiveOnTarget(String name) {
+        return com.automatavalkyries.annihilate.FlagKillPredicates.protectiveOnTarget(name);
+    }
+
+    public static boolean isPositiveNumericString(@Nullable Object value) {
+        if (!(value instanceof String text) || text.isEmpty() || text.length() > 32) return false;
+        try {
+            float parsed = Float.parseFloat(text.trim());
+            return Float.isFinite(parsed) && parsed > 0.0F;
+        } catch (NumberFormatException ignored) {
+            return false;
+        }
+    }
+
+    private static boolean isNumericOrStringType(Class<?> type) {
+        return type == float.class || type == double.class || type == int.class || type == long.class || type == String.class;
+    }
+
+    private static boolean isIgnoredSpatialOrTimerName(String name) {
+        if (name == null || name.isEmpty() || FlagDictionary.is(name, FlagDictionary.Category.TIMER)) return true;
+        String lower = bareName(name).toLowerCase(java.util.Locale.ROOT);
+        return lower.equals("x") || lower.equals("y") || lower.equals("z")
+                || lower.endsWith("pos") || lower.endsWith("coord") || lower.contains("yaw") || lower.contains("pitch")
+                || lower.contains("rot") || lower.contains("scale") || lower.contains("width") || lower.contains("height")
+                || lower.contains("size") || lower.contains("speed") || lower.contains("range") || lower.contains("radius")
+                || lower.contains("color") || lower.contains("alpha") || lower.contains("anim") || lower.contains("frame")
+                || lower.contains("age") || lower.contains("tick") || lower.contains("time") || lower.contains("delay")
+                || lower.contains("cooldown") || lower.equals("id") || lower.endsWith("id");
+    }
+
+    private static boolean isObfuscatedName(String name) {
+        String bare = bareName(name);
+        if (bare.length() <= 2) return true;
+        if (bare.startsWith("f_") && bare.endsWith("_")) return true;
+        if (bare.startsWith("field_")) return true;
+        return false;
+    }
+
+    private static boolean matchesHealthOrObfuscatedPositive(net.minecraft.world.entity.LivingEntity living, String fieldName, @Nullable Object current) {
+        double val;
+        if (current instanceof Number n) {
+            val = n.doubleValue();
+        } else if (current instanceof String s && isPositiveNumericString(s)) {
+            val = Double.parseDouble(s.trim());
+        } else {
+            return false;
+        }
+        if (!Double.isFinite(val) || val <= 0.0D) return false;
+        try {
+            float maxHp = living.getMaxHealth();
+            if (maxHp >= 10.0F && Math.abs(val - maxHp) <= 0.05D) return true;
+            float curHp = living.getHealth();
+            if (curHp >= 10.0F && Math.abs(val - curHp) <= 0.05D) return true;
+        } catch (Throwable ignored) {}
+        if (IN_HEALTH_OR_GUARD_CONTAINER.get()) {
+            return current instanceof Float || current instanceof Double || current instanceof Integer
+                    || current instanceof Long || current instanceof String;
+        }
+        if (IN_COMPONENT.get()) return false; // 共有されているかもしれない入れ物では、名前だけでは決めない
+        return isObfuscatedName(fieldName) && (current instanceof Float || current instanceof Double || current instanceof String);
     }
 
     private static boolean isForeign(Class<?> type) {

@@ -131,6 +131,28 @@ public class TerminusRegressionGameTests {
         helper.succeed();
     }
 
+    @GameTest(template = "empty", timeoutTicks = 40)
+    public static void terminusRetriesUnconfirmedPlayerDeath(GameTestHelper helper) {
+        CountingPlayer target = new CountingPlayer(helper.getLevel());
+        target.failDeath = true;
+        helper.assertFalse(TerminusEngine.executeTerminus(helper.getLevel(), null, target),
+                "Rejected death was reported as confirmed");
+        int failedCalls = target.deathCalls;
+        target.failDeath = false;
+        helper.runAfterDelay(8, () -> {
+            try {
+                helper.assertTrue(TerminusPlayerExecutor.isPlayerProperlyKilled(target),
+                        "Server tick did not retry the unconfirmed death");
+                helper.assertTrue(target.deathCalls > failedCalls, "Rejected die() was never retried");
+                helper.assertFalse(TerminusEngine.hasTrackedTarget(target.getUUID()),
+                        "Confirmed death remained queued for retries");
+            } finally {
+                TerminusEngine.untrackTarget(target.getUUID());
+            }
+            helper.succeed();
+        });
+    }
+
     @GameTest(template = "empty", timeoutTicks = 80)
     public static void queuedAreaTerminusIsBudgetedAndCoalesced(GameTestHelper helper) {
         var attacker = helper.makeMockPlayer();
@@ -151,6 +173,7 @@ public class TerminusRegressionGameTests {
             });
         }
         helper.runAfterDelay(31, () -> {
+            java.lang.ref.Reference.reachabilityFence(attacker);
             helper.assertTrue(completed[0] == 12 && previous[0] == 12, "Queue did not complete all targets: " + completed[0]);
             helper.succeed();
         });

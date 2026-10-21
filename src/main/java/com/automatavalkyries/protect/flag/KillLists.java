@@ -25,7 +25,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 他 MOD の「抹殺予定の一覧」（static な Collection / Map）を見つけて覚え、保護対象を毎 Tick そこから外す（準汎用）。
+ * 他 MOD の抹殺・停止・HP 改ざんの一覧（static な Collection / Map）を見つけて覚え、保護対象を毎 Tick そこから外す（準汎用）。
  * <p>
  * 即死 MOD は消した個体を一覧に載せ、後から攻撃し直す・再登録を拒否する（IMDS の強制死亡リスト、ECA の消去中の隔離、
  * Omni-Mobs の消去予約、No-Sugar の消去済み UUID 等）。一覧は攻撃したクラス自身ではなく、そこから呼ぶ別のクラスにあることが多い。
@@ -70,7 +70,43 @@ public final class KillLists {
                 if (isForeign(type)) candidates.add(type);
             } catch (Throwable ignored) {}
         }
+        if (candidates.size() == 1) candidates.addAll(relatedClasses(attacker)); // クラスファイルが読めない（メモリ上で作られた）クラス
         for (Class<?> type : candidates) collectLists(type);
+    }
+
+    /**
+     * そのクラスが関わる他 MOD のクラス。jar の元のクラスファイル（またはエージェント捕獲キャッシュ）が読めればバイトコードの参照先
+     * （static 呼び出し・static フィールド・new）、読めなければ（{@code Unsafe.defineClass} でメモリ上に作られたクラス等）フィールドの型・
+     * メソッドの引数と戻り値の型・内側／外側のクラスから推測する。クラスは初期化しない
+     */
+    public static Set<Class<?>> relatedClasses(Class<?> type) {
+        Set<Class<?>> out = new LinkedHashSet<>();
+        Set<String> owners = referencedClasses(type);
+        if (!owners.isEmpty()) {
+            for (String owner : owners) {
+                try {
+                    Class<?> found = Class.forName(owner.replace('/', '.'), false, type.getClassLoader());
+                    if (isForeign(found) && out.size() < 64) out.add(found);
+                } catch (Throwable ignored) {}
+            }
+            return out;
+        }
+        try {
+            for (Field field : type.getDeclaredFields()) addRelated(field.getType(), type, out);
+            for (java.lang.reflect.Method method : type.getDeclaredMethods()) {
+                addRelated(method.getReturnType(), type, out);
+                for (Class<?> param : method.getParameterTypes()) addRelated(param, type, out);
+            }
+            for (Class<?> inner : type.getDeclaredClasses()) addRelated(inner, type, out);
+            addRelated(type.getEnclosingClass(), type, out);
+        } catch (Throwable ignored) {}
+        return out;
+    }
+
+    private static void addRelated(@Nullable Class<?> candidate, Class<?> self, Set<Class<?>> out) {
+        while (candidate != null && candidate.isArray()) candidate = candidate.getComponentType();
+        if (candidate == null || candidate == self || candidate.isPrimitive() || out.size() >= 64) return;
+        if (isForeign(candidate)) out.add(candidate);
     }
 
     /** 保護対象を、覚えている一覧から外す（毎 Tick） */
@@ -116,9 +152,14 @@ public final class KillLists {
             for (InjectedMembers.InjectedField injected : InjectedMembers.fields(c)) {
                 if (CallerAttribution.SELF.equals(injected.mod())) continue;
                 Field field = injected.field();
-                if (isListField(field) && (isKillName(field.getName()) || isStopName(field.getName()))) remember(field, injected.mod());
+                if (isListField(field) && (isKillName(field.getName()) || isStopName(field.getName()) || isTamperName(field.getName()))) remember(field, injected.mod());
             }
         }
+        try {
+            for (Class<?> agentClass : com.automatavalkyries.protect.plus.EprotectPlusLink.findForeignAgentAndHiddenClasses()) {
+                if (agentClass != null) discoverFrom(agentClass);
+            }
+        } catch (Throwable ignored) {}
     }
 
     private static void collectLists(Class<?> type) {
@@ -126,7 +167,8 @@ public final class KillLists {
             if (PENDING.size() < 1024) PENDING.add(type);
             return;
         }
-        boolean killClass = isKillName(type.getSimpleName()) || isStopName(type.getSimpleName());
+        boolean killClass = isKillName(type.getSimpleName()) || isStopName(type.getSimpleName())
+                || isTamperName(type.getSimpleName()) || isAgentHookClass(type.getSimpleName());
         Field[] fields;
         try {
             fields = type.getDeclaredFields();
@@ -137,7 +179,7 @@ public final class KillLists {
             if (!isListField(field)) continue;
             String name = field.getName();
             if (FlagDictionary.is(name, FlagDictionary.Category.GUARD) && !isKillName(name)) continue;
-            if (killClass || isKillName(name) || isStopName(name)) remember(field, CallerAttribution.modOf(type));
+            if (killClass || isKillName(name) || isStopName(name) || isTamperName(name)) remember(field, CallerAttribution.modOf(type));
         }
     }
 
@@ -174,36 +216,71 @@ public final class KillLists {
                 && !c.contains(FlagDictionary.Category.GUARD);
     }
 
-    /** そのクラスのバイトコードが参照しているクラス（static 呼び出し・static フィールド・new の相手） */
+    /** HP 改ざんの一覧。守りを表す名前は推測による分類でも除外する。 */
+    private static boolean isTamperName(String name) {
+        Set<FlagDictionary.Category> categories = FlagDictionary.classify(name);
+        if (categories.contains(FlagDictionary.Category.GUARD)) return false;
+        if (categories.contains(FlagDictionary.Category.HEALTH_TAMPER)) return true;
+        String lower = name.toLowerCase(java.util.Locale.ROOT);
+        return (lower.contains("health") || lower.contains("hp"))
+                && (lower.contains("map") || lower.contains("list") || lower.contains("set")
+                || lower.contains("lock") || lower.contains("record") || lower.contains("helper")
+                || lower.contains("hook") || lower.contains("agent"));
+    }
+
+    private static boolean isAgentHookClass(String simpleName) {
+        if (simpleName == null || simpleName.isEmpty()) return false;
+        String lower = simpleName.toLowerCase(java.util.Locale.ROOT);
+        return (lower.contains("agent") || lower.contains("transformer") || lower.contains("bytecode"))
+                && (lower.contains("health") || lower.contains("hp") || lower.contains("kill")
+                || lower.contains("helper") || lower.contains("hook"));
+    }
+
+    /** そのクラスのバイトコードが参照しているクラス（static 呼び出し・static フィールド・new の相手、およびエージェント捕獲キャッシュ） */
     private static Set<String> referencedClasses(Class<?> type) {
         Set<String> owners = new LinkedHashSet<>();
         String resource = type.getName().replace('.', '/') + ".class";
         ClassLoader loader = type.getClassLoader();
         try (InputStream in = loader != null ? loader.getResourceAsStream(resource) : ClassLoader.getSystemResourceAsStream(resource)) {
-            if (in == null) return owners;
-            new ClassReader(in).accept(new ClassVisitor(Opcodes.ASM9) {
-                @Override
-                public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
-                    return new MethodVisitor(Opcodes.ASM9) {
-                        @Override
-                        public void visitMethodInsn(int opcode, String owner, String methodName, String desc, boolean isInterface) {
-                            if (opcode == Opcodes.INVOKESTATIC) owners.add(owner);
-                        }
+            if (in != null) {
+                new ClassReader(in).accept(new ClassVisitor(Opcodes.ASM9) {
+                    @Override
+                    public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
+                        return new MethodVisitor(Opcodes.ASM9) {
+                            @Override
+                            public void visitMethodInsn(int opcode, String owner, String methodName, String desc, boolean isInterface) {
+                                if (opcode == Opcodes.INVOKESTATIC) owners.add(owner);
+                            }
 
-                        @Override
-                        public void visitFieldInsn(int opcode, String owner, String fieldName, String desc) {
-                            if (opcode == Opcodes.GETSTATIC || opcode == Opcodes.PUTSTATIC) owners.add(owner);
-                        }
+                            @Override
+                            public void visitFieldInsn(int opcode, String owner, String fieldName, String desc) {
+                                if (opcode == Opcodes.GETSTATIC || opcode == Opcodes.PUTSTATIC) owners.add(owner);
+                            }
 
-                        @Override
-                        public void visitTypeInsn(int opcode, String typeName) {
-                            if (opcode == Opcodes.NEW) owners.add(typeName);
-                        }
-                    };
-                }
-            }, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
+                            @Override
+                            public void visitTypeInsn(int opcode, String typeName) {
+                                if (opcode == Opcodes.NEW) owners.add(typeName);
+                            }
+
+                            @Override
+                            public void visitLdcInsn(Object value) {
+                                if (value instanceof org.objectweb.asm.Type t && t.getSort() == org.objectweb.asm.Type.OBJECT) {
+                                    owners.add(t.getInternalName());
+                                }
+                            }
+                        };
+                    }
+                }, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
+            }
         } catch (Throwable t) {
             AutomataValkyries.LOGGER.debug("[eprotect] Could not read {}", resource, t);
+        }
+        if (owners.isEmpty()) {
+            for (String dotName : com.automatavalkyries.protect.plus.EprotectPlusLink.getAgentReferencedClasses(type)) {
+                if (dotName != null && !dotName.isEmpty()) {
+                    owners.add(dotName.replace('.', '/'));
+                }
+            }
         }
         owners.remove(type.getName().replace('.', '/'));
         return owners;

@@ -98,6 +98,9 @@ tasks.register('eprotectPlusJar', Jar) {
     group = 'build'
     description = 'Builds the Eprotect+ Java agent'
     from sourceSets.eprotectplus.output
+    exclude 'com/automatavalkyries/eprotectplus/flag/FlagDictionaryInstalled.class'
+    from(sourceSets.agentcommon.output) { include 'com/automatavalkyries/agentcommon/Attacher.class' }
+    from(sourceSets.main.resources) { include 'automata_valkyries/flag_dictionary.json' }
     archiveFileName = "${mod_id}-eprotect-plus.jar"
     manifest {
         attributes([
@@ -114,6 +117,9 @@ tasks.register('flagDictionaryAgentJar', Jar) {
     group = 'build'
     description = 'Builds the Flag Dictionary protection Java agent'
     from sourceSets.eprotectplus.output
+    exclude 'com/automatavalkyries/eprotectplus/EprotectPlusInstalled.class'
+    from(sourceSets.agentcommon.output) { include 'com/automatavalkyries/agentcommon/Attacher.class' }
+    from(sourceSets.main.resources) { include 'automata_valkyries/flag_dictionary.json' }
     archiveFileName = "${mod_id}-flag-agent.jar"
     manifest {
         attributes([
@@ -125,6 +131,9 @@ tasks.register('flagDictionaryAgentJar', Jar) {
         ])
     }
 }
+// CODEX-owned agents use the existing config-driven attachment extension.
+bundledAgents += ['eprotect-plus', 'flag-agent']
+tasks.named('jar') { mustRunAfter 'eprotectPlusJar', 'flagDictionaryAgentJar' }
 tasks.named('assemble') {
     dependsOn 'valkyrieProtectJar'
     dependsOn 'lifeguardJar'
@@ -244,13 +253,17 @@ minecraft {
             if (project.hasProperty('withValkyrieProtect')) jvmArg "-javaagent:${valkyrieProtectJarFile.get().asFile.absolutePath}"
 
             // -PwithEprotectPlus / -PwithAllAgents / -PwithAllKillMods: Eprotect+ 高度防御・調査・迂回・真抹殺 Java エージェントを付けて起動する
+            def passiveCodeAgents = project.hasProperty('withMadness') || project.hasProperty('passiveAgents')
+            if (project.hasProperty('agentCollisionLimit')) {
+                jvmArg "-Dautomata_valkyries.agentCollisionLimit=${project.property('agentCollisionLimit')}"
+            }
             if (project.hasProperty('withEprotectPlus') || project.hasProperty('withAllAgents') || project.hasProperty('withAllKillMods')) {
-                jvmArg "-javaagent:${eprotectPlusJarFile.get().asFile.absolutePath}"
+                jvmArg "-javaagent:${eprotectPlusJarFile.get().asFile.absolutePath}${passiveCodeAgents ? '=passive' : ''}"
             }
 
             // -PwithFlagAgent / -PwithEprotectPlus / -PwithAllAgents / -PwithAllKillMods: フラグ辞書防護 Java エージェントを付けて起動する
             if (project.hasProperty('withFlagAgent') || project.hasProperty('withEprotectPlus') || project.hasProperty('withAllAgents') || project.hasProperty('withAllKillMods')) {
-                jvmArg "-javaagent:${flagDictionaryJarFile.get().asFile.absolutePath}"
+                jvmArg "-javaagent:${flagDictionaryJarFile.get().asFile.absolutePath}${passiveCodeAgents ? '=passive' : ''}"
             }
 
             // 外部 Java エージェントの読み込み:

@@ -2,6 +2,7 @@ package com.automatavalkyries.client;
 
 import com.automatavalkyries.AutomataValkyries;
 import com.automatavalkyries.annihilate.AnnihilationExecutionAgent;
+import com.automatavalkyries.annihilate.MadnessAnnihilation;
 import com.automatavalkyries.mixin.EntityAccessor;
 import com.automatavalkyries.mixin.EntityLookupAccessor;
 import com.automatavalkyries.mixin.client.ClientLevelAccessor;
@@ -64,6 +65,11 @@ public final class ClientAnnihilation {
             Entity entity = level.getEntity(id);
             if (entity instanceof net.minecraft.world.entity.player.Player) continue;
             if (entity instanceof com.automatavalkyries.protect.IEprotected) continue;
+            if (MadnessAnnihilation.isMadness(entity)) {
+                MadnessAnnihilation.removeClientEntity(entity);
+                forceRemove(level, entity);
+                continue;
+            }
             level.removeEntity(id, Entity.RemovalReason.DISCARDED);
         }
 
@@ -73,7 +79,7 @@ public final class ClientAnnihilation {
         for (Entity entity : level.entitiesForRendering()) {
             if (entity instanceof net.minecraft.world.entity.player.Player) continue; // プレイヤーは決して forceRemove しない
             if (entity instanceof com.automatavalkyries.protect.IEprotected) continue; // 保護対象は決して forceRemove しない
-            if (uuidSet.contains(entity.getUUID()) || idSet.contains(entity.getId())) leftovers.add(entity);
+            if (uuidSet.contains(MadnessAnnihilation.uuid(entity)) || idSet.contains(MadnessAnnihilation.id(entity))) leftovers.add(entity);
         }
         for (Entity entity : leftovers) {
             forceRemove(level, entity);
@@ -124,8 +130,8 @@ public final class ClientAnnihilation {
         EntityAccessor accessor = (EntityAccessor) entity;
         accessor.automata_valkyries$setRemovalReason(Entity.RemovalReason.DISCARDED);
 
-        boolean inLookup = lookup.automata_valkyries$getById().remove(entity.getId()) != null;
-        lookup.automata_valkyries$getByUuid().remove(entity.getUUID());
+        boolean inLookup = lookup.automata_valkyries$getById().remove(MadnessAnnihilation.id(entity)) != null;
+        lookup.automata_valkyries$getByUuid().remove(MadnessAnnihilation.uuid(entity));
 
         boolean inSection = false;
         EntitySectionStorage<Entity> sections = manager.automata_valkyries$getSectionStorage();
@@ -135,7 +141,7 @@ public final class ClientAnnihilation {
             }
         }
 
-        boolean ticking = com.automatavalkyries.annihilate.TickListEviction.remove(clientLevel.automata_valkyries$getTickingEntities(), entity);
+        boolean ticking = com.automatavalkyries.annihilate.TickListEviction.remove(clientLevel.automata_valkyries$getTickingEntities(), MadnessAnnihilation.id(entity));
 
         if (entity.isMultipartEntity() && entity.getParts() != null) {
             for (PartEntity<?> part : entity.getParts()) {
@@ -151,6 +157,7 @@ public final class ClientAnnihilation {
     @SubscribeEvent
     public static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
         AnnihilationExecutionAgent.clearMarks();
+        MadnessAnnihilation.resetSwitches();
     }
 
     @SubscribeEvent

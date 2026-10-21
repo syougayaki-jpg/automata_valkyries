@@ -221,8 +221,7 @@ public final class CallerAttribution {
     public static String modOfClassName(String className) {
         if (testPrefix != null && className.startsWith(testPrefix)) return testMod;
         if (className.startsWith("com.automatavalkyries.")) return SELF;
-        int dot = className.lastIndexOf('.');
-        String module = dot > 0 ? packageModules().get(className.substring(0, dot)) : null;
+        String module = findModuleByPackageHierarchy(className);
         return module != null ? moduleToMod(module) : UNKNOWN;
     }
 
@@ -230,13 +229,69 @@ public final class CallerAttribution {
         String name = type.getName();
         if (testPrefix != null && name.startsWith(testPrefix)) return testMod;
         if (name.startsWith("com.automatavalkyries.")) return SELF;
-        if (name.startsWith("net.minecraft.") || name.startsWith("com.mojang.")) return MINECRAFT;
         if (name.startsWith("net.minecraftforge.") && !name.startsWith("net.minecraftforge.eventbus.")) return FORGE;
 
         Module module = type.getModule();
-        if (!module.isNamed()) return UNKNOWN;
-        if (module.getLayer() != Entity.class.getModule().getLayer()) return PLATFORM;
+        Module mcModule = Entity.class.getModule();
+        if (name.startsWith("net.minecraft.") || name.startsWith("com.mojang.")) {
+            if (module == mcModule) return MINECRAFT;
+            if (module.isNamed()) {
+                if (module.getLayer() != mcModule.getLayer()) return MINECRAFT;
+                String mod = moduleToMod(module.getName());
+                return isForeign(mod) ? mod : MINECRAFT;
+            }
+            if (mcModule.getPackages().contains(type.getPackageName())) return MINECRAFT;
+            return resolveUnnamedForeignMod(name);
+        }
+
+        if (!module.isNamed()) return resolveUnnamedForeignMod(name);
+        if (module.getLayer() != mcModule.getLayer()) return PLATFORM;
         return moduleToMod(module.getName());
+    }
+
+    private static String resolveUnnamedForeignMod(String className) {
+        if (isPlatformOrLibraryClassName(className)) return UNKNOWN;
+        String module = findModuleByPackageHierarchy(className);
+        if (module != null) {
+            String mod = moduleToMod(module);
+            if (isForeign(mod)) return mod;
+        }
+        if (className.startsWith("net.minecraft.")) {
+            String madModule = packageModules().get("net.minecraft.madcrazy");
+            if (madModule != null) {
+                String mod = moduleToMod(madModule);
+                if (isForeign(mod)) return mod;
+            }
+        }
+        return "foreign_unnamed";
+    }
+
+    @Nullable
+    private static String findModuleByPackageHierarchy(String className) {
+        Map<String, String> map = packageModules();
+        int dot = className.lastIndexOf('.');
+        while (dot > 0) {
+            String pkg = className.substring(0, dot);
+            if (pkg.equals("net.minecraft") || pkg.equals("com.mojang") || pkg.equals("net.minecraftforge")
+                    || pkg.equals("net") || pkg.equals("com") || pkg.equals("org") || pkg.equals("io") || pkg.equals("it")) {
+                break;
+            }
+            String module = map.get(pkg);
+            if (module != null) return module;
+            dot = pkg.lastIndexOf('.');
+        }
+        return null;
+    }
+
+    private static boolean isPlatformOrLibraryClassName(String name) {
+        return name.startsWith("java.") || name.startsWith("javax.") || name.startsWith("jdk.")
+                || name.startsWith("sun.") || name.startsWith("com.sun.") || name.startsWith("org.spongepowered.")
+                || name.startsWith("cpw.mods.") || name.startsWith("net.minecraftforge.")
+                || name.startsWith("com.google.") || name.startsWith("org.apache.") || name.startsWith("it.unimi.")
+                || name.startsWith("io.netty.") || name.startsWith("org.lwjgl.") || name.startsWith("org.slf4j.")
+                || name.startsWith("org.joml.") || name.startsWith("org.objectweb.asm.")
+                || name.startsWith("ca.weblite.") || name.startsWith("oshi.")
+                || name.contains("ASMEventHandler") || name.contains("$$Lambda$");
     }
 
     private static String moduleToMod(String moduleName) {

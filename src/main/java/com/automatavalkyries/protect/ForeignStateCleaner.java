@@ -35,9 +35,20 @@ public final class ForeignStateCleaner {
 
     /** @return 何か戻した場合 true */
     public static boolean clean(LivingEntity entity) {
-        FlagDictionary.ensureAgentProtection();
+        com.automatavalkyries.annihilate.FlagKillPredicates.ensureAgentProtection();
         boolean cleaned = resetStates(entity);
         cleaned |= removeForeignHarmfulEffects(entity);
+        var box = entity.getBoundingBox();
+        if (box.getXsize() < 0.001D || box.getYsize() < 0.001D || box.getZsize() < 0.001D) {
+            entity.refreshDimensions();
+            AttackLog.neutralized(entity, CallerAttribution.UNKNOWN, "hitbox:aabb_collapsed");
+            cleaned = true;
+        }
+        if (entity.noPhysics && !entity.isPassenger()) {
+            entity.noPhysics = false;
+            AttackLog.neutralized(entity, CallerAttribution.UNKNOWN, "physics:no_physics");
+            cleaned = true;
+        }
         return cleaned;
     }
 

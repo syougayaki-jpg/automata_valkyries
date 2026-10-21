@@ -10,6 +10,7 @@ import com.automatavalkyries.mixin.LivingEntityAccessor;
 import com.automatavalkyries.network.AnnihilatedEntitiesPacket;
 import com.automatavalkyries.network.ModNetwork;
 import com.automatavalkyries.protect.IEprotected;
+import com.automatavalkyries.protect.SpecificCountermeasures;
 import com.automatavalkyries.protect.plus.EprotectPlusLink;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import net.minecraft.ChatFormatting;
@@ -63,9 +64,11 @@ public final class TrueAnnihilationEngine {
             return false;
         }
 
-        UUID targetUuid = target.getUUID();
+        if (SpecificCountermeasures.enabled() && MadnessAnnihilation.isMadness(target)) return MadnessAnnihilation.annihilate(level, target);
+
+        UUID targetUuid = MadnessAnnihilation.uuid(target);
         String targetName = target.getDisplayName().getString();
-        int targetId = target.getId();
+        int targetId = MadnessAnnihilation.id(target);
         Vec3 pos = target.position();
 
         // 0. ボスバー・HUD 追跡の強制事前破棄（侵略者のモノリス等のボスバー消え残りを防止するため、
@@ -259,7 +262,7 @@ public final class TrueAnnihilationEngine {
         List<Entity> targets = level.getEntities(player, box, e ->
                 !(e instanceof Player) && !(e instanceof IEprotected protectedEntity && !protectedEntity.isTerminusTestTarget()) && e.isAlive());
 
-        int count = 0;
+        int count = SpecificCountermeasures.enabled() ? MadnessAnnihilation.sweep(level) : 0;
         for (Entity target : targets) {
             if (annihilateEntity(level, player, target)) {
                 count++;

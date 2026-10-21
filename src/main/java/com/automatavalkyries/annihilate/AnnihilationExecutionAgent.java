@@ -13,6 +13,7 @@ import com.automatavalkyries.network.ModNetwork;
 import com.automatavalkyries.entity.ValkyrieEntity;
 import com.automatavalkyries.protect.AgentPlayerProtection;
 import com.automatavalkyries.protect.IEprotected;
+import com.automatavalkyries.protect.SpecificCountermeasures;
 import com.automatavalkyries.util.UnsafeHelper;
 import com.automatavalkyries.weapon.DeathLootFallback;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
@@ -227,13 +228,17 @@ public final class AnnihilationExecutionAgent {
         }
 
         try {
+            UUID rawUuid = MadnessAnnihilation.uuid(entity);
+            int rawId = MadnessAnnihilation.id(entity);
+
             // (1) ChunkMap の追跡解除 ＆ クライアントへの追跡切断パケット送信
             // 正規の追跡解除（見ているプレイヤーの一覧の後始末を含む）を先に行い、残っていれば直接外す
             Int2ObjectMap<?> entityMap = ((ChunkMapAccessor) level.getChunkSource().chunkMap).automata_valkyries$getEntityMap();
             level.getChunkSource().removeEntity(entity);
             entityMap.remove(entity.getId());
+            entityMap.remove(rawId);
 
-            ClientboundRemoveEntitiesPacket removePacket = new ClientboundRemoveEntitiesPacket(entity.getId());
+            ClientboundRemoveEntitiesPacket removePacket = new ClientboundRemoveEntitiesPacket(rawId);
             for (ServerPlayer player : level.players()) {
                 player.connection.send(removePacket);
             }
@@ -244,9 +249,12 @@ public final class AnnihilationExecutionAgent {
                 Int2ObjectMap<PartEntity<?>> dragonParts = ((ServerLevelTickListAccessor) level).automata_valkyries$getDragonParts();
                 for (PartEntity<?> part : entity.getParts()) {
                     if (part != null) {
+                        int partRawId = MadnessAnnihilation.id(part);
                         entityMap.remove(part.getId());
+                        entityMap.remove(partRawId);
                         dragonParts.remove(part.getId());
-                        ClientboundRemoveEntitiesPacket partPacket = new ClientboundRemoveEntitiesPacket(part.getId());
+                        dragonParts.remove(partRawId);
+                        ClientboundRemoveEntitiesPacket partPacket = new ClientboundRemoveEntitiesPacket(partRawId);
                         for (ServerPlayer player : level.players()) {
                             player.connection.send(partPacket);
                         }
@@ -266,7 +274,9 @@ public final class AnnihilationExecutionAgent {
             // 表だけ直接消しても getEntity が影から引き直してしまう。正規の remove なら影の側も消える
             lookup.remove(entity);
             lookupAccessor.automata_valkyries$getById().remove(entity.getId());
+            lookupAccessor.automata_valkyries$getById().remove(rawId);
             lookupAccessor.automata_valkyries$getByUuid().remove(entity.getUUID());
+            lookupAccessor.automata_valkyries$getByUuid().remove(rawUuid);
 
             // (3) Tick 対象一覧から直消去（MixinEntityTickList の拒否をバイパス）
             EntityTickList tickList = ((ServerLevelTickListAccessor) level).automata_valkyries$getEntityTickList();
@@ -283,6 +293,7 @@ public final class AnnihilationExecutionAgent {
 
             // (5) UUID 一覧・スコアボード・コールバックの無効化
             manager.automata_valkyries$getKnownUuids().remove(entity.getUUID());
+            manager.automata_valkyries$getKnownUuids().remove(rawUuid);
             level.getScoreboard().entityRemoved(entity);
 
             EntityAccessor entityAccessor = (EntityAccessor) entity;
@@ -730,7 +741,10 @@ public final class AnnihilationExecutionAgent {
                                             List<UUID> uuids, List<Integer> ids) {
         // 兵姫などの保護対象は範囲版と同じく対象外（抹消のブラックリストと eprotect の入り直しが競合する）（※検証ダミーは対象）
         if (target == null || target instanceof Player || (target instanceof IEprotected protectedEntity && !protectedEntity.isTerminusTestTarget())) return false;
+        if (SpecificCountermeasures.enabled() && MadnessAnnihilation.isMadness(target)) return MadnessAnnihilation.annihilate(level, target);
         if (ANNIHILATED_INSTANCES.contains(target) && target.isRemoved()) return false; // つながりで既に消した個体
+        UUID rawTargetUuid = MadnessAnnihilation.uuid(target);
+        int rawTargetId = MadnessAnnihilation.id(target);
         List<Entity> connected = expand ? ModProtectionBreaker.connectedEntities(target) : List.of();
         // 追跡偽装で座標を NaN にするので、演出の位置は先に取っておく
         Vec3 origin = target.position().add(0.0, target.getBbHeight() / 2.0, 0.0);
@@ -738,15 +752,18 @@ public final class AnnihilationExecutionAgent {
 
         runWithEventSuppression(() -> {
             // (1) ブラックリスト登録
+            ANNIHILATED_UUIDS.add(rawTargetUuid);
             ANNIHILATED_UUIDS.add(target.getUUID());
             ANNIHILATED_INSTANCES.add(target);
+
+            // Capture ownership/registries before specific cleanup severs core references.
+            ModProtectionBreaker.Context context = ModProtectionBreaker.breakProtection(level, target);
 
             // (2) Witherzilla / Omni-Mobs 等のボス固有無力化
             neutralizeWitherzilla(level, target);
             neutralizeFlashfur(level, target);
 
             // (2') 他 MOD の独自の生命維持（保護の切り替え・フラグ・代理の本体・静的な一覧）を外し、対応していればその MOD 自身の撃破経路で倒す
-            ModProtectionBreaker.Context context = ModProtectionBreaker.breakProtection(level, target);
             ModProtectionBreaker.finishWithModOwnDeath(target);
             target.ejectPassengers();
             target.stopRiding();
@@ -766,6 +783,7 @@ public final class AnnihilationExecutionAgent {
             // Eprotect+ 防御層による遮断: 不正な消去理由直書き・区画排除を拒絶（Eprotect+ の守護が勝つ）
             if (target instanceof IEprotected p && p.getEprotect() != null && p.getEprotect().isProtectionActive()) {
                 AutomataValkyries.LOGGER.info("[AnnihilationAgent] Target {} is defended by Eprotect+; eviction blocked by Eprotect+", target.getName().getString());
+                ANNIHILATED_UUIDS.remove(rawTargetUuid);
                 ANNIHILATED_UUIDS.remove(target.getUUID());
                 ANNIHILATED_INSTANCES.remove(target);
                 defended[0] = true;
@@ -788,11 +806,11 @@ public final class AnnihilationExecutionAgent {
             return false;
         }
 
-        uuids.add(target.getUUID());
-        ids.add(target.getId());
+        uuids.add(rawTargetUuid);
+        ids.add(rawTargetId);
         if (target.isMultipartEntity() && target.getParts() != null) {
             for (PartEntity<?> part : target.getParts()) {
-                if (part != null) ids.add(part.getId());
+                if (part != null) ids.add(MadnessAnnihilation.id(part));
             }
         }
 
@@ -804,8 +822,10 @@ public final class AnnihilationExecutionAgent {
             if (other instanceof LivingEntity living) {
                 annihilateEntity(level, attacker, living, false, false, uuids, ids);
             } else {
-                uuids.add(other.getUUID());
-                ids.add(other.getId());
+                UUID otherRawUuid = MadnessAnnihilation.uuid(other);
+                uuids.add(otherRawUuid);
+                ids.add(MadnessAnnihilation.id(other));
+                ANNIHILATED_UUIDS.add(otherRawUuid);
                 ANNIHILATED_UUIDS.add(other.getUUID());
                 ANNIHILATED_INSTANCES.add(other);
                 runWithEventSuppression(() -> {
@@ -835,17 +855,23 @@ public final class AnnihilationExecutionAgent {
         List<Entity> entities = level.getEntities(attacker, box, e -> {
             if (e instanceof Player) return false;
             if (e instanceof IEprotected protectedEntity && !protectedEntity.isTerminusTestTarget()) return false; // 兵姫などの味方は保護
-            return e instanceof LivingEntity;
+            return e instanceof LivingEntity || e.isAlive() || MadnessAnnihilation.isMadness(e);
         });
 
-        int eradicated = 0;
+        int eradicated = SpecificCountermeasures.enabled() ? MadnessAnnihilation.sweep(level) : 0;
         List<UUID> uuids = new ArrayList<>();
         List<Integer> ids = new ArrayList<>();
         for (Entity e : entities) {
+            if (SpecificCountermeasures.enabled() && MadnessAnnihilation.isMadness(e)) {
+                if (MadnessAnnihilation.annihilate(level, e)) eradicated++;
+                continue;
+            }
             if (e instanceof LivingEntity living) {
                 if (annihilateEntity(level, attacker, living, false, true, uuids, ids)) {
                     eradicated++;
                 }
+            } else if (TrueAnnihilationEngine.annihilateEntity(level, attacker, e)) {
+                eradicated++;
             }
         }
         notifyClients(level, uuids, ids);

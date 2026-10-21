@@ -15,7 +15,7 @@ public class EprotectPlusGameTests {
     @GameTest(template = "empty")
     @SuppressWarnings("unchecked")
     public static void dictionaryRepairPreservesConfiguration(GameTestHelper helper) throws Exception {
-        if (!EprotectPlusLink.isAgentActive()) { helper.succeed(); return; }
+        if (!com.automatavalkyries.protect.flag.FlagDictionaryLink.isAgentActive()) { helper.succeed(); return; }
         var extraConfig = com.automatavalkyries.config.EprotectConfig.FLAG_EXTRA;
         var ignoreConfig = com.automatavalkyries.config.EprotectConfig.FLAG_IGNORE;
         var originalExtra = java.util.List.copyOf(com.automatavalkyries.config.EprotectConfig.getList(extraConfig));
@@ -82,6 +82,45 @@ public class EprotectPlusGameTests {
         helper.assertTrue("attempted".equals(EprotectPlusLink.prepareAnnihilation(mob).get("status")), "Preparation unavailable on server");
         helper.assertFalse(EprotectPlusLink.isAnnihilationConfirmed(mob), "Health write reported removal");
         helper.assertFalse(EprotectPlusLink.annihilateTargetWithAgent(null), "Null target accepted");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void hiddenVaultSelfHealsAndIsolatesAgentClasses(GameTestHelper helper) throws Exception {
+        boolean[] sawStreamFrame = {false};
+        EprotectPlusLink.runWithCloakedStack(() -> {
+            sawStreamFrame[0] = StackWalker.getInstance()
+                    .walk(s -> s.limit(12).anyMatch(f -> f.getClassName().startsWith("java.util.stream.")));
+        });
+        helper.assertTrue(sawStreamFrame[0], "Cloaked stack did not camouflage via java.util.stream frames");
+        helper.assertFalse(EprotectPlusLink.isPrivilegedOrBypassing(), "Privileged flag leaked after cloaked stack");
+
+        if (!EprotectPlusLink.isAgentActive()) {
+            helper.succeed();
+            return;
+        }
+        helper.assertTrue("true".equals(EprotectPlusLink.getStats().get("hiddenVault")),
+                "Hidden Class vault was not active in EprotectPlusAgent");
+        Class<?> agentClass = Class.forName("com.automatavalkyries.eprotectplus.EprotectPlusAgent",
+                true, ClassLoader.getSystemClassLoader());
+        Class<?> protectorClass = Class.forName("com.automatavalkyries.eprotectplus.flag.FlagDictionaryProtector",
+                true, ClassLoader.getSystemClassLoader());
+        com.automatavalkyries.util.UnsafeHelper.setStaticFinalField(agentClass, "instrumentation", null);
+        com.automatavalkyries.util.UnsafeHelper.setStaticFinalField(protectorClass, "MASTER_DICTIONARY", null);
+        helper.assertTrue(EprotectPlusLink.isAgentActive(),
+                "EprotectPlusAgent failed to self-heal instrumentation from HiddenAgentVault");
+        helper.assertFalse(com.automatavalkyries.protect.flag.FlagDictionaryLink.getMasterEntries("KILL").isEmpty(),
+                "FlagDictionaryProtector failed to self-heal MASTER_DICTIONARY from HiddenAgentVault");
+
+        com.automatavalkyries.gametest.fake.FakeKillMod.install();
+        var boss = new com.automatavalkyries.gametest.fake.FakeObfuscatedBoss(helper.getLevel());
+        var found = EprotectPlusLink.findAgentLoadedClassesFor(boss.getClass());
+        helper.assertTrue(found.contains(com.automatavalkyries.gametest.fake.FakeObfuscatedBoss.class),
+                "Agent loaded-class isolation did not locate package classes");
+        var agentClasses = EprotectPlusLink.findForeignAgentAndHiddenClasses();
+        helper.assertTrue(agentClasses != null, "findForeignAgentAndHiddenClasses returned null");
+        var vanillaHooks = EprotectPlusLink.getVanillaInjectedHookClasses();
+        helper.assertTrue(vanillaHooks != null, "getVanillaInjectedHookClasses returned null");
         helper.succeed();
     }
 }

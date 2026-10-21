@@ -37,46 +37,62 @@ public final class GenericCheatMobNeutralizer {
     public static List<Object> neutralize(ServerLevel level, Entity target) {
         if (target == null || level == null || target.level() != level
                 || !level.getServer().isSameThread()
-                || target instanceof net.minecraft.world.entity.player.Player
+                || (target instanceof net.minecraft.world.entity.player.Player && !isForeign(target.getClass()))
                 || (target instanceof com.automatavalkyries.protect.IEprotected protectedEntity
                     && !protectedEntity.isTerminusTestTarget())) return List.of();
 
         List<Object> controllers = new ArrayList<>();
         try {
-            // 0. ボスバー・HUD 追跡の事前破棄（メモリ直接ゼロクリア UnsafeHelper.obliterateObjectMemory で
-            //    bossEvent 参照が null 化される前に全プレイヤーから切り離して非表示にする）
-            AnnihilationExecutionAgent.clearBossEvents(target);
+            // 0. 防御構造の探索・調査・把握・解析（本体・隠蔽参照・逆引き static コア・関連クラスを一括把握）
+            DefenseStructureAnalyzer.AnalysisReport report = DefenseStructureAnalyzer.analyze(target);
 
-            // 0.5. StateScanner と FlagDictionary による NBT / Interface / Capability の汎用防御解除
-            try {
-                StateScanner.apply(target, StateScanner.BREAK_TARGET, EnumSet.allOf(StateScanner.Source.class));
-            } catch (Throwable ignored) {}
+            com.automatavalkyries.protect.plus.EprotectPlusLink.runWithIsolatedTargetHooks(report.registryClasses(), () -> {
+                // 0.2. ボスバー・HUD 追跡の事前破棄（メモリ直接ゼロクリア UnsafeHelper.obliterateObjectMemory で
+                //      bossEvent 参照が null 化される前に全プレイヤーから切り離して非表示にする）
+                AnnihilationExecutionAgent.clearBossEvents(target);
 
-            // PersistentData 内の防御フラグの辞書クリーンアップ
-            try {
-                net.minecraft.nbt.CompoundTag tag = target.getPersistentData();
-                for (String key : new ArrayList<>(tag.getAllKeys())) {
-                    if (FlagDictionary.isDefensiveField(key)) {
-                        tag.remove(key);
+                // 0.5. StateScanner と FlagDictionary による NBT / Interface / Capability の汎用防御解除
+                try {
+                    StateScanner.apply(target, StateScanner.BREAK_TARGET, EnumSet.allOf(StateScanner.Source.class));
+                } catch (Throwable ignored) {}
+
+                // PersistentData 内の防御フラグの辞書クリーンアップ
+                try {
+                    net.minecraft.nbt.CompoundTag tag = target.getPersistentData();
+                    for (String key : new ArrayList<>(tag.getAllKeys())) {
+                        if (FlagKillPredicates.isDefensiveField(key)) {
+                            tag.remove(key);
+                        }
+                    }
+                } catch (Throwable ignored) {}
+
+                // 1. 解析レポートで把握した本体（直接・ラッパー・内部コンポーネント・static 逆引き）＋動的探索の解体
+                Set<Object> seenControllers = Collections.newSetFromMap(new IdentityHashMap<>());
+                for (Object analyzedCore : report.controllers()) {
+                    if (analyzedCore != null && seenControllers.add(analyzedCore)
+                            && ownsController(analyzedCore, target, report.identities(), false)) {
+                        controllers.add(analyzedCore);
+                        dismantleCoreObject(analyzedCore, target);
                     }
                 }
-            } catch (Throwable ignored) {}
+                for (Object fallbackCore : dismantleControllers(target)) {
+                    if (fallbackCore != null && seenControllers.add(fallbackCore)) {
+                        controllers.add(fallbackCore);
+                    }
+                }
+                for (Object core : controllers) {
+                    AnnihilationExecutionAgent.clearBossEvents(core);
+                }
 
-            // 1. プロキシから本体（Controller / Core / Parent / Boss）の動的探索と解体
-            List<Object> foundControllers = dismantleControllers(target);
-            controllers.addAll(foundControllers);
-            for (Object core : foundControllers) {
-                AnnihilationExecutionAgent.clearBossEvents(core);
-            }
+                // 2. 独自生命フラグ・無敵フラグの汎用リセット
+                resetDefensiveFlags(target);
+                for (Object core : controllers) {
+                    resetDefensiveFlags(core);
+                }
 
-            // 2. 独自生命フラグ・無敵フラグの汎用リセット
-            resetDefensiveFlags(target);
-            for (Object core : controllers) {
-                resetDefensiveFlags(core);
-            }
-
-            // 3. 既知および動的特定された常駐リスト・キューの Unsafe パージ
-            deepPurgeStaticLists(target, controllers);
+                // 3. 既知および解析レポートで特定された常駐リスト・キュー・単一参照の Unsafe パージ
+                deepPurgeStaticLists(target, controllers, report);
+            });
 
             // Unknown save formats do not establish ownership of any disk data.
             // Target-only field/list cleanup deliberately leaves those saves intact.
@@ -131,8 +147,18 @@ public final class GenericCheatMobNeutralizer {
         dismantleCoreObject(core, proxy, false);
     }
 
+    /** Only for cores whose ownership was checked and retained before native removal. */
+    static void resetCapturedCore(Object core, Entity proxy) {
+        if (core == null || proxy == null || !ownsController(core, proxy, true)) return;
+        dismantleCoreObject(core, proxy, false, true);
+    }
+
     private static void dismantleCoreObject(Object core, Entity proxy, boolean terminate) {
-        if (core == null || (proxy != null && !ownsController(core, proxy))) return;
+        dismantleCoreObject(core, proxy, terminate, false);
+    }
+
+    private static void dismantleCoreObject(Object core, Entity proxy, boolean terminate, boolean captured) {
+        if (core == null || (proxy != null && !ownsController(core, proxy, captured))) return;
         AnnihilationExecutionAgent.clearBossEvents(core);
         Class<?> clazz = core.getClass();
 
@@ -156,20 +182,52 @@ public final class GenericCheatMobNeutralizer {
                 if (f.getType() == boolean.class) {
                     try {
                         f.setAccessible(true);
-                        if (FlagDictionary.isDeathStateField(name)) {
+                        if (FlagKillPredicates.isDeathStateField(name)) {
                             f.setBoolean(core, true);
-                        } else if (FlagDictionary.isDefensiveField(name)) {
+                        } else if (FlagKillPredicates.isDefensiveField(name)) {
                             f.setBoolean(core, false);
                         }
                     } catch (Throwable ignored) {}
                 }
 
-                // proxy 参照の破棄
+                // proxy 参照の破棄（ラッパー経由の逆参照も含む）
                 if (Entity.class.isAssignableFrom(f.getType())) {
                     try {
                         f.setAccessible(true);
                         if (proxy == null || f.get(core) == proxy) {
                             f.set(core, null);
+                        }
+                    } catch (Throwable ignored) {}
+                } else if (java.lang.ref.Reference.class.isAssignableFrom(f.getType())) {
+                    try {
+                        f.setAccessible(true);
+                        if (f.get(core) instanceof java.lang.ref.Reference<?> ref
+                                && (proxy == null || ref.get() == proxy)) {
+                            ref.clear();
+                        }
+                    } catch (Throwable ignored) {}
+                } else if (f.getType() == java.util.concurrent.atomic.AtomicReference.class) {
+                    try {
+                        f.setAccessible(true);
+                        if (f.get(core) instanceof java.util.concurrent.atomic.AtomicReference<?> atomicRef
+                                && (proxy == null || atomicRef.get() == proxy)) {
+                            atomicRef.set(null);
+                        }
+                    } catch (Throwable ignored) {}
+                } else if (f.getType() == java.util.concurrent.atomic.AtomicBoolean.class) {
+                    try {
+                        f.setAccessible(true);
+                        if (f.get(core) instanceof java.util.concurrent.atomic.AtomicBoolean ab) {
+                            if (FlagKillPredicates.isDeathStateField(name)) ab.set(true);
+                            else if (FlagKillPredicates.isDefensiveField(name)) ab.set(false);
+                        }
+                    } catch (Throwable ignored) {}
+                } else if (f.getType() == java.util.concurrent.atomic.AtomicInteger.class) {
+                    try {
+                        f.setAccessible(true);
+                        if (f.get(core) instanceof java.util.concurrent.atomic.AtomicInteger ai) {
+                            if (FlagKillPredicates.livesCounter(name)) ai.set(0);
+                            else if (FlagDictionary.is(name, FlagDictionary.Category.TIMER)) ai.set(-9999);
                         }
                     } catch (Throwable ignored) {}
                 }
@@ -190,7 +248,7 @@ public final class GenericCheatMobNeutralizer {
                 }
 
                 // 残機カウンターのゼロ化
-                if (FlagDictionary.livesCounter(name)) {
+                if (FlagKillPredicates.livesCounter(name)) {
                     if (f.getType() == int.class || f.getType() == Integer.class) {
                         try {
                             f.setAccessible(true);
@@ -214,7 +272,7 @@ public final class GenericCheatMobNeutralizer {
                 }
 
                 // Collection / Map のクリア
-                if (FlagDictionary.isDefensiveField(name)) {
+                if (FlagKillPredicates.isDefensiveField(name)) {
                     try {
                         f.setAccessible(true);
                         Object val = f.get(core);
@@ -236,18 +294,37 @@ public final class GenericCheatMobNeutralizer {
             }
         }
 
-        // 終了メソッドの呼び出し（FlagDictionary.isTerminationMethod による動的判定）
-        if (!terminate) return;
+        // 終了メソッドの呼び出し（FlagKillPredicates.isTerminationMethod による動的判定。自爆トラップ付きクラスはスキップ）
+        if (!terminate || com.automatavalkyries.protect.plus.EprotectPlusLink.hasHaltOrExitTrap(clazz)) return;
+        boolean done = false;
         for (Method m : clazz.getMethods()) {
-            if (m.getParameterCount() == 0 && FlagDictionary.isTerminationMethod(m.getName())) {
+            if (!Modifier.isStatic(m.getModifiers()) && m.getParameterCount() == 0
+                    && !ModProtectionBreaker.isTrapTerminationName(m.getName())
+                    && FlagKillPredicates.isTerminationMethod(m.getName())) {
                 try {
                     m.setAccessible(true);
                     m.invoke(core);
                     AutomataValkyries.LOGGER.info("[GenericNeutralizer] Invoked termination method {}.{}()",
                             clazz.getSimpleName(), m.getName());
+                    done = true;
                     break;
                 } catch (Throwable ignored) {}
             }
+        }
+        if (done) return;
+        // 引数 1 個の終了メソッド（forceRemove(boolean) 等）: true を渡して呼ぶ
+        for (Method m : clazz.getMethods()) {
+            if (Modifier.isStatic(m.getModifiers()) || m.getParameterCount() != 1
+                    || m.getParameterTypes()[0] != boolean.class
+                    || ModProtectionBreaker.isTrapTerminationName(m.getName())
+                    || !FlagKillPredicates.isTerminationMethod(m.getName())) continue;
+            try {
+                m.setAccessible(true);
+                m.invoke(core, true);
+                AutomataValkyries.LOGGER.info("[GenericNeutralizer] Invoked termination method {}.{}(true)",
+                        clazz.getSimpleName(), m.getName());
+                break;
+            } catch (Throwable ignored) {}
         }
     }
 
@@ -267,9 +344,9 @@ public final class GenericCheatMobNeutralizer {
                 if (f.getType() == boolean.class) {
                     try {
                         f.setAccessible(true);
-                        if (FlagDictionary.isDeathStateField(name)) {
+                        if (FlagKillPredicates.isDeathStateField(name)) {
                             f.setBoolean(target, true);
-                        } else if (FlagDictionary.isDefensiveField(name)) {
+                        } else if (FlagKillPredicates.isDefensiveField(name)) {
                             f.setBoolean(target, false);
                         }
                     } catch (Throwable ignored) {}
@@ -286,7 +363,7 @@ public final class GenericCheatMobNeutralizer {
                 }
 
                 // 残機カウンターのゼロ化
-                if (FlagDictionary.livesCounter(name)) {
+                if (FlagKillPredicates.livesCounter(name)) {
                     if (f.getType() == int.class || f.getType() == Integer.class) {
                         try {
                             f.setAccessible(true);
@@ -310,7 +387,7 @@ public final class GenericCheatMobNeutralizer {
                 }
 
                 // Collection / Map のクリア
-                if (FlagDictionary.isDefensiveField(name)) {
+                if (FlagKillPredicates.isDefensiveField(name)) {
                     try {
                         f.setAccessible(true);
                         Object val = f.get(target);
@@ -324,11 +401,16 @@ public final class GenericCheatMobNeutralizer {
     /**
      * static な Collection / Map（ProtectedArrayList 等）からターゲットおよび本体参照を強制除去する。
      */
-    private static void deepPurgeStaticLists(Entity target, List<Object> controllers) {
+    private static void deepPurgeStaticLists(Entity target, List<Object> controllers, DefenseStructureAnalyzer.AnalysisReport report) {
         Set<Class<?>> targetClasses = new LinkedHashSet<>();
+        if (report != null) {
+            targetClasses.addAll(report.registryClasses());
+        }
         addClassHierarchy(target.getClass(), targetClasses);
+        addRelatedHierarchy(target.getClass(), targetClasses);
         for (Object ctrl : controllers) {
             addClassHierarchy(ctrl.getClass(), targetClasses);
+            addRelatedHierarchy(ctrl.getClass(), targetClasses);
         }
         try {
             if (com.automatavalkyries.protect.SpecificCountermeasures.enabled()) {
@@ -340,7 +422,15 @@ public final class GenericCheatMobNeutralizer {
         Set<Object> victims = Collections.newSetFromMap(new IdentityHashMap<>());
         victims.add(target);
         victims.addAll(controllers);
-        UUID uuid = target.getUUID();
+        UUID uuid = MadnessAnnihilation.uuid(target);
+        Set<UUID> identities = new LinkedHashSet<>();
+        if (uuid != null) identities.add(uuid);
+        if (report != null) identities.addAll(report.identities());
+        int rawId = report != null ? report.rawId() : MadnessAnnihilation.id(target);
+        for (UUID identity : identities) {
+            com.automatavalkyries.util.StaticReferencePurger.purge(
+                    targetClasses, victims, identity, rawId, target.getName().getString());
+        }
 
         for (Class<?> clazz : targetClasses) {
             for (Field field : clazz.getDeclaredFields()) {
@@ -350,9 +440,12 @@ public final class GenericCheatMobNeutralizer {
                     Object list = field.get(null);
                     if (list == null) continue;
 
-                    // ArrayList（および ProtectedArrayList）の Unsafe 強制除去
+                    // ArrayList（ProtectedArrayList）および CopyOnWriteArrayList（C848734 等）の Unsafe 強制除去
                     if (list instanceof ArrayList<?>) {
                         purgeArrayList(list, victims, uuid);
+                    } else if (list instanceof java.util.concurrent.CopyOnWriteArrayList<?>
+                            || list instanceof java.util.concurrent.CopyOnWriteArraySet<?>) {
+                        UnsafeHelper.removeFromArrayList(list, elem -> matchesVictim(elem, victims, uuid));
                     } else if (list instanceof Collection<?> col) {
                         col.removeIf(elem -> matchesVictim(elem, victims, uuid));
                     } else if (list instanceof Map<?, ?> map) {
@@ -404,7 +497,18 @@ public final class GenericCheatMobNeutralizer {
 
     /** Only an exclusive direct owner may be shut down. Unreadable ownership is rejected. */
     static boolean ownsController(Object core, Entity target) {
+        return ownsController(core, target, null, false);
+    }
+
+    static boolean ownsController(Object core, Entity target, boolean allowDetached) {
+        return ownsController(core, target, null, allowDetached);
+    }
+
+    static boolean ownsController(Object core, Entity target, Set<UUID> targetIdentities, boolean allowDetached) {
+        if (core == null || core == target || core instanceof Entity) return false;
         boolean pointsBack = false;
+        UUID rawTargetUuid = target != null ? MadnessAnnihilation.uuid(target) : null;
+        UUID reportedTargetUuid = target != null ? target.getUUID() : null;
         for (Class<?> c = core.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
             for (Field field : c.getDeclaredFields()) {
                 if (Modifier.isStatic(field.getModifiers()) || field.getType().isPrimitive()) continue;
@@ -413,12 +517,44 @@ public final class GenericCheatMobNeutralizer {
                     Object value = field.get(core);
                     if (value == target) pointsBack = true;
                     if (containsOtherEntity(value, target)) return false;
+                    Object unwrapped = DefenseStructureAnalyzer.unwrapSingle(value);
+                    if (unwrapped == target) pointsBack = true;
+                    if (unwrapped != value && containsOtherEntity(unwrapped, target)) return false;
+                    if (unwrapped instanceof UUID id) {
+                        String lower = field.getName().toLowerCase(Locale.ROOT);
+                        boolean matchesTarget = (rawTargetUuid != null && id.equals(rawTargetUuid))
+                                || (reportedTargetUuid != null && id.equals(reportedTargetUuid))
+                                || (targetIdentities != null && targetIdentities.contains(id));
+                        if (matchesTarget) {
+                            pointsBack = true;
+                        } else if (lower.contains("other")) {
+                            return false;
+                        }
+                    }
                 } catch (Throwable ignored) {
                     return false;
                 }
             }
         }
-        return pointsBack;
+        return pointsBack || allowDetached;
+    }
+
+    static boolean containsOtherEntityObject(Object holder, Entity target) {
+        if (holder == null || holder == target) return false;
+        if (containsOtherEntity(holder, target)) return true;
+        for (Class<?> c = holder.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
+            for (Field field : c.getDeclaredFields()) {
+                if (Modifier.isStatic(field.getModifiers()) || field.getType().isPrimitive()) continue;
+                try {
+                    field.setAccessible(true);
+                    Object value = field.get(holder);
+                    if (containsOtherEntity(value, target)) return true;
+                    Object unwrapped = DefenseStructureAnalyzer.unwrapSingle(value);
+                    if (unwrapped != value && containsOtherEntity(unwrapped, target)) return true;
+                } catch (Throwable ignored) {}
+            }
+        }
+        return false;
     }
 
     private static boolean containsOtherEntity(Object value, Entity target) {
@@ -463,6 +599,25 @@ public final class GenericCheatMobNeutralizer {
     private static void addClassHierarchy(Class<?> type, Set<Class<?>> out) {
         for (Class<?> c = type; c != null && isForeign(c); c = c.getSuperclass()) {
             out.add(c);
+        }
+    }
+
+    private static void addRelatedHierarchy(Class<?> type, Set<Class<?>> out) {
+        for (Class<?> c = type; c != null && isForeign(c); c = c.getSuperclass()) {
+            try {
+                for (Class<?> related : com.automatavalkyries.protect.flag.KillLists.relatedClasses(c)) {
+                    if (out.size() >= 128) return;
+                    if (UnsafeHelper.isInitialized(related)) addClassHierarchy(related, out);
+                }
+                for (Class<?> subscriber : com.automatavalkyries.protect.EventBusGuardian.subscriberClassesFor(c)) {
+                    if (out.size() >= 128) return;
+                    addClassHierarchy(subscriber, out);
+                }
+                for (Class<?> agentLoaded : com.automatavalkyries.protect.plus.EprotectPlusLink.findAgentLoadedClassesFor(c)) {
+                    if (out.size() >= 128) return;
+                    addClassHierarchy(agentLoaded, out);
+                }
+            } catch (Throwable ignored) {}
         }
     }
 
