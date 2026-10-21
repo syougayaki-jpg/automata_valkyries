@@ -301,7 +301,12 @@ public final class AnnihilationExecutionAgent {
             entityAccessor.automata_valkyries$setRemovalReason(Entity.RemovalReason.KILLED);
             entityAccessor.automata_valkyries$setAddedToWorld(false);
 
-            // (6) 空間座標偽装: 位置を NaN / 無限遠に隔離し、AABB 検索・距離判定から消失させる
+            // (6) 空間座標偽装: 位置を無限遠 / NaN に隔離し、AABB 検索・距離判定から消失させる
+            // setPos をオーバーライドして NaN を拒否するエンティティ（SuperSteve 等）でも確実に隔離するため、
+            // 先に基底フィールド（position / bb）を直接退避させてから setPos(NaN) を呼ぶ
+            entityAccessor.automata_valkyries$setPosition(new Vec3(0.0D, -100000.0D, 0.0D));
+            entityAccessor.automata_valkyries$setBoundingBoxField(
+                    new net.minecraft.world.phys.AABB(0.0D, -100000.0D, 0.0D, 0.0D, -100000.0D, 0.0D));
             entity.setPos(Double.NaN, Double.NaN, Double.NaN);
             entity.setDeltaMovement(Vec3.ZERO);
 
@@ -334,7 +339,7 @@ public final class AnnihilationExecutionAgent {
         // 2. クラス階層を走査し、ServerBossEvent / BossEvent フィールドおよびゲッターを検索して全プレイヤーから削除・非表示化
         Class<?> clz = target.getClass();
         while (clz != null && clz != Object.class) {
-            for (Field f : clz.getDeclaredFields()) {
+            for (Field f : UnsafeHelper.getRealDeclaredFields(clz)) {
                 if (Modifier.isStatic(f.getModifiers())) continue;
                 try {
                     f.setAccessible(true);
@@ -347,7 +352,7 @@ public final class AnnihilationExecutionAgent {
             }
 
             // メソッド（getBossEvent, getBossBar 等引数なし）も検査
-            for (Method m : clz.getDeclaredMethods()) {
+            for (Method m : UnsafeHelper.getRealDeclaredMethods(clz)) {
                 if (Modifier.isStatic(m.getModifiers())) continue;
                 if (m.getParameterCount() == 0 && (ServerBossEvent.class.isAssignableFrom(m.getReturnType())
                         || m.getName().toLowerCase().contains("bossbar")

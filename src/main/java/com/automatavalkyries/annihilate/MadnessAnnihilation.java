@@ -66,8 +66,8 @@ public final class MadnessAnnihilation {
     /** Pin fields to Entity.class so a subclass cannot substitute an identity field or a getter. */
     public static Identity readIdentity(Entity target) {
         try {
-            return new Identity((UUID) declaredField(Entity.class, "uuid", "f_19820_").get(target),
-                    declaredField(Entity.class, "id", "f_19848_").getInt(target)); // f_19843_ は ENTITY_COUNTER（静的な AtomicInteger）。取り違えて配布環境で落ちた（2026-10-21）
+            return new Identity((UUID) declaredField(Entity.class, UUID.class, "uuid", "f_19820_").get(target),
+                    declaredField(Entity.class, int.class, "id", "f_19848_").getInt(target)); // f_19843_ は ENTITY_COUNTER（静的な AtomicInteger）。取り違えて配布環境で落ちた（2026-10-21）
         } catch (ReflectiveOperationException failure) {
             throw new IllegalStateException("Cannot read stored Entity identity", failure);
         }
@@ -119,7 +119,7 @@ public final class MadnessAnnihilation {
         disableGlobalActivity(bindings.switches());
         // These names are data slots, not dictionary guesses or arbitrary public methods.
         // Direct data writes also cover the Entity-only C846446 tier.
-        SynchedEntityData data = (SynchedEntityData) declaredField(Entity.class, "entityData", "f_19804_").get(target);
+        SynchedEntityData data = (SynchedEntityData) declaredField(Entity.class, SynchedEntityData.class, "entityData", "f_19804_").get(target);
         for (Class<?> c = target.getClass(); c != null && c.getName().startsWith("net.madness."); c = c.getSuperclass()) {
             for (String name : List.of("NCHelPo", "f_198383_", "DATA_VALUE_ID", "DATA_HEALTH_ID")) {
                 Field field = optionalField(c, name);
@@ -314,12 +314,22 @@ public final class MadnessAnnihilation {
         Files.writeString(file, "[]", StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
     }
 
-    static Field declaredField(Class<?> owner, String... names) throws NoSuchFieldException {
+    static Field declaredField(Class<?> owner, Class<?> expectedType, String... names) throws NoSuchFieldException {
         for (String name : names) {
             Field field = optionalField(owner, name);
-            if (field != null) return field;
+            if (field != null) {
+                if (expectedType != null && !expectedType.isAssignableFrom(field.getType())) {
+                    throw new NoSuchFieldException(owner.getName() + "." + name + " has type "
+                            + field.getType().getName() + ", expected " + expectedType.getName());
+                }
+                return field;
+            }
         }
         throw new NoSuchFieldException(owner.getName() + ": " + String.join(",", names));
+    }
+
+    static Field declaredField(Class<?> owner, String... names) throws NoSuchFieldException {
+        return declaredField(owner, null, names);
     }
 
     private static Field optionalField(Class<?> owner, String name) {

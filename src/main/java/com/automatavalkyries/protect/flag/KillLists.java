@@ -92,8 +92,8 @@ public final class KillLists {
             return out;
         }
         try {
-            for (Field field : type.getDeclaredFields()) addRelated(field.getType(), type, out);
-            for (java.lang.reflect.Method method : type.getDeclaredMethods()) {
+            for (Field field : UnsafeHelper.getRealDeclaredFields(type)) addRelated(field.getType(), type, out);
+            for (java.lang.reflect.Method method : UnsafeHelper.getRealDeclaredMethods(type)) {
                 addRelated(method.getReturnType(), type, out);
                 for (Class<?> param : method.getParameterTypes()) addRelated(param, type, out);
             }
@@ -169,12 +169,7 @@ public final class KillLists {
         }
         boolean killClass = isKillName(type.getSimpleName()) || isStopName(type.getSimpleName())
                 || isTamperName(type.getSimpleName()) || isAgentHookClass(type.getSimpleName());
-        Field[] fields;
-        try {
-            fields = type.getDeclaredFields();
-        } catch (Throwable t) {
-            return;
-        }
+        Field[] fields = UnsafeHelper.getRealDeclaredFields(type);
         for (Field field : fields) {
             if (!isListField(field)) continue;
             String name = field.getName();
@@ -239,7 +234,13 @@ public final class KillLists {
     /** そのクラスのバイトコードが参照しているクラス（static 呼び出し・static フィールド・new の相手、およびエージェント捕獲キャッシュ） */
     private static Set<String> referencedClasses(Class<?> type) {
         Set<String> owners = new LinkedHashSet<>();
-        String resource = type.getName().replace('.', '/') + ".class";
+        String rawClassName = type.getName();
+        int slashIdx = rawClassName.indexOf('/');
+        if (slashIdx > 0) {
+            rawClassName = rawClassName.substring(0, slashIdx);
+        }
+        String internalSelf = rawClassName.replace('.', '/');
+        String resource = internalSelf + ".class";
         ClassLoader loader = type.getClassLoader();
         try (InputStream in = loader != null ? loader.getResourceAsStream(resource) : ClassLoader.getSystemResourceAsStream(resource)) {
             if (in != null) {
@@ -282,6 +283,7 @@ public final class KillLists {
                 }
             }
         }
+        owners.remove(internalSelf);
         owners.remove(type.getName().replace('.', '/'));
         return owners;
     }

@@ -250,7 +250,7 @@ public final class StateScanner {
         if (sources.contains(Source.OWN_FIELD)) {
             for (Class<?> c = type; c != null && isForeign(c); c = c.getSuperclass()) {
                 String mod = CallerAttribution.modOf(c);
-                for (Field field : c.getDeclaredFields()) applyField(entity, field, mod, Source.OWN_FIELD, policy, changes);
+                for (Field field : com.automatavalkyries.util.UnsafeHelper.getRealDeclaredFields(c)) applyField(entity, field, mod, Source.OWN_FIELD, policy, changes);
             }
         }
         if (sources.contains(Source.OWN_FIELD) && policy == BREAK_TARGET && isForeign(type)) {
@@ -319,7 +319,7 @@ public final class StateScanner {
         }
         for (Class<?> c = type; c != null && isForeign(c); c = c.getSuperclass()) {
             String mod = CallerAttribution.modOf(c);
-            collectAccessorsFromType(c, c.getDeclaredMethods(), mod, true, seen, result);
+            collectAccessorsFromType(c, com.automatavalkyries.util.UnsafeHelper.getRealDeclaredMethods(c), mod, true, seen, result);
         }
         return List.copyOf(result);
     }
@@ -682,12 +682,7 @@ public final class StateScanner {
                 for (Object owner : frontier) {
                     boolean ownerIsHealthContainer = healthContainers.contains(owner);
                     for (Class<?> c = owner.getClass(); c != null && isForeign(c); c = c.getSuperclass()) {
-                        Field[] fields;
-                        try {
-                            fields = c.getDeclaredFields();
-                        } catch (Throwable t) {
-                            continue;
-                        }
+                        Field[] fields = com.automatavalkyries.util.UnsafeHelper.getRealDeclaredFields(c);
                         for (Field field : fields) {
                             if (visited.size() >= COMPONENT_LIMIT) break;
                             if (Modifier.isStatic(field.getModifiers()) || field.getType().isPrimitive()
@@ -737,22 +732,20 @@ public final class StateScanner {
                 || isCustomHealthOrValueName(typeSimpleName);
     }
 
-    /** 入れ物が対象以外のエンティティを指していれば共有物とみなす（別の個体の管理物を巻き込まない） */
+    /** 入れ物が対象以外のエンティティを指していれば共有物とみなす（別の個体の管理物を巻き込まない。同一 UUID のクライアント／サーバー対は同一視） */
     private static boolean referencesOtherEntity(Object holder, Entity owner) {
+        UUID ownerUuid = owner != null ? owner.getUUID() : null;
         for (Class<?> c = holder.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
-            Field[] fields;
-            try {
-                fields = c.getDeclaredFields();
-            } catch (Throwable t) {
-                return true;
-            }
+            Field[] fields = com.automatavalkyries.util.UnsafeHelper.getRealDeclaredFields(c);
             for (Field field : fields) {
                 if (Modifier.isStatic(field.getModifiers()) || field.getType().isPrimitive()) continue;
                 try {
                     field.setAccessible(true);
                     Object value = field.get(holder);
-                    if (value instanceof Entity other && other != owner) return true;
-                    if (value instanceof java.lang.ref.Reference<?> ref && ref.get() instanceof Entity other && other != owner) return true;
+                    if (value instanceof Entity other && other != owner
+                            && (ownerUuid == null || !ownerUuid.equals(other.getUUID()))) return true;
+                    if (value instanceof java.lang.ref.Reference<?> ref && ref.get() instanceof Entity other && other != owner
+                            && (ownerUuid == null || !ownerUuid.equals(other.getUUID()))) return true;
                 } catch (Throwable ignored) {}
             }
         }
@@ -768,7 +761,7 @@ public final class StateScanner {
                 || (entity instanceof net.minecraft.world.entity.player.Player && !isForeign(entity.getClass()))) return;
         Map<Double, List<Field>> groups = new java.util.HashMap<>();
         for (Class<?> c = entity.getClass(); c != null && isForeign(c); c = c.getSuperclass()) {
-            for (Field field : c.getDeclaredFields()) {
+            for (Field field : com.automatavalkyries.util.UnsafeHelper.getRealDeclaredFields(c)) {
                 int m = field.getModifiers();
                 if (Modifier.isStatic(m)
                         || (field.getType() != float.class && field.getType() != double.class)
@@ -868,7 +861,7 @@ public final class StateScanner {
     private static void applyObjectFields(Object holder, Source source, Policy policy, List<Change> changes) {
         for (Class<?> c = holder.getClass(); c != null && isForeign(c); c = c.getSuperclass()) {
             String mod = CallerAttribution.modOf(c);
-            for (Field field : c.getDeclaredFields()) applyField(holder, field, mod, source, policy, changes);
+            for (Field field : com.automatavalkyries.util.UnsafeHelper.getRealDeclaredFields(c)) applyField(holder, field, mod, source, policy, changes);
         }
     }
 
@@ -1053,7 +1046,7 @@ public final class StateScanner {
         for (Class<?> c = type; c != null && c != Object.class; c = c.getSuperclass()) {
             if (isForeign(c)) {
                 String mod = CallerAttribution.modOf(c);
-                for (Field field : c.getDeclaredFields()) addDataKey(field, mod, keys);
+                for (Field field : com.automatavalkyries.util.UnsafeHelper.getRealDeclaredFields(c)) addDataKey(field, mod, keys);
             } else {
                 for (InjectedMembers.InjectedField injected : InjectedMembers.fields(c)) {
                     if (!CallerAttribution.SELF.equals(injected.mod())) addDataKey(injected.field(), injected.mod(), keys);
@@ -1159,7 +1152,7 @@ public final class StateScanner {
         }
         for (Class<?> c = type; c != null && isForeign(c); c = c.getSuperclass()) {
             String mod = CallerAttribution.modOf(c);
-            for (Field field : c.getDeclaredFields()) observeField(entity, field, mod, Source.OWN_FIELD, out);
+            for (Field field : com.automatavalkyries.util.UnsafeHelper.getRealDeclaredFields(c)) observeField(entity, field, mod, Source.OWN_FIELD, out);
         }
         observeCapabilities(entity, out);
         try {

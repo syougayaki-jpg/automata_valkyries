@@ -42,12 +42,7 @@ public final class StaticReferencePurger {
     public static int purge(Collection<Class<?>> classes, Set<Object> victims, UUID uuid, int entityId, String targetName) {
         int total = 0;
         for (Class<?> type : classes) {
-            Field[] fields;
-            try {
-                fields = type.getDeclaredFields();
-            } catch (Throwable t) {
-                continue;
-            }
+            Field[] fields = UnsafeHelper.getRealDeclaredFields(type);
             for (Field field : fields) {
                 if (!Modifier.isStatic(field.getModifiers()) || field.getType().isPrimitive()) continue;
                 try {

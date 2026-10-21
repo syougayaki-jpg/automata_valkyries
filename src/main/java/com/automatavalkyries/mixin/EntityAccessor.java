@@ -39,4 +39,10 @@ public interface EntityAccessor {
     /** Forge が追加したフィールド（難読化されないので remap = false） */
     @Accessor(value = "isAddedToWorld", remap = false)
     void automata_valkyries$setAddedToWorld(boolean added);
+
+    @Accessor("position")
+    void automata_valkyries$setPosition(net.minecraft.world.phys.Vec3 position);
+
+    @Accessor("bb")
+    void automata_valkyries$setBoundingBoxField(net.minecraft.world.phys.AABB bb);
 }

@@ -101,11 +101,12 @@ public final class ModProtectionBreaker {
         // 2. 個別および準汎用の保護状態解除（対象クラス群のコールバック・フックを一時隔離した状態で執行）
         final List<Object> controllers = new ArrayList<>();
         com.automatavalkyries.protect.plus.EprotectPlusLink.runWithIsolatedTargetHooks(registryClasses, () -> {
+            breakProtectiveStates(target);
+            neutralizeForeignFunctionalFields(target);
             breakTrialMonolith(target);
             breakSuperSteve(target);
             breakPig2(target);
             breakNekohashizuku(target);
-            breakProtectiveStates(target);
 
             // 3. 本体（直接・ラッパー内・static 逆引き発見を含む全コントローラー）の解体
             controllers.addAll(removeControllers(target, report.controllers(), registryClasses, identities));
@@ -210,46 +211,109 @@ public final class ModProtectionBreaker {
         try {
             if (name.contains("SafeServerPlayer") || name.contains("DeathServerPlayer")) {
                 try {
-                    Method dc = target.getClass().getMethod("disconnect");
-                    dc.invoke(target);
-                    AutomataValkyries.LOGGER.info("[AnnihilationAgent] Disconnected SuperSteve player {}", target.getName().getString());
+                    Method dc = com.automatavalkyries.util.UnsafeHelper.findRealMethod(target.getClass(), "disconnect");
+                    if (dc != null) {
+                        dc.invoke(target);
+                        AutomataValkyries.LOGGER.info("[AnnihilationAgent] Disconnected SuperSteve player {}", target.getName().getString());
+                    }
                 } catch (Throwable ignored) {}
             }
             for (Class<?> c = target.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
                 try {
-                    Field f = c.getDeclaredField("health");
-                    f.setAccessible(true);
-                    Object op = f.get(target);
-                    if (op != null) {
-                        Method m = op.getClass().getMethod("operate", Object[].class);
-                        Field vrfField = c.getDeclaredField("VRF");
-                        vrfField.setAccessible(true);
-                        String[] vrf = (String[]) vrfField.get(null);
-                        if (vrf != null && vrf.length > 5) {
-                            m.invoke(op, new Object[]{ new Object[]{ vrf[5], 0.0F } });
-                            AutomataValkyries.LOGGER.info("[AnnihilationAgent] Reset SuperSteve health operator on {}", target.getName().getString());
+                    Field f = com.automatavalkyries.util.UnsafeHelper.findField(c, "health");
+                    if (f != null) {
+                        Object op = f.get(target);
+                        if (op != null) {
+                            Method m = com.automatavalkyries.util.UnsafeHelper.findRealMethod(op.getClass(), "operate", Object[].class);
+                            Field vrfField = com.automatavalkyries.util.UnsafeHelper.findField(c, "VRF");
+                            String[] vrf = vrfField != null ? (String[]) vrfField.get(null) : null;
+                            if (m != null && vrf != null && vrf.length > 5) {
+                                m.invoke(op, new Object[]{ new Object[]{ vrf[5], 0.0F } });
+                                AutomataValkyries.LOGGER.info("[AnnihilationAgent] Reset SuperSteve health operator on {}", target.getName().getString());
+                            }
                         }
                     }
                 } catch (Throwable ignored) {}
 
                 try {
-                    Field be = c.getDeclaredField("bossEvent");
-                    be.setAccessible(true);
-                    Object bossEvent = be.get(target);
-                    if (bossEvent != null) {
-                        Method clear = bossEvent.getClass().getMethod("removeAllPlayers");
-                        clear.invoke(bossEvent);
+                    Field be = com.automatavalkyries.util.UnsafeHelper.findField(c, "bossEvent");
+                    if (be != null) {
+                        Object bossEvent = be.get(target);
+                        if (bossEvent != null) {
+                            Method clear = com.automatavalkyries.util.UnsafeHelper.findRealMethod(bossEvent.getClass(), "removeAllPlayers");
+                            if (clear != null) clear.invoke(bossEvent);
+                        }
                     }
                 } catch (Throwable ignored) {}
             }
             try {
                 Class<?> ssu = Class.forName("plz.lizi.supersteve.api.SSUtil");
-                Method k = ssu.getMethod("killEntity", Entity.class, boolean.class);
-                k.invoke(null, target, true);
+                Method k = com.automatavalkyries.util.UnsafeHelper.findRealMethod(ssu, "killEntity", Entity.class, boolean.class);
+                if (k != null) k.invoke(null, target, true);
             } catch (Throwable ignored) {}
         } catch (Throwable t) {
             AutomataValkyries.LOGGER.debug("[AnnihilationAgent] SuperSteve protection breaking failed for {}", target, t);
         }
+    }
+
+    /**
+     * 準汎用: 対象（または本体）が持つ他 MOD 独自の関数型インターフェース / オペレーター型のフィールド
+     * （例: SuperSteve の {@code Operator health} のように暗号トークン配列とペアで状態を隠蔽する構造）を検出し、
+     * 同じクラス階層の static {@code String[]} トークン配列を用いてゼロ化を試みたうえで、
+     * 常に {@code 0.0F} / {@code false} を返し例外を出さないゼロプロキシに差し替える。
+     */
+    public static void neutralizeForeignFunctionalFields(Object owner) {
+        if (owner == null) return;
+        for (Class<?> c = owner.getClass(); c != null && isForeign(c); c = c.getSuperclass()) {
+            for (Field f : com.automatavalkyries.util.UnsafeHelper.getRealDeclaredFields(c)) {
+                if (Modifier.isStatic(f.getModifiers()) || f.getType().isPrimitive()) continue;
+                if (!f.getType().isInterface() || !isForeign(f.getType())) continue;
+                neutralizeForeignFunctionalField(owner, c, f);
+            }
+        }
+    }
+
+    public static void neutralizeForeignFunctionalField(Object owner, Class<?> declaringClass, Field field) {
+        if (owner == null || field == null || !field.getType().isInterface() || !isForeign(field.getType())) return;
+        try {
+            long offset = com.automatavalkyries.util.UnsafeHelper.objectFieldOffset(field);
+            if (offset < 0) return;
+            Object current = com.automatavalkyries.util.UnsafeHelper.getObject(owner, offset);
+            if (current != null && declaringClass != null) {
+                Method varargsMethod = null;
+                for (Method m : com.automatavalkyries.util.UnsafeHelper.getRealDeclaredMethods(field.getType())) {
+                    if (!Modifier.isStatic(m.getModifiers()) && m.getParameterCount() == 1 && m.getParameterTypes()[0] == Object[].class) {
+                        varargsMethod = m;
+                        break;
+                    }
+                }
+                if (varargsMethod != null) {
+                    varargsMethod.setAccessible(true);
+                    String fieldLower = field.getName().toLowerCase(java.util.Locale.ROOT);
+                    Object targetValue = (fieldLower.contains("dead") || fieldLower.contains("remove")) ? Boolean.TRUE : Float.valueOf(0.0F);
+                    for (Class<?> tc = declaringClass; tc != null && isForeign(tc); tc = tc.getSuperclass()) {
+                        for (Field sf : com.automatavalkyries.util.UnsafeHelper.getRealDeclaredFields(tc)) {
+                            if (!Modifier.isStatic(sf.getModifiers()) || sf.getType() != String[].class) continue;
+                            try {
+                                sf.setAccessible(true);
+                                String[] tokens = (String[]) sf.get(null);
+                                if (tokens == null) continue;
+                                for (String token : tokens) {
+                                    if (token == null) continue;
+                                    try {
+                                        varargsMethod.invoke(current, new Object[]{ new Object[]{ token, targetValue } });
+                                    } catch (Throwable ignored) {}
+                                }
+                            } catch (Throwable ignored) {}
+                        }
+                    }
+                }
+            }
+            Object zeroProxy = com.automatavalkyries.util.UnsafeHelper.createZeroProxy(field.getType());
+            if (zeroProxy != null) {
+                com.automatavalkyries.util.UnsafeHelper.putObject(owner, offset, zeroProxy);
+            }
+        } catch (Throwable ignored) {}
     }
 
     private static void breakPig2(Entity target) {
@@ -328,7 +392,7 @@ public final class ModProtectionBreaker {
         Set<Object> seen = Collections.newSetFromMap(new IdentityHashMap<>());
         List<Object> candidates = new ArrayList<>(analyzedControllers);
         for (Class<?> type = target.getClass(); type != null && isForeign(type); type = type.getSuperclass()) {
-            for (Field field : type.getDeclaredFields()) {
+            for (Field field : com.automatavalkyries.util.UnsafeHelper.getRealDeclaredFields(type)) {
                 if (Modifier.isStatic(field.getModifiers()) || field.getType().isPrimitive()) continue;
                 try {
                     field.setAccessible(true);
@@ -368,28 +432,33 @@ public final class ModProtectionBreaker {
                     break;
                 }
                 if (!invoked) {
-                    for (Method m : controller.getClass().getMethods()) {
-                        if (Modifier.isStatic(m.getModifiers()) || isTrapTerminationName(m.getName())) continue;
-                        if (m.getParameterCount() == 0 && FlagKillPredicates.isTerminationMethod(m.getName())) {
-                            m.setAccessible(true);
-                            m.invoke(controller);
-                            AutomataValkyries.LOGGER.info("[AnnihilationAgent] Called termination method {}.{}() (controller of {})",
-                                    controller.getClass().getSimpleName(), m.getName(), target.getName().getString());
-                            invoked = true;
-                            break;
+                    for (Class<?> c = controller.getClass(); c != null && c != Object.class && !invoked; c = c.getSuperclass()) {
+                        for (Method m : com.automatavalkyries.util.UnsafeHelper.getRealDeclaredMethods(c)) {
+                            if (Modifier.isStatic(m.getModifiers()) || !Modifier.isPublic(m.getModifiers()) || isTrapTerminationName(m.getName())) continue;
+                            if (m.getParameterCount() == 0 && FlagKillPredicates.isTerminationMethod(m.getName())) {
+                                m.setAccessible(true);
+                                m.invoke(controller);
+                                AutomataValkyries.LOGGER.info("[AnnihilationAgent] Called termination method {}.{}() (controller of {})",
+                                        controller.getClass().getSimpleName(), m.getName(), target.getName().getString());
+                                invoked = true;
+                                break;
+                            }
                         }
                     }
                 }
                 if (!invoked) {
-                    for (Method m : controller.getClass().getMethods()) {
-                        if (Modifier.isStatic(m.getModifiers()) || isTrapTerminationName(m.getName())) continue;
-                        if (m.getParameterCount() == 1 && m.getParameterTypes()[0] == boolean.class
-                                && FlagKillPredicates.isTerminationMethod(m.getName())) {
-                            m.setAccessible(true);
-                            m.invoke(controller, true);
-                            AutomataValkyries.LOGGER.info("[AnnihilationAgent] Called termination method {}. {}(true) (controller of {})",
-                                    controller.getClass().getSimpleName(), m.getName(), target.getName().getString());
-                            break;
+                    outer:
+                    for (Class<?> c = controller.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
+                        for (Method m : com.automatavalkyries.util.UnsafeHelper.getRealDeclaredMethods(c)) {
+                            if (Modifier.isStatic(m.getModifiers()) || !Modifier.isPublic(m.getModifiers()) || isTrapTerminationName(m.getName())) continue;
+                            if (m.getParameterCount() == 1 && m.getParameterTypes()[0] == boolean.class
+                                    && FlagKillPredicates.isTerminationMethod(m.getName())) {
+                                m.setAccessible(true);
+                                m.invoke(controller, true);
+                                AutomataValkyries.LOGGER.info("[AnnihilationAgent] Called termination method {}. {}(true) (controller of {})",
+                                        controller.getClass().getSimpleName(), m.getName(), target.getName().getString());
+                                break outer;
+                            }
                         }
                     }
                 }
@@ -415,7 +484,7 @@ public final class ModProtectionBreaker {
             if (com.automatavalkyries.protect.plus.EprotectPlusLink.hasHaltOrExitTrap(cls)) continue;
             Method[] methods;
             try {
-                methods = cls.getDeclaredMethods();
+                methods = com.automatavalkyries.util.UnsafeHelper.getRealDeclaredMethods(cls);
             } catch (Throwable t) {
                 continue;
             }
@@ -454,8 +523,8 @@ public final class ModProtectionBreaker {
             Method[] methods;
             Field[] fields;
             try {
-                methods = type.getDeclaredMethods();
-                fields = type.getDeclaredFields();
+                methods = com.automatavalkyries.util.UnsafeHelper.getRealDeclaredMethods(type);
+                fields = com.automatavalkyries.util.UnsafeHelper.getRealDeclaredFields(type);
             } catch (Throwable ignored) {
                 continue;
             }
@@ -504,8 +573,8 @@ public final class ModProtectionBreaker {
 
     private static void invokeBossBarMethod(Object boss, String name, Class<?>[] parameters, Object[] args) {
         try {
-            Method method = boss.getClass().getMethod(name, parameters);
-            if (Modifier.isStatic(method.getModifiers())) return;
+            Method method = com.automatavalkyries.util.UnsafeHelper.findRealMethod(boss.getClass(), name, parameters);
+            if (method == null || Modifier.isStatic(method.getModifiers())) return;
             method.setAccessible(true);
             method.invoke(boss, args);
         } catch (Throwable ignored) {}
@@ -521,7 +590,7 @@ public final class ModProtectionBreaker {
         addForeignHierarchy(target.getClass(), classes);
         for (Object controller : controllers) addForeignHierarchy(controller.getClass(), classes);
         for (Class<?> type = target.getClass(); type != null && isForeign(type); type = type.getSuperclass()) {
-            for (Field field : type.getDeclaredFields()) {
+            for (Field field : com.automatavalkyries.util.UnsafeHelper.getRealDeclaredFields(type)) {
                 if (Modifier.isStatic(field.getModifiers()) || field.getType().isPrimitive()) continue;
                 try {
                     field.setAccessible(true);
@@ -568,7 +637,7 @@ public final class ModProtectionBreaker {
     private static void captureRegistryClasses(Object owner, Set<Class<?>> classes) {
         addForeignHierarchy(owner.getClass(), classes);
         for (Class<?> type = owner.getClass(); type != null && isForeign(type); type = type.getSuperclass()) {
-            for (Field field : type.getDeclaredFields()) {
+            for (Field field : com.automatavalkyries.util.UnsafeHelper.getRealDeclaredFields(type)) {
                 if (Modifier.isStatic(field.getModifiers()) || field.getType().isPrimitive()) continue;
                 try {
                     field.setAccessible(true);
@@ -584,7 +653,7 @@ public final class ModProtectionBreaker {
     /** Only conventional identity fields on an ownership-checked core; unrelated UUID fields are retained. */
     private static void captureControllerIdentity(Object controller, Set<UUID> identities) {
         for (Class<?> type = controller.getClass(); type != null && isForeign(type); type = type.getSuperclass()) {
-            for (Field field : type.getDeclaredFields()) {
+            for (Field field : com.automatavalkyries.util.UnsafeHelper.getRealDeclaredFields(type)) {
                 String name = field.getName().toLowerCase(java.util.Locale.ROOT);
                 if (Modifier.isStatic(field.getModifiers()) || field.getType() != UUID.class
                         || !(name.equals("id") || name.equals("uuid") || name.equals("uniqueid"))) continue;
@@ -707,12 +776,7 @@ public final class ModProtectionBreaker {
     }
 
     private static Method findNoArg(Class<?> type, String name) {
-        for (Class<?> c = type; c != null && c != Object.class; c = c.getSuperclass()) {
-            try {
-                return c.getDeclaredMethod(name);
-            } catch (NoSuchMethodException ignored) {}
-        }
-        return null;
+        return com.automatavalkyries.util.UnsafeHelper.findRealMethod(type, name);
     }
 
     private static void addForeignHierarchy(Class<?> type, Set<Class<?>> out) {
@@ -788,7 +852,7 @@ public final class ModProtectionBreaker {
             if (cls == null || !isForeign(cls) || !com.automatavalkyries.util.UnsafeHelper.isInitialized(cls)) continue;
             Field[] fields;
             try {
-                fields = cls.getDeclaredFields();
+                fields = com.automatavalkyries.util.UnsafeHelper.getRealDeclaredFields(cls);
             } catch (Throwable t) {
                 continue;
             }
@@ -841,7 +905,7 @@ public final class ModProtectionBreaker {
         }
         if (holder instanceof java.util.concurrent.Executor) {
             for (Class<?> c = holder.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
-                for (Field f : c.getDeclaredFields()) {
+                for (Field f : com.automatavalkyries.util.UnsafeHelper.getRealDeclaredFields(c)) {
                     if (Modifier.isStatic(f.getModifiers()) || f.getType().isPrimitive()) continue;
                     long offset = com.automatavalkyries.util.UnsafeHelper.objectFieldOffset(f);
                     if (offset < 0) continue;
@@ -861,7 +925,7 @@ public final class ModProtectionBreaker {
         for (Class<?> c = holder.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
             Field[] fields;
             try {
-                fields = c.getDeclaredFields();
+                fields = com.automatavalkyries.util.UnsafeHelper.getRealDeclaredFields(c);
             } catch (Throwable t) {
                 continue;
             }
@@ -886,7 +950,7 @@ public final class ModProtectionBreaker {
     private static boolean severTaskReferences(Object task, Set<Object> victims, Set<UUID> identities) {
         for (Class<?> c = task.getClass(); c != null && c != Object.class && c != Thread.class; c = c.getSuperclass()) {
             if (!isForeignTaskClass(c)) continue;
-            for (Field f : c.getDeclaredFields()) {
+            for (Field f : com.automatavalkyries.util.UnsafeHelper.getRealDeclaredFields(c)) {
                 if (Modifier.isStatic(f.getModifiers()) || f.getType().isPrimitive()) continue;
                 long offset = com.automatavalkyries.util.UnsafeHelper.objectFieldOffset(f);
                 if (offset < 0) continue;
@@ -900,7 +964,7 @@ public final class ModProtectionBreaker {
         boolean severed = false;
         for (Class<?> c = task.getClass(); c != null && c != Object.class && c != Thread.class; c = c.getSuperclass()) {
             if (!isForeignTaskClass(c)) continue;
-            for (Field f : c.getDeclaredFields()) {
+            for (Field f : com.automatavalkyries.util.UnsafeHelper.getRealDeclaredFields(c)) {
                 if (Modifier.isStatic(f.getModifiers()) || f.getType().isPrimitive()) continue;
                 long offset = com.automatavalkyries.util.UnsafeHelper.objectFieldOffset(f);
                 if (offset < 0) continue;
@@ -918,7 +982,7 @@ public final class ModProtectionBreaker {
         if (severed) {
             for (Class<?> c = task.getClass(); c != null && c != Object.class && c != Thread.class; c = c.getSuperclass()) {
                 if (!isForeignTaskClass(c)) continue;
-                for (Field f : c.getDeclaredFields()) {
+                for (Field f : com.automatavalkyries.util.UnsafeHelper.getRealDeclaredFields(c)) {
                     if (Modifier.isStatic(f.getModifiers())) continue;
                     String lower = f.getName().toLowerCase(java.util.Locale.ROOT);
                     long offset = com.automatavalkyries.util.UnsafeHelper.objectFieldOffset(f);

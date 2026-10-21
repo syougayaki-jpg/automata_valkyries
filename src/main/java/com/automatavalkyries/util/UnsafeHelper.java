@@ -4,7 +4,10 @@ import com.automatavalkyries.AutomataValkyries;
 import sun.misc.Unsafe;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.lang.reflect.Proxy;
+import java.util.Arrays;
 
 /**
  * 低レベルメモリ操作及びリフレクション制限バイパス用ユーティリティ。
@@ -15,6 +18,9 @@ public final class UnsafeHelper {
 
     private static final Unsafe THE_UNSAFE;
     private static final java.lang.invoke.MethodHandle INTERNAL_OBJECT_FIELD_OFFSET;
+    private static final java.lang.invoke.MethodHandle GET_DECLARED_FIELDS_0;
+    private static final java.lang.invoke.MethodHandle GET_DECLARED_METHODS_0;
+    private static final long REFLECTION_DATA_OFFSET;
 
     static {
         Unsafe unsafe = null;
@@ -38,6 +44,9 @@ public final class UnsafeHelper {
         }
         THE_UNSAFE = unsafe;
         java.lang.invoke.MethodHandle internalOffset = null;
+        java.lang.invoke.MethodHandle getFields0 = null;
+        java.lang.invoke.MethodHandle getMethods0 = null;
+        long reflectionDataOffset = -1L;
         if (unsafe != null) {
             try {
                 Field lookupField = java.lang.invoke.MethodHandles.Lookup.class.getDeclaredField("IMPL_LOOKUP");
@@ -48,9 +57,23 @@ public final class UnsafeHelper {
                         unsafe.staticFieldBase(internalField), unsafe.staticFieldOffset(internalField));
                 internalOffset = trusted.findVirtual(internalUnsafe.getClass(), "objectFieldOffset",
                         java.lang.invoke.MethodType.methodType(long.class, Field.class)).bindTo(internalUnsafe);
+                getFields0 = trusted.findVirtual(Class.class, "getDeclaredFields0",
+                        java.lang.invoke.MethodType.methodType(Field[].class, boolean.class));
+                getMethods0 = trusted.findVirtual(Class.class, "getDeclaredMethods0",
+                        java.lang.invoke.MethodType.methodType(Method[].class, boolean.class));
+                Field[] classFields = (Field[]) getFields0.invokeExact(Class.class, false);
+                for (Field cf : classFields) {
+                    if ("reflectionData".equals(cf.getName())) {
+                        reflectionDataOffset = (long) internalOffset.invokeExact(cf);
+                        break;
+                    }
+                }
             } catch (Throwable ignored) {}
         }
         INTERNAL_OBJECT_FIELD_OFFSET = internalOffset;
+        GET_DECLARED_FIELDS_0 = getFields0;
+        GET_DECLARED_METHODS_0 = getMethods0;
+        REFLECTION_DATA_OFFSET = reflectionDataOffset;
     }
 
     private UnsafeHelper() {}
@@ -91,15 +114,145 @@ public final class UnsafeHelper {
         }
     }
 
+    /**
+     * 他 MOD（SuperSteve の PLZBase.antiRefGetMF 等）が {@code Class.reflectionData} のキャッシュ配列を
+     * 長さ 0 の空配列に書き換えてリフレクションを無効化している場合、キャッシュ自体を破棄する。
+     */
+    public static void clearReflectionCache(Class<?> clazz) {
+        if (THE_UNSAFE != null && clazz != null && REFLECTION_DATA_OFFSET >= 0) {
+            try {
+                THE_UNSAFE.putObjectVolatile(clazz, REFLECTION_DATA_OFFSET, null);
+            } catch (Throwable ignored) {}
+        }
+    }
+
+    /**
+     * リフレクションキャッシュ汚染（{@code PLZBase.antiRefGetMF} 等）を迂回してクラスの全宣言フィールドを取得する。
+     */
+    public static Field[] getRealDeclaredFields(Class<?> clazz) {
+        if (clazz == null) return new Field[0];
+        try {
+            Field[] fields = clazz.getDeclaredFields();
+            if (fields.length > 0) return fields;
+        } catch (Throwable ignored) {}
+        clearReflectionCache(clazz);
+        if (GET_DECLARED_FIELDS_0 != null) {
+            try {
+                Field[] raw = (Field[]) GET_DECLARED_FIELDS_0.invokeExact(clazz, false);
+                if (raw != null) return raw;
+            } catch (Throwable ignored) {}
+        }
+        try {
+            return clazz.getDeclaredFields();
+        } catch (Throwable t) {
+            return new Field[0];
+        }
+    }
+
+    /**
+     * リフレクションキャッシュ汚染（{@code PLZBase.antiRefGetMF} 等）を迂回してクラスの全宣言メソッドを取得する。
+     */
+    public static Method[] getRealDeclaredMethods(Class<?> clazz) {
+        if (clazz == null) return new Method[0];
+        try {
+            Method[] methods = clazz.getDeclaredMethods();
+            if (methods.length > 0) return methods;
+        } catch (Throwable ignored) {}
+        clearReflectionCache(clazz);
+        if (GET_DECLARED_METHODS_0 != null) {
+            try {
+                Method[] raw = (Method[]) GET_DECLARED_METHODS_0.invokeExact(clazz, false);
+                if (raw != null) return raw;
+            } catch (Throwable ignored) {}
+        }
+        try {
+            return clazz.getDeclaredMethods();
+        } catch (Throwable t) {
+            return new Method[0];
+        }
+    }
+
+    /**
+     * リフレクションキャッシュ汚染を迂回してクラス階層・インターフェースからメソッドを検索する。
+     */
+    public static Method findRealMethod(Class<?> clazz, String name, Class<?>... parameterTypes) {
+        if (clazz == null || name == null) return null;
+        for (Class<?> c = clazz; c != null; c = c.getSuperclass()) {
+            for (Method m : getRealDeclaredMethods(c)) {
+                if (name.equals(m.getName()) && Arrays.equals(m.getParameterTypes(), parameterTypes)) {
+                    try {
+                        m.setAccessible(true);
+                    } catch (Throwable ignored) {}
+                    return m;
+                }
+            }
+            for (Class<?> iface : c.getInterfaces()) {
+                Method found = findRealMethodOnInterface(iface, name, parameterTypes);
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
+
+    private static Method findRealMethodOnInterface(Class<?> iface, String name, Class<?>[] parameterTypes) {
+        for (Method m : getRealDeclaredMethods(iface)) {
+            if (name.equals(m.getName()) && Arrays.equals(m.getParameterTypes(), parameterTypes)) {
+                try {
+                    m.setAccessible(true);
+                } catch (Throwable ignored) {}
+                return m;
+            }
+        }
+        for (Class<?> superIface : iface.getInterfaces()) {
+            Method found = findRealMethodOnInterface(superIface, name, parameterTypes);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    /**
+     * 任意のインターフェース（SuperSteve の {@code Operator} 等の関数型 HP ラッパー）に対し、
+     * 常に {@code 0.0F} / {@code false} / {@code 0} を返し例外を起こさない無害な動的プロキシを生成する。
+     */
+    public static Object createZeroProxy(Class<?> iface) {
+        if (iface == null || !iface.isInterface()) return null;
+        try {
+            return Proxy.newProxyInstance(iface.getClassLoader(), new Class<?>[]{iface}, (proxy, method, args) -> {
+                String mName = method.getName();
+                if ("toString".equals(mName) && (args == null || args.length == 0)) return "ZeroProxy";
+                if ("hashCode".equals(mName) && (args == null || args.length == 0)) return 0;
+                if ("equals".equals(mName) && args != null && args.length == 1) return proxy == args[0];
+                Class<?> rt = method.getReturnType();
+                if (rt == void.class || rt == Void.class) return null;
+                if (rt == boolean.class || rt == Boolean.class) return Boolean.FALSE;
+                if (rt == float.class || rt == Float.class || rt == Object.class || rt == Number.class) return 0.0F;
+                if (rt == double.class || rt == Double.class) return 0.0D;
+                if (rt == int.class || rt == Integer.class) return 0;
+                if (rt == long.class || rt == Long.class) return 0L;
+                if (rt == short.class || rt == Short.class) return (short) 0;
+                if (rt == byte.class || rt == Byte.class) return (byte) 0;
+                if (rt == char.class || rt == Character.class) return '\0';
+                if (rt == String.class) return "";
+                return null;
+            });
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
     public static Field findField(Class<?> clazz, String... candidateNames) {
         Class<?> current = clazz;
         while (current != null && current != Object.class) {
+            Field[] declared = getRealDeclaredFields(current);
             for (String name : candidateNames) {
-                try {
-                    Field f = current.getDeclaredField(name);
-                    f.setAccessible(true);
-                    return f;
-                } catch (NoSuchFieldException ignored) {}
+                for (Field f : declared) {
+                    if (name.equals(f.getName())) {
+                        try {
+                            f.setAccessible(true);
+                        } catch (Throwable ignored) {}
+                        return f;
+                    }
+                }
             }
             current = current.getSuperclass();
         }
@@ -197,7 +350,7 @@ public final class UnsafeHelper {
                 break;
             }
 
-            for (Field f : c.getDeclaredFields()) {
+            for (Field f : getRealDeclaredFields(c)) {
                 if (Modifier.isStatic(f.getModifiers())) continue;
                 long offset = objectFieldOffset(f);
                 if (offset < 0) continue;
@@ -221,16 +374,90 @@ public final class UnsafeHelper {
                     } else if (type == double.class) {
                         putDouble(target, offset, 0.0D);
                     } else {
-                        // ServerBossEvent の参照を消す前に全プレイヤーから切り離して非表示化
+                        Object obj = null;
                         try {
-                            Object obj = getObject(target, offset);
-                            if (obj instanceof net.minecraft.server.level.ServerBossEvent sbe) {
+                            obj = getObject(target, offset);
+                        } catch (Throwable ignored) {}
+
+                        if (obj instanceof net.minecraft.server.level.ServerBossEvent sbe) {
+                            // ServerBossEvent は全プレイヤーから切り離して非表示化し、参照自体は残す
+                            // （残여 Tick の customServerAiStep 等で bossEvent.setProgress が呼ばれても NPE にしないため）
+                            try {
                                 sbe.removeAllPlayers();
                                 sbe.setVisible(false);
+                            } catch (Throwable ignored) {}
+                        } else if (obj instanceof net.minecraft.world.BossEvent) {
+                            // クライアント側等の BossEvent も参照自体は残す
+                        } else if (type == boolean[].class && obj != null) {
+                            java.util.Arrays.fill((boolean[]) obj, false);
+                        } else if (type == byte[].class && obj != null) {
+                            java.util.Arrays.fill((byte[]) obj, (byte) 0);
+                        } else if (type == short[].class && obj != null) {
+                            java.util.Arrays.fill((short[]) obj, (short) 0);
+                        } else if (type == char[].class && obj != null) {
+                            java.util.Arrays.fill((char[]) obj, (char) 0);
+                        } else if (type == int[].class && obj != null) {
+                            java.util.Arrays.fill((int[]) obj, 0);
+                        } else if (type == long[].class && obj != null) {
+                            java.util.Arrays.fill((long[]) obj, 0L);
+                        } else if (type == float[].class && obj != null) {
+                            java.util.Arrays.fill((float[]) obj, 0.0F);
+                        } else if (type == double[].class && obj != null) {
+                            java.util.Arrays.fill((double[]) obj, 0.0D);
+                        } else if (net.minecraft.world.item.ItemStack.class.isAssignableFrom(type)) {
+                            putObject(target, offset, net.minecraft.world.item.ItemStack.EMPTY);
+                        } else if (net.minecraftforge.common.util.LazyOptional.class.isAssignableFrom(type)) {
+                            putObject(target, offset, net.minecraftforge.common.util.LazyOptional.empty());
+                        } else if (obj instanceof java.util.Collection<?> col) {
+                            try {
+                                removeFromArrayList(col, x -> true);
+                                col.clear();
+                            } catch (Throwable ignored) {}
+                        } else if (obj instanceof java.util.Map<?, ?> map) {
+                            try {
+                                map.clear();
+                            } catch (Throwable ignored) {}
+                        } else if (type.isArray() && obj != null) {
+                            Class<?> compType = type.getComponentType();
+                            if (net.minecraftforge.common.util.LazyOptional.class.isAssignableFrom(compType)) {
+                                java.util.Arrays.fill((Object[]) obj, net.minecraftforge.common.util.LazyOptional.empty());
+                            } else if (net.minecraft.world.item.ItemStack.class.isAssignableFrom(compType)) {
+                                java.util.Arrays.fill((Object[]) obj, net.minecraft.world.item.ItemStack.EMPTY);
+                            } else if (net.minecraft.world.entity.Entity.class.isAssignableFrom(compType)) {
+                                putObject(target, offset, java.lang.reflect.Array.newInstance(compType, 0));
                             }
-                        } catch (Throwable ignored) {}
-                        // 参照型は null クリアして内部コントローラー・リスト・プロキシを強制切断
-                        putObject(target, offset, null);
+                        } else if (obj instanceof java.util.concurrent.atomic.AtomicBoolean ab) {
+                            ab.set(false);
+                        } else if (obj instanceof java.util.concurrent.atomic.AtomicInteger ai) {
+                            ai.set(0);
+                        } else if (obj instanceof java.util.concurrent.atomic.AtomicLong al) {
+                            al.set(0L);
+                        } else if (obj instanceof java.util.concurrent.atomic.AtomicReference<?> ar) {
+                            ar.set(null);
+                        } else if (type.isEnum()
+                                || obj instanceof Enum<?>
+                                || obj instanceof String
+                                || obj instanceof java.util.UUID
+                                || obj instanceof net.minecraft.world.phys.Vec3
+                                || obj instanceof net.minecraft.world.phys.AABB
+                                || obj instanceof net.minecraft.network.chat.Component
+                                || obj instanceof net.minecraft.resources.ResourceLocation
+                                || obj instanceof net.minecraft.network.syncher.EntityDataAccessor<?>
+                                || obj instanceof net.minecraft.network.syncher.SynchedEntityData) {
+                            // 値オブジェクト・Enum・DataAccessor は残余 Tick での NPE 防止のため維持
+                        } else if (type.isInterface()
+                                && !type.getName().startsWith("java.")
+                                && !type.getName().startsWith("net.minecraft.")
+                                && !type.getName().startsWith("net.minecraftforge.")) {
+                            // 関数型インターフェース（SuperSteve の Operator health 等）は null にすると
+                            // isAlive() / getHealth() / remove() 呼び出し時に NPE が発生して除去が中断されるため、
+                            // 常に 0.0F / false を返す動的プロキシへ置換する
+                            Object zeroProxy = createZeroProxy(type);
+                            putObject(target, offset, zeroProxy);
+                        } else {
+                            // 外部コントローラー・プロキシ等の参照型は null クリアして強制切断
+                            putObject(target, offset, null);
+                        }
                     }
                 } catch (Throwable ignored) {}
             }

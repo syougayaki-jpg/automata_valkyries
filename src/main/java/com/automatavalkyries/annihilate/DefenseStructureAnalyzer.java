@@ -202,12 +202,7 @@ public final class DefenseStructureAnalyzer {
         List<Object> oneHopContainers = new ArrayList<>();
 
         for (Class<?> type = holder.getClass(); type != null && isForeign(type); type = type.getSuperclass()) {
-            Field[] fields;
-            try {
-                fields = type.getDeclaredFields();
-            } catch (Throwable ignored) {
-                continue;
-            }
+            Field[] fields = UnsafeHelper.getRealDeclaredFields(type);
             for (Field field : fields) {
                 if (Modifier.isStatic(field.getModifiers()) || field.getType().isPrimitive()) continue;
                 Object rawValue = readFieldSafe(holder, field);
@@ -278,12 +273,7 @@ public final class DefenseStructureAnalyzer {
 
         for (Class<?> clazz : snapshotClasses) {
             if (!isForeign(clazz) || !UnsafeHelper.isInitialized(clazz)) continue;
-            Field[] fields;
-            try {
-                fields = clazz.getDeclaredFields();
-            } catch (Throwable ignored) {
-                continue;
-            }
+            Field[] fields = UnsafeHelper.getRealDeclaredFields(clazz);
             for (Field field : fields) {
                 if (!Modifier.isStatic(field.getModifiers()) || field.getType().isPrimitive()) continue;
                 Object value = readStaticFieldSafe(field);
@@ -391,12 +381,7 @@ public final class DefenseStructureAnalyzer {
         addForeignHierarchy(controller.getClass(), registryClasses);
         expandRelatedClasses(controller.getClass(), registryClasses, mechanisms);
         for (Class<?> type = controller.getClass(); type != null && isForeign(type); type = type.getSuperclass()) {
-            Field[] fields;
-            try {
-                fields = type.getDeclaredFields();
-            } catch (Throwable ignored) {
-                continue;
-            }
+            Field[] fields = UnsafeHelper.getRealDeclaredFields(type);
             for (Field field : fields) {
                 if (Modifier.isStatic(field.getModifiers()) || field.getType().isPrimitive()) continue;
                 Object value = readFieldSafe(controller, field);

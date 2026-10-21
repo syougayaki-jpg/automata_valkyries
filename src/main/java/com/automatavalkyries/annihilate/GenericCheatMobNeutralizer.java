@@ -115,7 +115,7 @@ public final class GenericCheatMobNeutralizer {
         visited.add(target);
 
         for (Class<?> type = target.getClass(); type != null && isForeign(type); type = type.getSuperclass()) {
-            for (Field field : type.getDeclaredFields()) {
+            for (Field field : UnsafeHelper.getRealDeclaredFields(type)) {
                 if (Modifier.isStatic(field.getModifiers()) || field.getType().isPrimitive()) continue;
                 try {
                     field.setAccessible(true);
@@ -174,7 +174,7 @@ public final class GenericCheatMobNeutralizer {
         } catch (Throwable ignored) {}
 
         for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
-            for (Field f : c.getDeclaredFields()) {
+            for (Field f : UnsafeHelper.getRealDeclaredFields(c)) {
                 if (Modifier.isStatic(f.getModifiers())) continue;
                 String name = f.getName();
 
@@ -190,11 +190,16 @@ public final class GenericCheatMobNeutralizer {
                     } catch (Throwable ignored) {}
                 }
 
-                // proxy 参照の破棄（ラッパー経由の逆参照も含む）
+                // proxy 参照の破棄（ラッパー経由の逆参照・同一 UUID のクライアント対も含む）
                 if (Entity.class.isAssignableFrom(f.getType())) {
                     try {
                         f.setAccessible(true);
-                        if (proxy == null || f.get(core) == proxy) {
+                        Object held = f.get(core);
+                        if (proxy == null || held == proxy
+                                || (held instanceof Entity other && isSameEntityIdentity(other, proxy))) {
+                            if (held instanceof Entity twin && twin != proxy) {
+                                resetDefensiveFlags(twin);
+                            }
                             f.set(core, null);
                         }
                     } catch (Throwable ignored) {}
@@ -202,7 +207,11 @@ public final class GenericCheatMobNeutralizer {
                     try {
                         f.setAccessible(true);
                         if (f.get(core) instanceof java.lang.ref.Reference<?> ref
-                                && (proxy == null || ref.get() == proxy)) {
+                                && (proxy == null || ref.get() == proxy
+                                || (ref.get() instanceof Entity other && isSameEntityIdentity(other, proxy)))) {
+                            if (ref.get() instanceof Entity twin && twin != proxy) {
+                                resetDefensiveFlags(twin);
+                            }
                             ref.clear();
                         }
                     } catch (Throwable ignored) {}
@@ -210,7 +219,11 @@ public final class GenericCheatMobNeutralizer {
                     try {
                         f.setAccessible(true);
                         if (f.get(core) instanceof java.util.concurrent.atomic.AtomicReference<?> atomicRef
-                                && (proxy == null || atomicRef.get() == proxy)) {
+                                && (proxy == null || atomicRef.get() == proxy
+                                || (atomicRef.get() instanceof Entity other && isSameEntityIdentity(other, proxy)))) {
+                            if (atomicRef.get() instanceof Entity twin && twin != proxy) {
+                                resetDefensiveFlags(twin);
+                            }
                             atomicRef.set(null);
                         }
                     } catch (Throwable ignored) {}
@@ -336,9 +349,12 @@ public final class GenericCheatMobNeutralizer {
         Class<?> clazz = target.getClass();
 
         for (Class<?> c = clazz; c != null && c != Object.class; c = c.getSuperclass()) {
-            for (Field f : c.getDeclaredFields()) {
+            for (Field f : UnsafeHelper.getRealDeclaredFields(c)) {
                 if (Modifier.isStatic(f.getModifiers())) continue;
                 String name = f.getName();
+                if (f.getType().isInterface() && isForeign(f.getType())) {
+                    ModProtectionBreaker.neutralizeForeignFunctionalField(target, c, f);
+                }
 
                 // boolean フラグの無効化（死亡フラグは true、防御フラグは false）
                 if (f.getType() == boolean.class) {
@@ -433,7 +449,7 @@ public final class GenericCheatMobNeutralizer {
         }
 
         for (Class<?> clazz : targetClasses) {
-            for (Field field : clazz.getDeclaredFields()) {
+            for (Field field : UnsafeHelper.getRealDeclaredFields(clazz)) {
                 if (!Modifier.isStatic(field.getModifiers())) continue;
                 try {
                     field.setAccessible(true);
@@ -510,15 +526,15 @@ public final class GenericCheatMobNeutralizer {
         UUID rawTargetUuid = target != null ? MadnessAnnihilation.uuid(target) : null;
         UUID reportedTargetUuid = target != null ? target.getUUID() : null;
         for (Class<?> c = core.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
-            for (Field field : c.getDeclaredFields()) {
+            for (Field field : UnsafeHelper.getRealDeclaredFields(c)) {
                 if (Modifier.isStatic(field.getModifiers()) || field.getType().isPrimitive()) continue;
                 try {
                     field.setAccessible(true);
                     Object value = field.get(core);
-                    if (value == target) pointsBack = true;
+                    if (value == target || (value instanceof Entity e && isSameEntityIdentity(e, target))) pointsBack = true;
                     if (containsOtherEntity(value, target)) return false;
                     Object unwrapped = DefenseStructureAnalyzer.unwrapSingle(value);
-                    if (unwrapped == target) pointsBack = true;
+                    if (unwrapped == target || (unwrapped instanceof Entity e && isSameEntityIdentity(e, target))) pointsBack = true;
                     if (unwrapped != value && containsOtherEntity(unwrapped, target)) return false;
                     if (unwrapped instanceof UUID id) {
                         String lower = field.getName().toLowerCase(Locale.ROOT);
@@ -543,7 +559,7 @@ public final class GenericCheatMobNeutralizer {
         if (holder == null || holder == target) return false;
         if (containsOtherEntity(holder, target)) return true;
         for (Class<?> c = holder.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
-            for (Field field : c.getDeclaredFields()) {
+            for (Field field : UnsafeHelper.getRealDeclaredFields(c)) {
                 if (Modifier.isStatic(field.getModifiers()) || field.getType().isPrimitive()) continue;
                 try {
                     field.setAccessible(true);
@@ -557,24 +573,35 @@ public final class GenericCheatMobNeutralizer {
         return false;
     }
 
+    private static boolean isSameEntityIdentity(Entity a, Entity b) {
+        if (a == b) return true;
+        if (a == null || b == null) return false;
+        try {
+            UUID ua = MadnessAnnihilation.uuid(a);
+            UUID ub = MadnessAnnihilation.uuid(b);
+            if (ua != null && ua.equals(ub)) return true;
+        } catch (Throwable ignored) {}
+        return false;
+    }
+
     private static boolean containsOtherEntity(Object value, Entity target) {
-        if (value instanceof Entity entity) return entity != target;
+        if (value instanceof Entity entity) return !isSameEntityIdentity(entity, target);
         if (value instanceof java.lang.ref.Reference<?> ref) return containsOtherEntity(ref.get(), target);
         if (value instanceof Collection<?> collection) {
             for (Object element : collection) {
-                if (element instanceof Entity entity && entity != target) return true;
+                if (element instanceof Entity entity && !isSameEntityIdentity(entity, target)) return true;
                 if (element instanceof java.lang.ref.Reference<?> ref && ref.get() instanceof Entity entity
-                        && entity != target) return true;
+                        && !isSameEntityIdentity(entity, target)) return true;
             }
         }
         if (value instanceof Map<?, ?> map) {
             for (var entry : map.entrySet()) {
-                if (entry.getKey() instanceof Entity entity && entity != target) return true;
-                if (entry.getValue() instanceof Entity entity && entity != target) return true;
+                if (entry.getKey() instanceof Entity entity && !isSameEntityIdentity(entity, target)) return true;
+                if (entry.getValue() instanceof Entity entity && !isSameEntityIdentity(entity, target)) return true;
             }
         }
         if (value instanceof Object[] array) {
-            for (Object element : array) if (element instanceof Entity entity && entity != target) return true;
+            for (Object element : array) if (element instanceof Entity entity && !isSameEntityIdentity(entity, target)) return true;
         }
         return false;
     }

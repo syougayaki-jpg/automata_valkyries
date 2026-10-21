@@ -51,7 +51,7 @@ public final class InjectedMembers {
         Set<String> original = originalFieldNames(type);
         if (original == null) return List.of();
         List<InjectedField> result = new ArrayList<>();
-        for (Field field : type.getDeclaredFields()) {
+        for (Field field : com.automatavalkyries.util.UnsafeHelper.getRealDeclaredFields(type)) {
             if (field.isSynthetic() || original.contains(field.getName())) continue;
             result.add(new InjectedField(field, injectingMod(type, field.getName())));
         }
@@ -61,7 +61,12 @@ public final class InjectedMembers {
     /** jar にある元のクラスファイルのフィールド名（読めなければ null） */
     @Nullable
     private static Set<String> originalFieldNames(Class<?> type) {
-        String resource = type.getName().replace('.', '/') + ".class";
+        String rawClassName = type.getName();
+        int slashIdx = rawClassName.indexOf('/');
+        if (slashIdx > 0) {
+            rawClassName = rawClassName.substring(0, slashIdx);
+        }
+        String resource = rawClassName.replace('.', '/') + ".class";
         try (InputStream in = open(type, resource)) {
             if (in == null) return null;
             Set<String> names = new HashSet<>();
