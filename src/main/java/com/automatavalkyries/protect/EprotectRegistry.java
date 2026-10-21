@@ -127,6 +127,15 @@ public final class EprotectRegistry {
         }
     }
 
+    /** 撃破が取り消された（HP が戻って生きている）。復元の対象に戻す */
+    public void markActive(UUID uuid) {
+        Entry entry = entries.get(uuid);
+        if (entry != null && entry.state == State.DEFEATED) {
+            entry.state = State.ACTIVE;
+            markDirty();
+        }
+    }
+
     /** 正規の撃破完了・正規退場・次元移動の元側。記録を消す */
     public void forget(UUID uuid) {
         if (entries.remove(uuid) != null) markDirty();

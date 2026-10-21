@@ -416,6 +416,13 @@ public class Eprotect {
         if (owner.level() instanceof ServerLevel) registry().markDefeated(owner.getUUID());
     }
 
+    /** 撃破が取り消された（他 MOD が死亡を取り消して HP が戻った等）。保護を再開する */
+    public void cancelDefeat() {
+        if (!defeated || deathFinished) return;
+        this.defeated = false;
+        if (owner.level() instanceof ServerLevel) registry().markActive(owner.getUUID());
+    }
+
     public void beginHurt() {
         hurtDepth++;
     }

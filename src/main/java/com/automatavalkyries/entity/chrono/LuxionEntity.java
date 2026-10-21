@@ -461,6 +461,26 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
 
     // ---- 毎 Tick: 保護・ボスバー・第 2 形態・退く ----
 
+    /** 撃破の印が立ったのに HP が戻って演出が始まらない状態の続き Tick 数 */
+    private int staleDefeatTicks;
+
+    /**
+     * 撃破の印（DEFEATED）が立っているのに、実際の HP が残り、死亡演出（deathTime）も始まらないまま続くなら、撃破は取り消された。
+     * 他 MOD が死亡を取り消して HP を戻すと、印だけが残ってクライアントでは倒れた演出になり（サーバーでは生きていて、リログで直る。2026-10-22）、
+     * Eprotect も撃破済みとして保護を止めていた。印と保護を戻す
+     */
+    private void revokeStaleDefeat() {
+        if (!entityData.get(DEFEATED) || deathTime > 0 || !(DirectRead.health(this) > 0.0F)) {
+            staleDefeatTicks = 0;
+            return;
+        }
+        if (++staleDefeatTicks < 10) return;
+        staleDefeatTicks = 0;
+        entityData.set(DEFEATED, false);
+        protect.cancelDefeat();
+        com.automatavalkyries.AutomataValkyries.LOGGER.warn("[luxion] the defeat was undone (health {} remains); cleared the defeated mark", DirectRead.health(this));
+    }
+
     @Override
     public void baseTick() {
         super.baseTick();
@@ -493,6 +513,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
             }
             return;
         }
+        revokeStaleDefeat();
         protect.tick();
         float ratio = protect.healthRatio();
         // 撃破されたら HP の値に関わらずボスバーを 0 に（即死 MOD で HP が残ったまま倒れると減らず、ボスバーの砕ける演出が始まらなかった。2026-10-08）
