@@ -241,6 +241,22 @@ public class GenericProtectGameTests {
     }
 
     /**
+     * 購読の片方（EprotectManager のインスタンス）だけ外されても、点検が見つけて外れた方だけ登録し直す
+     * （もう一方を二重に登録しない）。外れたまま二度と点検が走らない事態を防ぐ（2026-10-22）
+     */
+    @GameTest(template = TEMPLATE)
+    public static void eventBusGuardianRestoresOnlyTheMissingListener(GameTestHelper helper) {
+        net.minecraftforge.common.MinecraftForge.EVENT_BUS.unregister(com.automatavalkyries.protect.EprotectManager.getInstance());
+        try {
+            helper.assertTrue(com.automatavalkyries.protect.EventBusGuardian.ensureEventBusIntegrity(), "The removed manager listener was not restored");
+        } finally {
+            com.automatavalkyries.protect.EventBusGuardian.ensureEventBusIntegrity(); // 失敗しても戻しておく
+        }
+        helper.assertFalse(com.automatavalkyries.protect.EventBusGuardian.ensureEventBusIntegrity(), "Listeners were registered twice or the check is unstable");
+        helper.succeed();
+    }
+
+    /**
      * Eprotect+ 案4: EventBus 破壊・全消去への完全二重防護
      * EventBusGuardian の修復機能、および Mixin HEAD での強化ガード（イベント非依存）を検証。
      */

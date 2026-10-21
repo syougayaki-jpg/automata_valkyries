@@ -56,33 +56,62 @@ public final class EventBusGuardian {
             }
 
             // 2. リスナーリストがクリアされていないか点検
-            boolean needsReRegister = false;
+            // 登録の鍵は、static の購読（クラス）と、インスタンスの購読（EprotectManager）で別。片方だけ外されても見つけて、外れた方だけ登録し直す
+            // （両方を登録し直すと、残っていた方の処理が二重に走る。2026-10-22: Madness の回で EprotectManager の停止・起動の通知だけ届かなかった）
+            boolean missingForgeEvents = false;
+            boolean missingManager = false;
             try {
                 Field listenersField = findFieldInHierarchy(bus.getClass(), "listeners");
                 if (listenersField != null) {
                     listenersField.setAccessible(true);
                     Object listenersObj = listenersField.get(bus);
                     if (listenersObj instanceof Map<?, ?> map) {
-                        if (map.isEmpty() || !map.containsKey(EprotectForgeEvents.class)) {
-                            needsReRegister = true;
-                        }
+                        missingForgeEvents = !map.containsKey(EprotectForgeEvents.class);
+                        missingManager = !map.containsKey(EprotectManager.getInstance());
                     }
                 }
             } catch (Throwable ignored) {
                 // フィールドが取得できない場合（難読化等）は安全のためスキップ
             }
 
-            if (needsReRegister) {
-                MinecraftForge.EVENT_BUS.register(EprotectForgeEvents.class);
-                MinecraftForge.EVENT_BUS.register(EprotectManager.getInstance());
+            if (missingForgeEvents || missingManager) {
+                if (missingForgeEvents) MinecraftForge.EVENT_BUS.register(EprotectForgeEvents.class);
+                if (missingManager) MinecraftForge.EVENT_BUS.register(EprotectManager.getInstance());
                 AttackLog.repaired(null, "event_bus_listeners_restored");
-                AutomataValkyries.LOGGER.warn("[EventBusGuardian] Detected EventBus listener clearing! Re-registered Eprotect event listeners.");
+                AutomataValkyries.LOGGER.warn("[EventBusGuardian] Detected EventBus listener removal (forgeEvents missing: {}, manager missing: {}); re-registered them.",
+                        missingForgeEvents, missingManager);
                 repaired = true;
             }
         } catch (Throwable t) {
             AutomataValkyries.LOGGER.debug("[EventBusGuardian] EventBus check failed", t);
         }
         return repaired;
+    }
+
+    private static volatile long lastPollMillis;
+
+    /**
+     * Forge のイベントを使わない点検の入口（{@code MinecraftServer.tickServer} の Mixin から。{@code EventBusPollMixin}）。
+     * 購読が外されると、{@link EprotectManager#onServerTick} も止まって、そこからの点検は二度と走らない。そのために、イベントに頼らない所から
+     * 1 秒に 1 回、購読の点検と、見張り（ウォッチドッグ・辞書補助）の起動し直しを行う
+     */
+    public static void poll(net.minecraft.server.MinecraftServer server) {
+        long now = System.currentTimeMillis();
+        if (now - lastPollMillis < 1000L) return;
+        lastPollMillis = now;
+        ensureEventBusIntegrity();
+        try {
+            if (server.isRunning() && !EprotectWatchdogAgent.getInstance().isRunning()) {
+                AutomataValkyries.LOGGER.warn("[EventBusGuardian] The watchdog was not running on a running server (the start event did not arrive); starting it");
+                EprotectWatchdogAgent.getInstance().start(server);
+            }
+            if (server.isRunning() && !com.automatavalkyries.protect.flag.FlagWatchAgent.getInstance().isRunning()) {
+                AutomataValkyries.LOGGER.warn("[EventBusGuardian] The flag watch was not running on a running server; starting it");
+                com.automatavalkyries.protect.flag.FlagWatchAgent.getInstance().start(server);
+            }
+        } catch (Throwable t) {
+            AutomataValkyries.LOGGER.debug("[EventBusGuardian] Poll failed", t);
+        }
     }
 
     /**
