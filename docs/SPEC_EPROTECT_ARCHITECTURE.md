@@ -213,6 +213,14 @@
 - **Tick 一覧から外された**: 一覧へ入れ直す（修復として数える）。
 - **一覧に載っているのに Tick が来ない**（ワールドの Tick ごと止める型、反復で読み飛ばす型）: 止まっている間は毎 Tick、マネージャーから本体の Tick を代わりに回し、
   その移動・状態の変化をクライアントへ送る（`ServerEntity.sendChanges`。送るのも本来ワールドの Tick の役目なので）。修復には数えない（数えると時間停止が続くだけで退避する）。
+- **時間停止の免除を動いている個体から真似る**（`protect/TimeStopExemption`、2026-10-21）: 時間停止の MOD は止めない個体を個体ごとの状態で決めることが多い
+  （EndingLibrary: 同期データ `timeStopCount` が正の生き物だけ動ける。非生物は常に止まる）。止められている間（上の代わりに回している最中）、同じレベルで Tick が進んでいる個体の状態と
+  自分の状態を `StateScanner.observe` で比べ、辞書が time / stop / freeze 系の CONTROL と見分ける名前のうち、動いている側だけ正（真）になっているものを探す。
+  2 回続けて同じ名前が見つかったら、その値を毎 Tick 真似る（数値は +1。カウンターが先に 0 になって時間停止そのものを解除させないため）。動いている側の値が無くなる、
+  または真似ても 60 Tick 止まったままなら、0（偽）に戻してやめる（効かなかった候補は 1200 Tick 使わない）。書けるのは同期データと足されたフィールドだけ。
+  真似ている名前だけ、その個体の掃除から一時的に外す（`FlagDictionary.skipOnProtected`。辞書の分類は変えない）。外さないと毎 Tick 0 に戻され、修復が積もって退避し、
+  その MOD が自動でブラックリストに載る。設定 `protection.mirrorTimeStopExemption`（既定 true）。免除の状態を持たない作り（レベル全体の停止・一覧への登録）には効かず、
+  従来どおり Tick を直接回す。GameTest は模擬（`FakeStopSubject` / `FakeFrozenBoss` / `FakeTimeStopMixin` の門）で確かめた。実物の EndingLibrary・Fantasy Ending では未確認
 - **代わりに回しても入口で打ち切られる**: その入口に処理を差し込んだ、打ち切れる作りの他 MOD の Mixin を候補として記録する（`TickEntranceHooks`。報告のみ）。
   エンティティ単位で止める型は互換 Mixin が要る（例: No-Sugar は `NoSugarMixins$TimeStop`）。
 

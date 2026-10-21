@@ -42,6 +42,11 @@ final class TickStallGuard {
         this.owner = protect.getOwner();
     }
 
+    /** ワールドの Tick ごと止められている（時間停止など）ので、本体の Tick を代わりに回している最中か（{@link TimeStopExemption} が免除を探す合図） */
+    boolean isDriving() {
+        return driving;
+    }
+
     /** {@link Eprotect#tick()} の入口で毎回 */
     void countOwnTick() {
         ownTickRuns++;

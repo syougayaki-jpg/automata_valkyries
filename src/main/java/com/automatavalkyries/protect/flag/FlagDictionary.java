@@ -242,6 +242,22 @@ public final class FlagDictionary {
         return result.isEmpty() ? Set.of() : java.util.Collections.unmodifiableSet(result);
     }
 
+    /**
+     * 今のスレッドで、保護対象の掃除（{@link #harmfulOnProtected}）から一時的に外す名前（2026-10-21）。保護対象に時間停止の免除を真似させている間、
+     * その値（正）を掃除が毎 Tick 0 に戻さないため。辞書の分類そのもの（抹殺側も見る）は変えない。null か空で解除する
+     */
+    public static void skipOnProtected(@org.jetbrains.annotations.Nullable java.util.Collection<String> names) {
+        if (names == null || names.isEmpty()) {
+            THREAD_SKIP.remove();
+            return;
+        }
+        Set<String> set = new java.util.HashSet<>();
+        for (String name : names) set.add(compact(name));
+        THREAD_SKIP.set(set);
+    }
+
+    private static final ThreadLocal<Set<String>> THREAD_SKIP = new ThreadLocal<>();
+
     /** 設定 {@code flagDictionary.ignore} で除外した名前か */
     public static boolean ignored(String name) {
         return ignored.contains(compact(name));
@@ -256,6 +272,8 @@ public final class FlagDictionary {
      * 「保護を迂回する」（bypassProtection）は守りの単語も含むが、迂回が優先。
      */
     public static boolean harmfulOnProtected(String name) {
+        Set<String> skip = THREAD_SKIP.get();
+        if (skip != null && skip.contains(compact(name))) return false;
         Set<Category> c = classify(name);
         if (c.contains(Category.BYPASS)) return true;
         if (c.contains(Category.GUARD)) return false;

@@ -505,6 +505,83 @@ public class EprotectGameTests {
         });
     }
 
+    /**
+     * 準汎用の時間停止の免除（{@code TimeStopExemption}）: 保護対象が時間停止で止められ、同じ世界で免除の状態（正）を持つ個体だけが動いているとき、
+     * MOD 名もクラス名も知らずにその状態を見つけて真似、止まらなくなる（EndingLibrary の timeStopCount の再現）。
+     * 真似ている値を掃除に戻されない・時間停止が終われば 0 に戻る・修復が積もって退避しないことも確かめる
+     */
+    @GameTest(template = TEMPLATE, timeoutTicks = 240)
+    public static void protectedBossMirrorsTheMoversTimeStopExemption(GameTestHelper helper) {
+        com.automatavalkyries.gametest.fake.FakeKillMod.install();
+        var level = helper.getLevel();
+        var boss = new com.automatavalkyries.gametest.fake.FakeFrozenBoss(net.minecraft.world.entity.EntityType.ZOMBIE, level);
+        var mover = new com.automatavalkyries.gametest.fake.FakeStopSubject(net.minecraft.world.entity.EntityType.ZOMBIE, level);
+        for (net.minecraft.world.entity.monster.Zombie z : new net.minecraft.world.entity.monster.Zombie[]{boss, mover}) {
+            z.setNoAi(true);
+            z.setPersistenceRequired();
+            z.setItemSlot(net.minecraft.world.entity.EquipmentSlot.HEAD, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_HELMET)); // 日光で燃えない
+            z.addTag(com.automatavalkyries.gametest.fake.FakeStopSubject.SCOPE_TAG);
+        }
+        boss.setPos(net.minecraft.world.phys.Vec3.atBottomCenterOf(helper.absolutePos(new BlockPos(2, 2, 2))));
+        mover.setPos(net.minecraft.world.phys.Vec3.atBottomCenterOf(helper.absolutePos(new BlockPos(4, 2, 2))));
+        level.addFreshEntity(boss);
+        level.addFreshEntity(mover);
+        var key = com.automatavalkyries.gametest.fake.FakeStopSubject.FAKE_TIME_STOP_COUNT;
+        mover.getEntityData().set(key, 10_000);
+        // 同期データの鍵の名前は、最初に調べたときの MOD の判定で決まって覚えられる。架空の MOD として扱える今のうちに調べておく
+        com.automatavalkyries.protect.flag.StateScanner.observe(boss, o -> {});
+        com.automatavalkyries.protect.flag.StateScanner.observe(mover, o -> {});
+        helper.assertTrue(com.automatavalkyries.protect.flag.FlagDictionary.is("FAKE_TIME_STOP_COUNT",
+                com.automatavalkyries.protect.flag.FlagDictionary.Category.CONTROL), "test setup: the counter's name is not a CONTROL name");
+
+        Runnable cleanup = () -> {
+            com.automatavalkyries.gametest.fake.FakeStopSubject.STOP_ACTIVE = false;
+            boss.removeTag(com.automatavalkyries.gametest.fake.FakeStopSubject.SCOPE_TAG);
+            mover.removeTag(com.automatavalkyries.gametest.fake.FakeStopSubject.SCOPE_TAG);
+            boss.getEprotect().triggerDespawn();
+            mover.discard();
+        };
+        com.automatavalkyries.gametest.fake.FakeStopSubject.STOP_ACTIVE = true;
+        helper.runAfterDelay(80, () -> {
+            try {
+                int mirrored = boss.getEntityData().get(key);
+                helper.assertTrue(mirrored == 10_001, "The protected boss did not mirror the exemption (" + mirrored + ")");
+                helper.assertTrue(com.automatavalkyries.protect.attack.AttackLog.entries().stream().anyMatch(
+                                e -> e.op.equals(com.automatavalkyries.protect.attack.AttackOp.REPAIR + ":time_stop_exemption:FAKE_TIME_STOP_COUNT")),
+                        "The mirrored exemption was not recorded");
+                helper.assertFalse(com.automatavalkyries.protect.attack.AttackLog.entries().stream().anyMatch(
+                                e -> e.op.contains("state:") && e.op.contains("FAKE_TIME_STOP_COUNT")),
+                        "The cleaner kept resetting the mirrored value");
+                helper.assertFalse(boss.getEprotect().isDespawning(), "The boss retreated while mirroring");
+                int ticks = boss.tickCount;
+                helper.runAfterDelay(10, () -> {
+                    try {
+                        helper.assertTrue(boss.tickCount > ticks + 5, "The boss did not keep ticking (" + ticks + " -> " + boss.tickCount + ")");
+                        com.automatavalkyries.gametest.fake.FakeStopSubject.STOP_ACTIVE = false;
+                        mover.getEntityData().set(key, 0);
+                        helper.runAfterDelay(10, () -> {
+                            try {
+                                helper.assertTrue(boss.getEntityData().get(key) == 0,
+                                        "The mirrored value was not put back after the stop ended (" + boss.getEntityData().get(key) + ")");
+                                cleanup.run();
+                                helper.succeed();
+                            } catch (RuntimeException | Error e) {
+                                cleanup.run();
+                                throw e;
+                            }
+                        });
+                    } catch (RuntimeException | Error e) {
+                        cleanup.run();
+                        throw e;
+                    }
+                });
+            } catch (RuntimeException | Error e) {
+                cleanup.run();
+                throw e;
+            }
+        });
+    }
+
     /** 時間停止で包み（guardEntityTick）の入口から Tick を打ち切られても、保護対象は入口を飛ばして動き続ける（EndingLibrary の再現） */
     @GameTest(template = TEMPLATE, timeoutTicks = 100)
     public static void timeStopAtTickWrapperIsBypassed(GameTestHelper helper) {

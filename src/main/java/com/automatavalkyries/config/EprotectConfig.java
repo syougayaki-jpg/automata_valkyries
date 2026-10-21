@@ -17,6 +17,10 @@ public final class EprotectConfig {
             .comment("死亡の兆候が出た Tick に、辞書に無い名前の外部状態（他 MOD が付けた値）が死亡の兆候に合う変化をしていたら、正常時に控えた値へ戻す（準汎用。名前に頼らないキルへの対）")
             .define("protection.restoreUnknownForeignState", true);
 
+    public static final ForgeConfigSpec.BooleanValue MIRROR_TIME_STOP_EXEMPTION = BUILDER
+            .comment("保護対象が時間停止で止められたとき、動いている個体が持つ時間停止の免除の状態（EndingLibrary の timeStopCount 等）を探して真似る（準汎用。見つからなければ従来どおり Tick を直接回す）")
+            .define("protection.mirrorTimeStopExemption", true);
+
     public static final ForgeConfigSpec.BooleanValue RETREAT_WHEN_UNREPAIRABLE = BUILDER
             .comment("異常の修復が追いつかないとき、保護対象を正規の退場処理で安全に退避させる")
             .define("protection.retreatWhenUnrepairable", true);

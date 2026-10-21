@@ -102,6 +102,8 @@ public class Eprotect {
     private final ForcedChunk forcedChunk;
     /** 辞書に無い名前の外部状態を、正常時に控えた値へ戻す（準汎用。{@link ForeignStateBaseline}） */
     private final ForeignStateBaseline foreignBaseline;
+    /** 時間停止で止められたとき、動いている個体の免除の状態を真似る（準汎用。{@link TimeStopExemption}） */
+    private final TimeStopExemption timeStopExemption;
 
     public Eprotect(LivingEntity owner) {
         this(owner, EprotectProfile.DEFAULT);
@@ -113,6 +115,7 @@ public class Eprotect {
         this.tickGuard = new TickStallGuard(this);
         this.forcedChunk = new ForcedChunk(owner);
         this.foreignBaseline = new ForeignStateBaseline(owner);
+        this.timeStopExemption = new TimeStopExemption(this, tickGuard);
     }
 
     /** 被弾の上限を掛けない（{@link EprotectProfile#UNCAPPED}）。普通に倒せるボス向け */
@@ -553,7 +556,7 @@ public class Eprotect {
         if (isReinforcedActive()) {
             // HP は満タンに戻さない（通常攻撃で削られた分まで消えるため）。抹殺予定の一覧と他 MOD の印の掃除だけ
             com.automatavalkyries.protect.flag.KillLists.purge(owner);
-            ForeignStateCleaner.clean(owner);
+            cleanForeignState();
         }
 
         int anomalies = 0;
@@ -574,12 +577,26 @@ public class Eprotect {
         anomalies += restorePresence();
         // vanilla の状態を戻した後に回す（vanilla のフィールドを見せるだけのアクセサ（nosugar の DeadFlag 等）を
         // 他 MOD 固有の状態と取り違えて、直書きの修復をその MOD の攻撃として記録しないため）
-        if (ForeignStateCleaner.clean(owner)) anomalies++;
+        if (cleanForeignState()) anomalies++;
         noteSpoofedRead();
         if (tickGuard.restoreIfStopped()) anomalies++;
+        timeStopExemption.update(); // 掃除の後に回す（真似ている値を掃除に戻されないため）
         resyncViewersIfPending();
 
         if (anomalies > 0) noteAnomalies(anomalies);
+    }
+
+    /**
+     * 他 MOD の状態を辞書で戻す（{@link ForeignStateCleaner}）。時間停止の免除を真似ている間は、その名前だけ今のスレッドの掃除から外す
+     * （正の値を毎 Tick 0 に戻されないため。外さないと修復の件数が積もって退避し、その MOD の無害な値の書き換えが攻撃として数えられる）
+     */
+    private boolean cleanForeignState() {
+        com.automatavalkyries.protect.flag.FlagDictionary.skipOnProtected(timeStopExemption.mirroredNames());
+        try {
+            return ForeignStateCleaner.clean(owner);
+        } finally {
+            com.automatavalkyries.protect.flag.FlagDictionary.skipOnProtected(null);
+        }
     }
 
     /**

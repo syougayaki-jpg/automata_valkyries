@@ -19,4 +19,17 @@ public abstract class FakeTimeStopMixin {
     private <T extends Entity> void fakemod$stopTime(Consumer<T> ticker, T entity, CallbackInfo ci) {
         if (entity.getTags().contains(com.automatavalkyries.gametest.fake.FakeKillMod.TIME_STOP_TAG)) ci.cancel();
     }
+
+    /**
+     * 免除のある時間停止（EndingLibrary の LevelMixin.guardEntityTick の再現）: 停止の最中は、免除の状態が正でない個体の Tick を打ち切る。
+     * 止めるのは範囲の印の付いた個体だけ
+     */
+    @Inject(method = "guardEntityTick", at = @At("HEAD"), cancellable = true)
+    private <T extends Entity> void fakemod$stopUnlessExempt(Consumer<T> ticker, T entity, CallbackInfo ci) {
+        if (!com.automatavalkyries.gametest.fake.FakeStopSubject.STOP_ACTIVE
+                || !entity.getTags().contains(com.automatavalkyries.gametest.fake.FakeStopSubject.SCOPE_TAG)) return;
+        if (entity instanceof com.automatavalkyries.gametest.fake.FakeStopSubject subject
+                && subject.getEntityData().get(com.automatavalkyries.gametest.fake.FakeStopSubject.FAKE_TIME_STOP_COUNT) > 0) return;
+        ci.cancel();
+    }
 }
