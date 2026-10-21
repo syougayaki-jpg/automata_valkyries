@@ -20,6 +20,8 @@
     "EntityTickListAccessor",
     "ChunkMapAccessor",
     "TrackedEntityAccessor",
+    "PlayerItemGuardMixin$Slot",
+    "PlayerItemGuardMixin$Inv",
     "EprotectDamageMixin",
     "EprotectEntityMixin",
     "EprotectSynchedDataMixin",

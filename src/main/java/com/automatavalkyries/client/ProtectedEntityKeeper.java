@@ -122,37 +122,46 @@ public final class ProtectedEntityKeeper {
         if (event.phase != TickEvent.Phase.END || RECORDS.isEmpty()) return;
         clock++;
         ClientLevel current = Minecraft.getInstance().level;
-        RECORDS.entrySet().removeIf(entry -> {
-            Record record = entry.getValue();
-            if (record.level != current || record.tries >= MAX_RETRIES) return true; // ワールドが変わった / 諦める
-            Entity present = current.getEntity(entry.getKey());
-            if (present != null) {
-                String tamper = tamperedReason(present);
-                if (tamper == null) {
-                    restoreUuidEntry(current, present);
-                    return false;
-                }
-                // 消された後の抜け殻（除去の印・体積 0 の当たり判定・外されたコールバック）。誰がやったかは問わず、外して作り直す
-                AutomataValkyries.LOGGER.warn("[client] {} (id {}) in the local world is a shell left by a foreign removal ({}); evicting it and adding it again",
-                        ForgeRegistries.ENTITY_TYPES.getKey(present.getType()), entry.getKey(), tamper);
-                evict(current, present);
+        if (current == null) {
+            RECORDS.clear();
+            return;
+        }
+        // 入れ直しの最中に出現・除去の知らせの処理が記録を書き換えうるので、写しを回す
+        for (Map.Entry<Integer, Record> entry : new java.util.ArrayList<>(RECORDS.entrySet())) {
+            if (step(current, entry.getKey(), entry.getValue())) RECORDS.remove(entry.getKey(), entry.getValue());
+        }
+    }
+
+    /** 1 件の点検と入れ直し。記録を捨てるなら true */
+    private static boolean step(ClientLevel current, int id, Record record) {
+        if (record.level != current || record.tries >= MAX_RETRIES) return true; // ワールドが変わった / 諦める
+        Entity present = current.getEntity(id);
+        if (present != null) {
+            String tamper = tamperedReason(present);
+            if (tamper == null) {
+                restoreUuidEntry(current, present);
+                return false;
             }
-            if (clock - record.lastTry < RETRY_TICKS) return false;
-            record.lastTry = clock;
-            record.tries++;
-            try {
-                Entity entity = record.packet.getType().create(current);
-                if (entity == null) return false;
-                entity.recreateFromPacket(record.packet);
-                current.putNonPlayerEntity(record.packet.getId(), entity);
-                if (record.tries <= 3 || record.tries % 40 == 0) {
-                    AutomataValkyries.LOGGER.warn("[client] {} (id {}) vanished from the local world without a removal packet; added it again (attempt {}, now present = {})",
-                            ForgeRegistries.ENTITY_TYPES.getKey(record.packet.getType()), entry.getKey(), record.tries, current.getEntity(entry.getKey()) != null);
-                }
-            } catch (Throwable t) {
-                AutomataValkyries.LOGGER.warn("[client] Could not add entity id {} again: {}", entry.getKey(), t.toString());
+            // 消された後の抜け殻（除去の印・体積 0 の当たり判定・外されたコールバック）。誰がやったかは問わず、外して作り直す
+            AutomataValkyries.LOGGER.warn("[client] {} (id {}) in the local world is a shell left by a foreign removal ({}); evicting it and adding it again",
+                    ForgeRegistries.ENTITY_TYPES.getKey(present.getType()), id, tamper);
+            evict(current, present);
+        }
+        if (clock - record.lastTry < RETRY_TICKS) return false;
+        record.lastTry = clock;
+        record.tries++;
+        try {
+            Entity entity = record.packet.getType().create(current);
+            if (entity == null) return false;
+            entity.recreateFromPacket(record.packet);
+            current.putNonPlayerEntity(record.packet.getId(), entity);
+            if (record.tries <= 3 || record.tries % 40 == 0) {
+                AutomataValkyries.LOGGER.warn("[client] {} (id {}) vanished from the local world without a removal packet; added it again (attempt {}, now present = {})",
+                        ForgeRegistries.ENTITY_TYPES.getKey(record.packet.getType()), id, record.tries, current.getEntity(id) != null);
             }
-            return false;
-        });
+        } catch (Throwable t) {
+            AutomataValkyries.LOGGER.warn("[client] Could not add entity id {} again: {}", id, t.toString());
+        }
+        return false;
     }
 }

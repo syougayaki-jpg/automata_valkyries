@@ -94,6 +94,14 @@ public final class EprotectWatchdogAgent implements Runnable {
         MinecraftServer current = server;
         if (current == null) return;
 
+        // 止まった（または別のワールドに替わって古くなった）サーバーを見続けない。停止の通知が届かなくても誤警告を出し続けない
+        Thread running = current.getRunningThread();
+        if (current.isStopped() || (running != null && !running.isAlive())) {
+            if (server == current) server = null;
+            AutomataValkyries.LOGGER.info("[eprotect-watchdog] The watched server has stopped; idle until the next world starts");
+            return;
+        }
+
         long now = System.currentTimeMillis();
         long nextTickTime = current.getNextTickTime();
         if (nextTickTime != lastNextTickTime) {
