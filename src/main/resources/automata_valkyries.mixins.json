@@ -83,6 +83,7 @@
     "compat.EcaMixins$SpawnBan",
     "compat.MoreAvaritiaMixins$Utils",
     "compat.MoreAvaritiaMixins$DieList",
+    "compat.SuperSteveMixins$Util",
     "compat.ShizukuMixins$Remover",
     "compat.ShizukuMixins$Killer",
     "compat.ShizukuMixins$Ymsa",
@@ -98,7 +99,8 @@
     "client.ClientLevelAccessor",
     "client.DeathScreenGuardMixin",
     "client.TransientEntitySectionManagerAccessor",
-    "client.EprotectTransientSectionCallbackMixin"
+    "client.EprotectTransientSectionCallbackMixin",
+    "client.ClientAddEntityGuardMixin"
   ],
   "injectors": {
     "defaultRequire": 1

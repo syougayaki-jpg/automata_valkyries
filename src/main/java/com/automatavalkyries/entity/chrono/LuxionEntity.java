@@ -366,6 +366,16 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
     public void onRemovedFromWorld() {
         super.onRemovedFromWorld();
         protect.onRemovedFromWorld();
+        if (level().isClientSide) logClientRemoval();
+    }
+
+    /** 手元（クライアント）で個体が消えた記録: 画面から消えた原因（誰が消したか）を、サーバーで生きているのに倒れて見える件の調査に残す（2026-10-22） */
+    private void logClientRemoval() {
+        StackTraceElement[] stack = new Throwable().getStackTrace();
+        StringBuilder frames = new StringBuilder();
+        for (int i = 2; i < Math.min(stack.length, 12); i++) frames.append("\n    at ").append(stack[i]);
+        com.automatavalkyries.AutomataValkyries.LOGGER.info("[luxion] client: removed from the local world (id {}, reason {}, health {}, defeated {}, deathTime {}){}",
+                getId(), getRemovalReason(), DirectRead.health(this), entityData.get(DEFEATED), deathTime, frames);
     }
 
     @Override

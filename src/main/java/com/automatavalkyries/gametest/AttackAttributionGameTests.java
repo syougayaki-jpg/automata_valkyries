@@ -319,6 +319,33 @@ public class AttackAttributionGameTests {
         finish(helper, elenor);
     }
 
+    /**
+     * 戦っている相手の MOD の static な一覧に載った保護対象は、一覧の名前が何でも（SuperSteve の D_ENTITIES の再現）載っているかで外される。
+     * 別の個体は外さない
+     */
+    @GameTest(template = TEMPLATE)
+    public static void opponentHoldingsAreReleasedByContent(GameTestHelper helper) {
+        ElenorEntity elenor = spawnElenor(helper);
+        ElenorEntity other = spawnElenor(helper);
+        var opponent = new com.automatavalkyries.gametest.fake.FakeStatefulMob(net.minecraft.world.entity.EntityType.ZOMBIE, helper.getLevel());
+        CallerAttribution.overrideForTest("com.automatavalkyries.gametest.fake", "fakemod");
+        try {
+            com.automatavalkyries.gametest.fake.FakeStatefulMob.D_ENTITIES.clear();
+            com.automatavalkyries.gametest.fake.FakeStatefulMob.D_ENTITIES.add(elenor);
+            com.automatavalkyries.gametest.fake.FakeStatefulMob.D_ENTITIES.add(other);
+            com.automatavalkyries.protect.OpponentHoldings.clearForTest();
+            int removed = com.automatavalkyries.protect.OpponentHoldings.purge(elenor, opponent);
+            helper.assertTrue(removed == 1, "Expected 1 reference to be removed, got " + removed);
+            helper.assertFalse(com.automatavalkyries.gametest.fake.FakeStatefulMob.D_ENTITIES.contains(elenor), "The protected entity is still in the opponent's list");
+            helper.assertTrue(com.automatavalkyries.gametest.fake.FakeStatefulMob.D_ENTITIES.contains(other), "Another entity was removed from the list");
+        } finally {
+            CallerAttribution.overrideForTest(null, null);
+            com.automatavalkyries.gametest.fake.FakeStatefulMob.D_ENTITIES.clear();
+        }
+        other.discard();
+        finish(helper, elenor);
+    }
+
     /** 拒否した攻撃の後、攻撃した MOD のクラスの静的な一覧から保護対象が取り除かれる（同じ個体を狙い直させない） */
     @GameTest(template = TEMPLATE)
     public static void attackerKillListIsCleanedAfterRefusal(GameTestHelper helper) {

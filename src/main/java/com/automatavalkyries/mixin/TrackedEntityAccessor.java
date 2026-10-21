@@ -25,6 +25,10 @@ public interface TrackedEntityAccessor {
     @Accessor("lastSectionPos")
     void automata_valkyries$setLastSectionPos(SectionPos pos);
 
+    /** この個体を見ている（出現の情報を送った）プレイヤーの接続 */
+    @Accessor("seenBy")
+    java.util.Set<net.minecraft.server.network.ServerPlayerConnection> automata_valkyries$getSeenBy();
+
     @Invoker("updatePlayers")
     void automata_valkyries$updatePlayers(List<ServerPlayer> players);
 }

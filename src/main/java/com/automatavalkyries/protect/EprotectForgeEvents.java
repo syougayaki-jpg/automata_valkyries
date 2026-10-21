@@ -197,11 +197,16 @@ public class EprotectForgeEvents {
      */
     @SubscribeEvent(priority = EventPriority.LOWEST, receiveCanceled = true)
     public static void onEntityJoinLevel(EntityJoinLevelEvent event) {
-        if (!event.isCanceled() || event.getLevel().isClientSide()) return;
+        if (!event.isCanceled()) return;
         if (!(event.getEntity() instanceof IEprotected provider)) return;
         Eprotect protect = provider.getEprotect();
         if (protect == null || !protect.isProtectionActive() || SuperKillStickItem.isRefused(event.getEntity())) return;
         event.setCanceled(false);
+        if (event.getLevel().isClientSide()) {
+            // 手元（クライアント）の世界への参加の取り消し: サーバーでは生きているのに手元にだけ戻らず、当たり判定ごと消えて見えた（2026-10-22）
+            AutomataValkyries.LOGGER.warn("[eprotect] Overrode a cancelled world join of {} on the client", event.getEntity());
+            return;
+        }
         AutomataValkyries.LOGGER.warn("[eprotect] Overrode a cancelled world join of {}", event.getEntity());
         AttackLog.repaired(event.getEntity(), "cancelled_join");
     }

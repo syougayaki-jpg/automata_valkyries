@@ -15,6 +15,9 @@ public class FakeStatefulMob extends Zombie implements FakeKillState {
     public static final EntityDataAccessor<Boolean> DATA_INVULNERABLE = SynchedEntityData.defineId(FakeStatefulMob.class, EntityDataSerializers.BOOLEAN);
     public static final EntityDataAccessor<Integer> DATA_REVIVE_COUNT = SynchedEntityData.defineId(FakeStatefulMob.class, EntityDataSerializers.INT);
 
+    /** 名前から死亡の一覧とは分からない static な一覧（SuperSteve の SSUtil.D_ENTITIES の再現: 描画の一覧から除くのに使う）。載っているかで外す */
+    public static final java.util.Set<net.minecraft.world.entity.Entity> D_ENTITIES = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
     private boolean markedForDeath = true;
     private float doomLevel = 5.0F;
     private boolean protectedFlag = true;

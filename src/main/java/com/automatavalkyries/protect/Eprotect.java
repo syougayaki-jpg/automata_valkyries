@@ -597,7 +597,9 @@ public class Eprotect {
         if (restoreHealth()) anomalies++;
         if (clearDeadFlag()) anomalies++;
         if (restoreVanillaFlags()) anomalies++;
-        anomalies += restorePresence();
+        int presence = restorePresence();
+        anomalies += presence;
+        purgeOpponentHoldings(presence > 0);
         // vanilla の状態を戻した後に回す（vanilla のフィールドを見せるだけのアクセサ（nosugar の DeadFlag 等）を
         // 他 MOD 固有の状態と取り違えて、直書きの修復をその MOD の攻撃として記録しないため）
         if (cleanForeignState()) anomalies++;
@@ -605,6 +607,7 @@ public class Eprotect {
         if (tickGuard.restoreIfStopped()) anomalies++;
         timeStopExemption.update(); // 掃除の後に回す（真似ている値を掃除に戻されないため）
         resyncViewersIfPending();
+        lateResyncIfDue();
 
         updateCombat();
         if (anomalies > 0) noteAnomalies(anomalies);
@@ -835,10 +838,45 @@ public class Eprotect {
             level.getChunkSource().removeEntity(owner);
             level.getChunkSource().addEntity(owner);
             AttackLog.repaired(owner, "viewers_resync");
+            lateResyncAt = now + LATE_RESYNC_TICKS;
             return true;
         } catch (Throwable t) {
             AutomataValkyries.LOGGER.debug("[eprotect] Could not resync viewers of {}: {}", owner, t.toString());
             return false;
+        }
+    }
+
+    /** 見せ直しの後、手元に出現が届いたか確かめる遅れ（Tick）。同じ Tick に重なった除去の知らせが出現の後に届くと、サーバーは見せたつもりでも手元には出ない */
+    private static final int LATE_RESYNC_TICKS = 10;
+    private long lateResyncAt = -1L;
+
+    /**
+     * 見せ直しの少し後に、近くのプレイヤーが追跡の見ている側にいるかを記録し、もう一度だけ見せ直す。
+     * 手元（クライアント）の世界から消えたまま二度と出てこない件の対策（2026-10-22。再参加の直後に消えた個体が、サーバーでは生きたまま手元に戻らなかった）
+     */
+    private void lateResyncIfDue() {
+        if (lateResyncAt < 0L || !(owner.level() instanceof ServerLevel level) || owner.isRemoved()) return;
+        long now = serverClock();
+        if (now < lateResyncAt) return;
+        lateResyncAt = -1L;
+        try {
+            Object tracked = ((com.automatavalkyries.mixin.ChunkMapAccessor) level.getChunkSource().chunkMap).automata_valkyries$getEntityMap().get(owner.getId());
+            int range = Math.min(owner.getType().clientTrackingRange() * 16, level.getServer().getPlayerList().getViewDistance() * 16);
+            StringBuilder missing = new StringBuilder();
+            if (tracked instanceof com.automatavalkyries.mixin.TrackedEntityAccessor entry) {
+                for (net.minecraft.server.level.ServerPlayer player : level.players()) {
+                    if (player.distanceToSqr(owner) > (double) range * range) continue;
+                    if (!entry.automata_valkyries$getSeenBy().contains(player.connection)) missing.append(player.getScoreboardName()).append(' ');
+                }
+            } else {
+                missing.append("(not tracked) ");
+            }
+            AutomataValkyries.LOGGER.info("[eprotect] Late viewer check of {}: players in range not in the tracker's seen-by set: [{}]; showing it again once more", owner, missing.toString().trim());
+            level.getChunkSource().removeEntity(owner);
+            level.getChunkSource().addEntity(owner);
+            AttackLog.repaired(owner, missing.length() > 0 ? "viewers_missing" : "viewers_resync_late");
+        } catch (Throwable t) {
+            AutomataValkyries.LOGGER.debug("[eprotect] Late viewer resync of {} failed: {}", owner, t.toString());
         }
     }
 
@@ -954,6 +992,22 @@ public class Eprotect {
     /** 戦闘中の印が付いているか */
     public boolean isInCombat() {
         return combatMark && EprotectConfig.get(EprotectConfig.COMBAT_STALEMATE);
+    }
+
+    private long lastOpponentPurge = -1000L;
+
+    /**
+     * 戦っている相手の MOD の static な一覧に自分が載っていたら外す（名前は見ない。{@link OpponentHoldings}）。毎 Tick は重いので 10 Tick に 1 回、
+     * 入り直させた直後（消された直後）はすぐ。敵がいなければ何もしない
+     */
+    private void purgeOpponentHoldings(boolean urgent) {
+        if (owner.level().isClientSide || !isProtectionActive()) return;
+        long now = serverClock();
+        if (!urgent && now - lastOpponentPurge < 10) return;
+        LivingEntity enemy = findEnemy();
+        if (enemy == null) return;
+        lastOpponentPurge = now;
+        OpponentHoldings.purge(owner, enemy);
     }
 
     /** 今の敵: 狙っている相手、無ければ最近自分を傷つけた相手（生きているもの。実際の値で見る） */
