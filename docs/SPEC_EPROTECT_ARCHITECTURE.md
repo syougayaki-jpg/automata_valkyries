@@ -196,6 +196,12 @@
 設定 `protection.restoreEntityDataContainer`（既定 true）。サーバー側だけ。模擬（`FakeSwappedEntityData`）のテストで確かめた。実物の SuperSteve はゲーム内で未確認。
 SuperSteve が次の攻撃でまた作り替えれば、そのたびに付け替えて請求する（同じ Tick は1回に数える）。
 
+**削りを戻したとき、相手に請求する（`Eprotect.chargeOpponentForHealthCut`、2026-10-21 ユーザー指定「相手に請求するように」）**: ダメージ処理を通らない削り（`health_cut`）は
+呼び出し元が分からず、攻撃の記録は `unknown`・自動のブラックリストの数にも入らなかった（SuperSteve は HP の項目を直接書き換え、`forceHurt` が「最後に攻撃した相手」だけ記録する）。
+削りを戻したとき、直近 200 Tick に自分を傷つけた相手（`getLastHurtByMob`）、無ければ狙っている相手（`Mob.getTarget`）が、生きていて**他 MOD のエンティティ**なら、
+その MOD を `health_loss:cut`（REFUSED）として `AttackLog.charged` で請求する（スタックは辿らない。1 Tick に 1 回まで数える）。相手が自分・Minecraft・Forge の MOD（プレイヤーなど）のときは請求しない。
+削りの原因が戦っている相手とは別の第三者だった場合も、その相手の MOD に請求される（載ると通常ダメージが 1% に制限されるので、条件は「他 MOD の相手で、直近に自分を傷つけた／狙っている」に絞ってある）。
+
 **時間停止の包みの入口（2026-10-03）**: 代わりに回す Tick（`driveTick`）は `guardEntityTick` を通すが、その入口で打ち切る MOD
 （EndingLibrary の `LevelMixin.guardEntityTick`）があるので、進まなければ包みを飛ばして `tickNonPassenger` を直接呼ぶ（`repair:frozen_tick:entrance_bypassed`）。
 クライアントでも同じく、保護対象の Tick が進まなければ `ClientLevel.tickNonPassenger` で代わりに回す（`client/ClientTickBypass`。止まると補間・演出が崩れる）。

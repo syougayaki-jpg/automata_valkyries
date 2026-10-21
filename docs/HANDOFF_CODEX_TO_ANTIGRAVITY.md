@@ -103,3 +103,31 @@ Antigravity に回す。
   どちらも今日のビルドの jar と GeckoLib 4.8.4 が入っていて、エージェントは設定で OFF のまま。起動構成は公式ランチャーで `1.20.1-forge-47.4.23`、ゲームディレクトリをそのフォルダにする。
   ログは `logs\latest.log`・`logs\automata_valkyries-attacks.log`・`crash-reports\`。
 - 今日のビルド（`build/libs/automata_valkyries-0.1.0.jar`）は、Antigravity の未コミットの作業を含んだ作業ツリーから作っている。
+
+## 7. SuperSteve に抹殺機構を実行した直後に、ランチャーでサーバーが落ちた（2026-10-22。Claude が調べた。直してはいない）
+
+**起きたこと**: `mc-test-supersteve`（SuperSteve 入り）で、最果てのエレノアと SuperSteve を戦わせたあと（運命の結び糸）、SuperSteve に抹殺機構を実行したら、統合サーバーが落ちた。
+クラッシュ報告: `C:\Users\sfdge\mc-test-supersteve\crash-reports\crash-2026-10-22_00.52.56-server.txt`（`Ticking entity` の `NullPointerException`。ティックされていたのは
+エレノアではなく `supersteve:super_steve`、ID 829）。ログ: `C:\Users\sfdge\mc-test-supersteve\logs\latest.log`（約 286 行目）。
+
+**時系列**（`latest.log`）:
+- 00:52:38 抹殺機構を SuperSteve（UUID `d81fdc52…`）に実行 → `AnnihilationAgent` が `SSUtil.removeEOPLOwner`・`killEntity`・`simpleKillEntity` などを呼ぶ → `TrueAnnihilation: Removal confirmed`。ここは落ちなかった。
+- 00:52:56 2 回目（新しい SuperSteve、UUID `18205e7f…`）。同じ呼び出しのあと、`[eprotect] Removed 1 reference(s) to SuperSteve from SSCore.SERVER_TICK_MANAGER`、
+  `Removal confirmed`、そして**同じ秒に** `Encountered an unexpected exception: net.minecraft.ReportedException: Ticking entity`（`Caused by: java.lang.NullPointerException`）。
+
+**推定される原因**（確定ではない）: `SSCore.SERVER_TICK_MANAGER` は SuperSteve 自身が自分のティックを管理する表。その参照を外した直後に、まだ Tick 一覧に載っていた SuperSteve の
+エンティティがティックされ、SuperSteve のコードが null を参照して落ちた、という流れが最も整合する。
+- スタックの先頭は vanilla の `ServerLevel.tickNonPassenger`（`m_8647_`）。SuperSteve のエンティティは実行中に作る**隠しクラス**（`defineHiddenClassInPackage`）なので、JVM はその中のフレームを
+  スタックトレースに出さない。そのため呼び出し元が先頭に見えていると考えられる。
+- スタックに `com.automatavalkyries` のフレームは無い（`TimeStopMixin` は `tickNonPassenger` の先頭に差し込むが、落ちた場所ではない）。守る側（Eprotect）は SuperSteve を保護していないので関与しない。
+- 確認できていないこと: 落ちた行番号（694）が、読んだ vanilla の `tickNonPassenger`（733〜）と合わない。SuperSteve が実行中に `Level` を書き換えている（観察者の記録に
+  `plz.lizi.supersteve.power.Agt.retransform < SSCore.procLevel`）ことが関係する可能性があるが、確かめていない。どの null かは特定できていない。
+
+**お願い**（担当の範囲）:
+- 参照を外す側（`KillLists` / `StaticReferencePurger` 系。ログの出どころ）は、**まだ Tick 一覧に載っているエンティティの管理表の参照を、そのまま外さない**
+  （先にエンティティを Tick 一覧から外す、または Tick の外で行う）か、外した後にそのエンティティがティックされても落ちない形にしてほしい。
+- 1 回目は落ちず 2 回目で落ちたので、状態に依存する。再現は、SuperSteve に続けて 2 回抹殺機構を実行する。
+- SuperSteve のどのコードが null を参照したかは、`SuperSteveEntity` / `SSCore`（`plz.lizi.supersteve`）を見る必要がある。jar: `~/.gradle/caches/modules-2/files-2.1/maven.modrinth/supersteve/6.10.5pr/…/supersteve-6.10.5pr.jar`。
+
+**Claude の側の注記**: SuperSteve 自身の防御・倒し方の分析は、担当外なので引き受けていない。この節は、クラッシュの事実と時系列と、落ちた近辺のログの引き写しだけ。
+ワールドは、チャンクの登録が壊れている（`DistanceManager` の NullPointerException が 56 回出ていた）可能性があるので、作り直して試すこと。

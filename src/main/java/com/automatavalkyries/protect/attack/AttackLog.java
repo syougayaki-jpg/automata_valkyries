@@ -113,6 +113,16 @@ public final class AttackLog {
         AttackerListCleanup.afterAttack(target, a);
     }
 
+    /**
+     * 呼び出し元は分からないが、攻撃してきた相手が分かっている（直接の書き込みの削りを後から戻したとき、戦っている相手など）ので、
+     * その相手の MOD に請求する（2026-10-21 ユーザー指定「相手に請求するように」）。スタックは辿らないので、毎 Tick 起きても軽い。
+     * 自動のブラックリストの数に入る（1 Tick に 1 回まで）。自分・Minecraft・Forge の MOD には請求しない（呼び出し側が確かめる）
+     */
+    public static void charged(Entity target, String op, String mod) {
+        if (!enabled(target)) return;
+        record(target, mod, op, Outcome.REFUSED, "(opponent)", null, mod);
+    }
+
     /** ブラックリストの MOD なので拒否した（判定で求めた呼び出し元をそのまま使う） */
     public static void blocked(Entity target, String op, String mod) {
         if (!enabled(target)) return;

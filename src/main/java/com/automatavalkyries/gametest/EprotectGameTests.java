@@ -384,6 +384,50 @@ public class EprotectGameTests {
         });
     }
 
+    /**
+     * 相手に請求する（2026-10-21）: ダメージ処理を通らない削り（health_cut）は呼び出し元が分からないが、直近に自分を傷つけた相手が他 MOD のエンティティなら、
+     * その MOD に請求する。相手がプレイヤー（vanilla）のときは請求しない。同じ Tick の中で同期的に行う
+     */
+    @GameTest(template = TEMPLATE, timeoutTicks = 100)
+    public static void healthCutIsChargedToTheOpponentsMod(GameTestHelper helper) {
+        com.automatavalkyries.gametest.fake.FakeKillMod.install();
+        var level = helper.getLevel();
+        var boss = new com.automatavalkyries.gametest.fake.FakeFrozenBoss(net.minecraft.world.entity.EntityType.ZOMBIE, level);
+        boss.setNoAi(true);
+        boss.setPersistenceRequired();
+        boss.setItemSlot(net.minecraft.world.entity.EquipmentSlot.HEAD, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_HELMET)); // 日光で燃えない
+        boss.setPos(net.minecraft.world.phys.Vec3.atBottomCenterOf(helper.absolutePos(new BlockPos(2, 2, 2))));
+        level.addFreshEntity(boss);
+        var foreign = new com.automatavalkyries.gametest.fake.FakeStopSubject(net.minecraft.world.entity.EntityType.ZOMBIE, level); // 他 MOD のエンティティ
+        helper.runAfterDelay(5, () -> {
+            com.automatavalkyries.gametest.fake.FakeKillMod.install();
+            String mod = com.automatavalkyries.protect.attack.CallerAttribution.modOf(foreign.getClass());
+            var healthId = com.automatavalkyries.mixin.LivingEntityAccessor.automata_valkyries$getDataHealthId();
+            String op = com.automatavalkyries.protect.attack.AttackOp.HEALTH_LOSS + ":cut";
+            java.util.function.Predicate<com.automatavalkyries.protect.attack.AttackLog.Entry> charged =
+                    e -> e.mod.equals(mod) && e.op.equals(op);
+            long before = com.automatavalkyries.protect.attack.AttackLog.entries().stream().filter(charged).mapToLong(e -> e.count()).sum();
+            // 上限（最大 HP の 10%）を大きく超える削りを直接書く。相手は誰が傷つけたか（記録）に載っている
+            boss.setLastHurtByMob(foreign);
+            boss.getEntityData().set(healthId, boss.getMaxHealth() * 0.4F);
+            boss.getEprotect().tick();
+            long after = com.automatavalkyries.protect.attack.AttackLog.entries().stream().filter(charged).mapToLong(e -> e.count()).sum();
+            helper.assertTrue(after > before, "The health cut was not charged to the opponent's mod '" + mod + "' (" + before + " -> " + after + ")");
+            // 相手が vanilla のエンティティ（プレイヤーなど）のときは請求しない
+            var player = helper.makeMockSurvivalPlayer();
+            boss.setLastHurtByMob(player);
+            java.util.function.Predicate<com.automatavalkyries.protect.attack.AttackLog.Entry> chargedVanilla =
+                    e -> e.op.equals(op) && !e.mod.equals(mod);
+            long vanillaBefore = com.automatavalkyries.protect.attack.AttackLog.entries().stream().filter(chargedVanilla).mapToLong(e -> e.count()).sum();
+            boss.getEntityData().set(healthId, boss.getMaxHealth() * 0.1F);
+            boss.getEprotect().tick();
+            long vanillaAfter = com.automatavalkyries.protect.attack.AttackLog.entries().stream().filter(chargedVanilla).mapToLong(e -> e.count()).sum();
+            helper.assertTrue(vanillaAfter == vanillaBefore, "A health cut was charged although the opponent is a vanilla player");
+            boss.getEprotect().triggerDespawn();
+            helper.succeed();
+        });
+    }
+
     /** 敵を作る（保護していない、動かないゾンビ。HP を直接書き換えて「減っている／減らない」を作る） */
     private static net.minecraft.world.entity.monster.Zombie spawnEnemy(GameTestHelper helper, ElenorEntity elenor) {
         var enemy = helper.spawnWithNoFreeWill(net.minecraft.world.entity.EntityType.ZOMBIE, new BlockPos(4, 2, 2));

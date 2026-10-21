@@ -387,8 +387,21 @@ public class Eprotect {
             KillModCounters.counterAll(owner);
             return true;
         }
+        logAcceptedDefeat();
         markDefeated();
         return false;
+    }
+
+    /** 正規の撃破として die() を通したときの状況を残す（「保護されたボスが死んだ」の原因を後から追えるように。2026-10-22） */
+    private void logAcceptedDefeat() {
+        if (owner.level().isClientSide) return;
+        DamageSource source = owner.getLastDamageSource();
+        AutomataValkyries.LOGGER.info("[eprotect] Accepted the defeat of {}: direct hp {}, last valid hp {} / max {} (one-hit limit {}), hurtDepth {}, source {} (attacker {}, direct {})",
+                owner, DirectRead.health(owner), lastValidHealth, owner.getMaxHealth(),
+                owner.getMaxHealth() * profile.maxHitRatio() + 1.0F, hurtDepth,
+                source != null ? source.getMsgId() : "none",
+                source != null && source.getEntity() != null ? source.getEntity().getType() : "none",
+                source != null && source.getDirectEntity() != null ? source.getDirectEntity().getType() : "none");
     }
 
     /** ボスバー等に出す HP の割合（0〜1）。他 MOD に書き換えられうる getHealth ではなく実際の値で出す */
@@ -591,6 +604,32 @@ public class Eprotect {
     }
 
     /**
+     * ダメージ処理を通らない削り（{@code health_cut}）は呼び出し元が分からず、これまではどの MOD にも請求されなかった
+     * （SuperSteve は HP の項目を直接書き換える）。削りを戻したとき、直近に自分を傷つけた相手（無ければ狙っている相手）が
+     * 他 MOD のエンティティなら、その MOD に請求する（2026-10-21 ユーザー指定「相手に請求するように」）。
+     * 相手が自分・Minecraft・Forge の MOD（プレイヤーなど）のときは請求しない
+     */
+    private void chargeOpponentForHealthCut() {
+        LivingEntity opponent = recentAttacker();
+        if (opponent == null) return;
+        String mod = CallerAttribution.modOf(opponent.getClass());
+        if (!CallerAttribution.isForeign(mod)) return;
+        AttackLog.charged(owner, AttackOp.HEALTH_LOSS + ":cut", mod);
+    }
+
+    /** 直近 {@value #COMBAT_LINGER_TICKS} Tick に自分を傷つけた相手、無ければ狙っている相手（生きているもの。実際の値で見る） */
+    @Nullable
+    private LivingEntity recentAttacker() {
+        LivingEntity hurtBy = owner.getLastHurtByMob();
+        if (hurtBy != null && hurtBy != owner && owner.tickCount - owner.getLastHurtByMobTimestamp() < COMBAT_LINGER_TICKS
+                && DirectRead.isAlive(hurtBy)) {
+            return hurtBy;
+        }
+        LivingEntity target = owner instanceof Mob mob ? mob.getTarget() : null;
+        return target != null && target != owner && DirectRead.isAlive(target) ? target : null;
+    }
+
+    /**
      * 他 MOD の状態を辞書で戻す（{@link ForeignStateCleaner}）。時間停止の免除を真似ている間は、その名前だけ今のスレッドの掃除から外す
      * （正の値を毎 Tick 0 に戻されないため。外さないと修復の件数が積もって退避し、その MOD の無害な値の書き換えが攻撃として数えられる）
      */
@@ -720,6 +759,7 @@ public class Eprotect {
         owner.setHealth(target);
         lastValidHealth = target;
         AttackLog.repaired(owner, "health_cut");
+        chargeOpponentForHealthCut();
         AutomataValkyries.LOGGER.debug("[eprotect] Cut untracked health loss on {}: {} -> {} (allowed {} of {})",
                 owner, previous, target, allowed, loss);
         return true;
