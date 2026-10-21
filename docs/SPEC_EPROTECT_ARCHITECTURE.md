@@ -302,7 +302,7 @@ vanilla の移動（エンダーパール・/tp・ポータル・リスポーン
 - `client/ProtectedEntityKeeper`（クライアント）: このMOD のエンティティの出現の知らせを覚え、サーバーから除去の知らせが来ない限り、手元から消えたら 5 Tick ごとに作り直して入れる（1 体 400 回まで）。除去の印・体積 0 の当たり判定・外されたコールバックの抜け殻になっていたら、誰がやったかを問わず外して作り直す（準汎用）。記録の一覧は写しを回す（入れ直しの最中に出現・除去の知らせの処理が書き換えうる。Madness の回で `ConcurrentModificationException` になった）。
 - `mixin/client/ClientAddEntityGuardMixin`: 出現・除去の知らせを上の層へ伝え、入っていなければ一度だけ作り直す。`EprotectForgeEvents.onEntityJoinLevel` はクライアントでの参加の取り消しも打ち消す。
 - `protect/OpponentHoldings`（準汎用）: 戦っている相手の MOD（クラス階層と、そのバイトコードが参照する他 MOD のクラス）の static な一覧・表に、保護対象と同じ UUID の個体が載っていたら外す。名前は見ず、載っているかで判断する。戦闘中は 10 Tick に 1 回、入り直させた直後はすぐ（`Eprotect.purgeOpponentHoldings`）。
-- `mixin/compat/SuperSteveMixins`: 消去の入口で止める特化層。**この環境では SuperSteve のクラスが Mixin の対象にならず適用されない**（起動ログに `Mixing …SuperSteveMixins` が出ない）。準汎用の層が本命。
+- 消去の入口で止める特化の Mixin（`SSUtil.simpleKillEntity` / `killEntity`）は、SuperSteve のクラスが Mixin の対象にならず適用されないので、作って外した（2026-10-22）。準汎用の層が本命。
 - 見せ直しの確認（`Eprotect.lateResyncIfDue`）: 追跡の作り直しの 10 Tick 後に、近くのプレイヤーが追跡の見ている側にいるかを記録して、もう一度だけ作り直す。
 - 調査用: `client/LuxionClientProbe`（ルクシオンの手元の状態の記録。ID で引けるのに描画の一覧に出ない個体の詳細）。
 
@@ -385,7 +385,7 @@ vanilla の移動（エンダーパール・/tp・ポータル・リスポーン
   ServerLevel・ChunkMap・エンティティの一覧と区画のクラス）のぶんだけなので、ほかのクラスの名前を見分けに足すときは `mcNamesOwners` にも足す。
   フラグ辞書が名前で見るのは他 MOD が付けた名前（足されたフィールド・インターフェース・Capability・永続データのキー）で、配布環境でも名前は変わらない。
 - `OpponentHoldings` が掃除できるのは、保護対象が動いている JVM の static な一覧まで。1 人プレイ（統合サーバー）ではサーバーの掃除が手元にも効くが、専用サーバーでは、手元（クライアント）の JVM にある一覧は外せない（手元の抜け殻の点検と入れ直しで補うが、描画の一覧から外し続ける型は残る）。
-- 他 MOD のクラスが Mixin の対象にならない環境（SuperSteve）では、特化の互換層は効かない。準汎用の層（入り直し・相手の一覧の掃除・手元の入れ直し）で守る。
+- 他 MOD のクラスが Mixin の対象にならない環境（SuperSteve）では、特化の互換層は書けない（入口の Mixin は適用されなかったので消した）。準汎用の層（入り直し・相手の一覧の掃除・手元の入れ直し）で守る。
 - Madness Entities の「応答なし」（2026-10-22、04:40:55 以降）は原因が確定していない。次に起きたら `[client-watchdog]` のスタックで調べる。
 - 修復が続くと退避する（安全弁）。テストで連打するときは閾値を上げる。
 
