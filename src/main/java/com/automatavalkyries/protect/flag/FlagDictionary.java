@@ -15,6 +15,13 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraftforge.registries.ForgeRegistries;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -41,6 +48,7 @@ import java.util.Set;
  *   <li>{@code *dimensionalcore} … 単語をつなげた名前に含まれる（複数語の言い回し用）</li>
  * </ul>
  * 設定 {@code flagDictionary.extra}（"分類:項目"）で足し、{@code flagDictionary.ignore}（名前）で除外できる。
+ * 組み込みの項目は {@value #RESOURCE}（2026-10-21 から。改修の設計は docs/SPEC_FLAG_DICTIONARY_V2.md）。
  */
 public final class FlagDictionary {
 
@@ -69,72 +77,48 @@ public final class FlagDictionary {
         CONCEAL
     }
 
-    private static final Map<Category, List<String>> BUILT_IN = new EnumMap<>(Category.class);
+    /** 組み込みの辞書の置き場所（MOD の jar の中。資源パック・データパックでは上書きできない。辞書のエージェントも同じファイルを読む） */
+    public static final String RESOURCE = "/automata_valkyries/flag_dictionary.json";
 
-    static {
-        BUILT_IN.put(Category.KILL, List.of(
-                "dead", "death", "=die", "=dies", "=died", "=dying", "eras", "remov", "novel", "kill", "soul", "doom",
-                "condemn", "curse", "annihil", "obliter", "wipe", "purg", "banish", "delet", "vanish", "exile", "smite",
-                "execut", "assassin", "murder", "butcher", "slaughter", "extinguish", "annul", "nullif", "discard", "suicide",
-                "=reap", "=reaper", "=reaped", "sever", "oblivion", "expire", "mortal", "endlife", "erasure", "abyss", "tomb", "grave",
-                "destruct", "terminus", "=void", "collapse", "shred", "decimat", "dissolv", "vaporiz",
-                "marked", "condemned", "cursed", "branded", "stigmat", "fatality", "instadeath",
-                "judg", "destroy", "eliminat", "terminat", "sentenc", "perish", "slain", "slay",
-                "disintegrat", "nonexist", "unexist", "exterminat", "eradicat", "despawn", "fatal", "doomed",
-                "*forcedead", "*forcekill", "*instakill", "*instantkill", "*markedfordeath", "*forcedeath", "*truekill",
-                "*absolutekill", "*superkill", "*directkill", "*unmake", "*erasetarget", "*cleartarget", "*removeentity",
-                "*setdead", "*forcediscard", "*fatalkill", "*cleardata", "*seterased", "*markerased", "*eraseentity"));
-        BUILT_IN.put(Category.CONTROL, List.of(
-                "freez", "frozen", "stun", "paraly", "petrif", "=sealed", "timelock", "chronolock", "chronostop",
-                "ticklock", "frozenevent", "immob", "stasis", "suppress", "lockdown", "=bind", "=bound", "binding",
-                "=root", "=rooted", "rooting", "entangle", "=trap", "=trapped", "sleep", "silence", "sedat", "subdue",
-                "incapacitat", "*timestop", "*stoptime", "*timestopped", "*aidisabled", "*disableai", "*noai", "*cleanai",
-                "*notick", "*tickstopped", "*stoptick", "*skiptick", "*stopticking", "*disablegoal", "*cleargoal",
-                "*stopai", "*pauseai", "*suppressai", "*freezeai",
-                "tether", "*locationlock", "*lockedlocation", "*locklocation", "*positionlock", "*lockedposition", "*lockposition",
-                "*movelock", "*lockmove", "*movementlock", "*lockmovement", "*nomove", "*cantmove", "*disablemove", "*inputlock",
-                "*lockinput", "*lockedinput", "*disableinput", "*pinned", "*pinposition",
-                // 時間停止・Tick 停止（2026-10-03: EndingLibrary の TimeStopUtils / timeStopDimensions 等）
-                "*timefreeze", "*freezetime", "*timepause", "*pausetime", "*worldstop", "*stopworld", "*tickfreeze",
-                "*freezetick", "*frozenworld", "*frozentime", "*timehalt", "*halttime", "*stoppedtime", "*timeisstop",
-                "*stoppeddimension", "*frozendimension", "*chronostasis", "*timeskip", "*nogravity", "*disablegravity"));
-        BUILT_IN.put(Category.HEALTH_TAMPER, List.of(
-                "zerohp", "hpzero", "drainhp", "hpdrain", "damagecap", "healthlimit", "hpoverride", "sethp", "sethealth", "delta",
-                "*healthdelta", "*hpdelta", "*shielddelta", "*healthoffset", "*healthlock", "*lockhealth", "*lockedhealth", "*fixedhealth",
-                "*healthoverride", "*forcedhealth", "*forcehealth", "*forcezero", "*zerodamage", "*drainhealth",
-                "*nullhealth", "*hpcap", "*currenthp", "*worldanchor", "*healthanchor", "*anchorhealth", "*anchoredhealth",
-                "*healthlockenc", "*lockedhp", "*hplock", "*gethealth", "*healthmodif", "*hpmodif", "*hpoffset"));
-        BUILT_IN.put(Category.GUARD, List.of(
-                "protect", "immun", "invuln", "=guard", "guarded", "guarding", "shield", "resist", "immortal", "invinc",
-                "=god", "godmode", "muteki", "undying", "barrier", "exempt", "whitelist", "=ward", "warded", "fumetsu",
-                "deathless", "unkillable", "indestruct", "*dimensionalcore", "phasing", "intangib", "aegis", "sanctuary",
-                "impervious", "defiance", "witherzilla", "perpetual", "eternal", "unbreakable", "unyielding", "adamant",
-                "fullset", "=halo", "bless", "blessing", "snack",
-                "*forcefullset", "*wasfullset", "*forcehalo", "*hasfullset", "*snackprotector",
-                "*damagenegation", "*negatedamage", "*infinitehp", "*infinitehealth", "*infinitedefense", "*infinitelife",
-                "*immortalstate", "*invulnerablestate", "*godstate",
-                "=invul", "=invuls", "=defence", "=defense", "*defencemode", "*defensemode", "*godprotect", "*absoluteprotect"));
-        BUILT_IN.put(Category.BYPASS, List.of(
-                "bypass", "penetrat", "pierc", "*ignoreprotect", "*ignoreinvul", "*ignoreimmun", "*truedamage",
-                "*unblockable", "*ignoredefense", "*overrideguard", "*antiinvul", "*antiprotect", "*directdamage",
-                "*absolutedamage", "*bypasstotem", "*ignorebarrier"));
-        BUILT_IN.put(Category.REVIVE, List.of("reviv", "respawn", "resurrect", "rebirth", "reincarnat", "=lives", "extralives", "*undyingcore", "*respawntick",
-                "*allreturn", "*returnall", "*autoreturn", "*autorevive", "*selfrevive", "*comeback", "*restorelife", "*lifeback"));
-        BUILT_IN.put(Category.CONCEAL, List.of(
-                "=invisible", "*forceinvisible", "*setinvisible", "*keepinvisible", "*invisiblemode", "=hidden", "*hideentity",
-                "*hiderender", "*norender", "*cancelrender", "*disablerender", "*skiprender", "*stoprender", "*hidebossbar",
-                "*nobossbar", "*removebossbar", "*clearbossbar", "*hidebar", "*cloaked", "*clientdelete", "*deleteclient",
-                "*clientremove", "*removeclient", "*hidefromclient", "*untracked", "*stoptracking"));
-        BUILT_IN.put(Category.RESPAWN_BLOCK, List.of(
-                "*norespawn", "*antirespawn", "*respawnlock", "*lockrespawn", "*blockrespawn", "*respawnblock", "*denyrespawn",
-                "*cancelrespawn", "*preventrespawn", "*respawnban", "*banrespawn", "*disablerespawn", "*respawndisabled",
-                "*disallowrespawn", "*respawnforbid", "*forbidrespawn", "*permadeath", "*permanentdeath", "*keepdead",
-                "*staydead", "*deathlock", "*lockdeath", "*lockeddeath", "*deathscreenlock", "*nodeathscreenclose"));
-        BUILT_IN.put(Category.COUNT, List.of("count", "=left", "remaining", "=times", "charges", "=lives", "=num", "=amount"));
-        BUILT_IN.put(Category.TIMER, List.of("delay", "timer", "cooldown", "tick", "=time", "wait", "interval", "duration", "until", "expir", "respawntick", "erasetime"));
-        BUILT_IN.put(Category.BANISH, List.of(
-                "banish", "voidfall", "relocat", "displace", "=rift", "*voiddrop", "*forcevoid", "*forcedimension",
-                "*banishment", "*dimensionfall"));
+    /**
+     * 組み込みの辞書。2026-10-21 から {@value #RESOURCE} の JSON 1 つから読む（それまではここと辞書のエージェントに同じ並びを写していた。
+     * ユーザー指定「アンチグラビティーと合わせてフラグ辞書を改修していく」、docs/SPEC_FLAG_DICTIONARY_V2.md §3）
+     */
+    private static final Map<Category, List<String>> BUILT_IN = loadBuiltIn();
+
+    private static Map<Category, List<String>> loadBuiltIn() {
+        Map<Category, List<String>> out = new EnumMap<>(Category.class);
+        for (Category category : Category.values()) out.put(category, List.of());
+        try (InputStream in = FlagDictionary.class.getResourceAsStream(RESOURCE)) {
+            if (in == null) {
+                AutomataValkyries.LOGGER.error("[eprotect] The built-in flag dictionary {} is missing", RESOURCE);
+                return out;
+            }
+            JsonObject categories = JsonParser.parseReader(new InputStreamReader(in, StandardCharsets.UTF_8)).getAsJsonObject().getAsJsonObject("categories");
+            for (Map.Entry<String, JsonElement> e : categories.entrySet()) {
+                Category category;
+                try {
+                    category = Category.valueOf(e.getKey());
+                } catch (IllegalArgumentException unknown) {                     // 新しい分類を先に足した側が古い側を壊さないよう、読み飛ばす
+                    AutomataValkyries.LOGGER.warn("[eprotect] Unknown flag dictionary category '{}' in {}", e.getKey(), RESOURCE);
+                    continue;
+                }
+                List<String> entries = new ArrayList<>();
+                for (JsonElement entry : e.getValue().getAsJsonObject().getAsJsonArray("entries")) {
+                    String text = entry.getAsString().trim().toLowerCase(Locale.ROOT);
+                    if (!text.isEmpty()) entries.add(text);
+                }
+                out.put(category, List.copyOf(entries));
+            }
+        } catch (Exception ex) {
+            AutomataValkyries.LOGGER.error("[eprotect] Could not read the built-in flag dictionary {}", RESOURCE, ex);
+        }
+        return out;
+    }
+
+    /** 組み込みの辞書（JSON から読んだまま。設定の追加・除外は含まない） */
+    public static Map<Category, List<String>> builtIn() {
+        return java.util.Collections.unmodifiableMap(BUILT_IN);
     }
 
     private static volatile Map<Category, List<String>> active = BUILT_IN;
@@ -552,6 +536,9 @@ public final class FlagDictionary {
             return false;
         }
         for (String word : words) if (word.startsWith(entry)) return true;
+        // 連結形の前方一致: 単語をまたぐ長めの項目も拾う（例 chronolock → chronoLocked = chrono+locked。
+        // 単語ごとの前方一致では当たらない）。短い項目での偶然のまたぎ誤爆を避けるため 6 文字以上に限る（2026-10-21）
+        if (entry.length() >= 6 && compact.startsWith(entry)) return true;
         return false;
     }
 

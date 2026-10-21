@@ -95,7 +95,64 @@ public class FlagDictionaryGameTests {
         helper.succeed();
     }
 
+    /**
+     * 守る側の確かめ用の名前（flag_cases.json）で、取りこぼし（戻すべきなのに戻さない）と拾いすぎ（戻してはいけないのに戻す）の数が
+     * 基準値を超えないか見張る（2026-10-21、docs/SPEC_FLAG_DICTIONARY_V2.md §5）。辞書を直して良くなったら、JSON の baseline を下げる。
+     */
+    @GameTest(template = TEMPLATE)
+    public static void defensiveCasesDoNotRegress(GameTestHelper helper) {
+        com.google.gson.JsonObject root;
+        try (java.io.InputStream in = FlagDictionaryGameTests.class.getResourceAsStream("/automata_valkyries/gametest/flag_cases.json")) {
+            helper.assertTrue(in != null, "flag_cases.json is missing");
+            root = com.google.gson.JsonParser.parseReader(new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8)).getAsJsonObject();
+        } catch (java.io.IOException e) {
+            throw new RuntimeException(e);
+        }
+        int missed = 0;
+        StringBuilder missedNames = new StringBuilder();
+        for (com.google.gson.JsonElement e : root.getAsJsonArray("reset")) {
+            String name = e.getAsString();
+            if (!FlagDictionary.harmfulOnProtected(name)) {
+                missed++;
+                missedNames.append(' ').append(name);
+            }
+        }
+        int falseHits = 0;
+        StringBuilder falseNames = new StringBuilder();
+        for (com.google.gson.JsonElement e : root.getAsJsonArray("keep")) {
+            String name = e.getAsString();
+            if (FlagDictionary.harmfulOnProtected(name)) {
+                falseHits++;
+                falseNames.append(' ').append(name);
+            }
+        }
+        com.google.gson.JsonObject baseline = root.getAsJsonObject("baseline");
+        int missedMax = baseline.get("missedReset").getAsInt();
+        int falseMax = baseline.get("falseReset").getAsInt();
+        helper.assertTrue(missed <= missedMax, "Missed resets rose to " + missed + " (baseline " + missedMax + "):" + missedNames);
+        helper.assertTrue(falseHits <= falseMax, "False resets rose to " + falseHits + " (baseline " + falseMax + "):" + falseNames);
+        helper.succeed();
+    }
+
     /** 既存のクラスに後から足されたフィールドが、元のクラスファイルとの比較で見つかり、足した MOD が分かる */
+    /** 組み込みの辞書を JSON（FlagDictionary.RESOURCE）から全部読めたか（2026-10-21 に 1 か所へまとめた。docs/SPEC_FLAG_DICTIONARY_V2.md §3） */
+    @GameTest(template = TEMPLATE)
+    public static void builtInDictionaryLoadsFromJson(GameTestHelper helper) {
+        var builtIn = FlagDictionary.builtIn();
+        int total = 0;
+        for (FlagDictionary.Category category : FlagDictionary.Category.values()) {
+            List<String> entries = builtIn.get(category);
+            helper.assertTrue(entries != null && !entries.isEmpty(), category + " should have built-in entries");
+            total += entries.size();
+        }
+        helper.assertTrue(total >= 399, "Only " + total + " built-in entries were read from " + FlagDictionary.RESOURCE);
+        helper.assertTrue(builtIn.get(FlagDictionary.Category.KILL).contains("*forcedead"), "KILL should contain *forcedead");
+        helper.assertTrue(builtIn.get(FlagDictionary.Category.GUARD).contains("=defence"), "GUARD should contain =defence");
+        helper.assertTrue(FlagDictionary.is("imds$forceDead", FlagDictionary.Category.KILL), "imds$forceDead should be KILL");
+        helper.assertTrue(FlagDictionary.is("timeStopped", FlagDictionary.Category.CONTROL), "timeStopped should be CONTROL");
+        helper.succeed();
+    }
+
     @GameTest(template = TEMPLATE)
     public static void injectedFieldsAreFoundAndAttributed(GameTestHelper helper) {
         FakeKillMod.install();
@@ -241,6 +298,8 @@ public class FlagDictionaryGameTests {
         helper.assertTrue(hexed != null, "A name that changes only before deaths was not suggested: " + candidates);
         helper.assertTrue(hexed.mod().equals(FakeKillMod.MOD_ID), "Wrong mod: " + hexed.mod());
         helper.assertTrue(hexed.eventChanges() == 3 && hexed.rising(), "Wrong statistics: " + hexed);
+        // 2026-10-21: 点数付けの改善。いつも同じ向き（false→true）の真偽の印なので、向きのそろいは 1、真偽の型として見分ける
+        helper.assertTrue(hexed.consistency() == 1.0D && hexed.booleanType(), "Consistency/type not scored: " + hexed);
         helper.assertTrue(hexed.suggestion().equals("kill:*hexed"), "Wrong suggestion: " + hexed.suggestion());
         helper.assertFalse(candidates.stream().anyMatch(c -> c.name().equals("swayPhase")), "A value that always moves was suggested");
         helper.assertFalse(candidates.stream().anyMatch(c -> c.name().equals("doomLevel")), "A name already in the dictionary was suggested");

@@ -100,6 +100,8 @@ public class Eprotect {
     private final DamageLimiter damage = new DamageLimiter(this);
     private final TickStallGuard tickGuard;
     private final ForcedChunk forcedChunk;
+    /** 辞書に無い名前の外部状態を、正常時に控えた値へ戻す（準汎用。{@link ForeignStateBaseline}） */
+    private final ForeignStateBaseline foreignBaseline;
 
     public Eprotect(LivingEntity owner) {
         this(owner, EprotectProfile.DEFAULT);
@@ -110,6 +112,7 @@ public class Eprotect {
         this.profile = profile;
         this.tickGuard = new TickStallGuard(this);
         this.forcedChunk = new ForcedChunk(owner);
+        this.foreignBaseline = new ForeignStateBaseline(owner);
     }
 
     /** 被弾の上限を掛けない（{@link EprotectProfile#UNCAPPED}）。普通に倒せるボス向け */
@@ -240,6 +243,7 @@ public class Eprotect {
         if (isProtectionActive()) {
             rememberHealthyState();
             recordToRegistryIfDue();
+            refreshForeignBaselineIfDue();
             forcedChunk.update();
         }
     }
@@ -537,6 +541,10 @@ public class Eprotect {
         }
         if (!isProtectionActive()) return;
 
+        // 終末機構の汎用化への対（2026-10-21 ユーザー指定）: 辞書に無い名前で殺しに来ても正常時の値へ戻す。
+        // 死亡の兆候が出ている Tick だけ回す（下で deathTime をリセットする前に見る）
+        boolean deathAttempt = isUnderDeathAttempt();
+
         // サーバー側でも生存中に死亡演出カウンタが残っていれば即座にリセット（Hyperlink/IMDS の Tick 進行キルを阻止）
         if (owner.deathTime > 0) {
             owner.deathTime = 0;
@@ -549,6 +557,10 @@ public class Eprotect {
         }
 
         int anomalies = 0;
+        // 辞書に無い名前の外部状態（他 MOD が付けた値）が死亡の兆候に合う変化をしていたら戻す（既知名は下の ForeignStateCleaner が担当）
+        if (deathAttempt && EprotectConfig.get(EprotectConfig.RESTORE_UNKNOWN_FOREIGN_STATE)) {
+            anomalies += foreignBaseline.restoreAtDeathAttempt();
+        }
         if (neutralized) {
             AutomataValkyries.LOGGER.warn("[eprotect] Neutralized kill-mod flags on {}", owner);
             anomalies++;
@@ -837,6 +849,8 @@ public class Eprotect {
     /** 直近の点検でワールドに正しく載っていたか。壊れた状態を写しとして残さないため */
     private boolean presenceHealthy = false;
     private long lastRecordTick = Long.MIN_VALUE;
+    /** 外部状態を控え直した直近の Tick（控えは正常なときだけ、一定間隔で） */
+    private long lastBaselineTick = Long.MIN_VALUE;
 
     private EprotectRegistry registry() {
         return EprotectRegistry.get((ServerLevel) owner.level());
@@ -861,6 +875,28 @@ public class Eprotect {
         if (isSafePosition(owner, owner.getX(), owner.getY(), owner.getZ())) {
             lastSafePos = owner.position();
         }
+    }
+
+    /**
+     * 今、死亡・消去の兆候が出ているか。辞書に無い名前の外部状態を正常値へ戻すのは、この兆候が出た Tick だけにして、
+     * 普段から動く値（タイマー・クールダウン）を触らないようにする。
+     */
+    private boolean isUnderDeathAttempt() {
+        if (owner.deathTime > 0) return true;
+        if (((LivingEntityAccessor) owner).automata_valkyries$isDead()) return true;
+        if (!(DirectRead.health(owner) > 0.0F)) return true;
+        return isIllegalRemoval(owner, DirectRead.removalReason(owner));
+    }
+
+    /** 正常なときだけ、一定間隔で外部状態を控え直す（死亡の兆候が出た Tick に戻す基準） */
+    private void refreshForeignBaselineIfDue() {
+        if (!EprotectConfig.get(EprotectConfig.RESTORE_UNKNOWN_FOREIGN_STATE)) return;
+        if (!presenceHealthy || hurtDepth > 0 || owner.deathTime > 0) return;
+        if (!(DirectRead.health(owner) > 0.0F)) return;
+        long now = serverClock();
+        if (lastBaselineTick != Long.MIN_VALUE && now - lastBaselineTick < RECORD_INTERVAL) return;
+        lastBaselineTick = now;
+        foreignBaseline.rememberHealthy();
     }
 
     /** 撃破演出中に Mixin を経ずに直書きされた不正な消去フラグ（{@link #isIllegalRemoval}）を消す（演出中は入り直しをしない） */

@@ -59,6 +59,7 @@
 | 実際の値を読む | `protect/DirectRead` |
 | ワールドへの載り方の点検と入り直し | `protect/WorldPresence` |
 | 状態の写し（ワールドデータ） | `protect/EprotectRegistry` |
+| 辞書に無い名前の外部状態の控えと復元（準汎用） | `protect/ForeignStateBaseline`（2026-10-21） |
 | 入口の拒否 | `mixin/EprotectEntityMixin`・`EprotectDamageMixin`・`EprotectSectionCallbackMixin`・`EprotectSynchedDataMixin`・`protect/EprotectForgeEvents` |
 | 準汎用の状態リセット | `protect/flag/FlagDictionary`・`StateScanner`・`InjectedMembers`・`KillLists`・`protect/ForeignStateCleaner` |
 | 互換層 | `mixin/compat/*`・`protect/KillModCounters`・`protect/EprotectCompat`・`protect/SpecificCountermeasures` |
@@ -194,6 +195,14 @@
 （`repair:vanilla:invisible` / `no_ai` / `no_gravity`。Fantasy Ending の DeleteCommand は消去と一緒に setInvisible(true)、クリエイティブの骨は AI を止める）。
 透明化の状態異常が付いている間の透明は戻さない。見張るかはフラグ辞書で決める（名前 `invisible` は CONCEAL、`noAi`・`noGravity` は CONTROL。
 設定 `flagDictionary.ignore` に名前を足せばその状態は見張らない）。
+
+**辞書に無い名前の外部状態を戻す（`protect/ForeignStateBaseline`、2026-10-21）**: 既知名は上の `ForeignStateCleaner` が辞書で戻すが、
+抹殺側（Antigravity）が辞書に無い名前で生命維持フラグを奪う・残機を 0 にする汎用キルへ振り切ったので、その対。
+正常なときに外部のスカラー状態（真偽・数値）を読み取り専用の `StateScanner.observe`（値を書かない・getter も呼ばない）で丸ごと控え、
+**死亡の兆候が出た Tick にだけ**（`Eprotect.isUnderDeathAttempt`: deathTime・dead フラグ・HP 0 以下・不正な消去理由）、辞書に無い名前のフィールドが
+死亡の兆候に合う変化（真偽が正常 false→今 true、数値が正常 > 0→今 0 以下）をしていたら、控えた正常値へ戻す（書き戻しだけ `StateScanner.apply` を使う）。
+増えた値・正のまま動く値（タイマー・クールダウン・座標）は触らない。既知名・コレクション/マップは触らない（控えはスカラーだけ）。
+設定 `protection.restoreUnknownForeignState`（既定 true）。名前に頼らないので、名前を変えてくる未知の汎用キルにも効く。
 
 **監視（`FlagWatchAgent`）**: 他 MOD の状態を読むだけで見張り、死亡・消去・攻撃の直前にだけ変わる辞書に無い名前を候補に挙げる（辞書には自分で足さない）。
 

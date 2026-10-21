@@ -65,6 +65,8 @@ public final class FlagWatchAgent implements Runnable {
     private static final double MIN_EVENT_RATE = 0.3D;
     /** 候補から外す、普段変わる割合の上限 */
     private static final double MAX_NORMAL_RATE = 0.25D;
+    /** 候補にする向きのそろい具合の下限（2026-10-21: 移動・向きのような両方向に揺れる雑音を落とす。0.5=半々、1=いつも同じ向き） */
+    private static final double MIN_CONSISTENCY = 0.6D;
     /** 集計する名前の上限（溜め込み過ぎない） */
     private static final int MAX_STATS = 20000;
     /** メインスレッドからエージェントへ渡す読み取りの上限（超えた分は捨てて数える） */
@@ -103,10 +105,17 @@ public final class FlagWatchAgent implements Runnable {
 
     /** 辞書に足す候補 */
     public record Candidate(double score, String key, String name, String mod, int eventChanges, int eventsSeen,
-                            int normalChanges, int samples, boolean rising, String kinds, String example) {
-        /** 設定 flagDictionary.extra に足すときの 1 行（向きからの推測。足す前に確かめる） */
+                            int normalChanges, int samples, boolean rising, String kinds, String example,
+                            double consistency, boolean booleanType) {
+        /**
+         * 設定 flagDictionary.extra に足すときの 1 行（値の型と向きからの推測。足す前に確かめる）。
+         * 真偽: 立つ（false→true）は死亡・停止の印なので kill、下りる（true→false）は守りが切れた印なので guard。
+         * 数: 下がるのは HP などを削る印なので health_tamper、上がるのはひとまず kill として挙げる。
+         */
         public String suggestion() {
-            return (rising ? "kill" : "guard") + ":*" + String.join("", FlagDictionary.words(name));
+            String word = "*" + String.join("", FlagDictionary.words(name));
+            String category = booleanType ? (rising ? "kill" : "guard") : (rising ? "kill" : "health_tamper");
+            return category + ":" + word;
         }
     }
 
@@ -367,11 +376,23 @@ public final class FlagWatchAgent implements Runnable {
                 if (stat.eventChanges < minEvents || !FlagDictionary.classify(name).isEmpty() || FlagDictionary.ignored(name)) return;
                 double eventRate = stat.eventChanges / (double) Math.max(1, stat.eventsSeen);
                 double normalRate = stat.normalChanges / (double) Math.max(1, stat.samples);
-                if (eventRate < MIN_EVENT_RATE || normalRate > MAX_NORMAL_RATE || eventRate <= normalRate * 2.0D) return;
+                // 向きのそろい具合: いつも同じ向き（死亡の印が false→true、HP が削られて下がる等）なら 1、半々に揺れる雑音なら 0.5
+                double consistency = Math.max(stat.rises, stat.falls) / (double) Math.max(1, stat.rises + stat.falls);
+                if (eventRate < MIN_EVENT_RATE || normalRate > MAX_NORMAL_RATE || eventRate <= normalRate * 2.0D
+                        || consistency < MIN_CONSISTENCY) return;
+                // 点数 = 事件での変化回数 × 事件と普段の差（少ない観測を過大評価しないよう Laplace で均す）
+                //        × 向きのそろい具合（0.5〜1 を 1.0〜1.5 に）× 事件の種類の広がり（死亡だけでなく消去・攻撃にも出れば増やす）× 値の型（真偽の印は確かなので重く）
+                double smoothedEventRate = (stat.eventChanges + 1.0D) / (stat.eventsSeen + 2.0D);
+                double lift = Math.max(0.0D, smoothedEventRate - normalRate);
+                double kindBreadth = Math.min(1.6D, 1.0D + 0.2D * (stat.kinds.size() - 1));
+                boolean booleanType = stat.first.value() instanceof Boolean;
+                double typeWeight = booleanType ? 1.25D : 1.0D;
+                double score = stat.eventChanges * lift * (0.5D + consistency) * kindBreadth * typeWeight;
                 String kinds = stat.kinds.entrySet().stream().map(e -> e.getKey() + "×" + e.getValue())
                         .collect(java.util.stream.Collectors.joining(", "));
-                result.add(new Candidate(stat.eventChanges * (eventRate - normalRate), key, name, stat.first.mod(),
-                        stat.eventChanges, stat.eventsSeen, stat.normalChanges, stat.samples, stat.rises >= stat.falls, kinds, stat.example));
+                result.add(new Candidate(score, key, name, stat.first.mod(),
+                        stat.eventChanges, stat.eventsSeen, stat.normalChanges, stat.samples, stat.rises >= stat.falls, kinds, stat.example,
+                        consistency, booleanType));
             });
         }
         result.sort(Comparator.comparingDouble(Candidate::score).reversed());
@@ -430,13 +451,13 @@ public final class FlagWatchAgent implements Runnable {
             writer.write(String.format("# %s / 普段の読み取り %d 回・事件 %d 件・捨てた読み取り %d 回 / 候補 %d 件",
                     LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME), sampleCount, eventCount, droppedCount, list.size()));
             writer.newLine();
-            writer.write("# 書式: 点数 | MOD 場所:持ち主.名前 | 事件の直前に変わった/見た事件 | 普段変わった/普段の読み取り | 事件の内訳 | 例 | 足すなら（向きからの推測。確かめてから）");
+            writer.write("# 書式: 点数 | MOD 場所:持ち主.名前 | 事件の直前に変わった/見た事件 | 普段変わった/普段の読み取り | 向きのそろい | 事件の内訳 | 例 | 足すなら（型と向きからの推測。確かめてから）");
             writer.newLine();
             writer.write("# 足す: 設定 flagDictionary.extra に最後の欄を追加。取り違えなら flagDictionary.ignore に名前を追加");
             writer.newLine();
             for (Candidate c : list) {
-                writer.write(String.format("%.2f | %s | %d/%d | %d/%d | %s | %s | %s", c.score(), c.key(), c.eventChanges(), c.eventsSeen(),
-                        c.normalChanges(), c.samples(), c.kinds(), c.example(), c.suggestion()));
+                writer.write(String.format("%.2f | %s | %d/%d | %d/%d | %.2f | %s | %s | %s", c.score(), c.key(), c.eventChanges(), c.eventsSeen(),
+                        c.normalChanges(), c.samples(), c.consistency(), c.kinds(), c.example(), c.suggestion()));
                 writer.newLine();
             }
         }

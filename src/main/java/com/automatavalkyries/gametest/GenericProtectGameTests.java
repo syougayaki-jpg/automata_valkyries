@@ -2,9 +2,12 @@ package com.automatavalkyries.gametest;
 
 import com.automatavalkyries.AutomataValkyries;
 import com.automatavalkyries.entity.ElenorEntity;
+import com.automatavalkyries.gametest.fake.FakeStatefulMob;
 import com.automatavalkyries.protect.EprotectForgeEvents;
+import com.automatavalkyries.protect.ForeignStateBaseline;
 import com.automatavalkyries.protect.ForeignStateCleaner;
 import com.automatavalkyries.protect.attack.AttackLog;
+import com.automatavalkyries.protect.attack.CallerAttribution;
 import com.automatavalkyries.protect.flag.FlagDictionary;
 import com.automatavalkyries.registry.ModEntities;
 import com.automatavalkyries.registry.ModItems;
@@ -137,7 +140,45 @@ public class GenericProtectGameTests {
         helper.succeed();
     }
 
+    /**
+     * 終末機構の汎用化への対（{@link ForeignStateBaseline}）: 辞書に無い名前の外部状態でも、正常時に控えた値へ戻す。
+     * 真偽の死亡の印の立ち上がり（false→true）と、数値の 0 化（正→0 以下）だけを戻し、正のまま動く値は触らない。
+     */
+    @GameTest(template = TEMPLATE, timeoutTicks = 100)
+    public static void genericProtectRestoresUnknownForeignStateAtDeath(GameTestHelper helper) {
+        CallerAttribution.overrideForTest("com.automatavalkyries.gametest.fake", "fakemod");
+        try {
+            FakeStatefulMob mob = new FakeStatefulMob(EntityType.ZOMBIE, helper.getLevel());
+            // 辞書に無い名前であること（既知名は ForeignStateCleaner の担当なので、ここは未知名だけを受け持つ）
+            helper.assertTrue(FlagDictionary.classify("hexed").isEmpty() && FlagDictionary.classify("swayPhase").isEmpty(),
+                    "test fields are not unknown to the dictionary");
 
+            mob.hexed = false;
+            mob.swayPhase = 7;
+            ForeignStateBaseline baseline = new ForeignStateBaseline(mob);
+            baseline.rememberHealthy();
+            helper.assertTrue(baseline.hasBaseline(), "healthy baseline was not captured");
+
+            // 汎用キルを模す: 辞書に無い名前で死亡の印を立て、残機を 0 にする
+            mob.hexed = true;
+            mob.swayPhase = 0;
+            int restored = baseline.restoreAtDeathAttempt();
+            helper.assertTrue(restored >= 2, "unknown foreign death state was not restored (restored=" + restored + ")");
+            helper.assertFalse(mob.hexed, "raised unknown death flag was not cleared");
+            helper.assertTrue(mob.swayPhase == 7, "zeroed unknown value was not restored");
+
+            // 正のまま動く値（増加）は死亡の兆候ではないので触らない
+            baseline.rememberHealthy();
+            mob.swayPhase = 9;
+            baseline.restoreAtDeathAttempt();
+            helper.assertTrue(mob.swayPhase == 9, "a normally changing value was wrongly restored");
+
+            mob.discard();
+        } finally {
+            CallerAttribution.overrideForTest(null, null);
+        }
+        helper.succeed();
+    }
 
     /**
      * フラグ辞書保護 Java エージェント:

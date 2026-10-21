@@ -13,6 +13,10 @@ public final class EprotectConfig {
             .comment("ダメージ処理（hurt）を通らない HP の減少を拒否する")
             .define("protection.rejectHealthLossOutsideDamage", true);
 
+    public static final ForgeConfigSpec.BooleanValue RESTORE_UNKNOWN_FOREIGN_STATE = BUILDER
+            .comment("死亡の兆候が出た Tick に、辞書に無い名前の外部状態（他 MOD が付けた値）が死亡の兆候に合う変化をしていたら、正常時に控えた値へ戻す（準汎用。名前に頼らないキルへの対）")
+            .define("protection.restoreUnknownForeignState", true);
+
     public static final ForgeConfigSpec.BooleanValue RETREAT_WHEN_UNREPAIRABLE = BUILDER
             .comment("異常の修復が追いつかないとき、保護対象を正規の退場処理で安全に退避させる")
             .define("protection.retreatWhenUnrepairable", true);
