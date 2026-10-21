@@ -21,6 +21,16 @@ public final class EprotectConfig {
             .comment("保護対象が時間停止で止められたとき、動いている個体が持つ時間停止の免除の状態（EndingLibrary の timeStopCount 等）を探して真似る（準汎用。見つからなければ従来どおり Tick を直接回す）")
             .define("protection.mirrorTimeStopExemption", true);
 
+    public static final ForgeConfigSpec.BooleanValue RESTORE_ENTITY_DATA_CONTAINER = BUILDER
+            .comment("保護対象の同期データの入れ物（SynchedEntityData）が他 MOD の継承クラスに作り替えられていたら、元の型の新しい入れ物へ付け替え、その MOD を攻撃として記録する"
+                    + "（SuperSteve は HP の読み書きを入れ物の中で切り詰める）")
+            .define("protection.restoreEntityDataContainer", true);
+
+    public static final ForgeConfigSpec.BooleanValue COMBAT_STALEMATE = BUILDER
+            .comment("戦闘中（敵がいる間）は印を付け、どちらかの HP が減っている間は修復が積もっても退場しない。"
+                    + "1 分間どちらの HP も減らない千日手で修復が積もったときだけ退場する")
+            .define("protection.combatStalemate", true);
+
     public static final ForgeConfigSpec.BooleanValue RETREAT_WHEN_UNREPAIRABLE = BUILDER
             .comment("異常の修復が追いつかないとき、保護対象を正規の退場処理で安全に退避させる")
             .define("protection.retreatWhenUnrepairable", true);

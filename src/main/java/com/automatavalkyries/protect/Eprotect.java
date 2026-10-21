@@ -18,6 +18,7 @@ import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -29,6 +30,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 
 /**
  * 個体ごとの保護コントローラー（eprotect）。
@@ -570,6 +572,7 @@ public class Eprotect {
         }
         // 他 MOD の抹殺予定の一覧から先に外す（載ったままだと、その MOD の Mixin が入り直し・座標の戻しを拒否・隠蔽する。ECA の隔離など）
         if (com.automatavalkyries.protect.flag.KillLists.purge(owner) > 0) anomalies++;
+        if (restoreEntityDataContainer()) anomalies++; // HP の読み書きを切り詰める入れ物は、最初に付け替える（以降の HP の判定がその値を見ないように）
         if (restoreMaxHealth()) anomalies++;
         if (restoreHealth()) anomalies++;
         if (clearDeadFlag()) anomalies++;
@@ -583,6 +586,7 @@ public class Eprotect {
         timeStopExemption.update(); // 掃除の後に回す（真似ている値を掃除に戻されないため）
         resyncViewersIfPending();
 
+        updateCombat();
         if (anomalies > 0) noteAnomalies(anomalies);
     }
 
@@ -597,6 +601,27 @@ public class Eprotect {
         } finally {
             com.automatavalkyries.protect.flag.FlagDictionary.skipOnProtected(null);
         }
+    }
+
+    /**
+     * 同期データの入れ物が他 MOD の継承クラスに作り替えられていたら、元の型の新しい入れ物へ付け替え、作り替えた MOD を攻撃として記録する
+     * （{@link EntityDataContainer}。呼び出し元が分からないので、入れ物のクラスの MOD に請求する）。入れ物の中で切り詰められて書かれた HP は、
+     * 直前の正常値へ戻す（ダメージではないので、上限には掛けない）。サーバー側だけ
+     */
+    private boolean restoreEntityDataContainer() {
+        if (owner.level().isClientSide || !EprotectConfig.get(EprotectConfig.RESTORE_ENTITY_DATA_CONTAINER)) return false;
+        Class<?> swapped = EntityDataContainer.foreignContainerClass(owner);
+        if (swapped == null) return false;
+        String mod = EntityDataContainer.modOf(swapped);
+        EntityDataContainer.replaceWithVanilla(owner);
+        AttackLog.refused(owner, AttackOp.SYNCHED_DATA + ":container_swapped", mod);
+        AttackLog.repaired(owner, "entity_data_container");
+        float hp = DirectRead.health(owner);
+        float healthy = getLastValidHealth();
+        if (Float.isFinite(hp) && hp > 0.0F && hp < healthy - 0.001F) {
+            owner.setHealth(Math.min(healthy, owner.getMaxHealth()));
+        }
+        return true;
     }
 
     /**
@@ -843,6 +868,7 @@ public class Eprotect {
      * 壊れかけの状態で居座らせず、正規の退場処理（セリフ・効果音つき）で安全に退避させる。
      */
     private void noteAnomalies(int count) {
+        if (exemptFromRetreat()) return; // 退避しない個体は、数えもしない（積もっても何も起きない）
         long now = serverClock();
         int window = EprotectConfig.get(EprotectConfig.RETREAT_WINDOW_TICKS);
         if (now - anomalyWindowStart > window) {
@@ -852,11 +878,108 @@ public class Eprotect {
         anomalyCount += count;
         if (anomalyCount >= EprotectConfig.get(EprotectConfig.RETREAT_ANOMALY_THRESHOLD)
                 && EprotectConfig.get(EprotectConfig.RETREAT_WHEN_UNREPAIRABLE)) {
-            AutomataValkyries.LOGGER.warn("[eprotect] {} anomalies repaired within {} ticks; retreating {} safely",
-                    anomalyCount, window, owner);
+            // 戦闘中は、どちらかの HP が減っている（戦いが進んでいる）間は退かない。千日手（一定時間どちらも減らない）のときだけ退く
+            if (isInCombat() && now - lastProgressTick < STALEMATE_TICKS) return;
+            AutomataValkyries.LOGGER.warn("[eprotect] {} anomalies repaired within {} ticks; retreating {} safely{}",
+                    anomalyCount, window, owner, isInCombat() ? " (stalemate: neither side's life has dropped for " + STALEMATE_TICKS + " ticks)" : "");
             AttackLog.retreated(owner);
             triggerDespawn();
         }
+    }
+
+    // ---- 戦闘の印と千日手（2026-10-21 ユーザー指定） ----------------------------------
+
+    /** 敵が居なくなってから、戦闘の印を外すまでの Tick */
+    private static final int COMBAT_LINGER_TICKS = 200;
+    /** どちらの HP も減らない状態がこの Tick（1 分）続いたら千日手（ユーザー指定 2026-10-21「千日手の条件は一分で」） */
+    static final int STALEMATE_TICKS = 1200;
+
+    /** 戦闘中の印。敵がいる間は付き、前進（どちらかの HP が減る）している間は退場しない。強化保護は付けない（ユーザー指定 2026-10-21「強化保護はなくていいです」） */
+    private boolean combatMark;
+    private long combatSeenAt = Long.MIN_VALUE;
+    /** 自分か敵の HP が最後に減った Tick（戦いが進んでいる印） */
+    private long lastProgressTick = Long.MIN_VALUE;
+    private float seenOwnHp = Float.NaN;
+    private float seenEnemyHp = Float.NaN;
+    @Nullable
+    private UUID seenEnemy;
+
+    /** 戦闘中の印が付いているか */
+    public boolean isInCombat() {
+        return combatMark && EprotectConfig.get(EprotectConfig.COMBAT_STALEMATE);
+    }
+
+    /** 今の敵: 狙っている相手、無ければ最近自分を傷つけた相手（生きているもの。実際の値で見る） */
+    @Nullable
+    private LivingEntity findEnemy() {
+        LivingEntity target = owner instanceof Mob mob ? mob.getTarget() : null;
+        if (target != null && target != owner && DirectRead.isAlive(target)) return target;
+        LivingEntity hurtBy = owner.getLastHurtByMob();
+        if (hurtBy != null && hurtBy != owner && owner.tickCount - owner.getLastHurtByMobTimestamp() < COMBAT_LINGER_TICKS
+                && DirectRead.isAlive(hurtBy)) {
+            return hurtBy;
+        }
+        return null;
+    }
+
+    /**
+     * 戦闘の印の付け外しと、戦いが進んでいるかの見張り（{@link #repair} の終わりに毎回）。敵がいる間は印を付け、居なくなって
+     * {@value #COMBAT_LINGER_TICKS} Tick たったら外す。自分の HP か敵の HP が減ったら進んでいるとする（修復で戻された削りは減りに数えない。
+     * 修復の後に見るので、戻された分は残らない）
+     */
+    private void updateCombat() {
+        if (owner.level().isClientSide || !isProtectionActive() || !EprotectConfig.get(EprotectConfig.COMBAT_STALEMATE)) return;
+        long now = serverClock();
+        LivingEntity enemy = findEnemy();
+        if (enemy != null) {
+            combatSeenAt = now;
+            if (!combatMark) {
+                combatMark = true;
+                lastProgressTick = now;
+                seenOwnHp = Float.NaN;
+                seenEnemyHp = Float.NaN;
+                seenEnemy = null;
+                AutomataValkyries.LOGGER.info("[eprotect] {} is in combat with {}; marked (no retreat while either side's life drops)", owner, enemy);
+            }
+        } else if (combatMark && now - combatSeenAt > COMBAT_LINGER_TICKS) {
+            combatMark = false;
+            AutomataValkyries.LOGGER.info("[eprotect] {} is out of combat; mark removed", owner);
+        }
+        if (!combatMark) return;
+        float own = DirectRead.health(owner);
+        if (Float.isFinite(own)) {
+            if (Float.isFinite(seenOwnHp) && own < seenOwnHp - 0.001F) lastProgressTick = now;
+            seenOwnHp = own;
+        }
+        if (enemy != null) {
+            float enemyHp = DirectRead.health(enemy);
+            if (Float.isFinite(enemyHp)) {
+                if (enemy.getUUID().equals(seenEnemy) && Float.isFinite(seenEnemyHp) && enemyHp < seenEnemyHp - 0.001F) lastProgressTick = now;
+                seenEnemyHp = enemyHp;
+            }
+            seenEnemy = enemy.getUUID();
+        }
+    }
+
+    /** この印の付いた個体は、修復がどれだけ積もっても退避しない（{@code /tag <対象> add eprotect_no_retreat}。検証用） */
+    public static final String NO_RETREAT_TAG = "eprotect_no_retreat";
+    private boolean retreatExemptionNoted;
+
+    /**
+     * 退避しない個体か（2026-10-21 ユーザー指定「１で」）。終焉機構の検証用の対象（{@link IEprotected#isTerminusTestTarget}。検証用ダミーゾンビなど）と、
+     * {@link #NO_RETREAT_TAG} の印の付いた個体。終焉機構を連打すると 1 回ごとに最大 HP・死亡フラグ・AI 停止・HP の削りが同時に直され、
+     * 約 50 回で 200 件に届いて退避し、検証の途中で静かに消えた（倒せたのか逃げられたのか分からなくなる）。
+     * 全体の検証用スイッチ（{@link IEprotected#GLOBAL_TERMINUS_TEST_MODE}）が入っている間は、個体の判断として数えない
+     * （GameTest が並んで走る間だけ入るもので、退避のテストを巻き込まないため）
+     */
+    private boolean exemptFromRetreat() {
+        boolean exempt = owner.getTags().contains(NO_RETREAT_TAG)
+                || (!IEprotected.GLOBAL_TERMINUS_TEST_MODE.get() && owner instanceof IEprotected provider && provider.isTerminusTestTarget());
+        if (exempt && !retreatExemptionNoted) {
+            retreatExemptionNoted = true;
+            AutomataValkyries.LOGGER.info("[eprotect] {} is a Terminus test target or tagged '{}'; it will not retreat however many repairs pile up", owner, NO_RETREAT_TAG);
+        }
+        return exempt;
     }
 
     // ---- ワールドデータの登録簿 ------------------------------------------------

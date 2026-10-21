@@ -187,6 +187,15 @@
 （`repair:viewers_resync`、同じ個体は 20 Tick に 1 回まで）。消去と一緒にクライアントへ「消した」と送る MOD（Fantasy Ending の DeleteEntityPacket）で
 画面から消えたまま・追跡の後片付け（stopSeenByPlayer）でボスバーが外れたままになるのを防ぐ。
 
+**同期データの入れ物の差し替え（`protect/EntityDataContainer`、2026-10-21）**: SuperSteve は、攻撃した相手の `SynchedEntityData` を、自分の継承クラス
+（`HurtSynchedEntityData`）にその場で作り替え（Unsafe で入れ物の型を書き換える。参照は変わらない）、HP の読み書きを「最大 HP − 差分」以下に切り詰める。
+`setHealth`・`die`・同期データの入口の Mixin のどれにも届かないので呼び出し元が分からず（攻撃の記録は `unknown`、ブラックリストの数にも入らない）、
+`DirectRead`・ボスバー・LifeGuard の真ライフが読む HP も切り詰められた値になる。毎 Tick の修復の先頭（`Eprotect.restoreEntityDataContainer`）で、
+`Entity.entityData` のクラスが他 MOD のものなら、元の型の新しい入れ物へ付け替える（`itemsById` と `isDirty` を引き継ぐ。Unsafe は使わない）。
+切り詰められて書かれた HP は直前の正常値へ戻す。作り替えた MOD は `synched_data:container_swapped`（REFUSED）として記録し、ブラックリストの数に請求する。
+設定 `protection.restoreEntityDataContainer`（既定 true）。サーバー側だけ。模擬（`FakeSwappedEntityData`）のテストで確かめた。実物の SuperSteve はゲーム内で未確認。
+SuperSteve が次の攻撃でまた作り替えれば、そのたびに付け替えて請求する（同じ Tick は1回に数える）。
+
 **時間停止の包みの入口（2026-10-03）**: 代わりに回す Tick（`driveTick`）は `guardEntityTick` を通すが、その入口で打ち切る MOD
 （EndingLibrary の `LevelMixin.guardEntityTick`）があるので、進まなければ包みを飛ばして `tickNonPassenger` を直接呼ぶ（`repair:frozen_tick:entrance_bypassed`）。
 クライアントでも同じく、保護対象の Tick が進まなければ `ClientLevel.tickNonPassenger` で代わりに回す（`client/ClientTickBypass`。止まると補間・演出が崩れる）。
@@ -228,6 +237,15 @@
 
 `protection.retreatAnomalyThreshold`（既定 200）件の修復が `protection.retreatWindowTicks`（既定 1200）の間に積もったら、正規の退場処理（セリフ・効果音つき）で退避させる。
 壊れかけの状態で居座らせないための安全弁。テスト用の棒で連打するとこれが働くので、即死に見えることがある（HP は減っていない）。
+
+**戦闘の印と千日手（2026-10-21 ユーザー指定）**: 敵（`Mob.getTarget()`、無ければ直近 200 Tick に自分を傷つけた相手）がいる間は戦闘の印を付け、居なくなって 200 Tick で外す
+（`Eprotect.updateCombat`）。印のある間は、**自分か敵の HP が減っている（戦いが進んでいる）限り、修復が閾値を超えても退場しない**。修復で戻された削りは減りに数えない。
+**1 分（1200 Tick）どちらの HP も減らない千日手**になり、かつ修復が閾値に届いているときだけ退場する（ログに `(stalemate: neither side's life has dropped for 1200 ticks)`）。
+印が無い（敵が分からない）ときは従来どおり。設定 `protection.combatStalemate`（既定 true）。強化保護（削りを全部戻す）は付けない（ユーザー指定）。
+エレノアが毎 Tick の `health_cut` の修復で 10 秒足らずで退場していた件（2026-10-21 のランチャーのログ）への対応。
+
+**退避しない個体**: 終焉機構の検証用の対象（`IEprotected.isTerminusTestTarget()` が真。検証用ダミーゾンビ）と、印 `eprotect_no_retreat`（`/tag <対象> add eprotect_no_retreat`）の付いた個体は、
+修復を数えず退避しない（`Eprotect.exemptFromRetreat`）。全体の検証用スイッチ（`GLOBAL_TERMINUS_TEST_MODE`）が入っている間は、個体の判断として数えない（GameTest が並んで走るため）。
 
 ### 3.9 攻撃の記録・MOD の割り出し・ブラックリスト（`protect/attack/`）
 

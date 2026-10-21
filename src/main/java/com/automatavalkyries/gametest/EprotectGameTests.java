@@ -299,6 +299,160 @@ public class EprotectGameTests {
         });
     }
 
+    /**
+     * 退避しない個体（2026-10-21）: {@code eprotect_no_retreat} の印の付いた個体と、終焉機構の検証用の対象（{@code terminus_test_target}）は、
+     * 上と同じ負荷（毎 Tick 壊される）をかけても退避せず、ワールドに残る。検証用ダミーゾンビが連打で静かに消えるのを防ぐ
+     */
+    @GameTest(template = TEMPLATE, timeoutTicks = 600)
+    public static void tagOrTerminusTestTargetDoesNotRetreat(GameTestHelper helper) {
+        ElenorEntity tagged = spawnElenor(helper);
+        ElenorEntity testTarget = helper.spawnWithNoFreeWill(ModEntities.ELENOR.get(), new BlockPos(4, 2, 2));
+        tagged.addTag(Eprotect.NO_RETREAT_TAG);
+        testTarget.addTag("terminus_test_target");
+        boolean[] stress = {true};
+        helper.onEachTick(() -> {
+            if (!stress[0]) return;
+            for (ElenorEntity e : new ElenorEntity[]{tagged, testTarget}) {
+                if (!e.getEprotect().isDespawning()) {
+                    ((EntityAccessor) e).automata_valkyries$setRemovalReason(Entity.RemovalReason.KILLED);
+                }
+            }
+        });
+        // 退避する個体は、同じ負荷で 200 件の修復に届いて消える（unrepairableStateTriggersSafeRetreat）。その倍の時間かけても残る
+        helper.runAfterDelay(450, () -> {
+            stress[0] = false;
+            helper.assertFalse(tagged.getEprotect().isDespawning(), "A tagged entity retreated");
+            helper.assertFalse(testTarget.getEprotect().isDespawning(), "A Terminus test target retreated");
+            // 負荷を止めた直後は、最後に書いた消去理由がまだ残っている（直すのは次の Tick）。数 Tick 待ってから、ワールドに居るかを見る
+            helper.runAfterDelay(6, () -> {
+                try {
+                    helper.assertFalse(tagged.getEprotect().isDespawning() || testTarget.getEprotect().isDespawning(), "An exempt entity retreated");
+                    helper.assertFalse(tagged.isRemoved() || testTarget.isRemoved(), "An exempt entity left the world");
+                } finally {
+                    tagged.removeTag(Eprotect.NO_RETREAT_TAG);
+                    testTarget.removeTag("terminus_test_target");
+                    tagged.getEprotect().triggerDespawn();
+                    testTarget.getEprotect().triggerDespawn();
+                }
+                helper.succeed();
+            });
+        });
+    }
+
+    /**
+     * 同期データの入れ物の差し替え（2026-10-21）: 保護対象の入れ物が他 MOD の継承クラスに作り替えられ、HP の読み書きを切り詰められても、
+     * 元の型の新しい入れ物へ付け替え、切り詰められた HP を戻し、作り替えた MOD を攻撃として記録する（SuperSteve の HurtSynchedEntityData の再現）
+     */
+    @GameTest(template = TEMPLATE, timeoutTicks = 100)
+    public static void foreignEntityDataContainerIsReplaced(GameTestHelper helper) {
+        com.automatavalkyries.gametest.fake.FakeKillMod.install();
+        var level = helper.getLevel();
+        var boss = new com.automatavalkyries.gametest.fake.FakeFrozenBoss(net.minecraft.world.entity.EntityType.ZOMBIE, level);
+        boss.setNoAi(true);
+        boss.setPersistenceRequired();
+        boss.setItemSlot(net.minecraft.world.entity.EquipmentSlot.HEAD, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_HELMET)); // 日光で燃えない
+        boss.setPos(net.minecraft.world.phys.Vec3.atBottomCenterOf(helper.absolutePos(new BlockPos(2, 2, 2))));
+        level.addFreshEntity(boss);
+        helper.runAfterDelay(5, () -> {
+            // 「架空の MOD」の判定は全体で共有され、別のテストが解除することがある。点検を同じ Tick の中で同期的に回すので、直前に入れ直す
+            com.automatavalkyries.gametest.fake.FakeKillMod.install();
+            float max = boss.getMaxHealth();
+            var healthId = com.automatavalkyries.mixin.LivingEntityAccessor.automata_valkyries$getDataHealthId();
+            // 作り替えられた入れ物を付ける（HP の読み書きが切り詰められる）
+            var fake = new com.automatavalkyries.gametest.fake.FakeSwappedEntityData(boss);
+            com.automatavalkyries.protect.EntityDataContainer.copyState(boss.getEntityData(), fake);
+            ((EntityAccessor) boss).automata_valkyries$setEntityData(fake);
+            fake.set(healthId, max); // 書いた値も切り詰められる
+            helper.assertTrue(com.automatavalkyries.protect.DirectRead.health(boss) <= com.automatavalkyries.gametest.fake.FakeSwappedEntityData.CEILING + 0.01F,
+                    "test setup: the fake container did not clamp the health");
+            boss.getEprotect().tick(); // 個体の毎 Tick の修復を、いま回す
+            {
+                try {
+                    helper.assertTrue(boss.getEntityData().getClass() == net.minecraft.network.syncher.SynchedEntityData.class,
+                            "The foreign container was not replaced: " + boss.getEntityData().getClass().getName());
+                    helper.assertTrue(com.automatavalkyries.protect.DirectRead.health(boss) >= max - 0.01F,
+                            "The clamped health was not restored (" + com.automatavalkyries.protect.DirectRead.health(boss) + " of " + max + ")");
+                    String mod = com.automatavalkyries.protect.attack.CallerAttribution.modOf(com.automatavalkyries.gametest.fake.FakeSwappedEntityData.class);
+                    helper.assertTrue(com.automatavalkyries.protect.attack.AttackLog.entries().stream().anyMatch(
+                                    e -> e.mod.equals(mod) && e.op.equals(com.automatavalkyries.protect.attack.AttackOp.SYNCHED_DATA + ":container_swapped")),
+                            "The swap was not recorded against the mod '" + mod + "'");
+                } finally {
+                    boss.getEprotect().triggerDespawn();
+                }
+                helper.succeed();
+            }
+        });
+    }
+
+    /** 敵を作る（保護していない、動かないゾンビ。HP を直接書き換えて「減っている／減らない」を作る） */
+    private static net.minecraft.world.entity.monster.Zombie spawnEnemy(GameTestHelper helper, ElenorEntity elenor) {
+        var enemy = helper.spawnWithNoFreeWill(net.minecraft.world.entity.EntityType.ZOMBIE, new BlockPos(4, 2, 2));
+        enemy.setItemSlot(net.minecraft.world.entity.EquipmentSlot.HEAD, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_HELMET)); // 日光で燃えない
+        enemy.setInvulnerable(true); // 外からの削りを止める（HP はテストが直接決める。エレノアの近くに置くと、ほかの原因で早く削られた）
+        elenor.setTarget(enemy);
+        return enemy;
+    }
+
+    /**
+     * 戦闘中の印（2026-10-21）: 敵がいて、その HP が減り続けている（戦いが進んでいる）間は、毎 Tick 壊されて修復が 200 件を超えても退場しない。
+     * 千日手の条件は 1 分（1200 Tick）なので、それを超えて 1500 Tick 続ける（進んでいなければ、1200 Tick たったところで退場する）
+     */
+    @GameTest(template = TEMPLATE, timeoutTicks = 1700)
+    public static void combatWithProgressDoesNotRetreat(GameTestHelper helper) {
+        ElenorEntity elenor = spawnElenor(helper);
+        var enemy = spawnEnemy(helper, elenor);
+        // 敵の HP は大きくして、1 Tick ずつ確実に減らし続ける（減る量は 1 Tick に 1。下限に張り付かない）
+        enemy.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH).setBaseValue(100_000.0D);
+        enemy.setHealth(100_000.0F);
+        boolean[] stress = {true};
+        helper.onEachTick(() -> {
+            if (!stress[0]) return;
+            if (elenor.getTarget() != enemy) elenor.setTarget(enemy); // 戦っているボスの AI は狙いを付け直す（テストの AI は止めてあるので代わりに）
+            if (!elenor.getEprotect().isDespawning()) {
+                ((EntityAccessor) elenor).automata_valkyries$setRemovalReason(Entity.RemovalReason.KILLED);
+            }
+            enemy.setHealth(enemy.getHealth() - 1.0F); // 敵の HP が減り続ける
+        });
+        helper.runAfterDelay(1500, () -> {
+            stress[0] = false;
+            helper.assertTrue(elenor.getEprotect().isInCombat(), "The combat mark was not set");
+            helper.assertFalse(elenor.getEprotect().isDespawning(), "Elenor retreated although the enemy's life kept dropping");
+            helper.runAfterDelay(6, () -> {
+                try {
+                    helper.assertFalse(elenor.getEprotect().isDespawning(), "Elenor retreated");
+                    helper.assertFalse(elenor.isRemoved(), "Elenor left the world");
+                } finally {
+                    enemy.discard();
+                    elenor.getEprotect().triggerDespawn();
+                }
+                helper.succeed();
+            });
+        });
+    }
+
+    /** 千日手: 敵がいても、1 分（1200 Tick）どちらの HP も減らないまま修復が積もれば、退場する */
+    @GameTest(template = TEMPLATE, timeoutTicks = 1700)
+    public static void combatStalemateRetreats(GameTestHelper helper) {
+        ElenorEntity elenor = spawnElenor(helper);
+        var enemy = spawnEnemy(helper, elenor);
+        helper.onEachTick(() -> {
+            if (elenor.getTarget() != enemy && !elenor.getEprotect().isDespawning()) elenor.setTarget(enemy); // 戦っているボスの AI は狙いを付け直す
+            if (!elenor.getEprotect().isDespawning()) {
+                ((EntityAccessor) elenor).automata_valkyries$setRemovalReason(Entity.RemovalReason.KILLED);
+            }
+        });
+        // 1200 Tick たつ前に退場してはいけない（修復は 200 件に届いているが、千日手の条件を満たしていない）。印はまだ付いている（千日手の経路で退く）
+        helper.runAfterDelay(1000, () -> {
+            helper.assertFalse(elenor.getEprotect().isDespawning(), "Elenor retreated before the stalemate lasted a minute");
+            helper.assertTrue(elenor.getEprotect().isInCombat(), "The combat mark was gone during the stalemate");
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(elenor.getEprotect().isDespawning(), "Elenor has not retreated from the stalemate yet");
+            helper.assertTrue(elenor.isRemoved(), "Retreated Elenor is still in the world");
+            enemy.discard();
+        });
+    }
+
     /** IMDS-Reborn の即死手順（無敵剥奪、die()、forceDead、リスト登録、AI全消去）を無力化できるか検証 */
     @GameTest(template = TEMPLATE)
     public static void imdsKillProcedureIsCountered(GameTestHelper helper) {

@@ -1,8 +1,10 @@
 package com.automatavalkyries.mixin;
 
+import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.entity.EntityInLevelCallback;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Mutable;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
 /**
@@ -18,6 +20,15 @@ public interface EntityAccessor {
 
     @Accessor("removalReason")
     void automata_valkyries$setRemovalReason(Entity.RemovalReason removalReason);
+
+    /** 同期データの入れ物のフィールドを直接読む（{@code getEntityData()} は上書きされうる） */
+    @Accessor("entityData")
+    SynchedEntityData automata_valkyries$getEntityDataField();
+
+    /** 他 MOD に型を作り替えられた入れ物を、元の型の新しい入れ物へ付け替える（final を外す） */
+    @Mutable
+    @Accessor("entityData")
+    void automata_valkyries$setEntityData(SynchedEntityData data);
 
     @Accessor("levelCallback")
     EntityInLevelCallback automata_valkyries$getLevelCallback();
