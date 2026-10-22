@@ -57,7 +57,8 @@ public final class Batch3T3 {
 
         /** 呪われているか */
         public static boolean cursed(LivingEntity e) {
-            return e.getPersistentData().getLong(TAG) > e.level().getGameTime();
+            net.minecraft.nbt.CompoundTag data = e.getPersistentData(); // 抹殺で欄を空にされた個体は null を返す（Omni-Mobs の鉄の巨人でクラッシュ。2026-10-22）
+            return data != null && data.getLong(TAG) > e.level().getGameTime();
         }
 
         /** 呪う（兵姫に持たせたときも同じ処理）。呪った数 */

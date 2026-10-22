@@ -35,7 +35,16 @@ public final class EcaLastSwordHelper {
                 ItemStack stack = inv.getItem(i);
                 if (stack.isEmpty()) continue;
                 String className = stack.getItem().getClass().getName();
-                if (className.contains("UltraTestSword") || className.contains("TheLastSword")) {
+                if (className.startsWith("net.the_last_sword.")
+                        || className.startsWith("net.mcreator.imds_reborn.")
+                        || className.contains("UltraTestSword")
+                        || className.contains("TheLastSword")
+                        || className.contains("DragonArmor")
+                        || className.contains("DragonCrystalArmor")
+                        || className.contains("TheLastEndArmor")
+                        || className.contains("DimensionExplorer")
+                        || className.contains("ExtremeLifeSupport")
+                        || className.contains("InfinityMatterDominatorSword")) {
                     return true;
                 }
             }
@@ -61,25 +70,105 @@ public final class EcaLastSwordHelper {
      * 消せるようにする（保護が残ると消去が止められて同じ UUID のプレイヤーが二重になる）。生きている個体（エンドからの帰還など）には触れない
      */
     public static void releaseDeadPlayerForRespawn(Player player) {
-        if (player == null || DirectRead.hasHealth(player)) return;
-        try {
-            Class<?> entityUtil = Class.forName("net.the_last_sword.util.EntityUtil");
-            entityUtil.getMethod("setProtection", net.minecraft.world.entity.LivingEntity.class, boolean.class).invoke(null, player, false);
+        if (player == null) return;
+        if (DirectRead.hasHealth(player) && !player.getPersistentData().getBoolean("automata_valkyries:terminus_pending_respawn")) {
+            return;
+        }
+        forceClearEcaAndTlsProtection(player);
+    }
+
+    /**
+     * サーバー・クライアント双方で The Last Sword および ECA の無敵・保護・ヘルスロック・蘇生追跡・SynchedEntityData を
+     * 強制的に解除する（スタッククローキング付き）。
+     */
+    @SuppressWarnings("unchecked")
+    public static void forceClearEcaAndTlsProtection(Player player) {
+        if (player == null) return;
+        com.automatavalkyries.protect.plus.EprotectPlusLink.runWithCloakedStack(() -> {
             try {
-                entityUtil.getMethod("clearWorldAnchor", net.minecraft.world.entity.LivingEntity.class).invoke(null, player);
+                Class<?> tlsEntityUtil = Class.forName("net.the_last_sword.util.EntityUtil");
+                try {
+                    tlsEntityUtil.getMethod("setProtection", net.minecraft.world.entity.LivingEntity.class, boolean.class).invoke(null, player, false);
+                } catch (Throwable ignored) {}
+                // clearWorldAnchor は setWorldAnchor(0) → EcaAPI.setHealth(0) で HP を 0 に書く（錨が無くても）。
+                // ログイン・リスポーン・手放しの後始末（生きているプレイヤー）で呼ぶと即死し続けるので（2026-10-22 に再発）、
+                // 既に死んでいるときだけ呼ぶ。生きているなら錨の印だけ消して、ECA の HP 固定を外す
+                try {
+                    if (!DirectRead.hasHealth(player)) {
+                        tlsEntityUtil.getMethod("clearWorldAnchor", net.minecraft.world.entity.LivingEntity.class).invoke(null, player);
+                    } else {
+                        player.getPersistentData().remove("tlsWorldAnchor");
+                        player.getPersistentData().remove("tlsWorldAnchorMax");
+                    }
+                } catch (Throwable ignored) {}
+                try {
+                    Field isProtectedField = tlsEntityUtil.getDeclaredField("IS_PROTECTED");
+                    isProtectedField.setAccessible(true);
+                    Object acc = isProtectedField.get(null);
+                    if (acc instanceof net.minecraft.network.syncher.EntityDataAccessor<?> dataAcc) {
+                        player.getEntityData().set((net.minecraft.network.syncher.EntityDataAccessor<Boolean>) dataAcc, false);
+                    }
+                } catch (Throwable ignored) {}
             } catch (Throwable ignored) {}
-        } catch (Throwable ignored) {}
-        try {
-            Class<?> ecaApi = Class.forName("net.eca.api.EcaAPI");
-            ecaApi.getMethod("setInvulnerable", net.minecraft.world.entity.Entity.class, boolean.class).invoke(null, player, false);
-            ecaApi.getMethod("disableAllReturn", net.minecraft.world.entity.Entity.class).invoke(null, player);
-        } catch (Throwable ignored) {}
-        CompoundTag tag = player.getPersistentData();
-        tag.remove("tlsIsProtected");
-        tag.remove("tlsWorldAnchor");
-        tag.remove("tlsWorldAnchorMax");
-        tag.remove("ecaResurrectionTracked");
-        tag.remove("ecaInvulnerable");
+
+            try {
+                Class<?> ecaApi = Class.forName("net.eca.api.EcaAPI");
+                try {
+                    ecaApi.getMethod("setInvulnerable", net.minecraft.world.entity.Entity.class, boolean.class).invoke(null, player, false);
+                } catch (Throwable ignored) {}
+                try {
+                    ecaApi.getMethod("disableAllReturn", net.minecraft.world.entity.Entity.class).invoke(null, player);
+                } catch (Throwable ignored) {}
+                try {
+                    ecaApi.getMethod("removeResurrectionTarget", net.minecraft.world.entity.Entity.class).invoke(null, player);
+                } catch (Throwable ignored) {}
+            } catch (Throwable ignored) {}
+
+            try {
+                Class<?> invulManager = Class.forName("net.eca.util.InvulnerableEntityManager");
+                invulManager.getMethod("removeInvulnerable", net.minecraft.world.entity.Entity.class).invoke(null, player);
+            } catch (Throwable ignored) {}
+
+            try {
+                Class<?> healthLockClass = Class.forName("net.eca.util.health.health_lock.HealthLockManager");
+                healthLockClass.getMethod("removeLock", net.minecraft.world.entity.LivingEntity.class).invoke(null, player);
+                healthLockClass.getMethod("removeMaxHealthLock", net.minecraft.world.entity.LivingEntity.class).invoke(null, player);
+                healthLockClass.getMethod("removeHealBan", net.minecraft.world.entity.LivingEntity.class).invoke(null, player);
+            } catch (Throwable ignored) {}
+
+            try {
+                Class<?> ecaEntityUtil = Class.forName("net.eca.util.EntityUtil");
+                for (String fieldName : new String[]{"INVULNERABLE", "RESURRECTION_TRACKED"}) {
+                    try {
+                        Field f = ecaEntityUtil.getDeclaredField(fieldName);
+                        f.setAccessible(true);
+                        Object acc = f.get(null);
+                        if (acc instanceof net.minecraft.network.syncher.EntityDataAccessor<?> dataAcc) {
+                            player.getEntityData().set((net.minecraft.network.syncher.EntityDataAccessor<Boolean>) dataAcc, false);
+                        }
+                    } catch (Throwable ignored) {}
+                }
+            } catch (Throwable ignored) {}
+
+            try {
+                EprotectImdsCounter.counter(player);
+            } catch (Throwable ignored) {}
+
+            try {
+                CompoundTag tag = player.getPersistentData();
+                tag.remove("tlsIsProtected");
+                tag.remove("tlsWorldAnchor");
+                tag.remove("tlsWorldAnchorMax");
+                tag.remove("ecaResurrectionTracked");
+                tag.remove("ecaInvulnerable");
+                tag.remove("ecaHealthLockEnc");
+                tag.remove("ecaHealthLockKey");
+                tag.remove("ecaHealthLockCheck");
+                tag.remove("ecaMaxHealthLockEnc");
+                tag.remove("ecaMaxHealthLockKey");
+                tag.remove("ecaMaxHealthLockCheck");
+            } catch (Throwable ignored) {}
+        });
     }
 
     /** 切断時に覚えた状態を消す */
@@ -169,12 +258,8 @@ public final class EcaLastSwordHelper {
             removeHealBan.invoke(null, player);
         } catch (Throwable ignored) {}
 
-        // 4. ECA の setInvulnerable(false)
-        try {
-            Class<?> ecaApi = Class.forName("net.eca.api.EcaAPI");
-            Method setInvul = ecaApi.getMethod("setInvulnerable", net.minecraft.world.entity.Entity.class, boolean.class);
-            setInvul.invoke(null, player, false);
-        } catch (Throwable ignored) {}
+        // 4. ECA & TLS の無敵・保護・SynchedEntityData 強制解除
+        forceClearEcaAndTlsProtection(player);
 
         // 5. The Last Sword の防御の解除
         //    clearDefence は「世界の錨（tlsWorldAnchor）の HP」を ECA の setHealth で書き戻す。錨が無いプレイヤーでは錨が 0 なので、
