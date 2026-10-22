@@ -2383,5 +2383,15 @@
   "bossbar.automata_valkyries.time_ruler.phase1": "第一刻 ― 総司令機",
   "bossbar.automata_valkyries.time_ruler.phase2": "第二刻 ― 因果の巻き戻し",
   "bossbar.automata_valkyries.time_ruler.phase3": "第三刻 ― 全ての刻を手に",
-  "bossbar.automata_valkyries.time_ruler.stopped": "― 時は止まった ― %s"
+  "bossbar.automata_valkyries.time_ruler.stopped": "― 時は止まった ― %s",
+  "item.automata_valkyries.boss_drop_elenor_ribbon": "エレノアの髪留め",
+  "item.automata_valkyries.boss_drop_elenor_ribbon.flavor1": "紫のリボンを結んだ、小さな髪留め。",
+  "item.automata_valkyries.boss_drop_elenor_ribbon.flavor2": "「期待外れ」と言った人が、いちばん最後まで手放さなかった物。",
+  "boss.automata_valkyries.elenor": "【エレノア】",
+  "message.automata_valkyries.elenor.intro": "エレノア: 「あら、お客様ですか？ 少しだけ遊んで差し上げますわ♪」",
+  "message.automata_valkyries.elenor.phase2": "エレノア: 「なかなかやりますのね……では、ここからは少し本気で参ります」",
+  "message.automata_valkyries.elenor.phase3": "エレノア: 「わたくしをここまで追い詰めるなんて……楽しくなってきましたわ！」",
+  "bossbar.automata_valkyries.elenor.phase1": "第一幕 ― 優雅な余興",
+  "bossbar.automata_valkyries.elenor.phase2": "第二幕 ― 本気の舞踏",
+  "bossbar.automata_valkyries.elenor.phase3": "終幕 ― 紅の円舞"
 }

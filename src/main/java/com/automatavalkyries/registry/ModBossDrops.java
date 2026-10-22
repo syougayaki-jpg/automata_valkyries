@@ -23,6 +23,7 @@ public final class ModBossDrops {
     public static final RegistryObject<Item> NECRO_COLONY = drop("boss_drop_necro_colony", 16, ModEffects.ECLIPSE_BIOMETAL, 8, "memento_mori");
     public static final RegistryObject<Item> MEMENTO_WINGS = drop("boss_drop_memento_wings", 16, ModEffects.ECLIPSE_BIOMETAL, 6, "memento_mori");
     public static final RegistryObject<Item> TIME_NEEDLE = drop("boss_drop_time_needle", 16, ModEffects.CHRONO, 6, "time_ruler");
+    public static final RegistryObject<Item> ELENOR_RIBBON = drop("boss_drop_elenor_ribbon", 16, ModEffects.LUMINAL, 10, "elenor");
     // ---- 究極・裏ボス素材（1 つずつ） ----
     public static final RegistryObject<Item> RULER_HEART = drop("boss_drop_ruler_heart", 1, ModEffects.STELLACHRONODYME, 4, "time_ruler");
     public static final RegistryObject<Item> MEMORY_STELLA = drop("boss_drop_memory_stella", 1, ModEffects.LUMINAL_STERLING, 4, "lost_catastrophe");

@@ -42,6 +42,12 @@ public class FarthestElenorEntity extends ElenorEntity {
         super.setTerminusEnabled(true);
     }
 
+    /** 終焉の権能で戦う（通常のエレノアの 3 フェーズの技は使わない） */
+    @Override
+    protected boolean usesBossArts() {
+        return false;
+    }
+
     @Override
     protected void registerGoals() {
         super.registerGoals();

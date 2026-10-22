@@ -55,6 +55,9 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
     /** 挑む相手（48 ブロック以内）がいなくなって 10 秒で撤収する */
     private final BossRetreatWatch retreatWatch = new BossRetreatWatch(48.0D, 200);
 
+    /** 3 フェーズの戦い方（{@link ElenorArts}）。使わない型（最果てのエレノア）では null */
+    private final ElenorArts arts = usesBossArts() ? new ElenorArts(this) : null;
+
     private static final RawAnimation IDLE = RawAnimation.begin().thenLoop("animation.elenor.idle");
     /** スカートをふわっと広げる（サーバーから triggerAnim で再生） */
     private static final RawAnimation SKIRT_SPREAD = RawAnimation.begin().thenPlay("animation.elenor.skirt_spread");
@@ -62,6 +65,22 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
 
     public ElenorEntity(EntityType<? extends PathfinderMob> type, Level level) {
         super(type, level);
+        this.xpReward = 50;
+    }
+
+    /** 技（{@link ElenorArts}）で戦うか。最果てのエレノアは終焉の権能で戦うので使わない（コンストラクタの前から呼ばれるので、定数で答える） */
+    protected boolean usesBossArts() {
+        return true;
+    }
+
+    @org.jetbrains.annotations.Nullable
+    public ElenorArts arts() {
+        return arts;
+    }
+
+    /** フェーズが進んだら、ボスバーの色を変える（第 2: ピンク、第 3: 赤） */
+    void setBarPhase(int phase) {
+        bossEvent.setColor(phase >= 3 ? BossEvent.BossBarColor.RED : phase == 2 ? BossEvent.BossBarColor.PINK : BossEvent.BossBarColor.PURPLE);
     }
 
     public static AttributeSupplier.Builder createAttributes() {
@@ -76,7 +95,8 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
     @Override
     protected void registerGoals() {
         this.goalSelector.addGoal(1, new FloatGoal(this));
-        this.goalSelector.addGoal(2, new MeleeAttackGoal(this, 1.2D, false));
+        // usesBossArts は定数（ここはサブクラスのフィールドが出来上がる前に呼ばれる）
+        this.goalSelector.addGoal(2, usesBossArts() ? new ElenorArts.ArtsGoal(this) : new MeleeAttackGoal(this, 1.2D, false));
         this.goalSelector.addGoal(3, new WaterAvoidingRandomStrollGoal(this, 1.0D));
         this.goalSelector.addGoal(4, new LookAtPlayerGoal(this, Player.class, 8.0F));
         this.goalSelector.addGoal(5, new RandomLookAroundGoal(this));
@@ -122,6 +142,7 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
         if (!this.level().isClientSide) {
             protect.tick(); // 撃破後の演出が進まないときの代行もここ（Eprotect#tick）
             tickRetreat();
+            if (arts != null) arts.tickProjectiles();
             // 実際の HP で出す（他 MOD のエージェントが getHealth を書き換えて最大 HP を返すと、削れていても満タンに見えていた。2026-10-05）
             bossEvent.setProgress(protect.healthRatio());
         } else {

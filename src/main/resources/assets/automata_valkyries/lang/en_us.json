@@ -2383,5 +2383,15 @@
   "bossbar.automata_valkyries.time_ruler.phase1": "First Hour - Supreme Commander",
   "bossbar.automata_valkyries.time_ruler.phase2": "Second Hour - Causality Rewound",
   "bossbar.automata_valkyries.time_ruler.phase3": "Third Hour - All Hours in Hand",
-  "bossbar.automata_valkyries.time_ruler.stopped": "- Time has stopped - %s"
+  "bossbar.automata_valkyries.time_ruler.stopped": "- Time has stopped - %s",
+  "item.automata_valkyries.boss_drop_elenor_ribbon": "Elenor's Hair Ribbon",
+  "item.automata_valkyries.boss_drop_elenor_ribbon.flavor1": "A small hair clip tied with a purple ribbon.",
+  "item.automata_valkyries.boss_drop_elenor_ribbon.flavor2": "The one who called you a disappointment never let go of it until the very end.",
+  "boss.automata_valkyries.elenor": "[Elenor]",
+  "message.automata_valkyries.elenor.intro": "Elenor: \"Oh, a visitor? I shall play with you for a little while.\"",
+  "message.automata_valkyries.elenor.phase2": "Elenor: \"Not bad at all... From here on, I shall be a little more serious.\"",
+  "message.automata_valkyries.elenor.phase3": "Elenor: \"To corner me this far... How exciting this has become!\"",
+  "bossbar.automata_valkyries.elenor.phase1": "Act I - A Graceful Diversion",
+  "bossbar.automata_valkyries.elenor.phase2": "Act II - The Earnest Dance",
+  "bossbar.automata_valkyries.elenor.phase3": "Finale - The Crimson Waltz"
 }

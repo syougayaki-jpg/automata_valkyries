@@ -477,8 +477,11 @@ dependencies {
         runtimeOnly fg.deobf("maven.modrinth:slashblade-resharped:1.9.65")
         runtimeOnly fg.deobf("maven.modrinth:annihilationblade:1.4.1")
         runtimeOnly fg.deobf("maven.modrinth:nekohashizuku-blade:3.7.0")
-        runtimeOnly fg.deobf("maven.modrinth:epic-core-api:1.1.8-fix")
-        runtimeOnly fg.deobf("maven.modrinth:the-last-sword-you-never-forgot:1.1.1")
+        // -PwithoutEca: ECA と、ECA を前提にする The Last Sword を外す（2026-10-22、ECA 抜きで Omni-Mobs の Flashfur が湧くかの切り分け用）
+        if (!project.hasProperty('withoutEca')) {
+            runtimeOnly fg.deobf("maven.modrinth:epic-core-api:1.1.8-fix")
+            runtimeOnly fg.deobf("maven.modrinth:the-last-sword-you-never-forgot:1.1.1")
+        }
         runtimeOnly fg.deobf("maven.modrinth:manaitaplus-legacy:2.0.6.5")
         runtimeOnly fg.deobf("maven.modrinth:manaitamtk:1.7.4")
         // Fantasy Ending は作業ディレクトリを変えないと起動できず、専用サーバーでも起動できないので -PwithFantasyEnding に分ける（併用可）
