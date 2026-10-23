@@ -1,0 +1,14 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [ "NCN", "OMO", "NIN" ],
+  "key": {
+    "M": { "item": "automata_valkyries:boss_drop_memory_stella" },
+    "C": { "item": "automata_valkyries:circuit_quantum_tac" },
+    "O": { "item": "automata_valkyries:orb_nano" },
+    "N": { "item": "automata_valkyries:nano_solution" },
+    "I": { "item": "automata_valkyries:module_repair_injector" }
+  },
+  "result": { "item": "automata_valkyries:item_zero_reboot_patch" },
+  "show_notification": true
+}

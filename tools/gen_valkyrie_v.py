@@ -1,13 +1,16 @@
 """
 戦術兵姫（Type-V / S / H / C）のモデル（GeckoLib geo.json）とテクスチャ（128x128、表情ごと＋発光マスク）を生成する（2026-10-04）。
 
-    python tools/gen_valkyrie_v.py          … 4 型すべて
+    python tools/gen_valkyrie_v.py          … 5 型すべて
     python tools/gen_valkyrie_v.py s h      … 指定した型だけ
 
 2026-10-07: 他の 3 型（S 近接高機動・H 重装甲防衛・C 電子戦）を足した（ユーザー指定「違うタイプのヴァルキリー実装」、
 色と髪型は DESIGN_VALKYRIE_VISUAL_DB §11.2 の仮案のまま）。骨組み・骨の名前は 4 型で共通（外装フレーム・背部ユニットの取り付けと動きの計算をそのまま使う）。
 型ごとに変えるのは色（PAL の上書き）・後ろ髪の形（V ロング / S 短いサイドテール / H 三つ編み / C ボブ）・横髪の長さ・型ごとの装甲（S 脚の後ろへ伸びるフィンと長い踵のスラスター /
 H 大きな肩と厚い脛当て / C 体のまわりを回る 4 つのビットと頭の後ろの光の輪。ビットと輪は描画側で回す）。出力は型ごとに valkyrie_type_<型>。
+
+2026-10-20: 零号機（Z、隠しボス「マリスライズ・ロストカタストロフィー」を倒して蘇らせる最初の兵姫）を足した。
+銀白の乱れた短い髪・暗い銀のとげの冠・赤く光るバイザー（目尻からセンサーへ伸びる板）・黒い砲金色の外装に銀の縁・赤紫の発光の継ぎ目・赤い胸のコア。
 
 出力（assets/automata_valkyries/ の下）:
   geo/entity/valkyrie_type_v.geo.json
@@ -76,6 +79,14 @@ TYPE_PAL = {
         'D': 0x221C38, 'd': 0x171226, 'P': 0x362C55, 'q': 0x0F0B19,
         'A': 0xF6F4FA, 'a': 0xD9D4E6, 'Z': 0xA39BB6, 'z': 0x756C8C,
         'C': 0xB46BFF, 'c': 0xDDB8FF, 'V': 0x120826, 'U': 0x4A1A8A, 'Q': 0x2A2A9A, 'X': 0x7BF0FF,
+    },
+    # 零号機: 銀白の髪（毛先は赤く染まる）・赤い瞳・黒のスーツ・黒い砲金色の外装（縁 Z は銀）・赤の発光・赤い星空のコア
+    'z': {
+        'h': 0xF4F5F8, 'H': 0xDADDE4, 'M': 0xBFC3CD, 'N': 0x989DAA, 'n': 0x737886, 't': 0xF2D2DA, 'T': 0xFF5A78,
+        'I': 0x6A0614, 'J': 0xC0142E, 'i': 0xFF3A50, 'p': 0x2A0208, 'G': 0xFFF0F2, 'g': 0xFF9AA8,
+        'D': 0x1B1B21, 'd': 0x111115, 'P': 0x32323C, 'q': 0x09090C,
+        'A': 0x3A3D46, 'a': 0x2A2C33, 'Z': 0xB4BAC6, 'z': 0x7E8490,
+        'C': 0xFF2858, 'c': 0xFF8FB0, 'V': 0x1A0306, 'U': 0x6A0A2A, 'Q': 0x9A1030, 'X': 0xFF60D0,
     },
 }
 GLOW = set('CcigGVUQX')
@@ -564,8 +575,8 @@ def build(expr):
 
 
 # ------------------------------------------------------------------ 型ごとの違い
-SIDE_H = {'v': 6.0, 's': 4.8, 'h': 6.0, 'c': 5.6}       # 横のふくらみの長さ
-LOCK_SCALE = {'v': 1.0, 's': 0.72, 'h': 1.0, 'c': 0.66}  # 横髪の長さ（V = 1）
+SIDE_H = {'v': 6.0, 's': 4.8, 'h': 6.0, 'c': 5.6, 'z': 4.4}       # 横のふくらみの長さ
+LOCK_SCALE = {'v': 1.0, 's': 0.72, 'h': 1.0, 'c': 0.66, 'z': 0.58}  # 横髪の長さ（V = 1）
 
 
 def glow_mid(x, y, w, h):
@@ -634,6 +645,24 @@ def back_hair(t):
             Cube([-0.9, 10.2, 2.9], [1.8, 0.6, 1.7], faces(all=fill('a'), side=glow_mid, north=glow_mid, south=glow_mid), key='braid_tie'),
             Cube([-0.7, 6.9, 3.05], [1.4, 3.4, 1.35], faces(all=braid_tip, up=fill('H'), down=fill('T')), key='braid_t'),
         ]))
+    elif t == 'z':  # 零号機: 乱れた短い髪（襟足で跳ねる毛束。後ろの継ぎ目の板は神経接続の端子）
+        B.append(Bone('ribbon', 'head', [0, 23.0, 3.4], [
+            Cube([-0.9, 22.3, 3.1], [1.8, 0.9, 0.45], faces(all=fill('a'), south=lambda x, y, w, h: 'C' if (y == h // 2 and x % 2 == 0) else 'Z'), key='port_z'),
+        ]))
+        B.append(Bone('hair_upper', 'head', [0, 24.5, 2.3], [
+            Cube([-3.4, 21.2, 1.3], [6.8, 3.7, 2.0], faces(all=hair_jagged, up=fill('H'))),
+            Cube([-4.1, 22.4, 0.2], [1.0, 2.6, 1.8], faces(all=hair_jagged, up=fill('H')), key='mess_side'),
+            Cube([3.1, 22.4, 0.2], [1.0, 2.6, 1.8], faces(all=hair_jagged, up=fill('H')), key='mess_side'),
+            Cube([-2.6, 25.2, 2.6], [1.3, 0.9, 1.2], faces(all=HAIR_TIP, up=fill('H')), key='mess_top'),
+            Cube([1.4, 25.4, 2.4], [1.3, 0.9, 1.2], faces(all=HAIR_TIP, up=fill('H')), key='mess_top'),
+        ]))
+        B.append(Bone('hair_mid', 'hair_upper', [0, 21.2, 2.3], [
+            Cube([-2.6, 19.9, 1.5], [5.2, 1.4, 1.5], faces(all=HAIR_TIP, up=fill('H'), down=fill('T'))),
+        ]))
+        B.append(Bone('hair_tip', 'hair_mid', [0, 19.9, 2.3], [
+            Cube([-1.7, 19.0, 1.7], [1.2, 1.0, 1.1], faces(all=HAIR_TIP, up=fill('H'), down=fill('T')), key='nape_flick'),
+            Cube([0.6, 19.1, 1.7], [1.2, 1.0, 1.1], faces(all=HAIR_TIP, up=fill('H'), down=fill('T')), key='nape_flick'),
+        ]))
     else:  # c: あごの高さで切りそろえたボブ（後ろ髪は短く、揺れる骨は残す）
         B.append(Bone('ribbon', 'head', [0, 23.0, 3.4], [
             Cube([-1.6, 22.4, 3.15], [3.2, 0.5, 0.4], faces(all=fill('a'), south=lambda x, y, w, h: 'C' if x % 3 == 1 else 'A'), key='hairband_c'),
@@ -654,7 +683,40 @@ def bit_paint(x, y, w, h):
     return 'A' if y < h // 2 else 'a'
 
 
+def crown_paint(x, y, w, h):
+    """冠の輪: 暗い銀の地に、上下の縁だけ明るい銀"""
+    if y == 0 or y == h - 1:
+        return 'z'
+    return 'a' if (x % 3) else 'z'
+
+
+def spike_paint(x, y, w, h):
+    if y == 0:
+        return 'Z'  # 先だけ明るい銀
+    return 'z' if x == w // 2 else 'a'
+
+
 def type_extra(t):
+    if t == 'z':
+        # 零号機: 頭の上の暗い銀のとげの冠（正面に赤い宝石）と、目尻からセンサーへ伸びる赤く光るバイザーの板
+        crown = [
+            Cube([-2.45, 26.95, -2.45], [4.9, 0.55, 4.9], faces(all=crown_paint, up=fill('z'), down=fill('a')), key='crown_band'),
+            Cube([-0.3, 27.03, -2.62], [0.6, 0.42, 0.2], faces(all=fill('C'), north=fill('c')), key='crown_gem'),
+        ]
+        for i, (sx, sz, hgt) in enumerate(((0.0, -2.45, 1.5), (-1.55, -2.45, 1.0), (1.55, -2.45, 1.0), (-2.45, -0.6, 0.9), (2.45, -0.6, 0.9),
+                                           (-2.45, 1.4, 0.7), (2.45, 1.4, 0.7), (0.0, 2.45, 0.8))):
+            w = 0.55 if hgt >= 1.0 else 0.45
+            crown.append(Cube([round(sx - w / 2, 3), 27.5, round(sz - w / 2, 3)], [w, hgt, w], faces(all=spike_paint, up=fill('Z'), down=fill('z')),
+                              key=f'crown_spike{"_big" if hgt >= 1.4 else ("_mid" if hgt >= 1.0 else str(i))}'))
+        B = [Bone('crown', 'head', [0, 27.0, 0], crown, rotation=[-6, 0, 0])]
+        visor = []
+        for sx in (-1, 1):
+            x0 = 3.05 * sx - (0.25 if sx > 0 else 0.0)
+            visor.append(Cube([round(x0 - (0.0 if sx > 0 else 0.25), 3), 22.45, -2.85], [0.5, 0.55, 2.1],
+                              faces(all=fill('a'), north=fill('C'), up=fill('Z'), side=lambda x, y, w, h: 'C' if y == h // 2 else 'a'), key='visor_z'))
+            visor.append(Cube([round(2.45 * sx - 0.35, 3), 22.5, -2.95], [0.7, 0.45, 0.3], faces(all=fill('C'), north=fill('c')), key='visor_tip'))
+        B.append(Bone('visor', 'head', [0, 22.7, -2.5], visor))
+        return B
     if t != 'c':
         return []
     # 電子戦: 体のまわりを回る 4 つのビット（bits の骨ごと描画側で回す）と、頭の後ろの光の輪（halo）
@@ -807,7 +869,7 @@ EXPRESSIONS = ['normal', 'smile', 'shy', 'angry', 'sad', 'surprise', 'sleepy', '
 def main():
     import sys
     global NAME, TYPE
-    types = [a.lower() for a in sys.argv[1:]] or ['v', 's', 'h', 'c']
+    types = [a.lower() for a in sys.argv[1:]] or ['v', 's', 'h', 'c', 'z']
     for t in types:
         TYPE, NAME = t, f'valkyrie_type_{t}'
         PAL.clear()

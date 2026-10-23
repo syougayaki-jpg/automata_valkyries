@@ -1,0 +1,18 @@
+{
+  "variants": {
+    "axis=x,awake=false": {
+      "model": "automata_valkyries:block/zero_portal_ns"
+    },
+    "axis=z,awake=false": {
+      "model": "automata_valkyries:block/zero_portal_ns",
+      "y": 90
+    },
+    "axis=x,awake=true": {
+      "model": "automata_valkyries:block/zero_portal_awake_ns"
+    },
+    "axis=z,awake=true": {
+      "model": "automata_valkyries:block/zero_portal_awake_ns",
+      "y": 90
+    }
+  }
+}

@@ -48,7 +48,7 @@ public class ValkyrieRadarItem extends Item {
         var reg = CrashedPods.registry(server);
         // 読み込まれている眠った兵姫も記録へ（記録を始める前に置かれたポッドの分）
         for (var e : server.getAllEntities()) {
-            if (e instanceof ValkyrieEntity v && v.isPodSleeper() && reg.pods.add(v.blockPosition().asLong())) reg.setDirty();
+            if (e instanceof ValkyrieEntity v && v.isPodSleeper() && !v.isDormantZero() && reg.pods.add(v.blockPosition().asLong())) reg.setDirty();
         }
         var it = reg.pods.iterator();
         while (it.hasNext()) {

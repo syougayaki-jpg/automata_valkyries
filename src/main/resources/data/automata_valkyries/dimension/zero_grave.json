@@ -1,0 +1,13 @@
+{
+  "type": "automata_valkyries:zero_grave",
+  "generator": {
+    "type": "minecraft:flat",
+    "settings": {
+      "layers": [],
+      "biome": "automata_valkyries:zero_grave",
+      "lakes": false,
+      "features": false,
+      "structure_overrides": []
+    }
+  }
+}

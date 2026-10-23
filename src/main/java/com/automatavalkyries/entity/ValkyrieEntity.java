@@ -617,6 +617,7 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(body.speed);
         if (DirectRead.health(this) > body.maxHealth) super.setHealth(body.maxHealth);
         if (getShield() > body.maxShield) entityData.set(SHIELD, body.maxShield);
+        if (body.fixedSync()) entityData.set(SYNC, 100.0F); // 零号機は同調率 100% に固定
         if (!level().isClientSide) for (ItemStack stack : getInventory().overflowAmmo()) spawnAtLocation(stack);
     }
 
@@ -624,8 +625,12 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         return entityData.get(SYNC);
     }
 
-    /** 同調率を増減する（0〜100）。履歴に理由を残す */
+    /** 同調率を増減する（0〜100）。履歴に理由を残す。零号機は 100% のまま動かない */
     public void addSync(float delta, String reason) {
+        if (getBody().fixedSync()) {
+            if (getSyncRate() != 100.0F) entityData.set(SYNC, 100.0F);
+            return;
+        }
         float before = getSyncRate();
         float after = Mth.clamp(before + delta, 0.0F, 100.0F);
         if (after == before) return;
@@ -833,7 +838,7 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
             setTarget(null);
             setSitting(false);
             talk("sleepy");
-        } else if (isAsleep() && getEnergy() >= WAKE_ENERGY && !podSleeper) { // 墜落ポッドの深い休眠は端末でだけ起きる
+        } else if (isAsleep() && getEnergy() >= WAKE_ENERGY && !podSleeper) { // 墜落ポッドの深い休眠は端末でだけ起きる（眠った零号機は再起動パッチでだけ）
             entityData.set(ASLEEP, false);
             life().onWake();
         }
@@ -933,6 +938,7 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
     @Override
     public boolean hurt(DamageSource source, float amount) {
         if (isShutdown()) return false;
+        if (isDormantZero()) return false; // 眠った零号機の素体は封印状態（再起動パッチまでは傷つかない）
         if (!Float.isFinite(amount) || amount >= INSTANT_KILL_DAMAGE) {
             // 桁外れの 1 撃は即死の扱い
             if (level().isClientSide) return false;
@@ -1018,6 +1024,10 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
      */
     public boolean wakeFromPod(Player player, int energy) {
         if (!(level() instanceof ServerLevel sl)) return false;
+        if (isDormantZero()) { // 零号機は端末・プロトコアでは起きない（零号機再起動パッチで）
+            player.displayClientMessage(Component.translatable("message.automata_valkyries.zero.dormant").withStyle(ChatFormatting.DARK_RED), true);
+            return false;
+        }
         if (ValkyrieProtect.ownedCount(sl.getServer(), player.getUUID()) >= ValkyrieProtect.MAX_REGISTERED) {
             player.displayClientMessage(Component.translatable("message.automata_valkyries.valkyrie.registry_full", ValkyrieProtect.MAX_REGISTERED).withStyle(ChatFormatting.RED), true);
             return false;
@@ -1034,6 +1044,43 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         lookAt(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES, player.getEyePosition());
         talkNow("pod_wake");
         gesture(GESTURE_NOD);
+        return true;
+    }
+
+    // ------------------------------------------------------------------ 零号機（全体仕様書 §4 の 4「零号機再起動パッチ」。2026-10-20）
+
+    /** 給電ドックに安置した、まだ起動していない零号機の素体（持ち主なし・深い休眠）。再起動パッチでだけ起きる */
+    public boolean isDormantZero() {
+        return podSleeper && getBody() == ValkyrieBody.Z && getOwnerUUID() == null;
+    }
+
+    /**
+     * 零号機再起動パッチ: 怨嗟プログラムを消し、使った人を持ち主にして完全に目覚めさせる（HP・シールド・電力を満タン、同調率 100% 固定）。
+     * 眠った零号機でなければ・登録の上限なら false
+     */
+    public boolean rebootZero(Player player) {
+        if (!(level() instanceof ServerLevel sl) || !isDormantZero()) return false;
+        if (ValkyrieProtect.ownedCount(sl.getServer(), player.getUUID()) >= ValkyrieProtect.MAX_REGISTERED) {
+            player.displayClientMessage(Component.translatable("message.automata_valkyries.valkyrie.registry_full", ValkyrieProtect.MAX_REGISTERED).withStyle(ChatFormatting.RED), true);
+            return false;
+        }
+        podSleeper = false;
+        setOwnerUUID(player.getUUID());
+        setMode(Mode.FOLLOW);
+        entityData.set(SHUTDOWN, false);
+        entityData.set(ASLEEP, false);
+        setSitting(false);
+        entityData.set(SYNC, 100.0F);
+        syncHistory.addFirst(new SyncEntry(100.0F, "zero_reboot", level().getGameTime()));
+        while (syncHistory.size() > SYNC_HISTORY) syncHistory.removeLast();
+        applySyncBonus(); // 同調率の最大 HP を先に付けてから満タンに
+        super.setHealth(getMaxHealth());
+        setEnergy(maxEnergy());
+        entityData.set(SHIELD, getMaxShield());
+        lookAt(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES, player.getEyePosition());
+        talkNow("zero_reboot");
+        gesture(GESTURE_NOD);
+        mood(1, 100);
         return true;
     }
 
@@ -1055,6 +1102,11 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         boolean client = level().isClientSide;
         UUID owner = getOwnerUUID();
         ItemStack held = player.getItemInHand(hand);
+        if (isDormantZero()) { // 眠った零号機: 再起動パッチ（アイテムの側で）のほかは受け付けない
+            if (held.getItem() instanceof com.automatavalkyries.item.ZeroRebootPatchItem) return InteractionResult.PASS;
+            if (!client) player.displayClientMessage(Component.translatable("message.automata_valkyries.zero.dormant").withStyle(ChatFormatting.DARK_RED), true);
+            return InteractionResult.sidedSuccess(client);
+        }
         if (owner == null && podSleeper) { // 墜落ポッドの深い休眠: 端末にプロトコアを
             if (!client) player.displayClientMessage(Component.translatable("message.automata_valkyries.pod.sleeping").withStyle(ChatFormatting.AQUA), true);
             return InteractionResult.sidedSuccess(client);
@@ -1357,7 +1409,7 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         com.automatavalkyries.entity.ai.ValkyrieTypeTraits.applyAttributes(this, getBody());
         getInventory().load(tag.getList("Equipment", net.minecraft.nbt.Tag.TAG_COMPOUND));
         orders.load(tag.getCompound("Orders"));
-        entityData.set(SYNC, Mth.clamp(tag.getFloat("Sync"), 0.0F, 100.0F));
+        entityData.set(SYNC, getBody().fixedSync() ? 100.0F : Mth.clamp(tag.getFloat("Sync"), 0.0F, 100.0F)); // 零号機は 100% 固定
         syncHistory.clear();
         net.minecraft.nbt.ListTag history = tag.getList("SyncHistory", net.minecraft.nbt.Tag.TAG_COMPOUND);
         for (int i = 0; i < history.size() && i < SYNC_HISTORY; i++) {

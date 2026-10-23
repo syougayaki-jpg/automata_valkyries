@@ -254,6 +254,11 @@ public final class TrialManager {
                 if (ruler != null) ruler.setTrialBoss(session.trial.bossAttack());
                 yield ruler;
             }
+            case "lost_catastrophe" -> { // 零の追憶 → 零号機（2026-10-20）
+                com.automatavalkyries.entity.zero.LostCatastropheEntity zero = ModEntities.LOST_CATASTROPHE.get().create(level);
+                if (zero != null) zero.setTrialBoss(session.trial.bossAttack());
+                yield zero;
+            }
             case "memento_mori" -> { // 死蝶の舞踏 → メメントモリ（2026-10-10）
                 com.automatavalkyries.entity.chrono.MementoMoriEntity mori = ModEntities.MEMENTO_MORI.get().create(level);
                 if (mori != null) mori.setTrialBoss(session.trial.bossAttack());

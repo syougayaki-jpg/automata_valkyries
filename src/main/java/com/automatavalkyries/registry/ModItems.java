@@ -122,6 +122,8 @@ public class ModItems {
     // 浮遊要塞の中ボス・雑魚（2026-10-19）
     public static final RegistryObject<Item> TIME_RULER_SPAWN_EGG = ITEMS.register("time_ruler_spawn_egg", () ->
             new ForgeSpawnEggItem(ModEntities.TIME_RULER, 0xf4f0e6, 0xffd166, new Item.Properties()));
+    public static final RegistryObject<Item> LOST_CATASTROPHE_SPAWN_EGG = ITEMS.register("lost_catastrophe_spawn_egg", () ->   // 裏ボス 零号機（2026-10-20）
+            new ForgeSpawnEggItem(ModEntities.LOST_CATASTROPHE, 0x1a0a12, 0xff2a44, new Item.Properties()));
     public static final RegistryObject<Item> BASTION_KEEPER_SPAWN_EGG = ITEMS.register("bastion_keeper_spawn_egg", () ->
             new ForgeSpawnEggItem(ModEntities.BASTION_KEEPER, 0xe8ecf4, 0xb060ff, new Item.Properties()));
     public static final RegistryObject<Item> CHRONO_INTERCEPTOR_SPAWN_EGG = ITEMS.register("chrono_interceptor_spawn_egg", () ->
@@ -226,6 +228,11 @@ public class ModItems {
         return ITEMS.register("valkyrie_body_" + body.name().toLowerCase(java.util.Locale.ROOT), () ->
                 new com.automatavalkyries.item.ValkyrieBodyItem(body, new Item.Properties().stacksTo(1).rarity(net.minecraft.world.item.Rarity.RARE)));
     }
+    /** 零号機の素体（隠しボス「マリスライズ・ロストカタストロフィー」が落とす）と零号機再起動パッチ（2026-10-20。全体仕様書 §4 の 4） */
+    public static final RegistryObject<Item> ZERO_FRAME = ITEMS.register("zero_frame", () ->
+            new com.automatavalkyries.item.ZeroFrameItem(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC).fireResistant()));
+    public static final RegistryObject<Item> ZERO_REBOOT_PATCH = ITEMS.register("item_zero_reboot_patch", () ->
+            new com.automatavalkyries.item.ZeroRebootPatchItem(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC)));
     /** 退去願い（2026-10-05 ユーザー指定）: 検証用のダミーゾンビに正規の退場をしてもらう */
     public static final RegistryObject<Item> EVICTION_NOTICE = ITEMS.register("eviction_notice", () ->
             new com.automatavalkyries.item.EvictionNoticeItem(new Item.Properties().stacksTo(1)));

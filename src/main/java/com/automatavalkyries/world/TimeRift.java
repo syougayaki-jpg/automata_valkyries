@@ -79,6 +79,7 @@ public final class TimeRift {
                 rift.addFreshEntity(ruler);
             }
             setGate(rift, false); // 戦いの間、帰りの門は眠る
+            ZeroGrave.setEntryGate(rift, false); // 零の墓標への紅の門も眠る（2026-10-20）
         }
     }
 
@@ -206,12 +207,16 @@ public final class TimeRift {
         player.displayClientMessage(Component.translatable("message.automata_valkyries.time_rift.rescued").withStyle(ChatFormatting.LIGHT_PURPLE), true);
     }
 
-    /** タイムルーラーが倒れた: 帰りの門が目覚める */
+    /**
+     * タイムルーラーが倒れた: 帰りの門が目覚める。
+     * 2026-10-20 ユーザー指定「裏ボスをつくりますか」（時の狭間の奥）で、闘技場の北に零の墓標への紅の門も目覚める（{@link ZeroGrave#openEntryGate}。枠が無ければ描く）
+     */
     public static void onRulerDefeated(ServerLevel rift) {
         setGate(rift, true);
         for (ServerPlayer p : rift.players()) {
             p.displayClientMessage(Component.translatable("message.automata_valkyries.time_rift.gate_open").withStyle(ChatFormatting.GOLD), false);
         }
+        ZeroGrave.openEntryGate(rift);
     }
 
     static AABB arenaBox() {

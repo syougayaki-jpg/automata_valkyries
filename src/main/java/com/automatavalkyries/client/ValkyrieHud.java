@@ -59,6 +59,7 @@ public final class ValkyrieHud {
             case S -> 0xFFFF8A2B;
             case H -> 0xFFFFB830;
             case C -> 0xFFB46BFF;
+            case Z -> 0xFFFF2858; // 零号機は赤
             default -> 0xFF3BE8FF;
         };
     }

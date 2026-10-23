@@ -2,6 +2,7 @@ package com.automatavalkyries.registry;
 
 import com.automatavalkyries.block.ChronoGateBlock;
 import com.automatavalkyries.block.RulerPortalBlock;
+import com.automatavalkyries.block.ZeroPortalBlock;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.block.Block;
@@ -62,6 +63,11 @@ public final class ModTechBlocks {
     /** 時の門の要石（金の時計の文字盤。光る。壊せない） */
     public static final RegistryObject<Block> RULER_GATE_KEYSTONE = register("ruler_gate_keystone", () -> new Block(BlockBehaviour.Properties.of()
             .mapColor(MapColor.GOLD).strength(-1.0F, 3600000.0F).sound(SoundType.METAL).noLootTable().lightLevel(s -> 13).pushReaction(PushReaction.BLOCK)));
+
+    /** 零の墓標への紅の門の膜（2026-10-20 ユーザー指定「裏ボスをつくりますか」。時の狭間の奥。タイムルーラーを倒すと目覚める。壊せない） */
+    public static final RegistryObject<Block> ZERO_PORTAL = register("zero_portal", () -> new ZeroPortalBlock(BlockBehaviour.Properties.of()
+            .mapColor(MapColor.CRIMSON_NYLIUM).strength(-1.0F, 3600000.0F).sound(SoundType.AMETHYST).noLootTable().noCollission().noOcclusion()
+            .lightLevel(s -> s.getValue(ZeroPortalBlock.AWAKE) ? 15 : 9).pushReaction(PushReaction.BLOCK)));
 
     private static RegistryObject<Block> register(String name, Supplier<Block> factory) {
         RegistryObject<Block> block = ModBlocks.BLOCKS.register(name, factory);

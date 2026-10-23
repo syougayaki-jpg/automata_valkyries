@@ -139,7 +139,7 @@ public final class CrashedPods {
             v.moveTo(at.getX() + 0.5, at.getY(), at.getZ() + 0.5, back.toYRot(), 0.0F);
             if (!starter) {
                 com.automatavalkyries.entity.ValkyrieBody[] bodies = com.automatavalkyries.entity.ValkyrieBody.values();
-                v.setBody(bodies[random.nextInt(bodies.length)]);
+                v.setBody(bodies[random.nextInt(bodies.length - 1)]); // 最後の Z（零号機）はポッドには入らない
             }
             v.makePodSleeper();
             level.addFreshEntity(v);

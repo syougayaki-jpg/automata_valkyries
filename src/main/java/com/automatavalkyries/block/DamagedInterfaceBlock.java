@@ -66,7 +66,7 @@ public class DamagedInterfaceBlock extends HorizontalDirectionalBlock {
             return InteractionResult.CONSUME;
         }
         ValkyrieEntity sleeper = null;
-        for (ValkyrieEntity v : level.getEntitiesOfClass(ValkyrieEntity.class, new AABB(pos).inflate(REACH), ValkyrieEntity::isPodSleeper)) {
+        for (ValkyrieEntity v : level.getEntitiesOfClass(ValkyrieEntity.class, new AABB(pos).inflate(REACH), s -> s.isPodSleeper() && !s.isDormantZero())) { // 眠った零号機は端末では起きない
             if (sleeper == null || v.distanceToSqr(pos.getCenter()) < sleeper.distanceToSqr(pos.getCenter())) sleeper = v;
         }
         if (sleeper == null) {

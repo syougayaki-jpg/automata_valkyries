@@ -23,6 +23,7 @@ import net.minecraft.world.phys.Vec3;
  *   <li>Type-S（近接高機動）: ステップが遠く（×{@value #S_STEP_POWER}）、クールタイムが短い（×{@value #S_STEP_COOLDOWN}）＝瞬動距離特化</li>
  *   <li>Type-H（重装甲防衛）: ノックバック無効。持ち主を狙う近くの敵の注意を自分へ引きつける（前に立つ）。高い所から着地すると地面が揺れる</li>
  *   <li>Type-C（電子戦）: 索敵 {@value #C_RANGE} m。戦闘中は味方を狙う敵を光らせて位置を知らせる（マーキング）。落ちるときは滑空する</li>
+ *   <li>零号機（Z）: V に近い万能型。ノックバックを半分受け流し（{@value #Z_KNOCKBACK}）、索敵は C と同じ {@value #C_RANGE} m、ステップは少し遠い（×{@value #Z_STEP_POWER}）</li>
  * </ul>
  */
 public final class ValkyrieTypeTraits {
@@ -31,6 +32,7 @@ public final class ValkyrieTypeTraits {
     public static final double S_STEP_POWER = 1.35, S_STEP_COOLDOWN = 0.6;
     public static final double H_STEP_POWER = 0.85, H_STEP_COOLDOWN = 1.25;
     public static final double BASE_RANGE = 32.0, C_RANGE = 40.0;
+    public static final double Z_KNOCKBACK = 0.5, Z_STEP_POWER = 1.15;
     /** H が注意を引く範囲（m）と間隔（Tick） */
     public static final double H_TAUNT_RANGE = 10.0;
     public static final int H_TAUNT_INTERVAL = 40;
@@ -42,15 +44,16 @@ public final class ValkyrieTypeTraits {
     /** 素体タイプの属性（ノックバック耐性・索敵範囲の基本値）。素体を変えたときと読み込んだときに */
     public static void applyAttributes(ValkyrieEntity v, ValkyrieBody body) {
         var knock = v.getAttribute(Attributes.KNOCKBACK_RESISTANCE);
-        if (knock != null) knock.setBaseValue(body == ValkyrieBody.H ? 1.0 : 0.0);
+        if (knock != null) knock.setBaseValue(body == ValkyrieBody.H ? 1.0 : body == ValkyrieBody.Z ? Z_KNOCKBACK : 0.0);
         var range = v.getAttribute(Attributes.FOLLOW_RANGE);
-        if (range != null) range.setBaseValue(body == ValkyrieBody.C ? C_RANGE : BASE_RANGE);
+        if (range != null) range.setBaseValue(body == ValkyrieBody.C || body == ValkyrieBody.Z ? C_RANGE : BASE_RANGE);
     }
 
     public static double stepPowerScale(ValkyrieEntity v) {
         return switch (v.getBody()) {
             case S -> S_STEP_POWER;
             case H -> H_STEP_POWER;
+            case Z -> Z_STEP_POWER;
             default -> 1.0;
         };
     }

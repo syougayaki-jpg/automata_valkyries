@@ -224,6 +224,11 @@ public class ModEntities {
             ENTITY_TYPES.register("time_ruler", () ->
                     EntityType.Builder.of(com.automatavalkyries.entity.chrono.TimeRulerEntity::new, MobCategory.MONSTER)
                             .sized(2.6F, 6.0F).fireImmune().clientTrackingRange(16).build("time_ruler"));
+    /** 裏ボス 戦術兵姫零号機【マリスライズ・ロストカタストロフィー】（2026-10-20。描く側で 3 倍の大きさ） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.zero.LostCatastropheEntity>> LOST_CATASTROPHE =
+            ENTITY_TYPES.register("lost_catastrophe", () ->
+                    EntityType.Builder.of(com.automatavalkyries.entity.zero.LostCatastropheEntity::new, MobCategory.MONSTER)
+                            .sized(0.9F, 2.7F).fireImmune().clientTrackingRange(16).build("lost_catastrophe"));   // 人と同じくらい（2026-10-20）
     /** タイムルーラーの時空剪定の針（2026-10-19） */
     public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.RulerNeedleEntity>> RULER_NEEDLE =
             ENTITY_TYPES.register("ruler_needle", () ->
@@ -300,6 +305,7 @@ public class ModEntities {
         event.put(PHASE_CONDENSER.get(), com.automatavalkyries.entity.chrono.PhaseCondenserEntity.createAttributes().build());
         event.put(BASTION_KEEPER.get(), com.automatavalkyries.entity.chrono.BastionKeeperEntity.createAttributes().build());
         event.put(TIME_RULER.get(), com.automatavalkyries.entity.chrono.TimeRulerEntity.createAttributes().build());
+        event.put(LOST_CATASTROPHE.get(), com.automatavalkyries.entity.zero.LostCatastropheEntity.createAttributes().build());
         event.put(RULER_ANCHOR.get(), com.automatavalkyries.entity.chrono.RulerAnchorEntity.createAttributes().build());
         event.put(CHRONO_INTERCEPTOR.get(), com.automatavalkyries.entity.chrono.InterceptorEntity.createAttributes().build());
         event.put(DELAY_NODE.get(), com.automatavalkyries.entity.chrono.DelayNodeEntity.createAttributes().build());
