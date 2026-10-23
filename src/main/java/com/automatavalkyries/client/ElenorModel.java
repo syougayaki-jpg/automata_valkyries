@@ -89,6 +89,17 @@ public class ElenorModel extends DefaultedEntityGeoModel<ElenorEntity> {
         bone("hair_upper").setRotX(-upper);
         bone("hair_mid").setRotX(-(mid - upper));
         bone("hair_tip").setRotX(-(tip - mid));
+
+        // ---- 頭の黒とピンクのリボン: 左右の輪がゆっくり羽ばたき、垂れ 2 本が揺れる（2026-10-22）。垂れは後ろ髪に沿って後ろへ逃がす ----
+        float flap = Mth.sin(age * 0.12F) * 0.08F + walk * Mth.sin(age * 0.5F) * 0.06F;
+        bone("ribbon_lobe_right").setRotY(flap);
+        bone("ribbon_lobe_left").setRotY(-flap);
+        float sway = Mth.sin(age * 0.1F) * 0.1F * alive + Mth.cos(limbSwing * 0.6662F) * 0.15F * walk;
+        float back = -(0.12F + upper + walk * 0.25F) * alive - 0.5F * death;
+        bone("ribbon_tail_right").setRotZ(0.18F + sway); // Z 正で先が右腕側（-X）へ = 外へ開く
+        bone("ribbon_tail_left").setRotZ(-0.18F + sway * 0.8F);
+        bone("ribbon_tail_right").setRotX(back);
+        bone("ribbon_tail_left").setRotX(back + Mth.sin(age * 0.13F + 1.0F) * 0.05F);
     }
 
     private static float smoothstep(float t) {

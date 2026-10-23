@@ -26,6 +26,7 @@ public class ValkyrieRenderer extends GeoEntityRenderer<ValkyrieEntity> {
         addRenderLayer(new CoreStarsLayer(this));
         addRenderLayer(new ValkyrieUnitLayer(this)); // 外装フレーム・背部ユニット
         addRenderLayer(new HeldItemLayer(this));
+        addRenderLayer(new ValkyrieHairRibbonLayer(this)); // エレノアの髪留め
     }
 
     /** T4 兵装・ジェネシス・ヘイロー・ルミナス・レクイエムの背の飾り（GeckoLib には RenderLivingEvent が来ないので、ここから呼ぶ） */

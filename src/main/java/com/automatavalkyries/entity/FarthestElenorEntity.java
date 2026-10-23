@@ -42,10 +42,10 @@ public class FarthestElenorEntity extends ElenorEntity {
         super.setTerminusEnabled(true);
     }
 
-    /** 終焉の権能で戦う（通常のエレノアの 3 フェーズの技は使わない） */
+    /** 最初から全部の技を使い（ティア 7 固定）、殴られたら終焉で返す反撃も残す（docs/SPEC_ELENOR.md §3） */
     @Override
-    protected boolean usesBossArts() {
-        return false;
+    protected boolean fullPower() {
+        return true;
     }
 
     @Override

@@ -1,6 +1,12 @@
 {
   "replace": false,
   "values": [
-    "automata_valkyries:sky_boss_skeleton"
+    "automata_valkyries:sky_boss_skeleton",
+    "automata_valkyries:elenor",
+    "automata_valkyries:farthest_elenor",
+    "automata_valkyries:luxion",
+    "automata_valkyries:galliafort",
+    "automata_valkyries:memento_mori",
+    "automata_valkyries:time_ruler"
   ]
 }

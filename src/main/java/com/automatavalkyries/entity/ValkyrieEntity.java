@@ -164,9 +164,13 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
     private static final EntityDataAccessor<ItemStack> UNIT_BACK = SynchedEntityData.defineId(ValkyrieEntity.class, EntityDataSerializers.ITEM_STACK);
     /** 胸のコア（クライアントへ送る写し。HUD・頭上の発光線の色に使う） */
     private static final EntityDataAccessor<ItemStack> CORE_ITEM = SynchedEntityData.defineId(ValkyrieEntity.class, EntityDataSerializers.ITEM_STACK);
+    /** エレノアの髪留め（黒とピンクのリボン）を頭に付けているか（見た目だけ。2026-10-22） */
+    private static final EntityDataAccessor<Boolean> HAIR_RIBBON = SynchedEntityData.defineId(ValkyrieEntity.class, EntityDataSerializers.BOOLEAN);
 
     private final AnimatableInstanceCache geoCache = GeckoLibUtil.createInstanceCache(this);
     @Nullable private BlockPos home;
+    /** エレノアの髪留めを一度でも結んでもらったか（同調率は初回だけ） */
+    private boolean ribbonGifted;
     public int homeRadius = 12;
     /** 保護を外して消してよい（{@link ValkyrieProtect#release} と組で使う） */
     private boolean released;
@@ -261,6 +265,7 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         entityData.define(EMOTE, 0);
         entityData.define(EMOTE_TICKS, 0);
         entityData.define(CORE_ITEM, ItemStack.EMPTY);
+        entityData.define(HAIR_RIBBON, false);
         entityData.define(UNIT_HEAD, ItemStack.EMPTY);
         entityData.define(UNIT_CHEST, ItemStack.EMPTY);
         entityData.define(UNIT_LEGS, ItemStack.EMPTY);
@@ -1081,6 +1086,30 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
             }
             return InteractionResult.sidedSuccess(client);
         }
+        // エレノアの髪留めを結んであげる（見た目 + 同調率）。ハサミで外して返してもらう
+        if (held.is(com.automatavalkyries.registry.ModBossDrops.ELENOR_RIBBON.get()) && !hasHairRibbon()) {
+            if (!client) {
+                if (!player.getAbilities().instabuild) held.shrink(1);
+                entityData.set(HAIR_RIBBON, true);
+                if (!ribbonGifted) addSync(2.0F, "hair_ribbon"); // 同調率は初めて結んだときだけ（付け外しで稼げないように）
+                ribbonGifted = true;
+                entityData.set(HAPPY, 40);
+                playSound(net.minecraft.sounds.SoundEvents.ARMOR_EQUIP_LEATHER, 0.8F, 1.3F);
+                ((ServerLevel) level()).sendParticles(ParticleTypes.HEART, getX(), getY(1.1), getZ(), 3, 0.3, 0.2, 0.3, 0);
+                player.displayClientMessage(Component.translatable("message.automata_valkyries.valkyrie.hair_ribbon.on", getDisplayName()).withStyle(ChatFormatting.LIGHT_PURPLE), true);
+            }
+            return InteractionResult.sidedSuccess(client);
+        }
+        if (held.is(net.minecraft.world.item.Items.SHEARS) && hasHairRibbon()) {
+            if (!client) {
+                entityData.set(HAIR_RIBBON, false);
+                ItemStack ribbon = new ItemStack(com.automatavalkyries.registry.ModBossDrops.ELENOR_RIBBON.get());
+                if (!player.addItem(ribbon)) spawnAtLocation(ribbon);
+                playSound(net.minecraft.sounds.SoundEvents.ARMOR_EQUIP_LEATHER, 0.8F, 0.9F);
+                player.displayClientMessage(Component.translatable("message.automata_valkyries.valkyrie.hair_ribbon.off", getDisplayName()).withStyle(ChatFormatting.GRAY), true);
+            }
+            return InteractionResult.sidedSuccess(client);
+        }
         // 修理（ナノマシン溶液・リペアインジェクター）
         if (held.is(ModWeapons.NANO_SOLUTION.get()) || held.is(ModWeapons.REPAIR_INJECTOR.get())) {
             if (DirectRead.health(this) >= getMaxHealth() && !isShutdown()) return InteractionResult.PASS;
@@ -1253,10 +1282,17 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
 
     // ------------------------------------------------------------------ 保存
 
+    /** エレノアの髪留めを頭に付けているか（クライアントでも読める） */
+    public boolean hasHairRibbon() {
+        return entityData.get(HAIR_RIBBON);
+    }
+
     @Override
     public void addAdditionalSaveData(CompoundTag tag) {
         super.addAdditionalSaveData(tag);
         if (podSleeper) tag.putBoolean("PodSleeper", true);
+        if (hasHairRibbon()) tag.putBoolean("HairRibbon", true);
+        if (ribbonGifted) tag.putBoolean("RibbonGifted", true);
         tag.putInt("Expression", getExpression());
         tag.putString("Mode", getMode().name());
         tag.putBoolean("Shutdown", isShutdown());
@@ -1294,6 +1330,8 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
     public void readAdditionalSaveData(CompoundTag tag) {
         super.readAdditionalSaveData(tag);
         podSleeper = tag.getBoolean("PodSleeper");
+        entityData.set(HAIR_RIBBON, tag.getBoolean("HairRibbon"));
+        ribbonGifted = tag.getBoolean("RibbonGifted");
         setExpression(tag.getInt("Expression"));
         try {
             entityData.set(MODE, Mode.valueOf(tag.getString("Mode")).ordinal());

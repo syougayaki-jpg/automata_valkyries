@@ -32,5 +32,10 @@ public class BossDropItem extends EffectMaterialItem {
         for (int i = 1; i <= 2; i++) {
             tooltip.add(Component.translatable("item.automata_valkyries." + id + ".flavor" + i).withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
         }
+        // 使い道のある素材だけ（エレノアの髪留め: 兵姫に結ぶ）
+        String usage = "item.automata_valkyries." + id + ".usage";
+        if (net.minecraft.locale.Language.getInstance().has(usage)) {
+            tooltip.add(Component.translatable(usage).withStyle(ChatFormatting.AQUA));
+        }
     }
 }

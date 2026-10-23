@@ -24,6 +24,10 @@ public final class ModBossDrops {
     public static final RegistryObject<Item> MEMENTO_WINGS = drop("boss_drop_memento_wings", 16, ModEffects.ECLIPSE_BIOMETAL, 6, "memento_mori");
     public static final RegistryObject<Item> TIME_NEEDLE = drop("boss_drop_time_needle", 16, ModEffects.CHRONO, 6, "time_ruler");
     public static final RegistryObject<Item> ELENOR_RIBBON = drop("boss_drop_elenor_ribbon", 16, ModEffects.LUMINAL, 10, "elenor");
+    /** ちっぽけな勇気（ホットバーにあれば終焉が効かない。ボスのタグのあるモブの超低確率ドロップ。docs/SPEC_ELENOR.md §3.4） */
+    public static final RegistryObject<Item> TINY_COURAGE = ModItems.ITEMS.register("tiny_courage", () -> new com.automatavalkyries.item.TinyCourageItem(new Item.Properties()));
+    /** 試練の砂時計（エレノアに使うと攻撃ティアが上がる。docs/SPEC_ELENOR.md §2.3.3） */
+    public static final RegistryObject<Item> TRIAL_HOURGLASS = ModItems.ITEMS.register("trial_hourglass", () -> new com.automatavalkyries.item.TrialHourglassItem(new Item.Properties().stacksTo(16).rarity(net.minecraft.world.item.Rarity.EPIC)));
     // ---- 究極・裏ボス素材（1 つずつ） ----
     public static final RegistryObject<Item> RULER_HEART = drop("boss_drop_ruler_heart", 1, ModEffects.STELLACHRONODYME, 4, "time_ruler");
     public static final RegistryObject<Item> MEMORY_STELLA = drop("boss_drop_memory_stella", 1, ModEffects.LUMINAL_STERLING, 4, "lost_catastrophe");

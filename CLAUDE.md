@@ -13,6 +13,7 @@ MOD 全体の仕様（世界観、兵姫、敵・ボス、アイテム、マシ�
 
 - 本題の機械（クロノリンク・マシン）のティア設計（T1 ハイエンド / T2 フューチャー / T3 ビヨンド / T4 ネバーラスト）は **[`docs/SPEC_CHRONOLINK_MACHINES.md`](docs/SPEC_CHRONOLINK_MACHINES.md)**
 - 戦術兵姫の見た目・動き・エフェクト・メカと少女のデザインの連携の設計の拠り所（『星の翼』の公開情報と一般原則から。写さないための決まり付き）は **[`docs/DESIGN_VALKYRIE_VISUAL_DB.md`](docs/DESIGN_VALKYRIE_VISUAL_DB.md)**
+- エレノア（直接対決想定）と最果てのエレノア（初手全開版）のボス仕様（現状・決定事項・未定事項。2026-10-22）は **[`docs/SPEC_ELENOR.md`](docs/SPEC_ELENOR.md)**
 - 戦術兵姫の GUI・操作・戦闘 AI・日常/感情 AI・保護・入手の決定事項（2026-10-04 にユーザーへの質問で決定）は **[`docs/SPEC_VALKYRIE_GUI_AI.md`](docs/SPEC_VALKYRIE_GUI_AI.md)**
 - 兵器ユニット（兵装・ルミナルコア・背部ユニット・外装フレーム・ロジックチップ）の決定事項（使い手・電力・製造マシン・ティア割り振り・操作・見た目など）は **[`docs/SPEC_WEAPON_UNITS.md`](docs/SPEC_WEAPON_UNITS.md)**
 - 元資料は 1.20.4+ / NeoForge 前提。1.20.1 Forge への読み替えは同書 §0.1 を参照（`c:` タグは `forge:` に、時間停止は独自実装）

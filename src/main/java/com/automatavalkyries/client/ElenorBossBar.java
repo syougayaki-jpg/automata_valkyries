@@ -1,6 +1,7 @@
 package com.automatavalkyries.client;
 
 import com.automatavalkyries.AutomataValkyries;
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.math.Axis;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
@@ -9,6 +10,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.LerpingBossEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.BossEvent;
 import net.minecraftforge.api.distmarker.Dist;
@@ -54,6 +56,58 @@ public final class ElenorBossBar {
 
     private ElenorBossBar() {}
 
+    /** サーバーから知らされた、このプレイヤーに使われているペナルティアタックのティアと、受け取った時刻 */
+    private static int tier;
+    private static int entityTier;
+    private static long tierAt = Long.MIN_VALUE / 2;
+    private static final long TIER_STALE_MS = 12000L;
+
+    public static void setTier(int value, int entityValue) {
+        tier = Mth.clamp(value, 0, 7);
+        entityTier = Mth.clamp(entityValue, 0, 7);
+        tierAt = Util.getMillis();
+    }
+
+    private static final int[] TIER_COLORS = {0xFFFFB6D8, 0xFFFFB6D8, 0xFFFFA6DC, 0xFFFFC060, 0xFFFF9040, 0xFFFF5050, 0xFFFF2030, 0xFFFF1F8E};
+
+    /** ボスバーの上に出す、ペナルティティアの札（受け取って 12 秒が過ぎたら出さない）。左 = 対エンティティ、右 = 対プレイヤー。文字は自作のローマ数字 */
+    private static void drawTier(GuiGraphics g, Font font, int left, int right, int y) {
+        if (Util.getMillis() - tierAt > TIER_STALE_MS) return;
+        drawTag(g, font, left, y, false, entityTier, "bossbar.automata_valkyries.elenor.tier.entity");
+        drawTag(g, font, right, y, true, tier, "bossbar.automata_valkyries.elenor.tier.player");
+    }
+
+    /** edge は札の外側の端（右寄せなら右端、左寄せなら左端）。上の段に見出しとローマ数字、下の段にティアの名前を出す */
+    private static void drawTag(GuiGraphics g, Font font, int edge, int y, boolean alignRight, int value, String captionKey) {
+        float glyphScale = 1.5F, smallScale = 0.6F;
+        Component caption = Component.translatable(captionKey);
+        // 名前は「II 幕間…」のように数字から始まるので、数字の部分（最初の空白まで）は外す
+        String full = net.minecraft.client.resources.language.I18n.get("bossbar.automata_valkyries.elenor.tier.name." + value);
+        String name = full.contains(" ") ? full.substring(full.indexOf(' ') + 1) : full;
+        int captionW = (int) Math.ceil(font.width(caption) * smallScale);
+        int nameW = (int) Math.ceil(font.width(name) * smallScale);
+        int glyphW = (int) Math.ceil(ElenorNumeral.width(value) * glyphScale);
+        int w = Math.max(captionW + glyphW + 9, nameW + 8);
+        int x = alignRight ? edge - w : edge;
+        boolean top = value >= 7;
+        int color = TIER_COLORS[value];
+        int pulse = top ? (int) (0x30 + 0x30 * (0.5F + 0.5F * Mth.sin(Util.getMillis() / 180.0F))) : 0;
+        int yTop = y - 9; // バー 1 本ぶんの高さ（INCREMENT）に余裕があるので、上へ伸ばす
+        g.fill(x - 1, yTop - 1, x + w + 1, y + 11, 0xFF000000 | (color & 0xFFFFFF) >> 1 & 0x7F7F7F);
+        g.fill(x, yTop, x + w, y + 10, top ? 0xFF000000 | pulse << 16 : 0xFF0C070D);
+        g.pose().pushPose();
+        g.pose().translate(x + 3, yTop + 3, 0.0F);
+        g.pose().scale(smallScale, smallScale, 1.0F);
+        g.drawString(font, caption, 0, 0, 0xFFD8C8DC, false);
+        g.pose().popPose();
+        ElenorNumeral.draw(g, value, x + 6 + captionW, yTop + 1.0F, glyphScale, color);
+        g.pose().pushPose();
+        g.pose().translate(x + (w - nameW) / 2.0F, y + 4.0F, 0.0F);
+        g.pose().scale(smallScale, smallScale, 1.0F);
+        g.drawString(font, name, 0, 0, color, false);
+        g.pose().popPose();
+    }
+
     @SubscribeEvent
     public static void onBossBar(CustomizeGuiOverlayEvent.BossEventProgress event) {
         LerpingBossEvent boss = event.getBossEvent();
@@ -69,20 +123,24 @@ public final class ElenorBossBar {
         long now = Util.getMillis();
         float p = boss.getProgress() < 0.001F ? 0.0F : Math.min(1.0F, boss.getProgress());
         int phase = boss.getColor() == BossEvent.BossBarColor.RED ? 3 : boss.getColor() == BossEvent.BossBarColor.PINK ? 2 : 1;
+        // 禍々しさ: 攻撃ティア（対エンティティと対プレイヤーの高い方）。上がるごとに飾りが増え、色が赤黒くなる（2026-10-23 ユーザー指定）
+        int menace = Util.getMillis() - tierAt > TIER_STALE_MS ? 0 : Math.max(tier, entityTier);
+        int vis = Math.max(phase, menace >= 3 ? 3 : menace >= 1 ? 2 : 1); // 見た目だけ（光・脈動・色）。ラベルのフェーズ表示は変えない
         double dt = Math.min(0.2, (now - st.last) / 1000.0);
         st.last = now;
         st.trail = p >= st.trail ? p : Math.max(p, st.trail - 0.25 * dt);
 
         int x0 = cx - W / 2, y0 = y + 17, yb = y0 + H;
-        float pulse = 0.5F + 0.5F * Mth.sin(now / (phase >= 3 ? 140.0F : 500.0F));
-        double speed = phase >= 3 ? 1.7 : phase == 2 ? 1.25 : 1.0; // 揺れの速さ
+        float pulse = 0.5F + 0.5F * Mth.sin(now / (vis >= 3 ? 140.0F - 9.0F * menace : 500.0F));
+        double speed = (vis >= 3 ? 1.7 : vis == 2 ? 1.25 : 1.0) * (1.0 + 0.07 * menace); // 揺れの速さ
 
         g.pose().pushPose();
         g.pose().scale(1.0F / R, 1.0F / R, 1.0F);
+        if (menace >= 7 && (now / 70) % 9 == 0) g.pose().translate(((now / 70) % 2 == 0 ? 1 : -1) * R * 0.8F, 0.0F, 0.0F); // ティア 7: ときどき震える
 
         // 紫の光（バーの後ろ）
-        int glow = phase >= 3 ? (int) (0x30 + 0x28 * pulse) : phase == 2 ? 0x40 : 0x30;
-        int glowColor = phase >= 3 ? 0xFF2060 : 0xB030D0;
+        int glow = vis >= 3 ? (int) (0x30 + 0x28 * pulse + 0x06 * menace) : vis == 2 ? 0x40 : 0x30;
+        int glowColor = lerp(vis >= 3 ? 0xFF2060 : 0xB030D0, 0xFF0014, menace / 7.0F) & 0xFFFFFF;
         gradient(g, x0 - 26, y0 - 12, x0 + W + 26, y0 + H / 2.0, glowColor, (glow << 24) | glowColor);
         gradient(g, x0 - 26, y0 + H / 2.0, x0 + W + 26, yb + 14, (glow << 24) | glowColor, glowColor);
 
@@ -104,7 +162,7 @@ public final class ElenorBossBar {
         int fw = h(W * p);
         for (int x = 0; x < fw; x += 4) { // 4 点ごとに色を変える（なめらかな帯。描く回数を抑える）
             float u = x / (float) (W * R);
-            int col = phase >= 3 ? lerp(0xFFFF2D6A, 0xFFB01E90, u) : lerp(0xFFFF3CE0, 0xFF6A2AC0, u * u);
+            int col = menace >= 5 ? lerp(0xFFD0001E, 0xFF38002C, u) : vis >= 3 ? lerp(0xFFFF2D6A, 0xFFB01E90, u) : lerp(0xFFFF3CE0, 0xFF6A2AC0, u * u);
             g.fill(h(x0) + x, h(y0), h(x0) + Math.min(x + 4, fw), h(yb), col);
         }
         if (fw > 0) {
@@ -152,14 +210,15 @@ public final class ElenorBossBar {
         // 散るリボンの切れ端
         scraps(g, x0, W, yb + 12, now);
 
+        menace(g, x0, y0, yb, menace, now);
+
         g.pose().popPose();
 
         // 文字（元の細かさで）
         Font font = Minecraft.getInstance().font;
-        Component name = boss.getName();
-        int nx = cx - font.width(name) / 2, ny = y0 - 14;
-        g.drawString(font, name, nx + 1, ny + 1, 0xFF4A0A3A, false);
-        g.drawString(font, name, nx, ny, 0xFFFFF0F8, false);
+        int ny = y0 - 14;
+        // 名前は、ユーザーが用意したロゴの絵（日本語は「エレノア」、それ以外は「Eleanor」）で（2026-10-23 ユーザー指定）
+        drawLogo(g, cx, y0 - 2, menace, now);
         g.pose().pushPose();
         g.pose().translate(x0 + 30, yb + 12, 0);
         g.pose().scale(0.75F, 0.75F, 1.0F);
@@ -167,6 +226,7 @@ public final class ElenorBossBar {
         String pct = Math.round(p * 100) + "%";
         g.drawString(font, pct, (int) ((W - 60) / 0.75F) - font.width(pct), 0, 0xFFFFD8EA, false);
         g.pose().popPose();
+        drawTier(g, font, x0, x0 + W, ny - 2);
     }
 
     // ---- 飾り（位置は GUI の座標の小数。描くときに R 倍の細かさの点にする） ----
@@ -381,6 +441,113 @@ public final class ElenorBossBar {
             g.fill(-3 * R, -R, 4 * R, 2 * R, (a << 24) | (i % 2 == 0 ? 0x9A1068 : 0xFF3FB4));
             g.fill(-2 * R, 0, 3 * R, R, (a << 24) | color);
             g.pose().popPose();
+        }
+    }
+
+    // ---- 名前のロゴ（ユーザーが用意した絵。黒い背景を抜いた PNG） ----
+
+    private static final ResourceLocation TITLE_JA = ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "textures/gui/elenor_title_ja.png");
+    private static final ResourceLocation TITLE_EN = ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "textures/gui/elenor_title_en.png");
+    private static final int TITLE_TEX_W = 512, TITLE_JA_H = 221, TITLE_EN_H = 205;
+    /** 画面での幅（GUI の座標） */
+    private static final float TITLE_WIDTH = 62.0F;
+
+    /**
+     * 名前のロゴを、bottom を下端に、cx を中心に描く。ゆっくり呼吸するように大きさが揺れ、ティアが上がるほど赤く染まる
+     */
+    private static void drawLogo(GuiGraphics g, int cx, int bottom, int menace, long now) {
+        boolean ja = Minecraft.getInstance().getLanguageManager().getSelected().startsWith("ja");
+        ResourceLocation texture = ja ? TITLE_JA : TITLE_EN;
+        int texH = ja ? TITLE_JA_H : TITLE_EN_H;
+        float scale = TITLE_WIDTH / TITLE_TEX_W * (1.0F + 0.015F * Mth.sin(now / 600.0F));
+        float k = menace / 7.0F;
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        g.setColor(1.0F, 1.0F - 0.35F * k, 1.0F - 0.35F * k, 1.0F);
+        g.pose().pushPose();
+        float height = texH * TITLE_WIDTH / TITLE_TEX_W;
+        g.pose().translate(cx, Math.max(height / 2.0F + 1.0F, bottom - height / 2.0F), 0.0F); // 画面の上端で切れないように
+        g.pose().scale(scale, scale, 1.0F);
+        g.blit(texture, -TITLE_TEX_W / 2, -texH / 2, 0, 0.0F, 0.0F, TITLE_TEX_W, texH, TITLE_TEX_W, texH);
+        g.pose().popPose();
+        g.setColor(1.0F, 1.0F, 1.0F, 1.0F);
+    }
+
+    // ---- 禍々しさ（ティアが上がるごとに積み重なる） ----
+
+    /**
+     * 攻撃ティア m（0〜7）に応じて、バーを禍々しくする。1: 暗い赤の縁。2: 棘。3: ひび割れ。4: 垂れる血。5: 目。6: 角。7: 黒い炎の冠と赤い脈動
+     */
+    private static void menace(GuiGraphics g, int x0, int y0, int yb, int m, long now) {
+        if (m <= 0) return;
+        float beat = 0.5F + 0.5F * Mth.sin(now / (330.0F - 28.0F * m));
+        IntBinaryOperator dark = (px, py) -> 0xFF16040C;
+        IntBinaryOperator crimson = (px, py) -> 0xFFC0102C;
+        IntBinaryOperator blood = (px, py) -> 0xFF8A0018;
+        // 1〜: 枠の縁に、暗い赤の線
+        int edge = Math.min(0xFF, 0x50 + 0x20 * m) << 24 | 0xC01030;
+        fill(g, x0 - 3, y0 - 3, x0 + W + 3, y0 - 2, edge);
+        fill(g, x0 - 3, yb + 2, x0 + W + 3, yb + 3, edge);
+        // 2〜: 棘（上と下の縁。数と長さが増える）
+        if (m >= 2) {
+            int count = 5 + 3 * m;
+            for (int i = 0; i < count; i++) {
+                double tx = x0 + (i + 0.5) * W / count;
+                double len = 2.5 + 0.55 * m + (m >= 5 ? ((i * 7 + now / 160) % 3) * 0.5 : 0.0);
+                poly(g, new double[]{tx - 2.1, tx + 2.1, tx}, new double[]{y0 - 3, y0 - 3, y0 - 3 - len}, i % 3 == 0 ? crimson : dark);
+                poly(g, new double[]{tx - 2.1, tx + 2.1, tx}, new double[]{yb + 3, yb + 3, yb + 3 + len * 0.8}, dark);
+            }
+        }
+        // 3〜: ひび割れ（赤く光る亀裂。ときどきちらつく）
+        if (m >= 3) {
+            for (int c = 0; c < m - 2; c++) {
+                if ((now / 90 + c * 3) % 7 == 0) continue;
+                double cx = x0 + W * (0.12 + 0.76 * ((c * 0.381 + 0.17) % 1.0));
+                int col = 0xFF000000 | (0xC0 + (int) (0x3F * beat)) << 16 | 0x1030;
+                line(g, cx, y0, cx + 3, y0 + H * 0.35, col);
+                line(g, cx + 3, y0 + H * 0.35, cx - 2, y0 + H * 0.65, col);
+                line(g, cx - 2, y0 + H * 0.65, cx + 2, yb, col);
+            }
+        }
+        // 4〜: 垂れる血
+        if (m >= 4) {
+            int drips = 3 + m;
+            for (int i = 0; i < drips; i++) {
+                double dx = x0 + W * (0.05 + 0.9 * ((i * 0.618 + 0.11) % 1.0));
+                double len = 3.0 + ((now / 260.0 + i * 0.37) % 1.0) * (4.0 + m);
+                fill(g, dx, yb + 3, dx + 1.2, yb + 3 + len, 0xFFB0102A);
+                poly(g, new double[]{dx - 0.6, dx + 1.8, dx + 0.6}, new double[]{yb + 3 + len, yb + 3 + len, yb + 4.6 + len}, blood);
+            }
+        }
+        // 5〜: 目（バーの両端の上。鼓動に合わせて見開く）
+        if (m >= 5) {
+            for (int side = 0; side < 2; side++) {
+                double ex = side == 0 ? x0 + 14 : x0 + W - 14, ey = y0 - 9;
+                double open = 1.2 + 1.4 * beat;
+                poly(g, new double[]{ex - 5, ex, ex + 5, ex}, new double[]{ey, ey - open, ey, ey + open}, (px, py) -> 0xFFF0E0E8);
+                fill(g, ex - 0.6, ey - open + 0.4, ex + 0.6, ey + open - 0.4, 0xFFC0001C);
+                fill(g, ex - 0.25, ey - open + 0.4, ex + 0.25, ey + open - 0.4, 0xFF100004);
+            }
+        }
+        // 6〜: 角（バーの両端から、外へ反って伸びる）
+        if (m >= 6) {
+            double sway = Mth.sin(now / 420.0F) * 0.8;
+            poly(g, new double[]{x0 - 5, x0 + 5, x0 - 12 + sway}, new double[]{y0 - 3, y0 - 3, y0 - 19}, dark);
+            poly(g, new double[]{x0 + W + 5, x0 + W - 5, x0 + W + 12 - sway}, new double[]{y0 - 3, y0 - 3, y0 - 19}, dark);
+            line(g, x0 - 4, y0 - 4, x0 - 11 + sway, y0 - 18, 0xFFC0102C);
+            line(g, x0 + W + 4, y0 - 4, x0 + W + 11 - sway, y0 - 18, 0xFFC0102C);
+        }
+        // 7: 黒い炎の冠と、赤い脈動
+        if (m >= 7) {
+            int flames = 16;
+            for (int i = 0; i < flames; i++) {
+                double fx = x0 + (i + 0.5) * W / flames;
+                double len = 6.0 + 7.0 * ((Math.sin(now / 130.0 + i * 1.7) + 1.0) / 2.0);
+                poly(g, new double[]{fx - 3.2, fx + 3.2, fx + Math.sin(now / 200.0 + i) * 1.5}, new double[]{y0 - 4, y0 - 4, y0 - 4 - len}, i % 2 == 0 ? dark : crimson);
+            }
+            int pulseA = (int) (0x18 + 0x30 * beat);
+            gradient(g, x0 - 30, y0 - 22, x0 + W + 30, y0 + H / 2.0, 0x00FF0020, (pulseA << 24) | 0xFF0020);
+            gradient(g, x0 - 30, y0 + H / 2.0, x0 + W + 30, yb + 22, (pulseA << 24) | 0xFF0020, 0x00FF0020);
         }
     }
 
