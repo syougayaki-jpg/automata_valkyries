@@ -187,6 +187,8 @@ public final class IsolationDamageEngine {
         public volatile boolean tier6DefenseBroken = false;
         /** 対象が隔絶ダメージ（Tier 5 または Tier 6）によって実際に死亡完了したか（HP 0.0F / dead=true を保持） */
         public volatile boolean playerConfirmedDead = false;
+        /** 段階 5 での die() 呼び出し試行中フラグ（die() 内部や LivingDeathEvent 中の getHealth() クランプ上限を 1.0F ではなく 0.0F にする） */
+        public volatile boolean inTier5DeathAttempt = false;
         /** 最後に隔絶ダメージを与えた攻撃者（20 Tick 死亡演出完了後の自動消去用） */
         @Nullable
         public LivingEntity lastAttacker;
@@ -195,8 +197,8 @@ public final class IsolationDamageEngine {
         public DamageSource lastSource;
 
         public synchronized float computeEffectiveMaxHp(LivingEntity entity) {
-            boolean allowZeroFloor = tier6DefenseBroken || playerConfirmedDead;
-            if ((phase >= 2 || playerConfirmedDead) && allowZeroFloor) {
+            boolean allowZeroFloor = tier6DefenseBroken || playerConfirmedDead || inTier5DeathAttempt;
+            if ((phase >= 2 || playerConfirmedDead || inTier5DeathAttempt) && allowZeroFloor) {
                 effectiveMaxHp = 0.0F;
                 return 0.0F;
             }
@@ -530,15 +532,22 @@ public final class IsolationDamageEngine {
         IsolationState state = getState(victim);
         boolean isTier5Target = state == null || !state.tier6DefenseBroken;
         float minFloor = isTier5Target ? 1.0F : 0.0F;
+
+        // minFloor (1.0F) でクランプ・上書きする前の本来の残ライフと Synched HP を記録しておく
+        // （これを先に取って判定しないと、1.0F クランプ後に desiredHp <= 0.0F 等が常に false になってしまう）
+        float unclampedAfterHitHp = (Float.isFinite(preHealth) && preHealth > 0.0F)
+                ? (preHealth - damage)
+                : targetHp;
+        float preWriteSynchedHp = readRawSynchedHealth(victim);
+
         float desiredHp = targetHp;
         if (!vanillaHurtSucceeded && Float.isFinite(preHealth) && preHealth > 0.0F) {
-            desiredHp = Math.max(minFloor, Math.min(targetHp, preHealth - damage));
+            desiredHp = Math.max(minFloor, Math.min(targetHp, unclampedAfterHitHp));
         }
 
-        float currentHp = readRawSynchedHealth(victim);
         boolean neededForceWrite = !vanillaHurtSucceeded
-                || !Float.isFinite(currentHp)
-                || currentHp > desiredHp + 0.001F;
+                || !Float.isFinite(preWriteSynchedHp)
+                || preWriteSynchedHp > desiredHp + 0.001F;
 
         if (neededForceWrite) {
             forceWriteHealth(victim, desiredHp);
@@ -548,11 +557,11 @@ public final class IsolationDamageEngine {
             forceApplyHurtEffects(victim, attacker, source, damage);
         }
 
-        // プレイヤー・エンティティ双方に対し、ライフまたは隔絶侵食が致死ライン（HP 削り切り）に到達していたら die() を呼び出す
-        boolean lethalReached = desiredHp <= 0.0F
+        // プレイヤー・エンティティ双方に対し、本来の残ライフ（unclampedAfterHitHp）または隔絶侵食が
+        // 致死ライン（HP 0 以下 / 侵食 100%）に到達していたら die() を呼び出す
+        boolean lethalReached = unclampedAfterHitHp <= 0.0F
                 || targetHp <= 0.0F
-                || readRawSynchedHealth(victim) <= 0.0F
-                || victim.getHealth() <= 0.0F
+                || preWriteSynchedHp <= 0.0F
                 || (state != null && state.isLethalErosionReached(victim));
         if (!lethalReached) {
             return;
@@ -564,8 +573,9 @@ public final class IsolationDamageEngine {
         if (victim instanceof Player player) {
             if (state != null && !state.tier6DefenseBroken) {
                 int prevDeaths = getPlayerDeathStatCount(player);
-                // die() 発火時（LivingDeathEvent / ClientboundPlayerCombatKillPacket 送信時）に
-                // サーバー・クライアント双方で HP 0 を確実にするため、die() の前に DATA_HEALTH_ID を 0.0F に書き戻す
+                // die() 発火中（LivingDeathEvent / getHealth() 検査時）に上限 1.0F クランプで HP 1.0F に見えず
+                // サーバー・クライアント双方で確実に HP 0.0F になるよう inTier5DeathAttempt を立てて DATA_HEALTH_ID を 0.0F にする
+                state.inTier5DeathAttempt = true;
                 forceWriteHealth(player, 0.0F);
                 IN_INTERNAL_WRITE.set(Boolean.TRUE);
                 try {
@@ -573,6 +583,7 @@ public final class IsolationDamageEngine {
                 } catch (Throwable ignored) {
                 } finally {
                     IN_INTERNAL_WRITE.set(Boolean.FALSE);
+                    state.inTier5DeathAttempt = false;
                 }
                 boolean diedCleanly = (prevDeaths >= 0 && getPlayerDeathStatCount(player) > prevDeaths)
                         || ((LivingEntityAccessor) player).automata_valkyries$isDead();
@@ -596,6 +607,9 @@ public final class IsolationDamageEngine {
                 }
             }
         } else {
+            if (state != null) {
+                state.inTier5DeathAttempt = true;
+            }
             forceWriteHealth(victim, 0.0F);
             // LivingEntity.die() 内の `if (!this.isRemoved() && !this.dead)` を確実に通過させるため dead=false にしてから呼ぶ
             ((LivingEntityAccessor) victim).automata_valkyries$setDead(false);
@@ -605,6 +619,9 @@ public final class IsolationDamageEngine {
             } catch (Throwable ignored) {
             } finally {
                 IN_INTERNAL_WRITE.set(Boolean.FALSE);
+                if (state != null) {
+                    state.inTier5DeathAttempt = false;
+                }
             }
             boolean diedCleanly = ((LivingEntityAccessor) victim).automata_valkyries$isDead() || victim.isRemoved();
             if (diedCleanly) {
