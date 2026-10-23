@@ -1,7 +1,10 @@
 package com.automatavalkyries.protect;
 
 import com.automatavalkyries.AutomataValkyries;
+import com.automatavalkyries.annihilate.IsolationDamageEngine;
+import com.automatavalkyries.annihilate.TerminusPlayerExecutor;
 import com.automatavalkyries.mixin.LivingEntityAccessor;
+import com.automatavalkyries.protect.flag.GuardLists;
 import com.automatavalkyries.protect.flag.KillLists;
 import com.automatavalkyries.protect.flag.StateScanner;
 import net.minecraft.server.level.ServerPlayer;
@@ -48,9 +51,28 @@ public final class RespawnSanitizer {
 
     private RespawnSanitizer() {}
 
+    /** リスポーン要求に対して死亡が確定している個体か判定する */
+    public static boolean isConfirmedDeadForRespawn(Player player) {
+        if (player == null || (player instanceof ServerPlayer sp && sp.wonGame)) return false;
+        try {
+            if (((LivingEntityAccessor) player).automata_valkyries$isDead()) return true;
+        } catch (Throwable ignored) {}
+        return !DirectRead.hasHealth(player)
+                || IsolationDamageEngine.isIsolatedDead(player)
+                || TerminusPlayerExecutor.isTerminusDeadOrDying(player);
+    }
+
     /** 死んだ古い個体から、他 MOD に生かされ続ける・復活させられる状態を下ろす。@return 書き換えた件数 */
     public static int releaseDeadPlayer(Player player) {
-        if (player == null || DirectRead.hasHealth(player)) return 0;
+        if (player == null || (DirectRead.hasHealth(player) && !isConfirmedDeadForRespawn(player))) return 0;
+        try {
+            GuardLists.purge(player);
+        } catch (Throwable ignored) {}
+        if (SpecificCountermeasures.enabled()) {
+            try {
+                KillModCounters.counterAll(player);
+            } catch (Throwable ignored) {}
+        }
         List<StateScanner.Change> changes = apply(player, StateScanner.RELEASE_DEAD_PLAYER);
         if (!changes.isEmpty()) {
             AutomataValkyries.LOGGER.info("[respawn] Released {} foreign state(s) from dead player {}: {}",
@@ -82,21 +104,17 @@ public final class RespawnSanitizer {
      * @return HP を 0 に戻したか
      */
     public static boolean allowRespawnOfDeadPlayer(Player player) {
-        if (player == null || (player instanceof ServerPlayer sp && sp.wonGame) || player.getHealth() <= 0.0F) return false;
-        boolean dead;
-        try {
-            dead = ((LivingEntityAccessor) player).automata_valkyries$isDead();
-        } catch (Throwable t) {
-            return false;
-        }
-        if (!dead) return false;
+        if (!isConfirmedDeadForRespawn(player)) return false;
         float restored = player.getHealth();
         releaseDeadPlayer(player);
         try {
-            player.getEntityData().set(LivingEntityAccessor.automata_valkyries$getDataHealthId(), 0.0F);
+            ((LivingEntityAccessor) player).automata_valkyries$setDead(true);
+            IsolationDamageEngine.forceWriteHealth(player, 0.0F);
         } catch (Throwable ignored) {}
-        AutomataValkyries.LOGGER.warn("[respawn] Respawn request from {} would have been ignored (health restored to {} after death); allowing it",
-                player.getScoreboardName(), restored);
+        if (restored > 0.0F) {
+            AutomataValkyries.LOGGER.warn("[respawn] Respawn request from {} would have been ignored (health restored to {} after death); allowing it",
+                    player.getScoreboardName(), restored);
+        }
         return player.getHealth() <= 0.0F;
     }
 
@@ -108,6 +126,11 @@ public final class RespawnSanitizer {
         if (!changes.isEmpty()) {
             AutomataValkyries.LOGGER.info("[respawn] Released {} foreign state(s) from dying player {}: {}",
                     changes.size(), player.getScoreboardName(), summarize(changes));
+        }
+        // 隔絶ダメージを受けて死亡（die()）に入った場合、ClientboundPlayerCombatKillPacket が送られる前に
+        // DATA_HEALTH_ID = 0.0F の書き戻しとクライアントへの HP 0 同期を確定させる
+        if (IsolationDamageEngine.getState(player) != null) {
+            IsolationDamageEngine.markPlayerIsolationDead(player);
         }
     }
 

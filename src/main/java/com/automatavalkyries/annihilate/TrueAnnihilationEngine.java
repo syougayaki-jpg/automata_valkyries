@@ -104,16 +104,16 @@ public final class TrueAnnihilationEngine {
             AnnihilationExecutionAgent.neutralizeWitherzilla(level, target);
             AnnihilationExecutionAgent.neutralizeFlashfur(level, target);
 
-            // (2.5) 【案4: メモリ直接ゼロクリア】Unsafe による未知チートオブジェクト・ボスの完全解体（※プレイヤー・保護対象除外）
+            // (2.5) 他 MOD の独自の生命維持（保護の切り替え・フラグ・代理の本体）を解除（※メモリ直接消去の前に呼び、controller 等への伝播を保証）
+            ModProtectionBreaker.finishWithModOwnDeath(target);
+            target.ejectPassengers();
+            target.stopRiding();
+
+            // (3) 【案4: メモリ直接ゼロクリア】Unsafe による未知チートオブジェクト・ボスの完全解体（※プレイヤー・保護対象除外）
             if (!(target instanceof Player) && !target.getClass().getName().contains("Player") && !(target instanceof IEprotected)) {
                 AnnihilationExecutionAgent.clearBossEvents(target);
                 UnsafeHelper.obliterateObjectMemory(target);
             }
-
-            // (3) 他 MOD の独自の生命維持（保護の切り替え・フラグ・代理の本体）を解除
-            ModProtectionBreaker.finishWithModOwnDeath(target);
-            target.ejectPassengers();
-            target.stopRiding();
 
             // (4) 【案2: 死亡進行・Tick停止強制突破 ＆ 案5: HPアンカー・属性完全破壊】（※プレイヤー除外）
             target.invulnerableTime = 0;
@@ -209,16 +209,22 @@ public final class TrueAnnihilationEngine {
             try {
                 List<UUID> packetUuids = new ArrayList<>();
                 packetUuids.add(targetUuid);
+                for (UUID id : context.identities()) {
+                    if (!packetUuids.contains(id)) {
+                        packetUuids.add(id);
+                    }
+                }
                 try {
                     Field mfField = UnsafeHelper.findField(target.getClass(), "metapotentFlashfur");
                     if (mfField != null) {
                         Object flashfurInstance = mfField.get(target);
                         if (flashfurInstance != null) {
-                            Field idField = flashfurInstance.getClass().getDeclaredField("id");
-                            idField.setAccessible(true);
-                            UUID flashfurUuid = (UUID) idField.get(flashfurInstance);
-                            if (flashfurUuid != null) {
-                                packetUuids.add(flashfurUuid);
+                            Field idField = UnsafeHelper.findField(flashfurInstance.getClass(), "id");
+                            if (idField != null) {
+                                UUID flashfurUuid = (UUID) idField.get(flashfurInstance);
+                                if (flashfurUuid != null) {
+                                    packetUuids.add(flashfurUuid);
+                                }
                             }
                         }
                     }
@@ -291,48 +297,50 @@ public final class TrueAnnihilationEngine {
     }
 
     static void evictFromLevel(ServerLevel level, Entity target, int targetId, UUID targetUuid) {
-        try {
-            level.getChunkSource().removeEntity(target);
-        } catch (Throwable ignored) {}
+        AnnihilationExecutionAgent.runWithHyperlinkSpecialRemove(() -> {
+            AnnihilationExecutionAgent.evictHyperlinkShadowStructures(level, target, targetId, targetUuid);
+            try {
+                level.getChunkSource().removeEntity(target);
+            } catch (Throwable ignored) {}
 
-        try {
-            ServerLevelTickListAccessor tickAccessor = (ServerLevelTickListAccessor) level;
-            EntityTickList tickList = tickAccessor.automata_valkyries$getEntityTickList();
-            if (tickList != null) {
-                tickList.remove(target);
-                // 他 MOD に remove を拒否されても外す（回されている最中のマップは直接いじらない。TickListEviction）
-                TickListEviction.remove(tickList, target);
-            }
-        } catch (Throwable ignored) {}
-
-        try {
-            ServerLevelTickListAccessor tickAccessor = (ServerLevelTickListAccessor) level;
-            @SuppressWarnings("unchecked")
-            EntityManagerAccessor<Entity> manager =
-                    (EntityManagerAccessor<Entity>) (Object) tickAccessor.automata_valkyries$getEntityManager();
-            if (manager != null) {
-                manager.automata_valkyries$getKnownUuids().remove(targetUuid);
-
-                EntityLookup<Entity> lookup = manager.automata_valkyries$getVisibleEntityStorage();
-                if (lookup != null) {
-                    lookup.remove(target);
-                    EntityLookupAccessor<Entity> lookupAcc = (EntityLookupAccessor<Entity>) (Object) lookup;
-                    lookupAcc.automata_valkyries$getById().remove(targetId);
-                    lookupAcc.automata_valkyries$getByUuid().remove(targetUuid);
+            try {
+                ServerLevelTickListAccessor tickAccessor = (ServerLevelTickListAccessor) level;
+                EntityTickList tickList = tickAccessor.automata_valkyries$getEntityTickList();
+                if (tickList != null) {
+                    tickList.remove(target);
+                    // 他 MOD に remove を拒否されても外す（回されている最中のマップは直接いじらない。TickListEviction）
+                    TickListEviction.remove(tickList, target);
                 }
+            } catch (Throwable ignored) {}
 
-                EntitySectionStorage<Entity> storage = manager.automata_valkyries$getSectionStorage();
-                if (storage != null) {
-                    EntitySection<Entity> section = storage.getSection(SectionPos.asLong(target.blockPosition()));
-                    if (section != null) section.remove(target);
+            try {
+                ServerLevelTickListAccessor tickAccessor = (ServerLevelTickListAccessor) level;
+                @SuppressWarnings("unchecked")
+                EntityManagerAccessor<Entity> manager =
+                        (EntityManagerAccessor<Entity>) (Object) tickAccessor.automata_valkyries$getEntityManager();
+                if (manager != null) {
+                    manager.automata_valkyries$getKnownUuids().remove(targetUuid);
+
+                    EntityLookup<Entity> lookup = manager.automata_valkyries$getVisibleEntityStorage();
+                    if (lookup != null) {
+                        lookup.remove(target);
+                        EntityLookupAccessor<Entity> lookupAcc = (EntityLookupAccessor<Entity>) (Object) lookup;
+                        lookupAcc.automata_valkyries$getById().remove(targetId);
+                        lookupAcc.automata_valkyries$getByUuid().remove(targetUuid);
+                    }
+
+                    EntitySectionStorage<Entity> storage = manager.automata_valkyries$getSectionStorage();
+                    if (storage != null) {
+                        AnnihilationExecutionAgent.evictFromEntitySections(storage, target);
+                    }
                 }
-            }
-        } catch (Throwable ignored) {}
+            } catch (Throwable ignored) {}
 
-        try {
-            Int2ObjectMap<?> entityMap = ((ChunkMapAccessor) level.getChunkSource().chunkMap).automata_valkyries$getEntityMap();
-            entityMap.remove(targetId);
-        } catch (Throwable ignored) {}
+            try {
+                Int2ObjectMap<?> entityMap = ((ChunkMapAccessor) level.getChunkSource().chunkMap).automata_valkyries$getEntityMap();
+                entityMap.remove(targetId);
+            } catch (Throwable ignored) {}
+        });
     }
 
     private static void spawnVisualEffects(ServerLevel level, Vec3 pos) {

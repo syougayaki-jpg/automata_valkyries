@@ -1,6 +1,7 @@
 package com.automatavalkyries.weapon;
 
 import com.automatavalkyries.annihilate.AnnihilationExecutionAgent;
+import com.automatavalkyries.annihilate.IsolationDamageEngine;
 import com.automatavalkyries.entity.ValkyrieEntity;
 import com.automatavalkyries.item.SuperKillStickItem;
 import com.automatavalkyries.protect.IEprotected;
@@ -127,20 +128,27 @@ public final class Overload {
                 || (victim instanceof IEprotected protectedEntity && !protectedEntity.isTerminusTestTarget()) || victim instanceof ValkyrieEntity) return;
         if (!(victim.level() instanceof ServerLevel level)) return;
         boolean playSound = shouldPlaySound(level, attacker);
-        AnnihilationExecutionAgent.annihilateEntity(level, attacker, victim, playSound);
-        if (!(victim instanceof IEprotected p && p.getEprotect() != null && p.getEprotect().isProtectionActive())) {
-            SuperKillStickItem.refuseRejoin(victim);
+        IsolationDamageEngine.executeEntityTier6Annihilation(level, attacker, victim, playSound);
+    }
+
+    /** 与えるダメージを上げ（防具などで減る前の値に掛ける）、隔絶ダメージ期待値を記録し、当たった所に紅と金の閃光を出す */
+    @SubscribeEvent(priority = EventPriority.HIGH)
+    public static void onHurt(LivingHurtEvent event) {
+        if (event.getSource().is(WeaponDamage.OVERLOAD_REND)) {
+            IsolationDamageEngine.recordMultipliedDamage(event.getEntity(), event.getAmount());
+            return; // 割合ダメージはそのまま
+        }
+        if (event.getSource().getEntity() instanceof LivingEntity attacker && attacker != event.getEntity() && holding(attacker)) {
+            float multiplied = event.getAmount() * damageMult(attacker.getMainHandItem().getItem());
+            event.setAmount(multiplied);
+            IsolationDamageEngine.recordMultipliedDamage(event.getEntity(), multiplied);
+            if (attacker.level() instanceof ServerLevel level) hitFlash(level, event.getEntity());
         }
     }
 
-    /** 与えるダメージを上げ（防具などで減る前の値に掛ける）、当たった所に紅と金の閃光を出す */
-    @SubscribeEvent(priority = EventPriority.HIGH)
-    public static void onHurt(LivingHurtEvent event) {
-        if (event.getSource().is(WeaponDamage.OVERLOAD_REND)) return; // 割合ダメージはそのまま
-        if (event.getSource().getEntity() instanceof LivingEntity attacker && attacker != event.getEntity() && holding(attacker)) {
-            event.setAmount(event.getAmount() * damageMult(attacker.getMainHandItem().getItem()));
-            if (attacker.level() instanceof ServerLevel level) hitFlash(level, event.getEntity());
-        }
+    /** 隔絶ダメージの強制被弾時（バニラ hurt がキャンセルされた時）にも紅と金の閃光を発生させる */
+    public static void triggerHitFlash(ServerLevel level, LivingEntity victim) {
+        hitFlash(level, victim);
     }
 
     /** オーバーロードの兵装の持ち主の攻撃か */

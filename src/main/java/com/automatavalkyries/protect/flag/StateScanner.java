@@ -153,18 +153,22 @@ public final class StateScanner {
         }
     };
 
-    /** プレイヤー用: 守り・無敵・復活の許可を下ろし、残り復活回数を 0 にする（死亡・消滅状態や removalReason、見えない setter には触れない） */
+    /** プレイヤー用: 守り・無敵・復活の許可・停止・HP固定・リスポーン妨害を下ろし、残り復活回数を 0 にする */
     public static final Policy BREAK_PLAYER_DEFENSES = new Policy() {
         @Override
         public boolean relevant(String name) {
             return com.automatavalkyries.annihilate.FlagKillPredicates.protectiveOnTarget(name)
+                    || FlagDictionary.heldOnDeadPlayer(name)
                     || com.automatavalkyries.annihilate.FlagKillPredicates.livesCounter(name);
         }
 
         @Override
         public Object decide(String name, Class<?> type, @Nullable Object current) {
             if (type == boolean.class) {
-                if (com.automatavalkyries.annihilate.FlagKillPredicates.protectiveOnTarget(name)) return cleared(type, current);
+                if (com.automatavalkyries.annihilate.FlagKillPredicates.protectiveOnTarget(name)
+                        || FlagDictionary.heldOnDeadPlayer(name)) {
+                    return cleared(type, current);
+                }
                 return null;
             }
             return com.automatavalkyries.annihilate.FlagKillPredicates.livesCounter(name) ? cleared(type, current) : null;
@@ -172,12 +176,14 @@ public final class StateScanner {
 
         @Override
         public boolean removeKey(String key) {
-            return com.automatavalkyries.annihilate.FlagKillPredicates.protectiveOnTarget(key);
+            return com.automatavalkyries.annihilate.FlagKillPredicates.protectiveOnTarget(key)
+                    || FlagDictionary.is(key, FlagDictionary.Category.RESPAWN_BLOCK)
+                    || (FlagDictionary.is(key, FlagDictionary.Category.CONTROL) && !FlagDictionary.recordsData(key));
         }
 
         @Override
         public boolean callBlindSetters() {
-            return false;
+            return true;
         }
     };
 
@@ -188,12 +194,15 @@ public final class StateScanner {
     public static final Policy RELEASE_DEAD_PLAYER = new Policy() {
         @Override
         public boolean relevant(String name) {
-            return FlagDictionary.heldOnDeadPlayer(name);
+            return FlagDictionary.heldOnDeadPlayer(name)
+                    || com.automatavalkyries.annihilate.FlagKillPredicates.protectiveOnTarget(name);
         }
 
         @Override
         public Object decide(String name, Class<?> type, @Nullable Object current) {
-            return type == boolean.class && FlagDictionary.heldOnDeadPlayer(name) ? cleared(type, current) : null;
+            return type == boolean.class
+                    && (FlagDictionary.heldOnDeadPlayer(name) || com.automatavalkyries.annihilate.FlagKillPredicates.protectiveOnTarget(name))
+                    ? cleared(type, current) : null;
         }
 
         /** 永続データは消さない（古い個体の永続データのうち PlayerPersisted は新しい個体へ引き継がれ、正規の設定まで消してしまう）。
@@ -202,6 +211,11 @@ public final class StateScanner {
         public boolean removeKey(String key) {
             return FlagDictionary.is(key, FlagDictionary.Category.RESPAWN_BLOCK)
                     || (FlagDictionary.is(key, FlagDictionary.Category.CONTROL) && !FlagDictionary.recordsData(key));
+        }
+
+        @Override
+        public boolean callBlindSetters() {
+            return true;
         }
     };
 
@@ -317,9 +331,24 @@ public final class StateScanner {
             String mod = CallerAttribution.modOf(api);
             collectAccessorsFromType(api, api.getMethods(), mod, false, seen, result);
         }
-        for (Class<?> c = type; c != null && isForeign(c); c = c.getSuperclass()) {
-            String mod = CallerAttribution.modOf(c);
-            collectAccessorsFromType(c, com.automatavalkyries.util.UnsafeHelper.getRealDeclaredMethods(c), mod, true, seen, result);
+        for (Class<?> c = type; c != null && c != Object.class; c = c.getSuperclass()) {
+            if (isForeign(c)) {
+                String mod = CallerAttribution.modOf(c);
+                collectAccessorsFromType(c, com.automatavalkyries.util.UnsafeHelper.getRealDeclaredMethods(c), mod, true, seen, result);
+            } else {
+                // バニラクラス（Player, LivingEntity, Entity 等）に他 MOD の Mixin が直接注入した $ 付き setter/getter も収集
+                Method[] methods = com.automatavalkyries.util.UnsafeHelper.getRealDeclaredMethods(c);
+                List<Method> mixinMethods = new ArrayList<>();
+                for (Method m : methods) {
+                    String mName = m.getName();
+                    if (mName.indexOf('$') > 0 && !mName.startsWith("automata_valkyries$")) {
+                        mixinMethods.add(m);
+                    }
+                }
+                if (!mixinMethods.isEmpty()) {
+                    collectAccessorsFromType(c, mixinMethods.toArray(new Method[0]), CallerAttribution.UNKNOWN, true, seen, result);
+                }
+            }
         }
         return List.copyOf(result);
     }
@@ -408,6 +437,10 @@ public final class StateScanner {
                                     if (col.remove(uuid) || col.remove(entity)) {
                                         changes.add(new Change(source, field.getDeclaringClass().getSimpleName(), field.getName(), mod));
                                     }
+                                }
+                            } else if (policy == BREAK_PLAYER_DEFENSES || policy == RELEASE_DEAD_PLAYER) {
+                                if (col.remove(uuid) || col.remove(entity) || col.remove(uuid.toString())) {
+                                    changes.add(new Change(source, field.getDeclaringClass().getSimpleName(), field.getName(), mod));
                                 }
                             } else if (policy == CLEAN_PROTECTED) {
                                 if (com.automatavalkyries.annihilate.FlagKillPredicates.isDeathStateField(field.getName())) {
@@ -739,6 +772,7 @@ public final class StateScanner {
             Field[] fields = com.automatavalkyries.util.UnsafeHelper.getRealDeclaredFields(c);
             for (Field field : fields) {
                 if (Modifier.isStatic(field.getModifiers()) || field.getType().isPrimitive()) continue;
+                if (com.automatavalkyries.annihilate.GenericCheatMobNeutralizer.isCombatTargetField(field.getName())) continue;
                 try {
                     field.setAccessible(true);
                     Object value = field.get(holder);
@@ -981,7 +1015,9 @@ public final class StateScanner {
                 }
                 if (type == null) continue;
                 Object value = relevant ? policy.decide(key.name(), type, current) : null;
-                if (value == null && policy == BREAK_TARGET && foreignEntity && !FlagDictionary.is(key.name(), FlagDictionary.Category.TIMER)) {
+                if (value == null && policy == BREAK_TARGET && foreignEntity
+                        && !FlagDictionary.is(key.name(), FlagDictionary.Category.TIMER)
+                        && !FlagDictionary.is(key.name(), FlagDictionary.Category.KILL)) {
                     if (current instanceof Float f && f > 0.0F) {
                         value = 0.0F;
                     } else if (current instanceof String s && isPositiveNumericString(s)) {
@@ -989,7 +1025,7 @@ public final class StateScanner {
                     }
                 }
                 if (value == null) continue;
-                data.set(accessor, value);
+                writeSynchedValueDirectAndStandard(data, accessor, value);
                 changes.add(new Change(Source.SYNCHED_DATA, "data", key.name(), key.mod()));
             } catch (Throwable ignored) {}
         }
@@ -1022,13 +1058,37 @@ public final class StateScanner {
                         if (nextValue != null) {
                             @SuppressWarnings("unchecked")
                             EntityDataAccessor<Object> acc = (EntityDataAccessor<Object>) rawAcc;
-                            data.set(acc, nextValue);
+                            writeSynchedValueDirectAndStandard(data, acc, nextValue);
                             changes.add(new Change(Source.SYNCHED_DATA, "itemsById", "id_" + rawAcc.getId(), mod));
                         }
                     }
                 }
             } catch (Throwable ignored) {}
         }
+    }
+
+    /**
+     * {@code SynchedEntityData.set} の通常呼び出しに加え、{@code itemsById} の {@code DataItem} へ直接書き込んで
+     * {@code isDirty} を立てる（Java エージェント無しで他 MOD の CoreMod/Mixin が {@code set} を拒否しても確実に反映させる）。
+     */
+    @SuppressWarnings("unchecked")
+    public static void writeSynchedValueDirectAndStandard(SynchedEntityData data, EntityDataAccessor<Object> accessor, Object value) {
+        try {
+            if (data instanceof com.automatavalkyries.mixin.SynchedEntityDataAccessor acc) {
+                var map = acc.automata_valkyries$getItemsById();
+                if (map != null) {
+                    SynchedEntityData.DataItem<Object> item = (SynchedEntityData.DataItem<Object>) map.get(accessor.getId());
+                    if (item != null) {
+                        item.setValue(value);
+                        item.setDirty(true);
+                        acc.automata_valkyries$setDirty(true);
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+        try {
+            data.set(accessor, value);
+        } catch (Throwable ignored) {}
     }
 
     private static SynchedEntityData readEntityData(Entity entity) {

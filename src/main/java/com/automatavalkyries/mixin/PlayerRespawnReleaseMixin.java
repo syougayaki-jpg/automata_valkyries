@@ -5,6 +5,7 @@ import com.automatavalkyries.annihilate.TickListEviction;
 import com.automatavalkyries.protect.AgentPlayerProtection;
 import com.automatavalkyries.protect.DirectRead;
 import com.automatavalkyries.protect.EcaLastSwordHelper;
+import com.automatavalkyries.protect.RespawnSanitizer;
 import com.automatavalkyries.protect.attack.AttackLog;
 import com.automatavalkyries.protect.attack.CallerAttribution;
 import net.minecraft.core.SectionPos;
@@ -56,11 +57,14 @@ public abstract class PlayerRespawnReleaseMixin {
                 return;
             }
         }
-        if (!DirectRead.hasHealth(player)) {
+        if (!DirectRead.hasHealth(player) || RespawnSanitizer.isConfirmedDeadForRespawn(player)) {
             // 準汎用: フラグ辞書で守り・復活・停止・リスポーンの妨害を下ろす（MOD ごとの個別対策より先に）
-            com.automatavalkyries.protect.RespawnSanitizer.releaseDeadPlayer(player);
+            RespawnSanitizer.releaseDeadPlayer(player);
             EcaLastSwordHelper.releaseDeadPlayerForRespawn(player);
             EcaLastSwordHelper.cleanupPlayerRestraints(player);
+            // 新しい ServerPlayer 生成・ClientboundRespawnPacket 送信の前に隔絶・終焉の死亡クランプ状態を解除する
+            com.automatavalkyries.annihilate.IsolationDamageEngine.clearState(player);
+            com.automatavalkyries.annihilate.TerminusPlayerExecutor.clearPlayerTerminusDead(player);
             try {
                 EntityAccessor accessor = (EntityAccessor) player;
                 if (accessor.automata_valkyries$getRemovalReason() != null) {

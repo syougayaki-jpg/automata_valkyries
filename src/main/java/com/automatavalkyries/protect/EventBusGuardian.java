@@ -96,6 +96,14 @@ public final class EventBusGuardian {
      * 1 秒に 1 回、購読の点検と、見張り（ウォッチドッグ・辞書補助）の起動し直しを行う
      */
     public static void poll(net.minecraft.server.MinecraftServer server) {
+        try {
+            net.minecraftforge.eventbus.api.IEventBus bus = MinecraftForge.EVENT_BUS;
+            if (bus != null && com.automatavalkyries.protect.attack.CallerAttribution.isForeign(
+                    com.automatavalkyries.protect.attack.CallerAttribution.modOf(bus.getClass()))) {
+                // 外部 MOD による EventBus 差し替え（MetapotentFlashfurEventBus 等の TickEvent 握り潰し）は 1 秒待たずに即座に復元する
+                ensureEventBusIntegrity();
+            }
+        } catch (Throwable ignored) {}
         long now = System.currentTimeMillis();
         if (now - lastPollMillis < 1000L) return;
         lastPollMillis = now;

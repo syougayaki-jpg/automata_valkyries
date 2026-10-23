@@ -72,14 +72,16 @@ public final class TerminusEngine {
     private static final class AreaJob {
         final ServerLevel level;
         final WeakReference<Entity> attacker;
+        final double radius;
         final java.util.ArrayDeque<WeakReference<Entity>> targets = new java.util.ArrayDeque<>();
         final java.util.function.IntConsumer completed;
         int count;
 
-        AreaJob(ServerLevel level, Entity attacker, List<Entity> targets,
+        AreaJob(ServerLevel level, Entity attacker, double radius, List<Entity> targets,
                 java.util.function.IntConsumer completed) {
             this.level = level;
             this.attacker = new WeakReference<>(attacker);
+            this.radius = radius;
             targets.forEach(target -> this.targets.add(new WeakReference<>(target)));
             this.completed = completed;
         }
@@ -93,17 +95,153 @@ public final class TerminusEngine {
         for (AreaJob job : AREA_JOBS) {
             if (job.attacker.get() == attacker) return false;
         }
-        List<Entity> targets = level.getEntities(attacker, attacker.getBoundingBox().inflate(radius), e ->
-                !e.getUUID().equals(attacker.getUUID()) && !(e instanceof IEprotected protectedEntity
-                        && !protectedEntity.isTerminusTestTarget())
-                        && (includePlayers || !(e instanceof Player))
-                        && (e instanceof LivingEntity || e.isAlive() || MadnessAnnihilation.isMadness(e)));
-        AreaJob job = new AreaJob(level, attacker, targets, completed);
+        List<Entity> targets = collectAreaTargets(level, attacker, radius, includePlayers);
+        AreaJob job = new AreaJob(level, attacker, radius, targets, completed);
         if (com.automatavalkyries.protect.SpecificCountermeasures.enabled()) {
             job.count += MadnessAnnihilation.sweep(level);
         }
+        job.count += GenericCheatMobNeutralizer.sweepStandaloneControllers(level, attacker, radius, false);
         AREA_JOBS.add(job);
         return true;
+    }
+
+    /**
+     * 範囲内の全ターゲットエンティティ（AABB外の座標偽装プロキシ・攻撃エフェクトの所有者を含む）を収集し、
+     * ボス本体や LivingEntity を VFX エンティティより優先して並べる。
+     */
+    private static List<Entity> collectAreaTargets(ServerLevel level, Entity attacker, double radius, boolean includePlayers) {
+        UUID attackerUuid = attacker.getUUID();
+        AABB box = attacker.getBoundingBox().inflate(radius);
+        java.util.Set<Entity> seen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        List<Entity> targets = new java.util.ArrayList<>();
+
+        java.util.function.Predicate<Entity> eligible = e -> {
+            if (e == null || e == attacker) return false;
+            if (e.getUUID().equals(attackerUuid)) return false;
+            if (e instanceof IEprotected protectedEntity && !protectedEntity.isTerminusTestTarget()) return false;
+            if (e instanceof Player && !includePlayers) return false;
+            if (isProtectedByTinyCourage(e)) {
+                AutomataValkyries.LOGGER.info("[Terminus] refused: {} holds Tiny Courage", e.getName().getString());
+                return false;
+            }
+            return e.isAlive() || e instanceof LivingEntity || MadnessAnnihilation.isMadness(e);
+        };
+
+        // 1. 通常の AABB 空間検索
+        for (Entity e : level.getEntities(attacker, box, eligible::test)) {
+            if (seen.add(e)) {
+                targets.add(e);
+            }
+        }
+
+        // 2. 広域（radius >= 16）では、EntitySection から隠蔽されているプロキシや、
+        //    position() オーバーライドにより基底 AABB と実座標が乖離しているプロキシ（MetapotentFlashfurEntity 等）も走査
+        if (radius >= 16.0) {
+            try {
+                for (Entity e : level.getAllEntities()) {
+                    if (e == null || seen.contains(e) || !eligible.test(e)) continue;
+                    boolean inArea = box.intersects(e.getBoundingBox());
+                    if (!inArea) {
+                        try {
+                            net.minecraft.world.phys.Vec3 pos = e.position();
+                            if (pos != null && box.contains(pos)) {
+                                inArea = true;
+                            }
+                        } catch (Throwable ignored) {}
+                    }
+                    if (!inArea && isForeignBossProxyInArea(e, level, box)) {
+                        inArea = true;
+                    }
+                    if (inArea && seen.add(e)) {
+                        targets.add(e);
+                    }
+                }
+            } catch (Throwable ignored) {}
+        }
+
+        // 3. 範囲内の攻撃エフェクト（MetaLightning 等）が保持する owner / caster フィールドから親ボスを逆引きして追加
+        for (Entity e : new java.util.ArrayList<>(targets)) {
+            if (e instanceof LivingEntity) continue;
+            Entity owner = findForeignEffectOwner(e, level);
+            if (owner != null && eligible.test(owner) && seen.add(owner)) {
+                targets.add(owner);
+            }
+        }
+
+        // 4. ボス本体・プロキシ・LivingEntity を VFX エンティティ（shockwave_render / explosion_render 等）より先に処理
+        targets.sort(java.util.Comparator.comparingInt(TerminusEngine::targetPriority));
+        return targets;
+    }
+
+    private static int targetPriority(Entity e) {
+        if (e instanceof LivingEntity || MadnessAnnihilation.isMadness(e)) return 0;
+        String name = e.getClass().getSimpleName();
+        if (name.endsWith("FlashfurEntity") || name.contains("Boss") || name.contains("Proxy")) return 0;
+        return 1;
+    }
+
+    private static boolean isForeignBossProxyInArea(Entity entity, ServerLevel level, AABB box) {
+        Class<?> type = entity.getClass();
+        if (!com.automatavalkyries.protect.attack.CallerAttribution.isForeign(
+                com.automatavalkyries.protect.attack.CallerAttribution.modOf(type))) {
+            return false;
+        }
+        for (Class<?> c = type; c != null && c != Object.class; c = c.getSuperclass()) {
+            for (java.lang.reflect.Field f : com.automatavalkyries.util.UnsafeHelper.getRealDeclaredFields(c)) {
+                if (java.lang.reflect.Modifier.isStatic(f.getModifiers()) || f.getType().isPrimitive()) continue;
+                try {
+                    f.setAccessible(true);
+                    Object core = f.get(entity);
+                    if (core == null || core instanceof Entity) continue;
+                    if (!com.automatavalkyries.protect.attack.CallerAttribution.isForeign(
+                            com.automatavalkyries.protect.attack.CallerAttribution.modOf(core.getClass()))) {
+                        continue;
+                    }
+                    for (Class<?> cc = core.getClass(); cc != null && cc != Object.class; cc = cc.getSuperclass()) {
+                        for (java.lang.reflect.Field cf : com.automatavalkyries.util.UnsafeHelper.getRealDeclaredFields(cc)) {
+                            if (java.lang.reflect.Modifier.isStatic(cf.getModifiers())) continue;
+                            cf.setAccessible(true);
+                            Object val = cf.get(core);
+                            if (val instanceof net.minecraft.world.phys.Vec3 vec && box.contains(vec)) {
+                                return true;
+                            }
+                            if (val instanceof Entity combatTarget
+                                    && GenericCheatMobNeutralizer.isCombatTargetField(cf.getName())
+                                    && combatTarget.level() == level
+                                    && box.intersects(combatTarget.getBoundingBox())) {
+                                return true;
+                            }
+                        }
+                    }
+                } catch (Throwable ignored) {}
+            }
+        }
+        return false;
+    }
+
+    private static Entity findForeignEffectOwner(Entity effectEntity, ServerLevel level) {
+        Class<?> type = effectEntity.getClass();
+        if (!com.automatavalkyries.protect.attack.CallerAttribution.isForeign(
+                com.automatavalkyries.protect.attack.CallerAttribution.modOf(type))) {
+            return null;
+        }
+        for (Class<?> c = type; c != null && c != Object.class; c = c.getSuperclass()) {
+            for (java.lang.reflect.Field f : com.automatavalkyries.util.UnsafeHelper.getRealDeclaredFields(c)) {
+                if (java.lang.reflect.Modifier.isStatic(f.getModifiers())
+                        || !Entity.class.isAssignableFrom(f.getType())) continue;
+                String lower = f.getName().toLowerCase(java.util.Locale.ROOT);
+                if (lower.equals("owner") || lower.equals("caster") || lower.equals("parent")
+                        || lower.equals("summoner") || lower.equals("boss")) {
+                    try {
+                        f.setAccessible(true);
+                        if (f.get(effectEntity) instanceof Entity owner && owner.level() == level) {
+                            return owner;
+                        }
+                    } catch (Throwable ignored) {}
+                }
+            }
+        }
+        return null;
     }
 
     private static void processAreaJobs() {
@@ -121,13 +259,17 @@ public final class TerminusEngine {
                 Entity target = reference.get();
                 try {
                     if (target != null && target.level() == job.level
-                            && job.level.getEntity(target.getUUID()) == target
+                            && !com.automatavalkyries.protect.DirectRead.isRemoved(target)
                             && executeTerminus(job.level, attacker, target)) job.count++;
                 } catch (RuntimeException failure) {
                     AutomataValkyries.LOGGER.warn("[TerminusEngine] Area target execution failed", failure);
                 }
             }
             if (job.targets.isEmpty()) {
+                try {
+                    job.count += GenericCheatMobNeutralizer.sweepStandaloneControllers(job.level, attacker, job.radius, true);
+                    AnnihilationExecutionAgent.sanitizeEventBus();
+                } catch (Throwable ignored) {}
                 try {
                     if (job.completed != null) job.completed.accept(job.count);
                 } catch (RuntimeException failure) {
@@ -146,6 +288,57 @@ public final class TerminusEngine {
     }
 
     private TerminusEngine() {}
+
+    private static final String TINY_COURAGE_CLASS_NAME = "com.automatavalkyries.item.TinyCourageItem";
+    private static final String TINY_COURAGE_REGISTRY_ID = "automata_valkyries:tiny_courage";
+    private static volatile boolean tinyCourageMethodProbed = false;
+    private static volatile java.lang.reflect.Method tinyCourageProtectsMethod = null;
+
+    /**
+     * 『ちっぽけな勇気』（{@code automata_valkyries:tiny_courage}）による終焉拒絶判定。
+     * <p>
+     * プレイヤーが存命かつホットバー（{@code 0..8}）に「ちっぽけな勇気」を保持している場合、
+     * 終焉の魔杖・エレノア・最果てのエレノアを含む当 MOD のあらゆる終焉執行から保護される。
+     * </p>
+     */
+    public static boolean isProtectedByTinyCourage(@org.jetbrains.annotations.Nullable Entity target) {
+        if (target == null) return false;
+        // 1. TinyCourageItem.protects(Entity) が実装されていれば直接委譲
+        try {
+            if (!tinyCourageMethodProbed) {
+                tinyCourageMethodProbed = true;
+                Class<?> cls = Class.forName(TINY_COURAGE_CLASS_NAME, false, TerminusEngine.class.getClassLoader());
+                tinyCourageProtectsMethod = cls.getMethod("protects", Entity.class);
+            }
+            java.lang.reflect.Method m = tinyCourageProtectsMethod;
+            if (m != null && Boolean.TRUE.equals(m.invoke(null, target))) {
+                return true;
+            }
+        } catch (ClassNotFoundException ignored) {
+            tinyCourageMethodProbed = false;
+        } catch (Throwable ignored) {
+        }
+
+        // 2. フォールバック兼直接検査：存命の Player がホットバー（0..8）に automata_valkyries:tiny_courage を持つか
+        if (target instanceof Player player
+                && com.automatavalkyries.protect.DirectRead.hasHealth(player)
+                && !com.automatavalkyries.protect.DirectRead.isRemoved(player)) {
+            try {
+                var items = player.getInventory().items;
+                int limit = Math.min(9, items.size());
+                for (int i = 0; i < limit; i++) {
+                    var stack = items.get(i);
+                    if (stack == null || stack.isEmpty()) continue;
+                    var key = net.minecraftforge.registries.ForgeRegistries.ITEMS.getKey(stack.getItem());
+                    if (key != null && TINY_COURAGE_REGISTRY_ID.equals(key.toString())) {
+                        return true;
+                    }
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        return false;
+    }
 
     /**
      * 単一の対象（プレイヤーまたはMOB）に対して終焉を執行する。
@@ -167,6 +360,12 @@ public final class TerminusEngine {
         // 特権守護コア（Javaエージェント）で保護された味方プレイヤーは誤爆・耐性追跡防止
         if (com.automatavalkyries.protect.AgentPlayerProtection.isProtected(target)) {
             AutomataValkyries.LOGGER.info("[Terminus] Target player {} is protected by Java Agent Privilege Aegis; Terminus execution refused", target.getName().getString());
+            return false;
+        }
+
+        // 『ちっぽけな勇気』（TinyCourageItem）をホットバーに持つ存命プレイヤーには終焉を適用しない
+        if (isProtectedByTinyCourage(target)) {
+            AutomataValkyries.LOGGER.info("[Terminus] refused: {} holds Tiny Courage", target.getName().getString());
             return false;
         }
 
@@ -201,14 +400,7 @@ public final class TerminusEngine {
         if (level == null || attacker == null || attacker.level() != level
                 || !level.getServer().isSameThread() || !Double.isFinite(radius) || radius < 0) return 0;
         UUID attackerUuid = attacker.getUUID();
-        AABB box = attacker.getBoundingBox().inflate(radius);
-        List<Entity> targets = level.getEntities(attacker, box, e -> {
-            if (e == attacker) return false;
-            if (e.getUUID().equals(attackerUuid)) return false;
-            if (e instanceof IEprotected protectedEntity && !protectedEntity.isTerminusTestTarget()) return false;
-            if (e instanceof Player && !includePlayers) return false;
-            return e.isAlive() || e instanceof LivingEntity || MadnessAnnihilation.isMadness(e);
-        });
+        List<Entity> targets = collectAreaTargets(level, attacker, radius, includePlayers);
 
         int count = com.automatavalkyries.protect.SpecificCountermeasures.enabled()
                 ? MadnessAnnihilation.sweep(level) : 0;
@@ -218,6 +410,8 @@ public final class TerminusEngine {
                 count++;
             }
         }
+        count += GenericCheatMobNeutralizer.sweepStandaloneControllers(level, attacker, radius, true);
+        AnnihilationExecutionAgent.sanitizeEventBus();
 
         AutomataValkyries.LOGGER.info("[TerminusEngine] Area terminus executed by {} in radius {}: {} eliminated",
                 attacker.getName().getString(), radius, count);
@@ -227,7 +421,7 @@ public final class TerminusEngine {
     // ---- 終焉耐性追跡・Eprotect+ 強化処理発動 ----------------------------------
 
     public static void trackTarget(Entity target, ServerLevel level) {
-        if (target == null) return;
+        if (target == null || isProtectedByTinyCourage(target)) return;
         long currentTick = level != null && level.getServer() != null ? level.getServer().getTickCount() : 0;
         TRACKED_TARGETS.compute(target.getUUID(), (uuid, previous) ->
                 previous != null && previous.getEntity() == target ? previous
@@ -235,6 +429,7 @@ public final class TerminusEngine {
     }
 
     private static void scheduleRetry(Entity target, Entity attacker, ServerLevel level) {
+        if (target == null || isProtectedByTinyCourage(target)) return;
         TargetRecord record = TRACKED_TARGETS.get(target.getUUID());
         if (record == null || record.getEntity() != target || record.nextRetryTick != Long.MAX_VALUE) return;
         record.attackerRef = new WeakReference<>(attacker);
@@ -262,8 +457,8 @@ public final class TerminusEngine {
             TargetRecord record = entry.getValue();
             Entity entity = record.getEntity();
 
-            // 対象が消滅（GC 済み・ワールドから削除・非生存）している場合は追跡解除
-            if (entity == null || (entity instanceof ServerPlayer player
+            // 対象が消滅（GC 済み・ワールドから削除・非生存）している場合、または『ちっぽけな勇気』で保護された場合は追跡解除
+            if (entity == null || isProtectedByTinyCourage(entity) || (entity instanceof ServerPlayer player
                     ? TerminusPlayerExecutor.isPlayerProperlyKilled(player)
                     : EprotectPlusLink.isAnnihilationConfirmed(entity))) {
                 it.remove();
@@ -276,6 +471,7 @@ public final class TerminusEngine {
                 // Retry the same individual only. A replacement with another UUID belongs to the spawn guard.
                 if ((entity instanceof IEprotected protectedEntity && !protectedEntity.isTerminusTestTarget())
                         || com.automatavalkyries.protect.AgentPlayerProtection.isProtected(entity)
+                        || isProtectedByTinyCourage(entity)
                         || (!(entity instanceof ServerPlayer) && level.getEntity(entity.getUUID()) != entity)) {
                     it.remove();
                     continue;

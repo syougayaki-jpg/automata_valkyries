@@ -1,4 +1,7 @@
-# AGENTS.md（CODEX 向けの入口）
+# AGENTS.md（CODEX 向けの入口 → 2026-10-21 から Antigravity 向け）
+
+> **2026-10-21: 担当を CODEX から Antigravity に戻した**（ユーザー指定「CODEX から アンチグラビティーに引継ぎで」）。
+> 引継ぎの入口は **[`docs/HANDOFF_CODEX_TO_ANTIGRAVITY.md`](docs/HANDOFF_CODEX_TO_ANTIGRAVITY.md)**（今の状態と最初の課題）。下の「CODEX」は Antigravity と読み替える。
 
 Minecraft **1.20.1** / **Forge 47.4.x** / **Java 17** の MOD「Automata Valkyries（戦術兵姫MOD）」。MOD ID `automata_valkyries`、パッケージ `com.automatavalkyries`。
 
@@ -15,7 +18,7 @@ Minecraft **1.20.1** / **Forge 47.4.x** / **Java 17** の MOD「Automata Valkyri
 
 | 担当 | 範囲 |
 |---|---|
-| **CODEX**（旧 Antigravity） | 抹殺・終焉機構（`annihilate/`、各種「抹殺の棒」、終焉の魔杖、`TerminusEngine` 等）、Eprotect+ とフラグ辞書の Java エージェント（`src/eprotectplus/`、`protect/plus/`）、他 MOD の守りの解体（`ModProtectionBreaker`）、即死 MOD 個別の対抗（`protect/Eprotect*Counter.java`）、準汎用層の抹殺リスト（`protect/flag/KillLists` 等）、検証用ダミーゾンビ、最果てのエレノア、退去願い、`weapon/Overload.java` の抹殺連携、`weapon/DeathLootFallback`。詳しくは引継書 §2 |
+| **Antigravity**（2026-10-08〜10-21 は CODEX） | 抹殺・終焉機構（`annihilate/`、各種「抹殺の棒」、終焉の魔杖、`TerminusEngine` 等）、Eprotect+ とフラグ辞書の Java エージェント（`src/eprotectplus/`、`protect/plus/`）、他 MOD の守りの解体（`ModProtectionBreaker`）、即死 MOD 個別の対抗（`protect/Eprotect*Counter.java`）、準汎用層の抹殺リスト（`protect/flag/KillLists` 等）、検証用ダミーゾンビ、最果てのエレノア、退去願い、`weapon/Overload.java` の抹殺連携、`weapon/DeathLootFallback`。詳しくは引継書 §2 |
 | **Claude** | 兵姫本体・AI・GUI、兵装・機械・アイテム・ブロック、敵・ボス（ルクシオン等のクロノゲイザー）、ゲーム内の通常保護（`Eprotect` 本体・被弾上限・死亡拒否・自己修復）、守る側の Java エージェント（観察者 `src/observer`、LifeGuard `src/lifeguard*`、オートマタヴァルキリー protect `src/valkyrieprotect*`、共通部品 `src/agentcommon`）、`protect/AgentHijackGuard` |
 
 ### 境界の決まり

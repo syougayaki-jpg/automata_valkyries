@@ -231,79 +231,80 @@ public final class AnnihilationExecutionAgent {
             UUID rawUuid = MadnessAnnihilation.uuid(entity);
             int rawId = MadnessAnnihilation.id(entity);
 
-            // (1) ChunkMap の追跡解除 ＆ クライアントへの追跡切断パケット送信
-            // 正規の追跡解除（見ているプレイヤーの一覧の後始末を含む）を先に行い、残っていれば直接外す
-            Int2ObjectMap<?> entityMap = ((ChunkMapAccessor) level.getChunkSource().chunkMap).automata_valkyries$getEntityMap();
-            level.getChunkSource().removeEntity(entity);
-            entityMap.remove(entity.getId());
-            entityMap.remove(rawId);
+            runWithHyperlinkSpecialRemove(() -> {
+                evictHyperlinkShadowStructures(level, entity, rawId, rawUuid);
 
-            ClientboundRemoveEntitiesPacket removePacket = new ClientboundRemoveEntitiesPacket(rawId);
-            for (ServerPlayer player : level.players()) {
-                player.connection.send(removePacket);
-            }
+                // (1) ChunkMap の追跡解除 ＆ クライアントへの追跡切断パケット送信
+                // 正規の追跡解除（見ているプレイヤーの一覧の後始末を含む）を先に行い、残っていれば直接外す
+                Int2ObjectMap<?> entityMap = ((ChunkMapAccessor) level.getChunkSource().chunkMap).automata_valkyries$getEntityMap();
+                level.getChunkSource().removeEntity(entity);
+                entityMap.remove(entity.getId());
+                entityMap.remove(rawId);
 
-            // マルチパート（処刑竜等の部位エンティティ）の追跡切断
-            // 部位は ChunkMap で追跡されない（broadcastAndSend では届かない）ので、全プレイヤーへ直接送る
-            if (entity.isMultipartEntity()) {
-                Int2ObjectMap<PartEntity<?>> dragonParts = ((ServerLevelTickListAccessor) level).automata_valkyries$getDragonParts();
-                for (PartEntity<?> part : entity.getParts()) {
-                    if (part != null) {
-                        int partRawId = MadnessAnnihilation.id(part);
-                        entityMap.remove(part.getId());
-                        entityMap.remove(partRawId);
-                        dragonParts.remove(part.getId());
-                        dragonParts.remove(partRawId);
-                        ClientboundRemoveEntitiesPacket partPacket = new ClientboundRemoveEntitiesPacket(partRawId);
-                        for (ServerPlayer player : level.players()) {
-                            player.connection.send(partPacket);
+                ClientboundRemoveEntitiesPacket removePacket = new ClientboundRemoveEntitiesPacket(rawId);
+                for (ServerPlayer player : level.players()) {
+                    player.connection.send(removePacket);
+                }
+
+                // マルチパート（処刑竜等の部位エンティティ）の追跡切断
+                // 部位は ChunkMap で追跡されない（broadcastAndSend では届かない）ので、全プレイヤーへ直接送る
+                if (entity.isMultipartEntity()) {
+                    Int2ObjectMap<PartEntity<?>> dragonParts = ((ServerLevelTickListAccessor) level).automata_valkyries$getDragonParts();
+                    for (PartEntity<?> part : entity.getParts()) {
+                        if (part != null) {
+                            int partRawId = MadnessAnnihilation.id(part);
+                            entityMap.remove(part.getId());
+                            entityMap.remove(partRawId);
+                            dragonParts.remove(part.getId());
+                            dragonParts.remove(partRawId);
+                            ClientboundRemoveEntitiesPacket partPacket = new ClientboundRemoveEntitiesPacket(partRawId);
+                            for (ServerPlayer player : level.players()) {
+                                player.connection.send(partPacket);
+                            }
                         }
                     }
                 }
-            }
 
-            // (2) PersistentEntitySectionManager の内部マップから直消去（MixinEntityLookup のキャンセルをバイパス）
-            @SuppressWarnings("unchecked")
-            EntityManagerAccessor<Entity> manager = (EntityManagerAccessor<Entity>) (Object)
-                    ((ServerLevelTickListAccessor) level).automata_valkyries$getEntityManager();
+                // (2) PersistentEntitySectionManager の内部マップから直消去（MixinEntityLookup のキャンセルをバイパス）
+                @SuppressWarnings("unchecked")
+                EntityManagerAccessor<Entity> manager = (EntityManagerAccessor<Entity>) (Object)
+                        ((ServerLevelTickListAccessor) level).automata_valkyries$getEntityManager();
 
-            EntityLookup<Entity> lookup = manager.automata_valkyries$getVisibleEntityStorage();
-            @SuppressWarnings("unchecked")
-            EntityLookupAccessor<Entity> lookupAccessor = (EntityLookupAccessor<Entity>) lookup;
-            // 正規の remove も通す: Hyperlink（Fumetsu）は EntityLookup に影の引き表（byId2 / byUuid2）を持ち、
-            // 表だけ直接消しても getEntity が影から引き直してしまう。正規の remove なら影の側も消える
-            lookup.remove(entity);
-            lookupAccessor.automata_valkyries$getById().remove(entity.getId());
-            lookupAccessor.automata_valkyries$getById().remove(rawId);
-            lookupAccessor.automata_valkyries$getByUuid().remove(entity.getUUID());
-            lookupAccessor.automata_valkyries$getByUuid().remove(rawUuid);
+                EntityLookup<Entity> lookup = manager.automata_valkyries$getVisibleEntityStorage();
+                @SuppressWarnings("unchecked")
+                EntityLookupAccessor<Entity> lookupAccessor = (EntityLookupAccessor<Entity>) lookup;
+                // 正規の remove も通す: Hyperlink（Fumetsu）は EntityLookup に影の引き表（byId2 / byUuid2）を持ち、
+                // 表だけ直接消しても getEntity が影から引き直してしまう。正規の remove なら影の側も消える
+                lookup.remove(entity);
+                lookupAccessor.automata_valkyries$getById().remove(entity.getId());
+                lookupAccessor.automata_valkyries$getById().remove(rawId);
+                lookupAccessor.automata_valkyries$getByUuid().remove(entity.getUUID());
+                lookupAccessor.automata_valkyries$getByUuid().remove(rawUuid);
 
-            // (3) Tick 対象一覧から直消去（MixinEntityTickList の拒否をバイパス）
-            EntityTickList tickList = ((ServerLevelTickListAccessor) level).automata_valkyries$getEntityTickList();
-            TickListEviction.remove(tickList, entity); // 回されている最中でも反復を壊さない
-            tickList.remove(entity);
+                // (3) Tick 対象一覧から直消去（MixinEntityTickList の拒否をバイパス）
+                EntityTickList tickList = ((ServerLevelTickListAccessor) level).automata_valkyries$getEntityTickList();
+                TickListEviction.remove(tickList, entity); // 回されている最中でも反復を壊さない
+                tickList.remove(entity);
 
-            // (4) 区画ストレージからの直接削除
-            EntitySectionStorage<Entity> sectionStorage = manager.automata_valkyries$getSectionStorage();
-            long sectionKey = SectionPos.asLong(entity.blockPosition());
-            EntitySection<Entity> section = sectionStorage.getSection(sectionKey);
-            if (section != null) {
-                section.remove(entity);
-            }
+                // (4) 区画ストレージからの直接削除（EntitySectionMixin / ClassInstanceMultiMapMixin による拒否も突破）
+                EntitySectionStorage<Entity> sectionStorage = manager.automata_valkyries$getSectionStorage();
+                evictFromEntitySections(sectionStorage, entity);
 
-            // (5) UUID 一覧・スコアボード・コールバックの無効化
-            manager.automata_valkyries$getKnownUuids().remove(entity.getUUID());
-            manager.automata_valkyries$getKnownUuids().remove(rawUuid);
-            level.getScoreboard().entityRemoved(entity);
+                // (5) UUID 一覧・スコアボード・コールバックの無効化
+                manager.automata_valkyries$getKnownUuids().remove(entity.getUUID());
+                manager.automata_valkyries$getKnownUuids().remove(rawUuid);
+                level.getScoreboard().entityRemoved(entity);
 
-            EntityAccessor entityAccessor = (EntityAccessor) entity;
-            entityAccessor.automata_valkyries$setLevelCallback(EntityInLevelCallback.NULL);
-            entityAccessor.automata_valkyries$setRemovalReason(Entity.RemovalReason.KILLED);
-            entityAccessor.automata_valkyries$setAddedToWorld(false);
+                EntityAccessor entityAccessor = (EntityAccessor) entity;
+                entityAccessor.automata_valkyries$setLevelCallback(EntityInLevelCallback.NULL);
+                entityAccessor.automata_valkyries$setRemovalReason(Entity.RemovalReason.KILLED);
+                entityAccessor.automata_valkyries$setAddedToWorld(false);
+            });
 
             // (6) 空間座標偽装: 位置を無限遠 / NaN に隔離し、AABB 検索・距離判定から消失させる
             // setPos をオーバーライドして NaN を拒否するエンティティ（SuperSteve 等）でも確実に隔離するため、
             // 先に基底フィールド（position / bb）を直接退避させてから setPos(NaN) を呼ぶ
+            EntityAccessor entityAccessor = (EntityAccessor) entity;
             entityAccessor.automata_valkyries$setPosition(new Vec3(0.0D, -100000.0D, 0.0D));
             entityAccessor.automata_valkyries$setBoundingBoxField(
                     new net.minecraft.world.phys.AABB(0.0D, -100000.0D, 0.0D, 0.0D, -100000.0D, 0.0D));
@@ -315,6 +316,125 @@ public final class AnnihilationExecutionAgent {
 
         } catch (Throwable t) {
             AutomataValkyries.LOGGER.error("[AnnihilationAgent] Error during tracking spoofing for {}", entity, t);
+        }
+    }
+
+    /**
+     * Hyperlink（{@code hyperdaimc}）の {@code FumetsuHandler.specialRemove} を {@code true} に立てた状態で消去処理を実行する。
+     */
+    public static void runWithHyperlinkSpecialRemove(Runnable action) {
+        ThreadLocal<Boolean> specialRemove = null;
+        Boolean prev = Boolean.FALSE;
+        try {
+            Class<?> handlerClass = Class.forName("com.sakurafuld.hyperdaimc.content.hyper.fumetsu.FumetsuHandler");
+            Field f = handlerClass.getDeclaredField("specialRemove");
+            f.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            ThreadLocal<Boolean> tl = (ThreadLocal<Boolean>) f.get(null);
+            if (tl != null) {
+                specialRemove = tl;
+                prev = tl.get();
+                tl.set(Boolean.TRUE);
+            }
+        } catch (Throwable ignored) {
+        }
+        try {
+            action.run();
+        } finally {
+            if (specialRemove != null) {
+                try {
+                    specialRemove.set(prev != null ? prev : Boolean.FALSE);
+                } catch (Throwable ignored) {
+                }
+            }
+        }
+    }
+
+    /**
+     * Hyperlink（{@code hyperdaimc}）の {@code IFumetsu} 個体が登録されている影の追跡構造
+     * （{@code levelCallback2}、{@code fumetsuTickList}、{@code navigatingMobs2}、{@code byId2}/{@code byUuid2}、{@code entityMap2}、{@code knownUuids2}）
+     * から対象エンティティをサーバー・クライアント双方で確実に排除する。
+     */
+    public static void evictHyperlinkShadowStructures(@Nullable net.minecraft.world.level.Level level, Entity entity, int rawId, UUID rawUuid) {
+        if (entity == null || entity instanceof Player) return;
+        try {
+            // 1. IEntityNovel.setNovelized() / IEntityFumetsu.fumetsuExtinction(KILLED) の呼び出しと levelCallback2 の解除
+            try {
+                Method setNovelized = entity.getClass().getMethod("setNovelized");
+                setNovelized.invoke(entity);
+            } catch (Throwable ignored) {
+            }
+            try {
+                Method extinction = entity.getClass().getMethod("fumetsuExtinction", Entity.RemovalReason.class);
+                extinction.invoke(entity, Entity.RemovalReason.KILLED);
+            } catch (Throwable ignored) {
+            }
+            try {
+                Field cb2 = UnsafeHelper.findField(Entity.class, "levelCallback2");
+                if (cb2 != null) {
+                    cb2.setAccessible(true);
+                    cb2.set(entity, EntityInLevelCallback.NULL);
+                }
+            } catch (Throwable ignored) {
+            }
+
+            if (level == null) return;
+
+            // 2. ServerLevel / ClientLevel の fumetsuTickList および navigatingMobs2 からの排除
+            try {
+                Method tickListMethod = level.getClass().getMethod("fumetsuTickList");
+                Object fumetsuTickList = tickListMethod.invoke(level);
+                if (fumetsuTickList != null) {
+                    Method removeMethod = fumetsuTickList.getClass().getMethod("remove", Entity.class);
+                    removeMethod.invoke(fumetsuTickList, entity);
+                }
+            } catch (Throwable ignored) {
+            }
+            try {
+                Method naviMethod = level.getClass().getMethod("fumetsuNavi");
+                Object naviSet = naviMethod.invoke(level);
+                if (naviSet instanceof Set<?> set) {
+                    set.remove(entity);
+                }
+            } catch (Throwable ignored) {
+            }
+
+            // 3. ServerLevel の ChunkMap.entityMap2 / PersistentEntitySectionManager.knownUuids2 からの排除
+            if (level instanceof ServerLevel serverLevel) {
+                try {
+                    Object chunkMap = serverLevel.getChunkSource().chunkMap;
+                    Field map2Field = UnsafeHelper.findField(chunkMap.getClass(), "entityMap2");
+                    if (map2Field != null) {
+                        map2Field.setAccessible(true);
+                        if (map2Field.get(chunkMap) instanceof Int2ObjectMap<?> map2) {
+                            Object tracked1 = map2.remove(entity.getId());
+                            Object tracked2 = map2.remove(rawId);
+                            Object tracked = tracked1 != null ? tracked1 : tracked2;
+                            if (tracked != null) {
+                                Method broadcastRemoved = tracked.getClass().getDeclaredMethod("broadcastRemoved");
+                                broadcastRemoved.setAccessible(true);
+                                broadcastRemoved.invoke(tracked);
+                            }
+                        }
+                    }
+                } catch (Throwable ignored) {
+                }
+                try {
+                    Object manager = ((ServerLevelTickListAccessor) serverLevel).automata_valkyries$getEntityManager();
+                    if (manager != null) {
+                        Field known2Field = UnsafeHelper.findField(manager.getClass(), "knownUuids2");
+                        if (known2Field != null) {
+                            known2Field.setAccessible(true);
+                            if (known2Field.get(manager) instanceof Set<?> known2) {
+                                known2.remove(entity.getUUID());
+                                known2.remove(rawUuid);
+                            }
+                        }
+                    }
+                } catch (Throwable ignored) {
+                }
+            }
+        } catch (Throwable ignored) {
         }
     }
 
@@ -445,8 +565,66 @@ public final class AnnihilationExecutionAgent {
     }
 
     /**
-     * Metapotent Flashfur（Omni-Mobs）の無力化。
-     * 対象に属する本体を解除する。所有を確認できない保存と他個体のキューは残す。
+     * EntitySectionStorage から対象エンティティを完全排除する。
+     * Omni-Mobs の EntitySectionMixin / ClassInstanceMultiMapMixin による remove() 拒否も内部リスト直操作で突破する。
+     */
+    public static void evictFromEntitySections(EntitySectionStorage<Entity> sectionStorage, Entity entity) {
+        if (sectionStorage == null || entity == null) return;
+        try {
+            long sectionKey = SectionPos.asLong(entity.blockPosition());
+            EntitySection<Entity> currentSection = sectionStorage.getSection(sectionKey);
+            if (currentSection != null) {
+                evictFromEntitySection(currentSection, entity);
+            }
+        } catch (Throwable ignored) {}
+        try {
+            for (long chunkKey : sectionStorage.getAllChunksWithExistingSections().toLongArray()) {
+                for (EntitySection<Entity> section : sectionStorage.getExistingSectionsInChunk(chunkKey).toList()) {
+                    evictFromEntitySection(section, entity);
+                }
+            }
+        } catch (Throwable ignored) {}
+    }
+
+    public static boolean evictFromEntitySection(EntitySection<?> section, Entity entity) {
+        if (section == null || entity == null) return false;
+        boolean removed = false;
+        try {
+            @SuppressWarnings("unchecked")
+            EntitySection<Entity> typedSection = (EntitySection<Entity>) section;
+            if (typedSection.remove(entity)) {
+                removed = true;
+            }
+        } catch (Throwable ignored) {}
+        try {
+            for (Field f : UnsafeHelper.getRealDeclaredFields(EntitySection.class)) {
+                if (Modifier.isStatic(f.getModifiers())) continue;
+                f.setAccessible(true);
+                Object storage = f.get(section);
+                if (storage instanceof net.minecraft.util.ClassInstanceMultiMap<?> multiMap) {
+                    for (Field mf : UnsafeHelper.getRealDeclaredFields(net.minecraft.util.ClassInstanceMultiMap.class)) {
+                        if (Modifier.isStatic(mf.getModifiers())) continue;
+                        mf.setAccessible(true);
+                        Object inner = mf.get(multiMap);
+                        if (inner instanceof List<?> list) {
+                            if (list.remove(entity)) removed = true;
+                        } else if (inner instanceof Map<?, ?> map) {
+                            for (Object col : map.values()) {
+                                if (col instanceof List<?> list && list.remove(entity)) {
+                                    removed = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+        return removed;
+    }
+
+    /**
+     * Metapotent Flashfur / Flashfur（Omni-Mobs）の無力化。
+     * 対象に属する本体・復活リスト・外部HPマップを解除する。所有を確認できない保存と他個体のキューは残す。
      */
     public static void neutralizeFlashfur(ServerLevel level, Entity entity) {
         if (!com.automatavalkyries.protect.SpecificCountermeasures.enabled()) return;
@@ -454,38 +632,94 @@ public final class AnnihilationExecutionAgent {
         if (!className.contains("flashfur.omnimobs")) return;
 
         try {
+            // (0) 通常 Flashfur (IRespawningEntity / BossEntity) のリスポーン座標・外部HPマップ・復活リストの個別無力化
+            try {
+                Field oldPosField = UnsafeHelper.findField(entity.getClass(), "oldPos");
+                if (oldPosField != null) {
+                    oldPosField.set(entity, null);
+                }
+            } catch (Throwable ignored) {}
+
+            Set<Object> targetVictims = Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+            targetVictims.add(entity);
+            UUID entityUuid = MadnessAnnihilation.uuid(entity);
+
+            for (String[] listSpec : new String[][]{
+                    {"flashfur.omnimobs.entities.flashfur.powers.Respawning", "RESPAWNING_ENTITIES"},
+                    {"flashfur.omnimobs.entities.base.RemoveDeadEntities", "ENTITIES_TO_REMOVE"}
+            }) {
+                try {
+                    Class<?> cls = Class.forName(listSpec[0], false, entity.getClass().getClassLoader());
+                    Field lf = UnsafeHelper.findField(cls, listSpec[1]);
+                    if (lf != null && lf.get(null) instanceof ArrayList<?> list) {
+                        GenericCheatMobNeutralizer.purgeArrayList(list, targetVictims, entityUuid);
+                    }
+                } catch (Throwable ignored) {}
+            }
+
+            for (String[] mapSpec : new String[][]{
+                    {"flashfur.omnimobs.entities.anticheat.HealthManager", "healthValues"},
+                    {"flashfur.omnimobs.entities.anticheat.HealthManager$LastGoodHealth", "lastGoodHealthValues"},
+                    {"flashfur.omnimobs.util.EntityUtil", "REAL_MAX_HEALTH"}
+            }) {
+                try {
+                    Class<?> cls = Class.forName(mapSpec[0], false, entity.getClass().getClassLoader());
+                    Field mf = UnsafeHelper.findField(cls, mapSpec[1]);
+                    if (mf != null && mf.get(null) instanceof Map<?, ?> map) {
+                        GenericCheatMobNeutralizer.zeroHealthMapEntries(map, targetVictims, entityUuid);
+                    }
+                } catch (Throwable ignored) {}
+            }
+
             // (1) プロキシエンティティから MetapotentFlashfur インスタンスを取得して本体解体
+            boolean dismantledFlashfurCore = false;
             try {
                 Field mfField = UnsafeHelper.findField(entity.getClass(), "metapotentFlashfur");
                 if (mfField != null) {
                     Object flashfurInstance = mfField.get(entity);
-                    if (flashfurInstance != null && GenericCheatMobNeutralizer.ownsController(flashfurInstance, entity)) {
+                    if (flashfurInstance != null && GenericCheatMobNeutralizer.ownsController(flashfurInstance, entity, true)) {
+                        dismantledFlashfurCore = true;
                         try {
-                            Field idField = flashfurInstance.getClass().getDeclaredField("id");
-                            idField.setAccessible(true);
-                            UUID flashfurUuid = (UUID) idField.get(flashfurInstance);
-                            if (flashfurUuid != null) {
-                                markAnnihilated(flashfurUuid);
+                            Field idField = UnsafeHelper.findField(flashfurInstance.getClass(), "id");
+                            if (idField != null) {
+                                UUID flashfurUuid = (UUID) idField.get(flashfurInstance);
+                                if (flashfurUuid != null) {
+                                    markAnnihilated(flashfurUuid);
+                                }
                             }
                         } catch (Throwable ignored) {}
 
                         try {
-                            Field rf = flashfurInstance.getClass().getDeclaredField("removed");
-                            rf.setAccessible(true);
-                            rf.setBoolean(flashfurInstance, true);
+                            Field rf = UnsafeHelper.findField(flashfurInstance.getClass(), "removed");
+                            if (rf != null) {
+                                rf.setBoolean(flashfurInstance, true);
+                            }
                         } catch (Throwable ignored) {}
 
                         try {
-                            Field pf = flashfurInstance.getClass().getDeclaredField("metapotentFlashfurProxy");
-                            pf.setAccessible(true);
-                            pf.set(flashfurInstance, null);
+                            Field pf = UnsafeHelper.findField(flashfurInstance.getClass(), "metapotentFlashfurProxy");
+                            if (pf != null) {
+                                pf.set(flashfurInstance, null);
+                            }
+                        } catch (Throwable ignored) {}
+
+                        try {
+                            Field bf = UnsafeHelper.findField(flashfurInstance.getClass(), "metaBeam");
+                            if (bf != null && bf.get(flashfurInstance) instanceof Entity beam) {
+                                if (beam.level() instanceof ServerLevel sl) {
+                                    spoofAndDisconnectTracking(sl, beam);
+                                }
+                                beam.discard();
+                                bf.set(flashfurInstance, null);
+                            }
                         } catch (Throwable ignored) {}
 
                         for (String timerName : new String[]{"beamTimer", "eraseTimer", "swipeTimer", "totalityBoomTimer", "throwInAirTimer"}) {
                             try {
-                                Field f = flashfurInstance.getClass().getDeclaredField(timerName);
-                                f.setAccessible(true);
-                                f.setInt(flashfurInstance, -9999);
+                                Field f = UnsafeHelper.findField(flashfurInstance.getClass(), timerName);
+                                if (f != null) {
+                                    f.setInt(flashfurInstance, -9999);
+                                }
                             } catch (Throwable ignored) {}
                         }
 
@@ -510,7 +744,10 @@ public final class AnnihilationExecutionAgent {
             // (5) 乗っ取られた EventBus の正常化
             sanitizeEventBus();
 
-            AutomataValkyries.LOGGER.info("[AnnihilationAgent] Neutralized target Metapotent Flashfur; unowned persistence retained");
+            if (dismantledFlashfurCore || className.endsWith("MetapotentFlashfurEntity") || className.endsWith("FlashfurEntity")) {
+                AutomataValkyries.LOGGER.info("[AnnihilationAgent] Neutralized target Flashfur ({}); unowned persistence retained",
+                        entity.getClass().getSimpleName());
+            }
         } catch (Throwable t) {
             AutomataValkyries.LOGGER.warn("[AnnihilationAgent] Failed during Metapotent Flashfur neutralization", t);
         }
@@ -525,13 +762,13 @@ public final class AnnihilationExecutionAgent {
         runWithFlashfurPrivilege(() -> {
             try {
                 Class<?> levelClass = Class.forName("flashfur.omnimobs.entities.metapotent_flashfur.MetapotentFlashfurLevel");
-                Field listField = levelClass.getDeclaredField("metapotentFlashfurList");
-                listField.setAccessible(true);
+                Field listField = UnsafeHelper.findField(levelClass, "metapotentFlashfurList");
+                if (listField == null) return;
                 Object protectedList = listField.get(null);
                 if (protectedList instanceof ArrayList<?> list) {
-                    Field sizeField = ArrayList.class.getDeclaredField("size");
+                    Field sizeField = UnsafeHelper.findField(ArrayList.class, "size");
                     long sizeOffset = UnsafeHelper.objectFieldOffset(sizeField);
-                    Field dataField = ArrayList.class.getDeclaredField("elementData");
+                    Field dataField = UnsafeHelper.findField(ArrayList.class, "elementData");
                     long dataOffset = UnsafeHelper.objectFieldOffset(dataField);
 
                     if (sizeOffset >= 0 && dataOffset >= 0) {
@@ -546,21 +783,37 @@ public final class AnnihilationExecutionAgent {
                                     shouldRemove = true;
                                 } else {
                                     try {
-                                        Field rf = mf.getClass().getDeclaredField("removed");
-                                        rf.setAccessible(true);
-                                        if (rf.getBoolean(mf)) shouldRemove = true;
-                                        Field idf = mf.getClass().getDeclaredField("id");
-                                        idf.setAccessible(true);
-                                        UUID id = (UUID) idf.get(mf);
-                                        if (id != null && isAnnihilated(id)) shouldRemove = true;
+                                        Field rf = UnsafeHelper.findField(mf.getClass(), "removed");
+                                        if (rf != null && rf.getBoolean(mf)) shouldRemove = true;
+                                        Field idf = UnsafeHelper.findField(mf.getClass(), "id");
+                                        if (idf != null) {
+                                            UUID id = (UUID) idf.get(mf);
+                                            if (id != null && isAnnihilated(id)) shouldRemove = true;
+                                        }
+                                        Field pf = UnsafeHelper.findField(mf.getClass(), "metapotentFlashfurProxy");
+                                        if (pf != null && pf.get(mf) instanceof Entity proxy) {
+                                            if (isAnnihilated(proxy) || isAnnihilated(MadnessAnnihilation.uuid(proxy))) {
+                                                shouldRemove = true;
+                                            }
+                                        }
                                     } catch (Throwable ignored) {}
                                 }
                                 if (shouldRemove) {
                                     if (mf != null) {
                                         try {
-                                            Field pf = mf.getClass().getDeclaredField("metapotentFlashfurProxy");
-                                            pf.setAccessible(true);
-                                            pf.set(mf, null);
+                                            Field rf = UnsafeHelper.findField(mf.getClass(), "removed");
+                                            if (rf != null) rf.setBoolean(mf, true);
+                                        } catch (Throwable ignored) {}
+                                        try {
+                                            Field pf = UnsafeHelper.findField(mf.getClass(), "metapotentFlashfurProxy");
+                                            if (pf != null) pf.set(mf, null);
+                                        } catch (Throwable ignored) {}
+                                        try {
+                                            Field beField = UnsafeHelper.findField(mf.getClass(), "bossEvent");
+                                            if (beField != null && beField.get(mf) instanceof ServerBossEvent be) {
+                                                be.removeAllPlayers();
+                                                be.setVisible(false);
+                                            }
                                         } catch (Throwable ignored) {}
                                     }
                                     elementData[i] = null;
@@ -571,7 +824,10 @@ public final class AnnihilationExecutionAgent {
                             for (int i = newSize; i < size; i++) {
                                 elementData[i] = null;
                             }
-                            UnsafeHelper.putInt(list, sizeOffset, newSize);
+                            if (newSize != size) {
+                                UnsafeHelper.putInt(list, sizeOffset, newSize);
+                                UnsafeHelper.incrementArrayListModCount(list);
+                            }
                         }
                     }
                 }
@@ -587,15 +843,15 @@ public final class AnnihilationExecutionAgent {
         runWithFlashfurPrivilege(() -> {
             try {
                 Class<?> levelClass = Class.forName("flashfur.omnimobs.entities.metapotent_flashfur.MetapotentFlashfurLevel");
-                Field listField = levelClass.getDeclaredField("metapotentFlashfurList");
-                listField.setAccessible(true);
+                Field listField = UnsafeHelper.findField(levelClass, "metapotentFlashfurList");
+                if (listField == null) return;
                 Object protectedList = listField.get(null);
                 // ArrayList のオフセットで書くので、ArrayList 以外（将来の Omni-Mobs の変更）には絶対に書かない（メモリ破壊になる）
                 if (protectedList instanceof ArrayList<?> list) {
                     // ArrayList の elementData 配列と size フィールドを Unsafe で直接クリア
-                    Field sizeField = ArrayList.class.getDeclaredField("size");
+                    Field sizeField = UnsafeHelper.findField(ArrayList.class, "size");
                     long sizeOffset = UnsafeHelper.objectFieldOffset(sizeField);
-                    Field dataField = ArrayList.class.getDeclaredField("elementData");
+                    Field dataField = UnsafeHelper.findField(ArrayList.class, "elementData");
                     long dataOffset = UnsafeHelper.objectFieldOffset(dataField);
 
                     if (sizeOffset >= 0 && dataOffset >= 0) {
@@ -606,28 +862,26 @@ public final class AnnihilationExecutionAgent {
                                 Object mf = elementData[i];
                                 if (mf != null) {
                                     try {
-                                        Field idField = mf.getClass().getDeclaredField("id");
-                                        idField.setAccessible(true);
-                                        UUID flashfurUuid = (UUID) idField.get(mf);
-                                        if (flashfurUuid != null) {
-                                            markAnnihilated(flashfurUuid);
+                                        Field idField = UnsafeHelper.findField(mf.getClass(), "id");
+                                        if (idField != null) {
+                                            UUID flashfurUuid = (UUID) idField.get(mf);
+                                            if (flashfurUuid != null) {
+                                                markAnnihilated(flashfurUuid);
+                                            }
                                         }
                                     } catch (Throwable ignored) {}
                                     try {
-                                        Field rf = mf.getClass().getDeclaredField("removed");
-                                        rf.setAccessible(true);
-                                        rf.setBoolean(mf, true);
+                                        Field rf = UnsafeHelper.findField(mf.getClass(), "removed");
+                                        if (rf != null) rf.setBoolean(mf, true);
                                     } catch (Throwable ignored) {}
                                     try {
-                                        Field pf = mf.getClass().getDeclaredField("metapotentFlashfurProxy");
-                                        pf.setAccessible(true);
-                                        pf.set(mf, null);
+                                        Field pf = UnsafeHelper.findField(mf.getClass(), "metapotentFlashfurProxy");
+                                        if (pf != null) pf.set(mf, null);
                                     } catch (Throwable ignored) {}
                                     for (String timerName : new String[]{"beamTimer", "eraseTimer", "swipeTimer", "totalityBoomTimer", "throwInAirTimer"}) {
                                         try {
-                                            Field f = mf.getClass().getDeclaredField(timerName);
-                                            f.setAccessible(true);
-                                            f.setInt(mf, -9999);
+                                            Field f = UnsafeHelper.findField(mf.getClass(), timerName);
+                                            if (f != null) f.setInt(mf, -9999);
                                         } catch (Throwable ignored) {}
                                     }
                                     try {
@@ -644,7 +898,10 @@ public final class AnnihilationExecutionAgent {
                                 elementData[i] = null;
                             }
                         }
-                        UnsafeHelper.putInt(list, sizeOffset, 0);
+                        if (size > 0) {
+                            UnsafeHelper.putInt(list, sizeOffset, 0);
+                            UnsafeHelper.incrementArrayListModCount(list);
+                        }
                     }
                 }
             } catch (Throwable ignored) {}
@@ -691,11 +948,10 @@ public final class AnnihilationExecutionAgent {
      */
     private static void wipeStaticArrayList(String className, String fieldName) {
         try {
-            Field listField = Class.forName(className).getDeclaredField(fieldName);
-            listField.setAccessible(true);
-            if (!(listField.get(null) instanceof ArrayList<?> list)) return;
-            long sizeOffset = UnsafeHelper.objectFieldOffset(ArrayList.class.getDeclaredField("size"));
-            long dataOffset = UnsafeHelper.objectFieldOffset(ArrayList.class.getDeclaredField("elementData"));
+            Field listField = UnsafeHelper.findField(Class.forName(className), fieldName);
+            if (listField == null || !(listField.get(null) instanceof ArrayList<?> list)) return;
+            long sizeOffset = UnsafeHelper.objectFieldOffset(UnsafeHelper.findField(ArrayList.class, "size"));
+            long dataOffset = UnsafeHelper.objectFieldOffset(UnsafeHelper.findField(ArrayList.class, "elementData"));
             if (sizeOffset < 0 || dataOffset < 0) return;
             if (UnsafeHelper.getObject(list, dataOffset) instanceof Object[] elementData) {
                 java.util.Arrays.fill(elementData, null); // 参照を残すと GC されない

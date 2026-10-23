@@ -492,9 +492,22 @@ public final class ModProtectionBreaker {
                 int mod = m.getModifiers();
                 if (!Modifier.isStatic(mod) || !Modifier.isPublic(mod) || m.isSynthetic()) continue;
                 String name = m.getName();
-                if (isTrapTerminationName(name) || !FlagKillPredicates.isTerminationMethod(name)) continue;
+                if (isTrapTerminationName(name)) continue;
                 Class<?>[] params = m.getParameterTypes();
                 try {
+                    if (params.length == 2
+                            && (params[0] == Entity.class || (params[0] == LivingEntity.class && target instanceof LivingEntity))
+                            && params[1] == float.class
+                            && name.toLowerCase(java.util.Locale.ROOT).startsWith("set")
+                            && FlagDictionary.is(name, FlagDictionary.Category.KILL)
+                            && !FlagKillPredicates.protectiveOnTarget(name)) {
+                        m.setAccessible(true);
+                        m.invoke(null, target, Float.MAX_VALUE);
+                        AutomataValkyries.LOGGER.info("[AnnihilationAgent] Invoked static entity kill-damage helper {}.{}(target, MAX_VALUE)",
+                                cls.getSimpleName(), name);
+                        continue;
+                    }
+                    if (!FlagKillPredicates.isTerminationMethod(name)) continue;
                     if (params.length == 2
                             && (params[0] == Entity.class || (params[0] == LivingEntity.class && target instanceof LivingEntity))
                             && params[1] == boolean.class) {

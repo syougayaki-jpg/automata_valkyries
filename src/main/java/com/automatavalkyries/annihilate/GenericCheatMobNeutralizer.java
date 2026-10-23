@@ -190,26 +190,42 @@ public final class GenericCheatMobNeutralizer {
                     } catch (Throwable ignored) {}
                 }
 
-                // proxy 参照の破棄（ラッパー経由の逆参照・同一 UUID のクライアント対も含む）
+                // proxy 参照または攻撃対象参照の破棄（ラッパー経由の逆参照・同一 UUID のクライアント対・子エフェクトEntityも含む）
                 if (Entity.class.isAssignableFrom(f.getType())) {
                     try {
                         f.setAccessible(true);
                         Object held = f.get(core);
-                        if (proxy == null || held == proxy
-                                || (held instanceof Entity other && isSameEntityIdentity(other, proxy))) {
-                            if (held instanceof Entity twin && twin != proxy) {
+                        if (proxy == null || held == proxy || isCombatTargetField(name)
+                                || (held instanceof Entity other && isSameEntityIdentity(other, proxy))
+                                || (held instanceof Entity child && isChildEffectEntity(child, core, name))) {
+                            if (held instanceof Entity twin && twin != proxy && !isCombatTargetField(name)) {
                                 resetDefensiveFlags(twin);
+                                if (isChildEffectEntity(twin, core, name)) {
+                                    try {
+                                        if (twin.level() instanceof ServerLevel sl) {
+                                            AnnihilationExecutionAgent.spoofAndDisconnectTracking(sl, twin);
+                                        }
+                                        twin.discard();
+                                    } catch (Throwable ignored) {}
+                                }
                             }
                             f.set(core, null);
+                        }
+                    } catch (Throwable ignored) {}
+                } else if (isCombatTargetCollectionField(name) && Collection.class.isAssignableFrom(f.getType())) {
+                    try {
+                        f.setAccessible(true);
+                        if (f.get(core) instanceof Collection<?> col) {
+                            col.clear();
                         }
                     } catch (Throwable ignored) {}
                 } else if (java.lang.ref.Reference.class.isAssignableFrom(f.getType())) {
                     try {
                         f.setAccessible(true);
                         if (f.get(core) instanceof java.lang.ref.Reference<?> ref
-                                && (proxy == null || ref.get() == proxy
+                                && (proxy == null || ref.get() == proxy || isCombatTargetField(name)
                                 || (ref.get() instanceof Entity other && isSameEntityIdentity(other, proxy)))) {
-                            if (ref.get() instanceof Entity twin && twin != proxy) {
+                            if (ref.get() instanceof Entity twin && twin != proxy && !isCombatTargetField(name)) {
                                 resetDefensiveFlags(twin);
                             }
                             ref.clear();
@@ -219,9 +235,9 @@ public final class GenericCheatMobNeutralizer {
                     try {
                         f.setAccessible(true);
                         if (f.get(core) instanceof java.util.concurrent.atomic.AtomicReference<?> atomicRef
-                                && (proxy == null || atomicRef.get() == proxy
+                                && (proxy == null || atomicRef.get() == proxy || isCombatTargetField(name)
                                 || (atomicRef.get() instanceof Entity other && isSameEntityIdentity(other, proxy)))) {
-                            if (atomicRef.get() instanceof Entity twin && twin != proxy) {
+                            if (atomicRef.get() instanceof Entity twin && twin != proxy && !isCombatTargetField(name)) {
                                 resetDefensiveFlags(twin);
                             }
                             atomicRef.set(null);
@@ -402,6 +418,19 @@ public final class GenericCheatMobNeutralizer {
                     } catch (Throwable ignored) {}
                 }
 
+                // リスポーン座標フィールド（IRespawningEntity.oldPos 等）の null 化
+                if (target instanceof Entity && isForeign(target.getClass())
+                        && f.getType() == net.minecraft.world.phys.Vec3.class) {
+                    String lower = name.toLowerCase(Locale.ROOT);
+                    if (lower.equals("oldpos") || lower.equals("respawnpos") || lower.equals("spawnpos")
+                            || lower.equals("savedpos") || lower.equals("lastpos")) {
+                        try {
+                            f.setAccessible(true);
+                            f.set(target, null);
+                        } catch (Throwable ignored) {}
+                    }
+                }
+
                 // Collection / Map のクリア
                 if (FlagKillPredicates.isDefensiveField(name)) {
                     try {
@@ -430,8 +459,18 @@ public final class GenericCheatMobNeutralizer {
         }
         try {
             if (com.automatavalkyries.protect.SpecificCountermeasures.enabled()) {
-                Class<?> mfl = Class.forName("flashfur.omnimobs.entities.metapotent_flashfur.MetapotentFlashfurLevel");
-                targetClasses.add(mfl);
+                for (String cn : new String[]{
+                        "flashfur.omnimobs.entities.metapotent_flashfur.MetapotentFlashfurLevel",
+                        "flashfur.omnimobs.entities.flashfur.powers.Respawning",
+                        "flashfur.omnimobs.entities.base.RemoveDeadEntities",
+                        "flashfur.omnimobs.entities.anticheat.HealthManager",
+                        "flashfur.omnimobs.entities.anticheat.HealthManager$LastGoodHealth",
+                        "flashfur.omnimobs.util.EntityUtil"
+                }) {
+                    try {
+                        targetClasses.add(Class.forName(cn, false, target.getClass().getClassLoader()));
+                    } catch (Throwable ignored) {}
+                }
             }
         } catch (Throwable ignored) {}
 
@@ -465,18 +504,45 @@ public final class GenericCheatMobNeutralizer {
                     } else if (list instanceof Collection<?> col) {
                         col.removeIf(elem -> matchesVictim(elem, victims, uuid));
                     } else if (list instanceof Map<?, ?> map) {
-                        map.entrySet().removeIf(e -> matchesVictim(e.getKey(), victims, uuid) || matchesVictim(e.getValue(), victims, uuid));
+                        String mapName = (clazz.getSimpleName() + "." + field.getName()).toLowerCase(Locale.ROOT);
+                        if (mapName.contains("health")) {
+                            // HealthManager.healthValues 等は getOrDefault(boss, getMaxHealth()) で未登録時に最大HPへ戻るため、
+                            // エントリ自体は残して Entry.setValue(0.0F) で直接 0 に上書きする（ProtectedWeakHashMap.put 拒否も回避）
+                            zeroHealthMapEntries(map, victims, uuid);
+                        } else {
+                            map.entrySet().removeIf(e -> matchesVictim(e.getKey(), victims, uuid) || matchesVictim(e.getValue(), victims, uuid));
+                        }
                     }
                 } catch (Throwable ignored) {}
             }
         }
     }
 
-    private static void purgeArrayList(Object list, Set<Object> victims, UUID uuid) {
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static void zeroHealthMapEntries(Map<?, ?> map, Set<Object> victims, UUID uuid) {
+        if (map == null) return;
         try {
-            Field sizeField = ArrayList.class.getDeclaredField("size");
+            for (Map.Entry entry : map.entrySet()) {
+                if (entry == null) continue;
+                if (matchesVictim(entry.getKey(), victims, uuid)) {
+                    Object val = entry.getValue();
+                    if (val instanceof Float) {
+                        entry.setValue(0.0F);
+                    } else if (val instanceof Double) {
+                        entry.setValue(0.0D);
+                    } else if (val instanceof Integer) {
+                        entry.setValue(0);
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+    }
+
+    public static void purgeArrayList(Object list, Set<Object> victims, UUID uuid) {
+        try {
+            Field sizeField = UnsafeHelper.findField(ArrayList.class, "size");
             long sizeOffset = UnsafeHelper.objectFieldOffset(sizeField);
-            Field dataField = ArrayList.class.getDeclaredField("elementData");
+            Field dataField = UnsafeHelper.findField(ArrayList.class, "elementData");
             long dataOffset = UnsafeHelper.objectFieldOffset(dataField);
 
             if (sizeOffset < 0 || dataOffset < 0) return;
@@ -498,7 +564,197 @@ public final class GenericCheatMobNeutralizer {
             for (int i = newSize; i < size; i++) {
                 data[i] = null;
             }
-            UnsafeHelper.putInt(list, sizeOffset, newSize);
+            if (newSize != size) {
+                UnsafeHelper.putInt(list, sizeOffset, newSize);
+                UnsafeHelper.incrementArrayListModCount(list);
+            }
+        } catch (Throwable ignored) {}
+    }
+
+    /**
+     * 範囲内の非エンティティ独立コントローラー（プロキシが消失・未紐付けの MetapotentFlashfur 等）を探索して解体する。
+     */
+    public static int sweepStandaloneControllers(ServerLevel level, Entity attacker, double radius) {
+        return sweepStandaloneControllers(level, attacker, radius, true);
+    }
+
+    public static int sweepStandaloneControllers(ServerLevel level, Entity attacker, double radius, boolean includeLiveProxies) {
+        if (level == null || attacker == null || !Double.isFinite(radius) || radius < 0) return 0;
+        net.minecraft.world.phys.AABB box = attacker.getBoundingBox().inflate(radius);
+        Set<Class<?>> holderClasses = new LinkedHashSet<>();
+        try {
+            if (com.automatavalkyries.protect.SpecificCountermeasures.enabled()) {
+                Class<?> mfl = Class.forName(
+                        "flashfur.omnimobs.entities.metapotent_flashfur.MetapotentFlashfurLevel",
+                        false, GenericCheatMobNeutralizer.class.getClassLoader());
+                if (UnsafeHelper.isInitialized(mfl)) {
+                    holderClasses.add(mfl);
+                }
+            }
+        } catch (Throwable ignored) {}
+
+        int dismantledCount = 0;
+        Set<Object> dismantledCores = Collections.newSetFromMap(new IdentityHashMap<>());
+        List<Entity> proxiesToAnnihilate = new ArrayList<>();
+
+        for (Class<?> holderClass : holderClasses) {
+            for (Field field : UnsafeHelper.getRealDeclaredFields(holderClass)) {
+                if (!Modifier.isStatic(field.getModifiers())) continue;
+                try {
+                    field.setAccessible(true);
+                    Object container = field.get(null);
+                    if (!(container instanceof ArrayList<?> list)) continue;
+
+                    Field sizeField = UnsafeHelper.findField(ArrayList.class, "size");
+                    Field dataField = UnsafeHelper.findField(ArrayList.class, "elementData");
+                    long sizeOffset = UnsafeHelper.objectFieldOffset(sizeField);
+                    long dataOffset = UnsafeHelper.objectFieldOffset(dataField);
+                    if (sizeOffset < 0 || dataOffset < 0) continue;
+
+                    Object[] data = (Object[]) UnsafeHelper.getObject(list, dataOffset);
+                    int size = UnsafeHelper.getInt(list, sizeOffset);
+                    if (data == null || size <= 0 || size > data.length) continue;
+
+                    for (int i = 0; i < size; i++) {
+                        Object core = data[i];
+                        if (core == null || core instanceof Entity || !isForeign(core.getClass())) continue;
+                        Entity proxy = findOwnedProxyEntity(core);
+                        if (!includeLiveProxies && proxy != null
+                                && !com.automatavalkyries.protect.DirectRead.isRemoved(proxy)
+                                && level.getEntity(proxy.getUUID()) == proxy) {
+                            continue;
+                        }
+                        if (!isControllerInArea(core, proxy, level, box)) continue;
+                        if (!ownsController(core, proxy, null, true)) continue;
+
+                        dismantledCores.add(core);
+                        dismantleCoreObject(core, proxy, true, true);
+                        dismantledCount++;
+                        if (proxy != null && includeLiveProxies) {
+                            proxiesToAnnihilate.add(proxy);
+                        }
+                    }
+
+                    if (!dismantledCores.isEmpty()) {
+                        purgeArrayList(list, dismantledCores, null);
+                    }
+                    // 万一プロキシが先に抹消され removed=true 等になったままリストに残っている残骸も同じパスで掃除
+                    purgeRemovedOrAnnihilatedCores(list);
+                } catch (Throwable ignored) {}
+            }
+        }
+
+        for (Entity proxy : proxiesToAnnihilate) {
+            try {
+                if (proxy.level() == level) {
+                    TrueAnnihilationEngine.annihilateEntity(
+                            level,
+                            attacker instanceof net.minecraft.world.entity.player.Player p ? p : null,
+                            proxy);
+                }
+            } catch (Throwable ignored) {}
+        }
+
+        if (dismantledCount > 0) {
+            AnnihilationExecutionAgent.purgeDeadFlashfurs();
+            AnnihilationExecutionAgent.sanitizeEventBus();
+        }
+        return dismantledCount;
+    }
+
+    private static Entity findOwnedProxyEntity(Object core) {
+        for (Class<?> c = core.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
+            for (Field f : UnsafeHelper.getRealDeclaredFields(c)) {
+                if (Modifier.isStatic(f.getModifiers()) || !Entity.class.isAssignableFrom(f.getType())) continue;
+                String name = f.getName();
+                if (isCombatTargetField(name)) continue;
+                try {
+                    f.setAccessible(true);
+                    Object val = f.get(core);
+                    if (val instanceof Entity e && !isChildEffectEntity(e, core, name)) {
+                        return e;
+                    }
+                } catch (Throwable ignored) {}
+            }
+        }
+        return null;
+    }
+
+    private static boolean isControllerInArea(Object core, Entity proxy, ServerLevel level, net.minecraft.world.phys.AABB box) {
+        if (proxy != null && proxy.level() == level) {
+            if (box.intersects(proxy.getBoundingBox())) return true;
+            try {
+                net.minecraft.world.phys.Vec3 pPos = proxy.position();
+                if (pPos != null && box.contains(pPos)) return true;
+            } catch (Throwable ignored) {}
+        }
+        boolean levelMatches = proxy != null && proxy.level() == level;
+        boolean posMatches = false;
+        for (Class<?> c = core.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
+            for (Field f : UnsafeHelper.getRealDeclaredFields(c)) {
+                if (Modifier.isStatic(f.getModifiers())) continue;
+                try {
+                    f.setAccessible(true);
+                    Object val = f.get(core);
+                    if (val instanceof net.minecraft.world.level.Level lvl) {
+                        if (lvl != level) return false;
+                        levelMatches = true;
+                    } else if (val instanceof net.minecraft.world.phys.Vec3 vec) {
+                        if (box.contains(vec)) posMatches = true;
+                    } else if (val instanceof net.minecraft.world.phys.AABB aabb) {
+                        if (box.intersects(aabb)) posMatches = true;
+                    } else if (val instanceof Entity targetEntity && isCombatTargetField(f.getName())) {
+                        // 本体自身が遠方に退避していても、範囲内の対象を直接攻撃目標にしている場合は範囲内として扱う
+                        if (targetEntity.level() == level && box.intersects(targetEntity.getBoundingBox())) {
+                            posMatches = true;
+                        }
+                    }
+                } catch (Throwable ignored) {}
+            }
+        }
+        return levelMatches && posMatches;
+    }
+
+    private static void purgeRemovedOrAnnihilatedCores(Object list) {
+        try {
+            Field sizeField = UnsafeHelper.findField(ArrayList.class, "size");
+            Field dataField = UnsafeHelper.findField(ArrayList.class, "elementData");
+            long sizeOffset = UnsafeHelper.objectFieldOffset(sizeField);
+            long dataOffset = UnsafeHelper.objectFieldOffset(dataField);
+            if (sizeOffset < 0 || dataOffset < 0) return;
+
+            Object[] data = (Object[]) UnsafeHelper.getObject(list, dataOffset);
+            int size = UnsafeHelper.getInt(list, sizeOffset);
+            if (data == null || size <= 0 || size > data.length) return;
+
+            int newSize = 0;
+            for (int i = 0; i < size; i++) {
+                Object core = data[i];
+                boolean drop = (core == null);
+                if (!drop && !(core instanceof Entity) && isForeign(core.getClass())) {
+                    try {
+                        Field rf = UnsafeHelper.findField(core.getClass(), "removed");
+                        if (rf != null && rf.getType() == boolean.class && rf.getBoolean(core)) drop = true;
+                        Field idf = UnsafeHelper.findField(core.getClass(), "id");
+                        if (!drop && idf != null && idf.getType() == UUID.class) {
+                            UUID id = (UUID) idf.get(core);
+                            if (id != null && AnnihilationExecutionAgent.isAnnihilated(id)) drop = true;
+                        }
+                    } catch (Throwable ignored) {}
+                }
+                if (drop) {
+                    data[i] = null;
+                } else {
+                    data[newSize++] = core;
+                }
+            }
+            for (int i = newSize; i < size; i++) {
+                data[i] = null;
+            }
+            if (newSize != size) {
+                UnsafeHelper.putInt(list, sizeOffset, newSize);
+                UnsafeHelper.incrementArrayListModCount(list);
+            }
         } catch (Throwable ignored) {}
     }
 
@@ -509,6 +765,41 @@ public final class GenericCheatMobNeutralizer {
             return victims.contains(ref.get());
         }
         return false;
+    }
+
+    /**
+     * コントローラーやエンティティが一時的に保持する「攻撃対象（ターゲット）」フィールド名か。
+     * ボスのコントローラーが {@code target = nearestPlayer} のように戦闘対象を保持している場合でも、
+     * 別のボスの共有コントローラーと誤認しないために除外する。
+     */
+    public static boolean isCombatTargetField(String fieldName) {
+        if (fieldName == null || fieldName.isEmpty()) return false;
+        String lower = fieldName.toLowerCase(Locale.ROOT);
+        return lower.equals("target") || lower.equals("attacktarget") || lower.equals("currenttarget")
+                || lower.equals("oldtarget") || lower.equals("prevtarget") || lower.equals("lasttarget")
+                || lower.startsWith("mattacking") || lower.equals("lasthurtbymob")
+                || lower.equals("lasthurtbyplayer") || lower.equals("hurtbytarget")
+                || lower.equals("aggrotarget") || lower.equals("revengetarget")
+                || lower.equals("entitiestoattack") || lower.equals("targetstoattack")
+                || lower.equals("attacktargets");
+    }
+
+    public static boolean isCombatTargetCollectionField(String fieldName) {
+        if (fieldName == null || fieldName.isEmpty()) return false;
+        String lower = fieldName.toLowerCase(Locale.ROOT);
+        return lower.equals("entitiestoattack") || lower.equals("targetstoattack")
+                || lower.equals("attacktargets") || lower.equals("hurtentities")
+                || lower.equals("hitentities") || lower.equals("damagedentities");
+    }
+
+    private static boolean isChildEffectEntity(Entity entity, Object core, String fieldName) {
+        if (entity == null || core == null) return false;
+        if (entity instanceof net.minecraft.world.entity.LivingEntity
+                || entity instanceof net.minecraftforge.entity.PartEntity<?>) return false;
+        if (fieldName != null && fieldName.toLowerCase(Locale.ROOT).contains("other")) return false;
+        String coreMod = CallerAttribution.modOf(core.getClass());
+        String entityMod = CallerAttribution.modOf(entity.getClass());
+        return CallerAttribution.isForeign(coreMod) && Objects.equals(coreMod, entityMod);
     }
 
     /** Only an exclusive direct owner may be shut down. Unreadable ownership is rejected. */
@@ -531,11 +822,21 @@ public final class GenericCheatMobNeutralizer {
                 try {
                     field.setAccessible(true);
                     Object value = field.get(core);
+                    if (isCombatTargetCollectionField(field.getName()) && value instanceof Collection<?>) {
+                        continue;
+                    }
+                    boolean combatTargetField = isCombatTargetField(field.getName())
+                            && !(value instanceof Collection<?>)
+                            && !(value instanceof Map<?, ?>)
+                            && !(value instanceof Object[]);
+                    if (combatTargetField) {
+                        continue;
+                    }
                     if (value == target || (value instanceof Entity e && isSameEntityIdentity(e, target))) pointsBack = true;
-                    if (containsOtherEntity(value, target)) return false;
+                    if (containsOtherEntity(value, target, core, field.getName())) return false;
                     Object unwrapped = DefenseStructureAnalyzer.unwrapSingle(value);
                     if (unwrapped == target || (unwrapped instanceof Entity e && isSameEntityIdentity(e, target))) pointsBack = true;
-                    if (unwrapped != value && containsOtherEntity(unwrapped, target)) return false;
+                    if (unwrapped != value && containsOtherEntity(unwrapped, target, core, field.getName())) return false;
                     if (unwrapped instanceof UUID id) {
                         String lower = field.getName().toLowerCase(Locale.ROOT);
                         boolean matchesTarget = (rawTargetUuid != null && id.equals(rawTargetUuid))
@@ -557,16 +858,16 @@ public final class GenericCheatMobNeutralizer {
 
     static boolean containsOtherEntityObject(Object holder, Entity target) {
         if (holder == null || holder == target) return false;
-        if (containsOtherEntity(holder, target)) return true;
+        if (containsOtherEntity(holder, target, holder, null)) return true;
         for (Class<?> c = holder.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
             for (Field field : UnsafeHelper.getRealDeclaredFields(c)) {
                 if (Modifier.isStatic(field.getModifiers()) || field.getType().isPrimitive()) continue;
                 try {
                     field.setAccessible(true);
                     Object value = field.get(holder);
-                    if (containsOtherEntity(value, target)) return true;
+                    if (containsOtherEntity(value, target, holder, field.getName())) return true;
                     Object unwrapped = DefenseStructureAnalyzer.unwrapSingle(value);
-                    if (unwrapped != value && containsOtherEntity(unwrapped, target)) return true;
+                    if (unwrapped != value && containsOtherEntity(unwrapped, target, holder, field.getName())) return true;
                 } catch (Throwable ignored) {}
             }
         }
@@ -585,13 +886,23 @@ public final class GenericCheatMobNeutralizer {
     }
 
     private static boolean containsOtherEntity(Object value, Entity target) {
-        if (value instanceof Entity entity) return !isSameEntityIdentity(entity, target);
-        if (value instanceof java.lang.ref.Reference<?> ref) return containsOtherEntity(ref.get(), target);
+        return containsOtherEntity(value, target, null, null);
+    }
+
+    private static boolean containsOtherEntity(Object value, Entity target, Object core, String fieldName) {
+        if (value instanceof Entity entity) {
+            if (isSameEntityIdentity(entity, target)) return false;
+            if (isChildEffectEntity(entity, core, fieldName)) return false;
+            return true;
+        }
+        if (value instanceof java.lang.ref.Reference<?> ref) return containsOtherEntity(ref.get(), target, core, fieldName);
         if (value instanceof Collection<?> collection) {
             for (Object element : collection) {
-                if (element instanceof Entity entity && !isSameEntityIdentity(entity, target)) return true;
+                if (element instanceof Entity entity && !isSameEntityIdentity(entity, target)
+                        && !isChildEffectEntity(entity, core, fieldName)) return true;
                 if (element instanceof java.lang.ref.Reference<?> ref && ref.get() instanceof Entity entity
-                        && !isSameEntityIdentity(entity, target)) return true;
+                        && !isSameEntityIdentity(entity, target)
+                        && !isChildEffectEntity(entity, core, fieldName)) return true;
             }
         }
         if (value instanceof Map<?, ?> map) {
@@ -601,7 +912,10 @@ public final class GenericCheatMobNeutralizer {
             }
         }
         if (value instanceof Object[] array) {
-            for (Object element : array) if (element instanceof Entity entity && !isSameEntityIdentity(entity, target)) return true;
+            for (Object element : array) {
+                if (element instanceof Entity entity && !isSameEntityIdentity(entity, target)
+                        && !isChildEffectEntity(entity, core, fieldName)) return true;
+            }
         }
         return false;
     }

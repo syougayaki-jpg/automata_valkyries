@@ -42,11 +42,6 @@ public final class OmniMobsMixins {
                 cir.setReturnValue(false);
             }
         }
-
-        @Inject(method = "renderAfterEntities(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/Camera;)V", at = @At("HEAD"), require = 0)
-        private static void automata_valkyries$cleanBeforeHooksRender(com.mojang.blaze3d.vertex.PoseStack poseStack, net.minecraft.client.Camera camera, CallbackInfo ci) {
-            AnnihilationExecutionAgent.purgeDeadFlashfurs();
-        }
     }
 
     /** Metapotent Flashfur 本体（エンティティではなく、Omni-Mobs が独自に Tick する管理オブジェクト） */
@@ -199,13 +194,23 @@ public final class OmniMobsMixins {
         }
     }
 
-    /** Metapotent Flashfur Level 管理（描画ループ前の残骸パージ） */
+    /** Metapotent Flashfur Level 管理（サーバースレッド Tick 前の残骸パージと EventBus 乗っ取り遮断） */
     @Pseudo
     @Mixin(targets = "flashfur.omnimobs.entities.metapotent_flashfur.MetapotentFlashfurLevel", remap = false)
     public abstract static class Level {
-        @Inject(method = "renderMetapotentFlashfurs(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/Camera;)V", at = @At("HEAD"), require = 0)
-        private static void automata_valkyries$cleanBeforeRender(com.mojang.blaze3d.vertex.PoseStack poseStack, net.minecraft.client.Camera camera, CallbackInfo ci) {
+        @Inject(method = "tickMetapotentFlashfurs()V", at = @At("HEAD"), require = 0)
+        private static void automata_valkyries$cleanBeforeServerTick(CallbackInfo ci) {
             AnnihilationExecutionAgent.purgeDeadFlashfurs();
+        }
+
+        @Inject(method = "updateEventBus()V", at = @At("HEAD"), cancellable = true, require = 0)
+        private static void automata_valkyries$guardUpdateEventBus(CallbackInfo ci) {
+            if (!com.automatavalkyries.protect.SpecificCountermeasures.enabled()) return;
+            net.minecraftforge.eventbus.api.IEventBus bus = net.minecraftforge.common.MinecraftForge.EVENT_BUS;
+            if (bus != null && !bus.getClass().getName().endsWith("MetapotentFlashfurEventBus")) {
+                // 正規の EventBus が稼働中なら MetapotentFlashfurEventBus への置換（ServerTickEvent/LevelTickEvent 握り潰し）を阻止
+                ci.cancel();
+            }
         }
     }
 

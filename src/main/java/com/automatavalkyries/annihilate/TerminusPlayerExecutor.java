@@ -5,6 +5,8 @@ import com.automatavalkyries.mixin.LivingEntityAccessor;
 import com.automatavalkyries.network.AnnihilatedEntitiesPacket;
 import com.automatavalkyries.network.ModNetwork;
 import com.automatavalkyries.protect.flag.FlagDictionary;
+import com.automatavalkyries.protect.flag.GuardLists;
+import com.automatavalkyries.protect.flag.KillLists;
 import com.automatavalkyries.protect.flag.StateScanner;
 import com.automatavalkyries.protect.plus.EprotectPlusLink;
 import com.automatavalkyries.mixin.EntityAccessor;
@@ -48,7 +50,59 @@ public final class TerminusPlayerExecutor {
 
     private static final String DEATH_COMPLETED = "automata_valkyries:terminus_death_completed";
 
+    /**
+     * 終焉機構によって殺害されリスポーン待機中のプレイヤー個体（インスタンス単位の弱参照セット）。
+     * UUID ではなく個体インスタンス単位で保持することで、PlayerList.respawn 中に生成される新しい ServerPlayer 個体の
+     * 初期化（HP 20 設定）を妨げずに、死んだ古い個体に対してのみ getHealth()=0 / isDeadOrDying()=true を強制できる。
+     */
+    private static final java.util.Set<Player> DEAD_PLAYER_INSTANCES = java.util.Collections.synchronizedSet(
+            java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>()));
+
     private TerminusPlayerExecutor() {}
+
+    /**
+     * 指定プレイヤー個体が終焉機構により死亡確定・リスポーン待機中か判定する（Java エージェント無しでの Mixin 短絡用）。
+     */
+    public static boolean isTerminusDeadOrDying(Player player) {
+        if (player == null) return false;
+        if (DEAD_PLAYER_INSTANCES.contains(player)) return true;
+        try {
+            if (!player.level().isClientSide
+                    && player.getPersistentData().getBoolean("automata_valkyries:terminus_pending_respawn")) {
+                return true;
+            }
+        } catch (Throwable ignored) {}
+        return false;
+    }
+
+    public static void markPlayerTerminusDead(Player player) {
+        if (player != null) {
+            DEAD_PLAYER_INSTANCES.add(player);
+        }
+    }
+
+    public static void clearPlayerTerminusDead(Player player) {
+        if (player != null) {
+            DEAD_PLAYER_INSTANCES.remove(player);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public static void forceZeroHealthDirect(Player target) {
+        if (target == null) return;
+        try {
+            var healthAccessor = (net.minecraft.network.syncher.EntityDataAccessor<Object>) (Object)
+                    LivingEntityAccessor.automata_valkyries$getDataHealthId();
+            StateScanner.writeSynchedValueDirectAndStandard(target.getEntityData(), healthAccessor, 0.0F);
+        } catch (Throwable ignored) {}
+        try {
+            target.setHealth(0.0F);
+        } catch (Throwable ignored) {}
+        try {
+            target.deathTime = Math.max(target.deathTime, 19);
+            ((LivingEntityAccessor) target).automata_valkyries$setDead(true);
+        } catch (Throwable ignored) {}
+    }
 
     /**
      * プレイヤーに対して改良された絶対即死終焉処理を執行する。
@@ -64,6 +118,10 @@ public final class TerminusPlayerExecutor {
 
         if (com.automatavalkyries.protect.AgentPlayerProtection.isProtected(target)) {
             AutomataValkyries.LOGGER.info("[Terminus] Target player {} is protected by Java Agent Privilege Aegis; Terminus execution refused", target.getScoreboardName());
+            return false;
+        }
+        if (TerminusEngine.isProtectedByTinyCourage(target)) {
+            AutomataValkyries.LOGGER.info("[Terminus] refused: {} holds Tiny Courage", target.getScoreboardName());
             return false;
         }
 
@@ -90,6 +148,12 @@ public final class TerminusPlayerExecutor {
                 target.getAbilities().mayfly = false;
                 target.getAbilities().flying = false;
                 target.onUpdateAbilities();
+            } catch (Throwable ignored) {}
+
+            // 2.5. アイテム剥奪の前に TLS / ECA のインベントリ保護・無敵を先行解除
+            try {
+                com.automatavalkyries.protect.EcaLastSwordHelper.forceClearEcaAndTlsProtection(target);
+                com.automatavalkyries.protect.EcaLastSwordHelper.cleanupPlayerRestraints(target);
             } catch (Throwable ignored) {}
 
             // 3. チート防具・不死のトーテム・身代わりアイテムをフラグ辞書で準汎用剥奪 & インベントリ即時同期
@@ -127,21 +191,16 @@ public final class TerminusPlayerExecutor {
                 }
             }
 
-            // 5.5. The Last Sword / ECA / 他 MOD の拘束・保護・ヘルスロックをキル前に明示的に解除
-            //      ※ clearDefence は anchor > 0 のときのみ呼び、anchor が無い時は HP 0 書き込みを避けるため直書き解除する
-            //      ※ AnnihilationExecutionAgent.runWithEventSuppression によるイベント抑止下でも死亡後始末を確実に実行する
+            // 5.5. 準汎用の静的保護リスト（GuardLists）パージ & 個別ヘルパーによる拘束・ヘルスロック解除
             try {
+                GuardLists.purge(target);
                 com.automatavalkyries.protect.EcaLastSwordHelper.cleanupPlayerRestraints(target);
                 com.automatavalkyries.protect.EcaLastSwordHelper.releaseDeadPlayerForRespawn(target);
             } catch (Throwable ignored) {}
 
-            // 6. HP同期データおよびフィールドの強制ゼロ化 & 死亡フラグの事前設定
-            target.setHealth(0.0F);
-            try {
-                target.deathTime = 19;
-                ((LivingEntityAccessor) target).automata_valkyries$setDead(true);
-                target.getEntityData().set(LivingEntityAccessor.automata_valkyries$getDataHealthId(), 0.0F);
-            } catch (Throwable ignored) {}
+            // 6. 死亡確定マークを先行登録し、HP同期データおよびフィールドを強制ゼロ化
+            markPlayerTerminusDead(target);
+            forceZeroHealthDirect(target);
 
             // 7. （重要）プレイヤーに対しては Java エージェントの真抹殺（annihilateTargetWithAgent）を実行しない。
             //    モブ専用の真抹殺（メタポテント解体、消滅リスト登録、セクション強制切断等）はプレイヤーのリスポーン機構を破壊するため。
@@ -159,12 +218,8 @@ public final class TerminusPlayerExecutor {
             } catch (Throwable ignored) {}
 
             // 念のため死亡ステータスを確実に確定
-            try {
-                target.setHealth(0.0F);
-                target.deathTime = 19;
-                ((LivingEntityAccessor) target).automata_valkyries$setDead(true);
-                target.getEntityData().set(LivingEntityAccessor.automata_valkyries$getDataHealthId(), 0.0F);
-            } catch (Throwable ignored) {}
+            forceZeroHealthDirect(target);
+            GuardLists.purge(target);
 
             // die() の呼び出しや他 MOD の Mixin で removalReason が書き換えられていた場合、即座に null にリセットする
             // （バニラのプレイヤーは死亡画面中 isRemoved==false かつ removalReason==null でなければならず、
@@ -178,6 +233,7 @@ public final class TerminusPlayerExecutor {
 
             // キル後にも確実に保護を解除しておく（vanilla respawn 時に TLS の EntityMixin が remove を阻止しないように）
             try {
+                StateScanner.apply(target, StateScanner.RELEASE_DEAD_PLAYER, EnumSet.allOf(StateScanner.Source.class));
                 com.automatavalkyries.protect.EcaLastSwordHelper.releaseDeadPlayerForRespawn(target);
                 com.automatavalkyries.protect.EcaLastSwordHelper.cleanupPlayerRestraints(target);
             } catch (Throwable ignored) {}
@@ -191,26 +247,33 @@ public final class TerminusPlayerExecutor {
             }
             confirmed[0] = isPlayerProperlyKilled(target);
             if (!confirmed[0]) {
+                clearPlayerTerminusDead(target);
                 AutomataValkyries.LOGGER.warn("[Terminus] Player execution could not be confirmed for {} ({})", name, uuid);
                 return;
             }
 
-            // 9. 死亡パケット（CombatKillPacket）および HP=0 同期パケットの送信（死亡画面強制）
+            // 9. クライアント側での安全な死亡・消滅フラグ確定パケット送信（プレイヤー消滅は行わない）
+            //    ※ ClientboundPlayerCombatKillPacket より先に送信し、クライアント側の IMDS / ECA 防御状態を先に解除してから
+            //       DeathScreen を開かせる（MinecraftMixin.imds_deathscreen による setScreen(DeathScreen) キャンセルを防止）
             try {
                 if (target.connection != null && target.connection.connection != null && target.connection.connection.isConnected()) {
-                    target.connection.send(new ClientboundPlayerCombatKillPacket(target.getId(),
-                            Component.translatable("death.attack.automata_valkyries.terminus", name)
-                                     .withStyle(ChatFormatting.DARK_RED, ChatFormatting.BOLD)));
                     if (target.getEntityData().isDirty()) {
                         target.connection.send(new ClientboundSetEntityDataPacket(target.getId(), target.getEntityData().packDirty()));
                     }
                 }
             } catch (Throwable ignored) {}
-
-            // 9.5. クライアント側での安全な死亡・消滅フラグ確定パケット送信（プレイヤー消滅は行わない）
             try {
                 ModNetwork.CHANNEL.send(PacketDistributor.ALL.noArg(),
                         new com.automatavalkyries.network.TerminusPlayerDeathPacket(uuid, target.getId()));
+            } catch (Throwable ignored) {}
+
+            // 9.5. 死亡パケット（CombatKillPacket）の送信（死亡画面強制）
+            try {
+                if (target.connection != null && target.connection.connection != null && target.connection.connection.isConnected()) {
+                    target.connection.send(new ClientboundPlayerCombatKillPacket(target.getId(),
+                            Component.translatable("death.attack.automata_valkyries.terminus", name)
+                                     .withStyle(ChatFormatting.DARK_RED, ChatFormatting.BOLD)));
+                }
             } catch (Throwable ignored) {}
 
             // 10. 終焉演出エフェクトの発生
@@ -295,6 +358,9 @@ public final class TerminusPlayerExecutor {
 
         // 5. The Last Sword 防護チェック
         try {
+            if (EcaLastSwordHelper.hasDefenseSword(player)) {
+                return false;
+            }
             CompoundTag tag = player.getPersistentData();
             if (tag.contains("tlsIsProtected") || tag.contains("tlsWorldAnchor")) {
                 return false;
@@ -312,13 +378,59 @@ public final class TerminusPlayerExecutor {
             if (tag.contains("ecaInvulnerable") || tag.contains("ecaResurrectionTracked") || tag.contains("ecaHealthLockEnc")) {
                 return false;
             }
+            Class<?> ecaApi = Class.forName("net.eca.api.EcaAPI");
+            Object invul = ecaApi.getMethod("isInvulnerable", net.minecraft.world.entity.Entity.class).invoke(null, player);
+            if (Boolean.TRUE.equals(invul)) {
+                return false;
+            }
+            Object tracked = ecaApi.getMethod("isResurrectionTracked", net.minecraft.world.entity.Entity.class).invoke(null, player);
+            if (Boolean.TRUE.equals(tracked)) {
+                return false;
+            }
+            Class<?> healthLockClass = Class.forName("net.eca.util.health.health_lock.HealthLockManager");
+            Object lockVal = healthLockClass.getMethod("getLock", net.minecraft.world.entity.LivingEntity.class).invoke(null, player);
+            if (lockVal instanceof Number num && num.floatValue() > 0.0F) {
+                return false;
+            }
         } catch (Throwable ignored) {}
 
-        // 7. Hyperlink ノベル化チェック
+        // 7. Hyperlink ノベル化 & IMDS 神無敵チェック
         try {
+            if (com.automatavalkyries.protect.EprotectImdsCounter.isImdsProtected(player)) {
+                return false;
+            }
             var novelAccessor = EcaLastSwordHelper.getHyperlinkNovelizedAccessor();
             if (novelAccessor != null && Boolean.TRUE.equals(player.getEntityData().get(novelAccessor))) {
                 return false;
+            }
+        } catch (Throwable ignored) {}
+
+        // 8. 準汎用: StateScanner.observe による無敵・保護・復活状態の残留検査 & 防御アイテム残留検査
+        try {
+            boolean[] genericDefenseActive = {false};
+            StateScanner.observe(player, obs -> {
+                if (genericDefenseActive[0]) return;
+                if (Boolean.TRUE.equals(obs.value())
+                        && (FlagKillPredicates.protectiveOnTarget(obs.name())
+                        || FlagDictionary.is(obs.name(), FlagDictionary.Category.GUARD)
+                        || FlagDictionary.is(obs.name(), FlagDictionary.Category.REVIVE))) {
+                    genericDefenseActive[0] = true;
+                }
+            });
+            if (genericDefenseActive[0]) {
+                return false;
+            }
+            var inv = player.getInventory();
+            if (inv != null) {
+                for (ItemStack s : inv.offhand) {
+                    if (!s.isEmpty() && FlagKillPredicates.isDefensiveItem(s)) return false;
+                }
+                for (ItemStack s : inv.armor) {
+                    if (!s.isEmpty() && FlagKillPredicates.isDefensiveItem(s)) return false;
+                }
+                for (ItemStack s : inv.items) {
+                    if (!s.isEmpty() && FlagKillPredicates.isDefensiveItem(s)) return false;
+                }
             }
         } catch (Throwable ignored) {}
 
@@ -341,7 +453,8 @@ public final class TerminusPlayerExecutor {
         if (target == null) return false;
         if (level == null && target.level() instanceof ServerLevel sl) level = sl;
         if (level == null || target.level() != level || !level.getServer().isSameThread()
-                || com.automatavalkyries.protect.AgentPlayerProtection.isProtected(target)) return false;
+                || com.automatavalkyries.protect.AgentPlayerProtection.isProtected(target)
+                || TerminusEngine.isProtectedByTinyCourage(target)) return false;
         boolean wasDead = DirectRead.deadFlag(target);
         final boolean[] deathProcessed = {deathAttempted
                 ? target.getPersistentData().getBoolean(DEATH_COMPLETED) : wasDead};
@@ -364,19 +477,28 @@ public final class TerminusPlayerExecutor {
             target.invulnerableTime = 0;
             target.removeAllEffects();
 
+            // 1.5. 静的保護リストパージ & TLS/ECA の保護を先行解除してから防御アイテムを剥奪
+            try {
+                GuardLists.purge(target);
+                EcaLastSwordHelper.forceClearEcaAndTlsProtection(target);
+                EcaLastSwordHelper.cleanupPlayerRestraints(target);
+            } catch (Throwable ignored) {}
+
             // 2. 防御アイテム剥奪
             stripPlayerDefensiveItems(target);
 
-            // 3. プレイヤー用防御解除（消滅フラグは触らない）
+            // 3. プレイヤー用防御解除（全6ソース）
             try {
                 StateScanner.apply(target, StateScanner.BREAK_PLAYER_DEFENSES, EnumSet.allOf(StateScanner.Source.class));
+                StateScanner.apply(target, StateScanner.RELEASE_DEAD_PLAYER, EnumSet.allOf(StateScanner.Source.class));
             } catch (Throwable ignored) {}
 
             // 4. 外部 MOD 防護解除 & 消滅リスト保護
             neutralizeExternalModDefenses(target);
 
-            // 5. TLS & ECA & 他 MOD の拘束・保護・蘇生フラグ解除
+            // 5. 静的保護リスト再パージ & 拘束・保護・蘇生フラグ解除
             try {
+                GuardLists.purge(target);
                 EcaLastSwordHelper.cleanupPlayerRestraints(target);
                 EcaLastSwordHelper.releaseDeadPlayerForRespawn(target);
             } catch (Throwable ignored) {}
@@ -393,13 +515,9 @@ public final class TerminusPlayerExecutor {
                 }
             } catch (Throwable ignored) {}
 
-            // 7. HP ゼロ化 & 死亡フラグ設定
-            target.setHealth(0.0F);
-            try {
-                target.deathTime = Math.max(target.deathTime, 19);
-                ((LivingEntityAccessor) target).automata_valkyries$setDead(true);
-                target.getEntityData().set(LivingEntityAccessor.automata_valkyries$getDataHealthId(), 0.0F);
-            } catch (Throwable ignored) {}
+            // 7. HP ゼロ化 & 死亡フラグ設定（SynchedEntityData.itemsById 直書き併用）
+            markPlayerTerminusDead(target);
+            forceZeroHealthDirect(target);
 
             // 8. 死亡イベント発火（die() のみ呼び出し、kill() は絶対に呼ばない）
             // A forced HP/dead flag is not proof that die() completed. Retry a rejected death,
@@ -420,6 +538,9 @@ public final class TerminusPlayerExecutor {
                 } catch (Throwable ignored) {}
             }
 
+            forceZeroHealthDirect(target);
+            GuardLists.purge(target);
+
             // die() 後に removalReason が書き換えられていないか再チェック・修復
             try {
                 EntityAccessor accessor = (EntityAccessor) target;
@@ -433,13 +554,17 @@ public final class TerminusPlayerExecutor {
             //    毎 Tick 作り直し、リスポーンボタンが有効になる 20 Tick に届かず押せなくなる（2026-10-02）
             if (!wasDead && target instanceof ServerPlayer sp) {
                 try {
+                    ModNetwork.CHANNEL.send(PacketDistributor.ALL.noArg(),
+                            new com.automatavalkyries.network.TerminusPlayerDeathPacket(sp.getUUID(), sp.getId()));
+                } catch (Throwable ignored) {}
+                try {
                     if (sp.connection != null && sp.connection.connection != null && sp.connection.connection.isConnected()) {
-                        sp.connection.send(new ClientboundPlayerCombatKillPacket(sp.getId(),
-                                Component.translatable("death.attack.automata_valkyries.terminus", sp.getScoreboardName())
-                                         .withStyle(ChatFormatting.DARK_RED, ChatFormatting.BOLD)));
                         if (sp.getEntityData().isDirty()) {
                             sp.connection.send(new ClientboundSetEntityDataPacket(sp.getId(), sp.getEntityData().packDirty()));
                         }
+                        sp.connection.send(new ClientboundPlayerCombatKillPacket(sp.getId(),
+                                Component.translatable("death.attack.automata_valkyries.terminus", sp.getScoreboardName())
+                                         .withStyle(ChatFormatting.DARK_RED, ChatFormatting.BOLD)));
                     }
                 } catch (Throwable ignored) {}
             }
@@ -457,66 +582,293 @@ public final class TerminusPlayerExecutor {
         return verified;
     }
 
-    /**
-     * 不死のトーテムやチート防具（Infinity Armor等）、およびインベントリ・アクセサリ内の
-     * 全身代わり・防御アイテムをフラグ辞書により準汎用的に検知して完全剥奪・無力化する。
-     */
-    private static void stripPlayerDefensiveItems(Player player) {
+    @org.jetbrains.annotations.Nullable
+    private static final Field NON_NULL_LIST_DELEGATE = findNonNullListDelegateField();
+
+    @org.jetbrains.annotations.Nullable
+    private static Field findNonNullListDelegateField() {
+        for (Field f : net.minecraft.core.NonNullList.class.getDeclaredFields()) {
+            if (!java.lang.reflect.Modifier.isStatic(f.getModifiers()) && List.class.isAssignableFrom(f.getType())) {
+                try {
+                    f.setAccessible(true);
+                    return f;
+                } catch (Throwable ignored) {}
+            }
+        }
+        return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void forceWriteNonNullList(net.minecraft.core.NonNullList<ItemStack> list, int index, ItemStack value) {
+        if (list == null || index < 0 || index >= list.size()) return;
         try {
-            // メイン手・オフ手
-            player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, ItemStack.EMPTY);
-            player.setItemInHand(net.minecraft.world.InteractionHand.OFF_HAND, ItemStack.EMPTY);
-
-            // 防具スロット（頭、胸、脚、足）
-            for (net.minecraft.world.entity.EquipmentSlot slot : net.minecraft.world.entity.EquipmentSlot.values()) {
-                if (slot.getType() == net.minecraft.world.entity.EquipmentSlot.Type.ARMOR) {
-                    player.setItemSlot(slot, ItemStack.EMPTY);
+            if (NON_NULL_LIST_DELEGATE != null) {
+                Object raw = NON_NULL_LIST_DELEGATE.get(list);
+                if (raw instanceof List<?> backing && index < backing.size()) {
+                    ((List<ItemStack>) backing).set(index, value);
                 }
             }
-
-            // インベントリ全体（36スロット）内の身代わり・不死・防御アイテム（Totem等）を走査して消去
-            for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
-                ItemStack stack = player.getInventory().getItem(i);
-                if (!stack.isEmpty() && FlagKillPredicates.isDefensiveItem(stack)) {
-                    player.getInventory().setItem(i, ItemStack.EMPTY);
-                }
-            }
-
-            // Curios API / アクセサリー MOD のインベントリ走査（リフレクションによる準汎用対応）
-            try {
-                Class<?> curiosApi = Class.forName("top.theillusivec4.curios.api.CuriosApi");
-                java.lang.reflect.Method getCuriosHelper = curiosApi.getMethod("getCuriosHelper");
-                Object helper = getCuriosHelper.invoke(null);
-                if (helper != null) {
-                    java.lang.reflect.Method getCuriosHandler = helper.getClass().getMethod("getCuriosHandler", net.minecraft.world.entity.LivingEntity.class);
-                    Object lazyOpt = getCuriosHandler.invoke(helper, player);
-                    if (lazyOpt instanceof net.minecraftforge.common.util.LazyOptional<?> lazy) {
-                        lazy.ifPresent(handler -> {
-                            try {
-                                java.lang.reflect.Method getEquippedCurios = handler.getClass().getMethod("getEquippedCurios");
-                                Object itemHandler = getEquippedCurios.invoke(handler);
-                                if (itemHandler instanceof net.minecraftforge.items.IItemHandlerModifiable modifiable) {
-                                    for (int slot = 0; slot < modifiable.getSlots(); slot++) {
-                                        ItemStack curio = modifiable.getStackInSlot(slot);
-                                        if (!curio.isEmpty() && FlagKillPredicates.isDefensiveItem(curio)) {
-                                            modifiable.setStackInSlot(slot, ItemStack.EMPTY);
-                                        }
-                                    }
-                                }
-                            } catch (Throwable ignored) {}
-                        });
-                    }
-                }
-            } catch (Throwable ignored) {}
-
-            player.containerMenu.broadcastChanges();
-            player.inventoryMenu.broadcastChanges();
+        } catch (Throwable ignored) {}
+        try {
+            list.set(index, value);
         } catch (Throwable ignored) {}
     }
 
     /**
+     * 不死のトーテムやチート防具（Infinity Armor等）、およびインベントリ・アクセサリ内の
+     * 全身代わり・防御アイテムをフラグ辞書＋バイトコード解析により準汎用的に検知して完全剥奪・無力化する。
+     */
+    public static void stripPlayerDefensiveItems(Player player) {
+        EprotectPlusLink.runWithCloakedStack(() -> {
+            try {
+                // インベントリ保護（PlayerMixin / InventoryMixin）および静的保護リストを無効化してから剥奪する
+                GuardLists.purge(player);
+                EcaLastSwordHelper.forceClearEcaAndTlsProtection(player);
+                com.automatavalkyries.protect.EprotectImdsCounter.counter(player);
+
+                var inv = player.getInventory();
+                if (inv != null) {
+                    // NonNullList の内部バッキング List への直接書き込みで、Java エージェント無しでも Mixin のキャンセルを完全バイパス
+                    for (int i = 0; i < inv.offhand.size(); i++) {
+                        forceWriteNonNullList(inv.offhand, i, ItemStack.EMPTY);
+                    }
+                    for (int i = 0; i < inv.armor.size(); i++) {
+                        forceWriteNonNullList(inv.armor, i, ItemStack.EMPTY);
+                    }
+                    for (int i = 0; i < inv.items.size(); i++) {
+                        ItemStack stack = inv.items.get(i);
+                        if (i == inv.selected || (!stack.isEmpty() && FlagKillPredicates.isDefensiveItem(stack))) {
+                            forceWriteNonNullList(inv.items, i, ItemStack.EMPTY);
+                        }
+                    }
+                }
+
+                // メイン手・オフ手
+                player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, ItemStack.EMPTY);
+                player.setItemInHand(net.minecraft.world.InteractionHand.OFF_HAND, ItemStack.EMPTY);
+
+                // 防具スロット（頭、胸、脚、足）
+                for (net.minecraft.world.entity.EquipmentSlot slot : net.minecraft.world.entity.EquipmentSlot.values()) {
+                    if (slot.getType() == net.minecraft.world.entity.EquipmentSlot.Type.ARMOR) {
+                        player.setItemSlot(slot, ItemStack.EMPTY);
+                    }
+                }
+
+                // インベントリ全体（36スロット）内の身代わり・不死・防御アイテム（Totem、Last Sword 等）を走査して消去
+                if (inv != null) {
+                    for (int i = 0; i < inv.getContainerSize(); i++) {
+                        ItemStack stack = inv.getItem(i);
+                        if (!stack.isEmpty() && FlagKillPredicates.isDefensiveItem(stack)) {
+                            inv.setItem(i, ItemStack.EMPTY);
+                        }
+                    }
+                }
+
+                // カーソル保持アイテム（GUI操作中の持ち運びスロット）も検査
+                try {
+                    if (player.containerMenu != null) {
+                        ItemStack carried = player.containerMenu.getCarried();
+                        if (!carried.isEmpty() && FlagKillPredicates.isDefensiveItem(carried)) {
+                            player.containerMenu.setCarried(ItemStack.EMPTY);
+                        }
+                    }
+                    if (player.inventoryMenu != null) {
+                        ItemStack carried = player.inventoryMenu.getCarried();
+                        if (!carried.isEmpty() && FlagKillPredicates.isDefensiveItem(carried)) {
+                            player.inventoryMenu.setCarried(ItemStack.EMPTY);
+                        }
+                    }
+                } catch (Throwable ignored) {}
+
+                // Curios API / アクセサリー MOD のインベントリ走査（リフレクションによる準汎用対応）
+                try {
+                    Class<?> curiosApi = Class.forName("top.theillusivec4.curios.api.CuriosApi");
+                    java.lang.reflect.Method getCuriosHelper = curiosApi.getMethod("getCuriosHelper");
+                    Object helper = getCuriosHelper.invoke(null);
+                    if (helper != null) {
+                        java.lang.reflect.Method getCuriosHandler = helper.getClass().getMethod("getCuriosHandler", net.minecraft.world.entity.LivingEntity.class);
+                        Object lazyOpt = getCuriosHandler.invoke(helper, player);
+                        if (lazyOpt instanceof net.minecraftforge.common.util.LazyOptional<?> lazy) {
+                            lazy.ifPresent(handler -> {
+                                try {
+                                    java.lang.reflect.Method getEquippedCurios = handler.getClass().getMethod("getEquippedCurios");
+                                    Object itemHandler = getEquippedCurios.invoke(handler);
+                                    if (itemHandler instanceof net.minecraftforge.items.IItemHandlerModifiable modifiable) {
+                                        for (int slot = 0; slot < modifiable.getSlots(); slot++) {
+                                            ItemStack curio = modifiable.getStackInSlot(slot);
+                                            if (!curio.isEmpty() && FlagKillPredicates.isDefensiveItem(curio)) {
+                                                modifiable.setStackInSlot(slot, ItemStack.EMPTY);
+                                            }
+                                        }
+                                    }
+                                } catch (Throwable ignored) {}
+                                try {
+                                    java.lang.reflect.Method getCurios = handler.getClass().getMethod("getCurios");
+                                    Object curiosMap = getCurios.invoke(handler);
+                                    if (curiosMap instanceof Map<?, ?> map) {
+                                        for (Object stacksHandler : map.values()) {
+                                            if (stacksHandler == null) continue;
+                                            for (String getterName : new String[]{"getStacks", "getCosmeticStacks"}) {
+                                                try {
+                                                    Object dynStacks = stacksHandler.getClass().getMethod(getterName).invoke(stacksHandler);
+                                                    if (dynStacks instanceof net.minecraftforge.items.IItemHandlerModifiable modifiable) {
+                                                        for (int slot = 0; slot < modifiable.getSlots(); slot++) {
+                                                            ItemStack curio = modifiable.getStackInSlot(slot);
+                                                            if (!curio.isEmpty() && FlagKillPredicates.isDefensiveItem(curio)) {
+                                                                modifiable.setStackInSlot(slot, ItemStack.EMPTY);
+                                                            }
+                                                        }
+                                                    }
+                                                } catch (Throwable ignored) {}
+                                            }
+                                        }
+                                    }
+                                } catch (Throwable ignored) {}
+                            });
+                        }
+                    }
+                } catch (Throwable ignored) {}
+
+                // アイテム剥奪後に再度 静的保護リストパージ & StateScanner & IMDS 神無敵を解除確定
+                GuardLists.purge(player);
+                StateScanner.apply(player, StateScanner.BREAK_PLAYER_DEFENSES, EnumSet.allOf(StateScanner.Source.class));
+                com.automatavalkyries.protect.EprotectImdsCounter.counter(player);
+
+                if (!player.level().isClientSide) {
+                    player.containerMenu.broadcastChanges();
+                    player.inventoryMenu.broadcastChanges();
+                }
+            } catch (Throwable ignored) {}
+        });
+    }
+
+    /**
+     * エレノアの段階 6 ペナルティ（準汎用抹殺・防御解体）の統合入口（プレイヤー・敵対エンティティ両対応）。
+     * <p>
+     * 対象が {@link Player} の場合は {@link #breakPlayerDefensesOnly(ServerLevel, net.minecraft.world.entity.Entity, Player)} で
+     * ワールド消去・持ち物剥奪・ゲームモード変更をせずに無敵・防御のみを解体する。
+     * 対象が敵対エンティティ（非プレイヤー）の場合は、オーバーロード T4 兵装の抹殺（{@link AnnihilationExecutionAgent#annihilateEntity}
+     * ＋ {@link com.automatavalkyries.item.SuperKillStickItem#refuseRejoin}）と同水準の準汎用抹殺・防御解体を執行する。
+     * </p>
+     *
+     * @param level    サーバーワールド
+     * @param attacker 発動者（エレノア等の MOB またはプレイヤー、null 可）
+     * @param target   対象エンティティ（プレイヤーまたは敵対エンティティ）
+     * @return 処理を実行したか
+     */
+    public static boolean executePenaltyTier6(ServerLevel level, @org.jetbrains.annotations.Nullable net.minecraft.world.entity.Entity attacker, net.minecraft.world.entity.Entity target) {
+        return breakTargetDefensesOnly(level, attacker, target);
+    }
+
+    /**
+     * エレノアの段階 6 ペナルティ（準汎用抹殺・防御解体）用入口（プレイヤー・敵対エンティティ両対応）。
+     * <ul>
+     *   <li>対象が {@link Player} の場合：{@link #breakPlayerDefensesOnly(ServerLevel, net.minecraft.world.entity.Entity, Player)} へ委譲し、
+     *       インベントリ剥奪・ゲームモード変更・ワールド消去・再入場拒否を行わずに無敵・保護リスト・チート防御のみを解体する。</li>
+     *   <li>対象が敵対エンティティ（非プレイヤー）の場合：{@link IsolationDamageEngine#executeEntityTier6Annihilation} へ委譲し、
+     *       段階 6 防御解体（{@link IsolationDamageEngine#breakEntityDefenses}）＋超絶抹殺（{@link AnnihilationExecutionAgent#annihilateEntity}）
+     *       ＋再入場拒否（{@link com.automatavalkyries.item.SuperKillStickItem#refuseRejoin}）を一括執行する。</li>
+     * </ul>
+     */
+    public static boolean breakTargetDefensesOnly(ServerLevel level, @org.jetbrains.annotations.Nullable net.minecraft.world.entity.Entity attacker, net.minecraft.world.entity.Entity target) {
+        if (target == null || level == null || target.level() != level
+                || !level.getServer().isSameThread() || target == attacker) return false;
+        if (target instanceof com.automatavalkyries.protect.IEprotected p && !p.isTerminusTestTarget()) {
+            return false;
+        }
+        if (target instanceof com.automatavalkyries.entity.ValkyrieEntity) {
+            return false;
+        }
+        if (target instanceof Player player) {
+            return breakPlayerDefensesOnly(level, attacker, player);
+        }
+        return IsolationDamageEngine.executeEntityTier6Annihilation(level, attacker, target, false);
+    }
+
+    /**
+     * エレノアの段階 6 ペナルティ（準汎用抹殺・防御解体）のプレイヤー用入口。
+     * <p>
+     * プレイヤーの無敵フラグ・保護リスト・チート防御状態（{@link GuardLists}、{@link StateScanner#BREAK_PLAYER_DEFENSES}、
+     * ECA / The Last Sword / IMDS / No-Sugar 等）および無敵時間・保護バフのみを解体して「次の攻撃で普通に倒せる状態」にする。
+     * </p>
+     * <ul>
+     *   <li>インベントリ・装備・アクセサリーは一切剥奪しない（{@link #stripPlayerDefensiveItems(Player)} は呼ばない）。</li>
+     *   <li>ゲームモードは変更しない（クリエイティブ剥奪を行わない）。</li>
+     *   <li>ワールドからの直接消去（{@code AnnihilationExecutionAgent}）や再入場拒否（{@code SuperKillStickItem.refuseRejoin}）は行わない。</li>
+     *   <li>この時点では即死（{@code forceZeroHealthDirect} / {@code die()}）させず、直後の攻撃や段階 7 で倒せるようにする。</li>
+     * </ul>
+     *
+     * @param level    サーバーワールド
+     * @param attacker 発動者（エレノア等の MOB またはプレイヤー、null 可）
+     * @param target   対象プレイヤー
+     * @return 防御解体を適用したか
+     */
+    public static boolean breakPlayerDefensesOnly(ServerLevel level, @org.jetbrains.annotations.Nullable net.minecraft.world.entity.Entity attacker, Player target) {
+        if (target == null || level == null || target.level() != level
+                || !level.getServer().isSameThread()) return false;
+        if (com.automatavalkyries.protect.AgentPlayerProtection.isProtected(target)
+                || IsolationDamageEngine.isSafetyValveBypassed(target, 6)) {
+            return false;
+        }
+
+        // 段階 6（抹殺・防御解体）到達を記録し、隔絶ダメージによる確殺（Phase 2 致死）を解禁する
+        IsolationDamageEngine.enablePlayerTier6Kill(target);
+
+        EprotectPlusLink.runWithCloakedStack(() -> {
+            try {
+                // 1. 無敵時間のゼロ化 & 無敵アビリティの解除（クリエイティブ・スペクテイターでなければ invulnerable を降ろす）
+                target.invulnerableTime = 0;
+                if (!target.isCreative() && !target.isSpectator()) {
+                    try {
+                        target.getAbilities().invulnerable = false;
+                        target.onUpdateAbilities();
+                    } catch (Throwable ignored) {}
+                }
+
+                // 2. 準汎用の静的保護リスト（GuardLists）パージ & 個別 MOD（TLS / ECA / IMDS）の無敵・ヘルスロック解除
+                try {
+                    GuardLists.purge(target);
+                    EcaLastSwordHelper.forceClearEcaAndTlsProtection(target);
+                    EcaLastSwordHelper.cleanupPlayerRestraints(target);
+                    com.automatavalkyries.protect.EprotectImdsCounter.counter(target);
+                } catch (Throwable ignored) {}
+
+                // 3. StateScanner によるプレイヤー用防御・復活許可の汎用剥奪（全 6 ソース）
+                try {
+                    StateScanner.apply(target, StateScanner.BREAK_PLAYER_DEFENSES, EnumSet.allOf(StateScanner.Source.class));
+                } catch (Throwable ignored) {}
+
+                // 4. PersistentData 内の無敵・神モード・防御タグの除去
+                try {
+                    CompoundTag tag = target.getPersistentData();
+                    for (String key : new ArrayList<>(tag.getAllKeys())) {
+                        if (FlagKillPredicates.isDefensiveField(key)) {
+                            tag.remove(key);
+                        }
+                    }
+                } catch (Throwable ignored) {}
+
+                // 5. 外部 MOD（No-Sugar 等）のチートアビリティ解除
+                neutralizeExternalModDefenses(target);
+
+                // 6. 防御・耐性系ポーション効果の解除
+                for (MobEffectInstance effect : new ArrayList<>(target.getActiveEffects())) {
+                    var effectKey = net.minecraft.core.registries.BuiltInRegistries.MOB_EFFECT.getKey(effect.getEffect());
+                    if (effectKey != null && FlagKillPredicates.protectiveOnTarget(effectKey.getPath())) {
+                        target.removeEffect(effect.getEffect());
+                    }
+                }
+
+                // 7. 再度 GuardLists パージを確定
+                GuardLists.purge(target);
+            } catch (Throwable ignored) {}
+        });
+        return true;
+    }
+
+    /**
      * 外部 MOD（No-Sugar 等）のチートアビリティ解除メソッド（SnackProtector.resetAbilities 等）を
-     * リフレクションを用いて準汎用的に執行し、同時に静的消滅リストからプレイヤー UUID を確実に保護する。
+     * リフレクションを用いて準汎用的に執行し、同時に静的消滅リスト・保護リストからプレイヤー UUID を確実に除去する。
      * ※プレイヤーに対して消滅パケット（EraseEntityPacket: true）を送ると、リスポーン時に
      *   クライアント側で cancel addEntity されてしまい停止（ゴースト化）するため、絶対に送信してはならない。
      */
@@ -524,7 +876,13 @@ public final class TerminusPlayerExecutor {
         if (target == null) return;
         UUID uuid = target.getUUID();
 
-        // 1. No-Sugar のアビリティ・飛行解除メソッド（SnackProtector.resetAbilities）を強制呼出し
+        // 1. 準汎用: 外部 MOD の無敵・保護・蘇生リスト（GuardLists）とキル・消滅リスト（KillLists）の双方からパージ
+        try {
+            GuardLists.purge(target);
+            KillLists.purge(target);
+        } catch (Throwable ignored) {}
+
+        // 2. No-Sugar のアビリティ・飛行解除メソッド（SnackProtector.resetAbilities）を強制呼出し
         try {
             Class<?> protectorClass = Class.forName("com.test.nosugar.additional.SnackArmor$SnackProtector");
             Method reset = protectorClass.getDeclaredMethod("resetAbilities", Player.class);
@@ -532,10 +890,10 @@ public final class TerminusPlayerExecutor {
             reset.invoke(null, target);
         } catch (Throwable ignored) {}
 
-        // 2. 外部 MOD のキル・消滅管理リストからプレイヤー UUID を確実に除外
+        // 3. 外部 MOD のキル・消滅管理リストからプレイヤー UUID を確実に除外
         EprotectPlusLink.clearPlayerFromKillModLists(uuid);
 
-        // 3. No-Sugar の消滅パケット解除（EraseEntityPacket: false）を送信してクライアント側の消滅状態を事前解除
+        // 4. No-Sugar の消滅パケット解除（EraseEntityPacket: false）を送信してクライアント側の消滅状態を事前解除
         sendModErasePacket(uuid, false);
     }
 
@@ -585,6 +943,9 @@ public final class TerminusPlayerExecutor {
 
         @net.minecraftforge.eventbus.api.SubscribeEvent(priority = net.minecraftforge.eventbus.api.EventPriority.HIGHEST)
         public static void onPlayerClone(net.minecraftforge.event.entity.player.PlayerEvent.Clone event) {
+            clearPlayerTerminusDead(event.getOriginal());
+            IsolationDamageEngine.clearState(event.getOriginal());
+            IsolationDamageEngine.clearState(event.getEntity());
             if (!(event.getEntity() instanceof ServerPlayer player)) return;
             handlePlayerRespawnOrClone(player);
         }
@@ -592,16 +953,57 @@ public final class TerminusPlayerExecutor {
         @net.minecraftforge.eventbus.api.SubscribeEvent(priority = net.minecraftforge.eventbus.api.EventPriority.HIGHEST)
         public static void onLivingDeath(net.minecraftforge.event.entity.living.LivingDeathEvent event) {
             if (event.getEntity() instanceof ServerPlayer player) {
+                GuardLists.purge(player);
+                com.automatavalkyries.protect.EprotectImdsCounter.counter(player);
                 com.automatavalkyries.protect.EcaLastSwordHelper.cleanupPlayerRestraints(player);
             }
         }
 
+        @net.minecraftforge.eventbus.api.SubscribeEvent(priority = net.minecraftforge.eventbus.api.EventPriority.HIGHEST)
+        public static void onPlayerLoggedIn(net.minecraftforge.event.entity.player.PlayerEvent.PlayerLoggedInEvent event) {
+            if (!(event.getEntity() instanceof ServerPlayer player)) return;
+            if (player.getPersistentData().getBoolean("automata_valkyries:terminus_pending_respawn") || !DirectRead.hasHealth(player)) {
+                try {
+                    // リログ時はバニラの dead フィールドが false に初期化されており、ECA 等が NBT から無敵を復元するため即座に再確定する
+                    markPlayerTerminusDead(player);
+                    GuardLists.purge(player);
+                    EcaLastSwordHelper.forceClearEcaAndTlsProtection(player);
+                    EcaLastSwordHelper.cleanupPlayerRestraints(player);
+                    stripPlayerDefensiveItems(player);
+                    StateScanner.apply(player, StateScanner.BREAK_PLAYER_DEFENSES, EnumSet.allOf(StateScanner.Source.class));
+                    StateScanner.apply(player, StateScanner.RELEASE_DEAD_PLAYER, EnumSet.allOf(StateScanner.Source.class));
+                    forceZeroHealthDirect(player);
+                    try {
+                        EntityAccessor accessor = (EntityAccessor) player;
+                        if (accessor.automata_valkyries$getRemovalReason() != null) {
+                            accessor.automata_valkyries$setRemovalReason(null);
+                        }
+                    } catch (Throwable ignored) {}
+                    if (player.connection != null && player.connection.connection != null && player.connection.connection.isConnected()) {
+                        if (player.getEntityData().isDirty()) {
+                            player.connection.send(new ClientboundSetEntityDataPacket(player.getId(), player.getEntityData().packDirty()));
+                        }
+                    }
+                    ModNetwork.CHANNEL.send(PacketDistributor.ALL.noArg(),
+                            new com.automatavalkyries.network.TerminusPlayerDeathPacket(player.getUUID(), player.getId()));
+                    if (player.connection != null && player.connection.connection != null && player.connection.connection.isConnected()) {
+                        player.connection.send(new ClientboundPlayerCombatKillPacket(player.getId(),
+                                Component.translatable("death.attack.automata_valkyries.terminus", player.getScoreboardName())
+                                         .withStyle(ChatFormatting.DARK_RED, ChatFormatting.BOLD)));
+                    }
+                } catch (Throwable ignored) {}
+            }
+        }
+
         private static void handlePlayerRespawnOrClone(ServerPlayer player) {
+            clearPlayerTerminusDead(player);
+            IsolationDamageEngine.clearState(player);
             UUID uuid = player.getUUID();
             player.getPersistentData().remove("automata_valkyries:terminus_pending_respawn");
             player.getPersistentData().remove(DEATH_COMPLETED);
             try {
                 // 1. サーバー側の外部 MOD 消滅リスト（erasedUuids等）から確実に除外
+                KillLists.purge(player);
                 EprotectPlusLink.clearPlayerFromKillModLists(uuid);
 
                 // 2. プレイヤー自身の防御・消滅フラグの完全初期化
@@ -627,20 +1029,58 @@ public final class TerminusPlayerExecutor {
 
         @net.minecraftforge.eventbus.api.SubscribeEvent
         public static void onPlayerTick(net.minecraftforge.event.TickEvent.PlayerTickEvent event) {
-            if (event.phase != net.minecraftforge.event.TickEvent.Phase.END) return;
             if (!(event.player instanceof ServerPlayer player)) return;
+
+            boolean isDeadState = player.getPersistentData().getBoolean("automata_valkyries:terminus_pending_respawn")
+                    || isTerminusDeadOrDying(player)
+                    || IsolationDamageEngine.isIsolatedDead(player)
+                    || !DirectRead.hasHealth(player)
+                    || player.deathTime > 0;
+
+            if (event.phase == net.minecraftforge.event.TickEvent.Phase.START) {
+                if (isDeadState) {
+                    try {
+                        com.automatavalkyries.protect.EprotectImdsCounter.counter(player);
+                        GuardLists.purge(player);
+                        EcaLastSwordHelper.forceClearEcaAndTlsProtection(player);
+                    } catch (Throwable ignored) {}
+                }
+                return;
+            }
+
+            if (event.phase != net.minecraftforge.event.TickEvent.Phase.END) return;
 
             // 終焉執行後リスポーン待ちのプレイヤーのキル状態判定 & 異常があれば自動修復
             if (player.getPersistentData().getBoolean("automata_valkyries:terminus_pending_respawn")) {
+                try {
+                    markPlayerTerminusDead(player);
+                    com.automatavalkyries.protect.EprotectImdsCounter.counter(player);
+                    GuardLists.purge(player);
+                    EcaLastSwordHelper.forceClearEcaAndTlsProtection(player);
+                    if (player.getPersistentData().getBoolean(DEATH_COMPLETED)) {
+                        forceZeroHealthDirect(player);
+                    }
+                    EntityAccessor accessor = (EntityAccessor) player;
+                    if (accessor.automata_valkyries$getRemovalReason() != null) {
+                        accessor.automata_valkyries$setRemovalReason(null);
+                    }
+                } catch (Throwable ignored) {}
                 if (player.tickCount % 20 == 0 && !isPlayerProperlyKilled(player)) {
                     verifyAndRemediatePlayerDeath(player.serverLevel(), player);
                 }
                 return;
             }
 
-            // 死亡中のプレイヤーに万一 removalReason が付いていたら null に戻しておく（バニラリスポーン保証）
-            if (!DirectRead.hasHealth(player) || player.deathTime > 0) {
+            // 死亡中（段階 6 の抹殺等を含む）のプレイヤーに IMDS の inventoryTick 蘇生や removalReason が付いていたら解除しておく（バニラリスポーン保証）
+            if (isDeadState) {
                 try {
+                    com.automatavalkyries.protect.EprotectImdsCounter.counter(player);
+                    GuardLists.purge(player);
+                    EcaLastSwordHelper.forceClearEcaAndTlsProtection(player);
+                    EcaLastSwordHelper.releaseDeadPlayerForRespawn(player);
+                    if (isTerminusDeadOrDying(player) || IsolationDamageEngine.isIsolatedDead(player)) {
+                        forceZeroHealthDirect(player);
+                    }
                     EntityAccessor accessor = (EntityAccessor) player;
                     if (accessor.automata_valkyries$getRemovalReason() != null) {
                         accessor.automata_valkyries$setRemovalReason(null);

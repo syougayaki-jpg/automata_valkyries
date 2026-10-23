@@ -5,9 +5,13 @@ import com.automatavalkyries.annihilate.AnnihilationExecutionAgent;
 import com.automatavalkyries.annihilate.MadnessAnnihilation;
 import com.automatavalkyries.mixin.EntityAccessor;
 import com.automatavalkyries.mixin.EntityLookupAccessor;
+import com.automatavalkyries.mixin.LivingEntityAccessor;
 import com.automatavalkyries.mixin.client.ClientLevelAccessor;
 import com.automatavalkyries.mixin.client.TransientEntitySectionManagerAccessor;
+import com.automatavalkyries.protect.DirectRead;
+import com.automatavalkyries.protect.EcaLastSwordHelper;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.DeathScreen;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.entity.EntityInLevelCallback;
@@ -16,6 +20,8 @@ import net.minecraft.world.level.entity.EntitySectionStorage;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraftforge.entity.PartEntity;
+import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
@@ -70,7 +76,12 @@ public final class ClientAnnihilation {
                 forceRemove(level, entity);
                 continue;
             }
-            level.removeEntity(id, Entity.RemovalReason.DISCARDED);
+            AnnihilationExecutionAgent.runWithHyperlinkSpecialRemove(() -> {
+                if (entity != null) {
+                    AnnihilationExecutionAgent.evictHyperlinkShadowStructures(level, entity, id, MadnessAnnihilation.uuid(entity));
+                }
+                level.removeEntity(id, Entity.RemovalReason.DISCARDED);
+            });
         }
 
         Set<UUID> uuidSet = new HashSet<>(uuids);
@@ -85,9 +96,13 @@ public final class ClientAnnihilation {
             forceRemove(level, entity);
         }
 
-        // Metapotent Flashfur 本体のメモリおよび残骸レンダラーをクライアント側でも即座にパージ
-        AnnihilationExecutionAgent.purgeDeadFlashfurs();
-        AnnihilationExecutionAgent.wipeFlashfurLevelMemory();
+        // クライアント専用環境（リモート接続時）のみ Flashfur Level メモリをクライアント側でパージ
+        // （シングルプレイの統合サーバー環境では Server thread と metapotentFlashfurList を共有するため、
+        //   Render thread から ArrayList.size を縮小すると tickMetapotentFlashfurs の Iterator と競合する）
+        if (!mc.hasSingleplayerServer()) {
+            AnnihilationExecutionAgent.purgeDeadFlashfurs();
+            AnnihilationExecutionAgent.wipeFlashfurLevelMemory();
+        }
 
         // 自プレイヤーが終焉対象に含まれている場合、消去ではなく死亡・消滅フラグを確定して DeathScreen を安全に表示
         if (mc.player != null && (uuidSet.contains(mc.player.getUUID()) || idSet.contains(mc.player.getId()))) {
@@ -95,25 +110,68 @@ public final class ClientAnnihilation {
         }
     }
 
+    public static void sanitizeDeadLocalPlayer(net.minecraft.world.entity.player.Player player) {
+        if (player == null
+                || com.automatavalkyries.protect.AgentPlayerProtection.isProtected(player)
+                || com.automatavalkyries.annihilate.TerminusEngine.isProtectedByTinyCourage(player)) return;
+        try {
+            com.automatavalkyries.annihilate.TerminusPlayerExecutor.markPlayerTerminusDead(player);
+            com.automatavalkyries.protect.flag.GuardLists.purge(player);
+            if (player.getPersistentData().getBoolean("automata_valkyries:terminus_pending_respawn")) {
+                com.automatavalkyries.annihilate.TerminusPlayerExecutor.stripPlayerDefensiveItems(player);
+            }
+            com.automatavalkyries.protect.EprotectImdsCounter.counter(player);
+            EcaLastSwordHelper.forceClearEcaAndTlsProtection(player);
+            EcaLastSwordHelper.cleanupPlayerRestraints(player);
+            com.automatavalkyries.protect.flag.StateScanner.apply(player,
+                    com.automatavalkyries.protect.flag.StateScanner.BREAK_PLAYER_DEFENSES,
+                    java.util.EnumSet.allOf(com.automatavalkyries.protect.flag.StateScanner.Source.class));
+            com.automatavalkyries.protect.flag.StateScanner.apply(player,
+                    com.automatavalkyries.protect.flag.StateScanner.RELEASE_DEAD_PLAYER,
+                    java.util.EnumSet.allOf(com.automatavalkyries.protect.flag.StateScanner.Source.class));
+            com.automatavalkyries.annihilate.TerminusPlayerExecutor.forceZeroHealthDirect(player);
+        } catch (Throwable ignored) {}
+    }
+
     public static void handlePlayerDeath(UUID uuid) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player != null && mc.player.getUUID().equals(uuid)) {
             mc.execute(() -> {
                 try {
-                    // BREAK_TARGET（死亡・消滅の印を立て、getter の無い setter も呼ぶ）はプレイヤーに使わない。UUID で持つ印が
-                    // リスポーン後の新しい LocalPlayer にも残り、死亡扱いのまま WASD が効かなくなる（2026-10-03）。サーバー側と同じく守りだけ下ろす
-                    com.automatavalkyries.protect.flag.StateScanner.apply(mc.player,
-                            com.automatavalkyries.protect.flag.StateScanner.BREAK_PLAYER_DEFENSES,
-                            java.util.EnumSet.allOf(com.automatavalkyries.protect.flag.StateScanner.Source.class));
-                    mc.player.setHealth(0.0F);
-                    mc.player.deathTime = 19;
-                    if (!(mc.screen instanceof net.minecraft.client.gui.screens.DeathScreen)) {
-                        mc.setScreen(new net.minecraft.client.gui.screens.DeathScreen(
+                    if (mc.player == null || com.automatavalkyries.annihilate.TerminusEngine.isProtectedByTinyCourage(mc.player)) return;
+                    sanitizeDeadLocalPlayer(mc.player);
+                    if (!(mc.screen instanceof DeathScreen)) {
+                        mc.setScreen(new DeathScreen(
                                 net.minecraft.network.chat.Component.translatable("death.attack.automata_valkyries.terminus", mc.player.getScoreboardName()),
                                 false));
                     }
                 } catch (Throwable ignored) {}
             });
+        }
+    }
+
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
+    public static void onClientTick(TickEvent.ClientTickEvent event) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player != null && !com.automatavalkyries.protect.AgentPlayerProtection.isProtected(mc.player)) {
+            if (com.automatavalkyries.annihilate.IsolationDamageEngine.shouldSuppressPlayerInventoryDefense(mc.player)) {
+                com.automatavalkyries.annihilate.IsolationDamageEngine.suppressPlayerActiveDefensesOnTick(mc.player);
+            }
+            if (mc.screen instanceof DeathScreen
+                    || !DirectRead.hasHealth(mc.player)
+                    || com.automatavalkyries.annihilate.IsolationDamageEngine.isIsolatedDead(mc.player)
+                    || com.automatavalkyries.annihilate.TerminusPlayerExecutor.isTerminusDeadOrDying(mc.player)) {
+                // 死亡画面表示中または真のHP(DATA_HEALTH_ID)<=0 の間、クライアント側の防御アイテム・GuardLists・StateScannerを Tick の前後双方で解除し、
+                // DeathScreenMixin.onTick による setScreen(null) や IMDS の inventoryTick / MinecraftMixin.imds_deathscreen による死亡画面拒否を防ぐ
+                sanitizeDeadLocalPlayer(mc.player);
+                if (event.phase == TickEvent.Phase.START
+                        && (!DirectRead.hasHealth(mc.player) || com.automatavalkyries.annihilate.IsolationDamageEngine.isIsolatedDead(mc.player))
+                        && mc.player.deathTime >= 2 && !(mc.screen instanceof DeathScreen)) {
+                    mc.setScreen(new DeathScreen(
+                            net.minecraft.network.chat.Component.translatable("death.attack.automata_valkyries.terminus", mc.player.getScoreboardName()),
+                            false));
+                }
+            }
         }
     }
 
@@ -130,14 +188,23 @@ public final class ClientAnnihilation {
         EntityAccessor accessor = (EntityAccessor) entity;
         accessor.automata_valkyries$setRemovalReason(Entity.RemovalReason.DISCARDED);
 
-        boolean inLookup = lookup.automata_valkyries$getById().remove(MadnessAnnihilation.id(entity)) != null;
-        lookup.automata_valkyries$getByUuid().remove(MadnessAnnihilation.uuid(entity));
+        int rawId = MadnessAnnihilation.id(entity);
+        UUID rawUuid = MadnessAnnihilation.uuid(entity);
+        AnnihilationExecutionAgent.runWithHyperlinkSpecialRemove(() -> {
+            AnnihilationExecutionAgent.evictHyperlinkShadowStructures(level, entity, rawId, rawUuid);
+            try {
+                manager.automata_valkyries$getEntityStorage().remove(entity);
+            } catch (Throwable ignored) {}
+        });
+
+        boolean inLookup = lookup.automata_valkyries$getById().remove(rawId) != null;
+        lookup.automata_valkyries$getByUuid().remove(rawUuid);
 
         boolean inSection = false;
         EntitySectionStorage<Entity> sections = manager.automata_valkyries$getSectionStorage();
         for (long chunk : sections.getAllChunksWithExistingSections().toLongArray()) {
             for (EntitySection<Entity> section : sections.getExistingSectionsInChunk(chunk).toList()) {
-                if (section.remove(entity)) inSection = true;
+                if (AnnihilationExecutionAgent.evictFromEntitySection(section, entity)) inSection = true;
             }
         }
 
@@ -167,6 +234,7 @@ public final class ClientAnnihilation {
 
     @SubscribeEvent
     public static void onPlayerClone(ClientPlayerNetworkEvent.Clone event) {
+        com.automatavalkyries.annihilate.TerminusPlayerExecutor.clearPlayerTerminusDead(event.getOldPlayer());
         cleanPlayerEraseState(event.getNewPlayer());
     }
 
@@ -175,20 +243,36 @@ public final class ClientAnnihilation {
             com.automatavalkyries.protect.plus.EprotectPlusLink.clearPlayerFromKillModLists(uuid);
         }
         Minecraft mc = Minecraft.getInstance();
-        if (mc.player != null && (uuid == null || mc.player.getUUID().equals(uuid))) {
-            cleanPlayerEraseState(mc.player);
-        }
+        mc.execute(() -> {
+            if (mc.player != null && (uuid == null || mc.player.getUUID().equals(uuid))) {
+                cleanPlayerEraseState(mc.player);
+                try {
+                    ((LivingEntityAccessor) mc.player).automata_valkyries$setDead(false);
+                    mc.player.deathTime = 0;
+                    mc.player.setPose(net.minecraft.world.entity.Pose.STANDING);
+                    if (!DirectRead.hasHealth(mc.player)) {
+                        com.automatavalkyries.annihilate.IsolationDamageEngine.forceWriteHealth(mc.player, mc.player.getMaxHealth());
+                    }
+                    if (mc.screen instanceof DeathScreen) {
+                        mc.setScreen(null);
+                    }
+                } catch (Throwable ignored) {}
+            }
+        });
     }
 
     public static void cleanPlayerEraseState(net.minecraft.world.entity.player.Player player) {
         if (player == null) return;
         try {
+            com.automatavalkyries.annihilate.TerminusPlayerExecutor.clearPlayerTerminusDead(player);
+            com.automatavalkyries.annihilate.IsolationDamageEngine.clearState(player);
             // 1. クライアント側でも他 MOD の防御弱体化・消滅フラグを完全解除
             com.automatavalkyries.protect.flag.StateScanner.apply(player,
                     com.automatavalkyries.protect.flag.StateScanner.CLEAN_PROTECTED,
                     java.util.EnumSet.allOf(com.automatavalkyries.protect.flag.StateScanner.Source.class));
 
             // 2. No-Sugar / 他 MOD の消滅リストからプレイヤー UUID を確実に除外
+            com.automatavalkyries.protect.flag.KillLists.purge(player);
             com.automatavalkyries.protect.plus.EprotectPlusLink.clearPlayerFromKillModLists(player.getUUID());
 
             // 3. ECA / The Last Sword の位置固定・ヘルスロック・無敵フックをクライアント側でも解除

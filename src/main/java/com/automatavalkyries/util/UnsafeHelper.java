@@ -514,12 +514,32 @@ public final class UnsafeHelper {
             for (int i = 0; i < size; i++) {
                 if (!shouldRemove.test(data[i])) data[kept++] = data[i];
             }
-            java.util.Arrays.fill(data, kept, size, null); // 参照を残すと GC されない
-            putInt(list, sizeOffset, kept);
+            if (kept != size) {
+                java.util.Arrays.fill(data, kept, size, null); // 参照を残すと GC されない
+                putInt(list, sizeOffset, kept);
+                incrementArrayListModCount(list);
+            }
             return size - kept;
         } catch (Throwable t) {
             return 0;
         }
+    }
+
+    /**
+     * ArrayList の要素数を Unsafe で直接縮小した際、進行中の {@code ArrayList$Itr.next()} が
+     * {@code NoSuchElementException} でクラッシュするのを防ぐため {@code AbstractList.modCount} を加算する。
+     */
+    public static void incrementArrayListModCount(Object list) {
+        if (THE_UNSAFE == null || !(list instanceof java.util.AbstractList<?>)) return;
+        try {
+            Field modField = findField(java.util.AbstractList.class, "modCount");
+            if (modField != null) {
+                long modOffset = objectFieldOffset(modField);
+                if (modOffset >= 0) {
+                    putInt(list, modOffset, getInt(list, modOffset) + 1);
+                }
+            }
+        } catch (Throwable ignored) {}
     }
 
     public static void setFieldValue(Object target, String fieldName, Object value) {

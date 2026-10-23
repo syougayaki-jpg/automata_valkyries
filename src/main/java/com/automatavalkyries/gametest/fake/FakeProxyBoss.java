@@ -19,6 +19,7 @@ public class FakeProxyBoss extends Zombie {
     public static final class Core {
         public final UUID id = UUID.randomUUID();
         public FakeProxyBoss proxy;
+        public Entity target;
         public Entity otherEntity;
         public Registry registry = new Registry();
         public boolean removed;

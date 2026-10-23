@@ -7,6 +7,7 @@ import com.automatavalkyries.protect.attack.CallerAttribution;
 import com.automatavalkyries.protect.flag.FlagDictionary;
 import com.automatavalkyries.protect.flag.FlagDictionary.Category;
 import com.automatavalkyries.protect.flag.FlagDictionaryLink;
+import com.automatavalkyries.protect.flag.GuardLists;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.world.entity.Entity;
@@ -16,8 +17,14 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.jetbrains.annotations.Nullable;
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.ClassVisitor;
+import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.Opcodes;
 
+import java.io.InputStream;
 import java.lang.reflect.Field;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -114,12 +121,13 @@ public final class FlagKillPredicates {
         for (String w : words) {
             if (w.equals("dead") || w.equals("death") || w.equals("die") || w.equals("removed")
                     || w.equals("erased") || w.equals("killed") || w.equals("discarded") || w.equals("destroyed")
-                    || w.equals("out") || w.equals("banished") || w.equals("eliminated") || w.equals("terminated")) {
+                    || w.equals("out") || w.equals("banished") || w.equals("eliminated") || w.equals("terminated")
+                    || w.equals("novelized")) {
                 return true;
             }
         }
         return lower.contains("dead") || lower.contains("death") || lower.contains("removed")
-                || lower.contains("eras");
+                || lower.contains("eras") || lower.contains("novelized");
     }
 
     /**
@@ -135,7 +143,7 @@ public final class FlagKillPredicates {
 
     /**
      * オブジェクトやコントローラーを破棄・終了・解体するためのメソッド名か。
-     * 自爆トラップ名（end, endGame, halt, exit 等）は必ず除外する。
+     * 自爆トラップ名（end, endGame, halt, exit 等）や、状態取得・トグル・防御設定は必ず除外する。
      */
     public static boolean isTerminationMethod(String methodName) {
         if (methodName == null || methodName.isEmpty() || isTrapTerminationName(methodName)) return false;
@@ -146,7 +154,22 @@ public final class FlagKillPredicates {
                 || lower.equals("shutdown") || lower.equals("finish") || lower.equals("clear")) {
             return true;
         }
+        // クエリ・Getter・トグル・生成系プレフィックスは終了メソッドではない
+        if (lower.startsWith("get") || lower.startsWith("is") || lower.startsWith("has")
+                || lower.startsWith("can") || lower.startsWith("should") || lower.startsWith("check")
+                || lower.startsWith("toggle") || lower.startsWith("find") || lower.startsWith("read")
+                || lower.startsWith("count") || lower.startsWith("add") || lower.startsWith("create")
+                || lower.startsWith("spawn")) {
+            return false;
+        }
+        // set* メソッドは死亡・削除フラグを直接立てるもの（setDead, setErased, setOut, setRemoved 等）のみ許可
+        if (lower.startsWith("set")) {
+            return isDeathStateField(methodName) && !protectiveOnTarget(methodName);
+        }
         Set<Category> c = FlagDictionary.classify(methodName);
+        if (c.contains(Category.GUARD) || c.contains(Category.REVIVE) || c.contains(Category.TIMER)) {
+            return false;
+        }
         return c.contains(Category.KILL);
     }
 
@@ -160,18 +183,42 @@ public final class FlagKillPredicates {
 
         var key = ForgeRegistries.ITEMS.getKey(stack.getItem());
         if (key != null) {
+            if ("automata_valkyries:tiny_courage".equals(key.toString())) {
+                return false;
+            }
+            String namespace = key.getNamespace().toLowerCase(Locale.ROOT);
+            if (namespace.equals("the_last_sword") || namespace.equals("eca") || namespace.equals("imds_reborn")) {
+                return true;
+            }
             String path = key.getPath();
             if (protectiveOnTarget(path) || FlagDictionary.is(path, Category.GUARD) || FlagDictionary.is(path, Category.REVIVE)) return true;
             String fullKey = key.toString().toLowerCase(Locale.ROOT);
             if (fullKey.contains("infinity") || fullKey.contains("immortal") || fullKey.contains("totem")
                     || fullKey.contains("invulnerab") || fullKey.contains("god") || fullKey.contains("ward")
                     || fullKey.contains("halo") || fullKey.contains("sugar") || fullKey.contains("snack")
-                    || fullKey.contains("bless")) {
+                    || fullKey.contains("bless") || fullKey.contains("last_sword") || fullKey.contains("ultra_test_sword")
+                    || fullKey.contains("dragon_armor") || fullKey.contains("dragon_crystal")
+                    || fullKey.contains("last_end_armor") || fullKey.contains("life_support")
+                    || fullKey.contains("dimension_explorer") || fullKey.contains("dominator")
+                    || fullKey.contains("chaotic_armor") || fullKey.contains("void_protector")) {
                 return true;
             }
         }
 
+        String fullClassName = stack.getItem().getClass().getName();
+        if (fullClassName.startsWith("net.the_last_sword.") || fullClassName.startsWith("net.eca.")
+                || fullClassName.startsWith("net.mcreator.imds_reborn.")) {
+            return true;
+        }
         String className = stack.getItem().getClass().getSimpleName();
+        if (className.contains("TheLastSword") || className.contains("UltraTestSword")
+                || className.contains("DragonArmor") || className.contains("DragonCrystalArmor")
+                || className.contains("TheLastEndArmor") || className.contains("DimensionExplorer")
+                || className.contains("ExtremeLifeSupport") || className.contains("WingsThatCoverTheWorld")
+                || className.contains("InfinityMatterDominator") || className.contains("DominatorCore")
+                || className.contains("ChaoticArmor") || className.contains("VoidProtector")) {
+            return true;
+        }
         if (protectiveOnTarget(className) || FlagDictionary.is(className, Category.GUARD) || FlagDictionary.is(className, Category.REVIVE)) return true;
 
         if (stack.hasCustomHoverName()) {
@@ -190,7 +237,113 @@ public final class FlagKillPredicates {
             }
         }
 
+        Class<?> itemClass = stack.getItem().getClass();
+        if (CallerAttribution.isForeign(CallerAttribution.modOf(itemClass))) {
+            GuardLists.discoverFrom(itemClass);
+            if (BYTECODE_DEFENSIVE_ITEM.get(itemClass)) {
+                return true;
+            }
+        }
+
         return false;
+    }
+
+    /**
+     * アイテムクラス（およびそこから呼ばれる同一 MOD 内の補助・Procedure クラス）のバイトコードを
+     * ASM {@link ClassReader} で検査し（Java エージェント不要）、無敵化・保護・復活・HP固定を行うアイテムか判定するキャッシュ。
+     */
+    private static final ClassValue<Boolean> BYTECODE_DEFENSIVE_ITEM = new ClassValue<>() {
+        @Override
+        protected Boolean computeValue(Class<?> itemClass) {
+            if (!CallerAttribution.isForeign(CallerAttribution.modOf(itemClass))) return Boolean.FALSE;
+            ClassLoader loader = itemClass.getClassLoader();
+            Set<String> helperClasses = new LinkedHashSet<>();
+            for (Class<?> c = itemClass; c != null && c != Object.class && CallerAttribution.isForeign(CallerAttribution.modOf(c)); c = c.getSuperclass()) {
+                if (scanClassForDefensiveBehavior(c.getName().replace('.', '/'), loader, true, helperClasses)) {
+                    return Boolean.TRUE;
+                }
+            }
+            int checked = 0;
+            for (String helperInternal : helperClasses) {
+                if (++checked > 24) break;
+                if (scanClassForDefensiveBehavior(helperInternal, loader, false, null)) {
+                    return Boolean.TRUE;
+                }
+            }
+            return Boolean.FALSE;
+        }
+    };
+
+    private static boolean scanClassForDefensiveBehavior(String internalName, @Nullable ClassLoader loader,
+                                                         boolean collectHelpers, @Nullable Set<String> outHelpers) {
+        if (internalName.startsWith("net/minecraft/") || internalName.startsWith("net/minecraftforge/")
+                || internalName.startsWith("java/") || internalName.startsWith("com/automatavalkyries/")) {
+            return false;
+        }
+        String resource = internalName + ".class";
+        boolean[] found = {false};
+        try (InputStream in = loader != null ? loader.getResourceAsStream(resource) : ClassLoader.getSystemResourceAsStream(resource)) {
+            if (in == null) return false;
+            new ClassReader(in).accept(new ClassVisitor(Opcodes.ASM9) {
+                @Override
+                public MethodVisitor visitMethod(int access, String methodName, String descriptor, String signature, String[] exceptions) {
+                    if (found[0]) return null;
+                    return new MethodVisitor(Opcodes.ASM9) {
+                        @Override
+                        public void visitFieldInsn(int opcode, String owner, String name, String desc) {
+                            if (found[0]) return;
+                            // Abilities.invulnerable (f_35934_) の直接書き換え
+                            if (opcode == Opcodes.PUTFIELD && ("invulnerable".equals(name) || "f_35934_".equals(name))) {
+                                found[0] = true;
+                                return;
+                            }
+                            if (!owner.startsWith("net/minecraft/") && !owner.startsWith("java/")) {
+                                if (FlagDictionary.is(name, Category.GUARD) || FlagDictionary.is(name, Category.REVIVE)
+                                        || protectiveOnTarget(name)) {
+                                    found[0] = true;
+                                }
+                            }
+                        }
+
+                        @Override
+                        public void visitMethodInsn(int opcode, String owner, String name, String desc, boolean isInterface) {
+                            if (found[0]) return;
+                            // Entity.setInvulnerable (m_20331_) / Entity.revive (m_20253_)
+                            if ("setInvulnerable".equals(name) || "m_20331_".equals(name)
+                                    || "revive".equals(name) || "m_20253_".equals(name)) {
+                                found[0] = true;
+                                return;
+                            }
+                            if (!owner.startsWith("net/minecraft/") && !owner.startsWith("net/minecraftforge/")
+                                    && !owner.startsWith("java/") && !owner.startsWith("com/automatavalkyries/")) {
+                                String ownerSimple = owner.substring(owner.lastIndexOf('/') + 1);
+                                if (FlagDictionary.is(name, Category.GUARD) || FlagDictionary.is(name, Category.REVIVE)
+                                        || FlagDictionary.is(ownerSimple, Category.GUARD) || FlagDictionary.is(ownerSimple, Category.REVIVE)
+                                        || protectiveOnTarget(name) || protectiveOnTarget(ownerSimple)) {
+                                    found[0] = true;
+                                    return;
+                                }
+                                if (collectHelpers && outHelpers != null && opcode == Opcodes.INVOKESTATIC) {
+                                    outHelpers.add(owner);
+                                }
+                            }
+                        }
+
+                        @Override
+                        public void visitLdcInsn(Object value) {
+                            if (found[0]) return;
+                            if (value instanceof String str && str.length() >= 4 && str.length() <= 64 && !str.contains(" ")) {
+                                if (FlagDictionary.is(str, Category.GUARD) || FlagDictionary.is(str, Category.REVIVE)
+                                        || protectiveOnTarget(str)) {
+                                    found[0] = true;
+                                }
+                            }
+                        }
+                    };
+                }
+            }, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
+        } catch (Throwable ignored) {}
+        return found[0];
     }
 
     /**

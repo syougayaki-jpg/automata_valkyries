@@ -13,6 +13,10 @@ public class FakeTerminusBoss extends Zombie {
     public FakeTerminusBoss(ServerLevel level, Entity other) {
         super(EntityType.ZOMBIE, level);
         owned = new Core(this, null);
+        owned.oldTarget = other;
+        if (other != null) {
+            owned.entitiesToAttack.add(other);
+        }
         shared = new Core(this, other);
         unrelated = new Core(other, null);
     }
@@ -20,6 +24,8 @@ public class FakeTerminusBoss extends Zombie {
     public static class Core {
         public Entity proxy;
         public Entity other;
+        public Entity oldTarget;
+        public final java.util.List<Entity> entitiesToAttack = new java.util.ArrayList<>();
         public Integer resurrectLives = 3;
         public Long respawnTimer = 200L;
         public Float shieldDelta = 4F;

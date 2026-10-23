@@ -40,7 +40,8 @@ public class TerminusRegressionGameTests {
         helper.assertTrue(!boss.shared.closed && !boss.unrelated.closed, "Another individual lost its service");
         helper.assertTrue(boss.owned.closed && boss.owned.resurrectLives == 0
                 && boss.owned.respawnTimer == -9999L && boss.owned.shieldDelta == 0F
-                && boss.owned.healthDelta == 0D, "Boxed defensive values were not reset");
+                && boss.owned.healthDelta == 0D && boss.owned.oldTarget == null
+                && boss.owned.entitiesToAttack.isEmpty(), "Boxed defensive values or combat targets were not reset");
         helper.assertTrue(boss.owned.protectedWhitelist.equals(List.of("unrelated-entry")),
                 "Target cleanup cleared unrelated entries");
         var executed = new FakeTerminusBoss(helper.getLevel(), other);

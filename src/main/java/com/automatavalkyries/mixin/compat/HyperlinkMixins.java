@@ -1,7 +1,13 @@
 package com.automatavalkyries.mixin.compat;
 
+import com.automatavalkyries.annihilate.AnnihilationExecutionAgent;
+import com.automatavalkyries.annihilate.IsolationDamageEngine;
+import com.automatavalkyries.mixin.LivingEntityAccessor;
+import com.automatavalkyries.protect.DirectRead;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Pose;
+import net.minecraft.world.entity.player.Player;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Pseudo;
 import org.spongepowered.asm.mixin.injection.At;
@@ -14,6 +20,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * <p>
  * 1. NovelHandler.novelized / special / novelize における引数 entity の null ガード（レンダラーやプロキシ消滅時の NPE クラッシュ防止）
  * 2. 兵姫（IEprotected）に対する小説化（即死・消去）の確実な無効化
+ * 3. 隔絶致死・終焉抹消された非プレイヤー個体（FumetsuEntity 等）の死亡演出（tickDeath）および消去フックの解錠
  * </p>
  */
 public final class HyperlinkMixins {
@@ -23,10 +30,11 @@ public final class HyperlinkMixins {
     @Pseudo
     @Mixin(targets = "com.sakurafuld.hyperdaimc.content.hyper.novel.NovelHandler", remap = false)
     public abstract static class NovelHandler {
+        private static final ThreadLocal<Boolean> IN_CHECK = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
         /**
          * 小説化状態判定のガード。
-         * null 参照防止、兵姫の完全免除を行う。
+         * null 参照防止、兵姫の完全免除、および隔絶致死・抹消済み個体の死亡・消去ロック解除を行う。
          */
         @Inject(method = "novelized(Lnet/minecraft/world/entity/Entity;)Z", at = @At("HEAD"), cancellable = true, require = 0)
         private static void automata_valkyries$guardNovelized(Entity entity, CallbackInfoReturnable<Boolean> cir) {
@@ -34,8 +42,28 @@ public final class HyperlinkMixins {
                 cir.setReturnValue(false);
                 return;
             }
-            if (entity instanceof com.automatavalkyries.protect.IEprotected) {
+            if (IsolationDamageEngine.isProtectedTarget(entity)) {
                 cir.setReturnValue(false);
+                return;
+            }
+            // 判定の中の読み出し（HP・死亡フラグ）には他 MOD の差し込みがあり、その中でまた novelized が呼ばれる
+            // （Hyperlink の getMuteki / getHealthNovel、Omni-Mobs の checkEntityDead 経由）。判定の最中の呼び直しでは何もせず抜ける
+            // （2026-10-22、StackOverflowError で 2 回落ちた）
+            if (!(entity instanceof Player) && !IN_CHECK.get()) {
+                IN_CHECK.set(Boolean.TRUE);
+                try {
+                    if (IsolationDamageEngine.isIsolatedDead(entity) || AnnihilationExecutionAgent.isAnnihilated(entity)) {
+                        cir.setReturnValue(true);
+                        return;
+                    }
+                    if (entity instanceof LivingEntity living && !DirectRead.hasHealth(living)
+                            && (living.getPose() == Pose.DYING || living.deathTime > 0
+                            || ((LivingEntityAccessor) living).automata_valkyries$isDead())) {
+                        cir.setReturnValue(true);
+                    }
+                } finally {
+                    IN_CHECK.set(Boolean.FALSE);
+                }
             }
         }
 

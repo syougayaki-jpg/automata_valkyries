@@ -61,6 +61,7 @@ public class GeneralizationGameTests {
             registry.add(boss.core.id);
             registry.add(other.core);
             registry.add(other.core.id);
+            boss.core.target = other; // 攻撃対象（target）に別個体を保持していても専用コントローラーとして解体されること
             var wrappedRef = boss.wrappedCore.get();
             var context = ModProtectionBreaker.breakProtection(helper.getLevel(), boss);
             var mechanisms = context.report().mechanisms();
@@ -69,8 +70,17 @@ public class GeneralizationGameTests {
                     && mechanisms.contains(com.automatavalkyries.annihilate.DefenseStructureAnalyzer.Mechanism.REVERSE_STATIC_CONTROLLER),
                     "DefenseStructureAnalyzer missed direct, wrapped, or reverse-static controller");
             helper.assertTrue(boss.core.nativeSawProxy, "Native removal lost its proxy before being called");
-            helper.assertTrue(boss.core.removed && boss.core.beamTimer == -9999 && boss.core.lives == 0,
-                    "Detached core continued running");
+            helper.assertTrue(boss.core.removed && boss.core.beamTimer == -9999 && boss.core.lives == 0
+                    && boss.core.target == null,
+                    "Detached core continued running or retained combat target");
+            helper.assertFalse(com.automatavalkyries.annihilate.FlagKillPredicates.isTerminationMethod("setSoulProtected")
+                    || com.automatavalkyries.annihilate.FlagKillPredicates.isTerminationMethod("toggleSoulProtected")
+                    || com.automatavalkyries.annihilate.FlagKillPredicates.isTerminationMethod("isSoulProtected")
+                    || com.automatavalkyries.annihilate.FlagKillPredicates.isTerminationMethod("getSoulDamage"),
+                    "Guard setter/toggle/getter was misclassified as a termination method");
+            helper.assertTrue(com.automatavalkyries.annihilate.FlagKillPredicates.isTerminationMethod("setDead")
+                    && com.automatavalkyries.annihilate.FlagKillPredicates.isTerminationMethod("killEntity"),
+                    "setDead or killEntity was not recognized as a termination method");
             helper.assertTrue(wrappedRef != null && wrappedRef.discarded && !wrappedRef.invincible,
                     "Wrapped AtomicReference controller was not dismantled");
             helper.assertTrue(detachedBossCore.terminated && !detachedOtherCore.terminated,
