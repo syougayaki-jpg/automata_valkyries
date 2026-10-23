@@ -17,6 +17,19 @@ public class ElenorGameTests {
 
     private static final String TEMPLATE = "empty";
 
+    /** 凶悪度の分け方: 即死 MOD 専用の対策は操作の名前で分け、ブラックリストの MOD は一段だけ上げる */
+    @GameTest(template = TEMPLATE, batch = "elenor")
+    public static void viciousSeverityByOperation(GameTestHelper helper) {
+        helper.assertTrue(ElenorPressure.classify("compat:omnimobs:erase", false) == ElenorPressure.Vicious.ERASURE, "erase should be IV");
+        helper.assertTrue(ElenorPressure.classify("compat:omnimobs:instantKill", false) == ElenorPressure.Vicious.DEATH, "instantKill should be III");
+        helper.assertTrue(ElenorPressure.classify("compat:omnimobs:setHealth", false) == ElenorPressure.Vicious.LETHAL, "setHealth should be II");
+        helper.assertTrue(ElenorPressure.classify("compat:nosugar:timeStop", false) == ElenorPressure.Vicious.TAMPER, "time stop should be V");
+        helper.assertTrue(ElenorPressure.classify("damage_penalty", true) == ElenorPressure.Vicious.LETHAL, "a blacklisted ordinary hit should be one step up (II)");
+        helper.assertTrue(ElenorPressure.classify("compat:omnimobs:erase", true) == ElenorPressure.Vicious.TAMPER, "a blacklisted erase should be one step up (V)");
+        helper.assertTrue(ElenorPressure.classify("retreat", false) == null, "retreat is not counted");
+        helper.succeed();
+    }
+
     /** 未知のダメージ属性: データで作った 4 種が読み込まれ、最果てはすべての貫通のタグに入っている */
     @GameTest(template = TEMPLATE, batch = "elenor")
     public static void unknownDamageTypesBypass(GameTestHelper helper) {

@@ -42,7 +42,7 @@ public final class ElenorPressure {
     /** 今の削り方で削り切るまでの見込みがこれ（秒。30 分）を超えたら、挑んでいる全員のティアを上げる */
     public static final long SLOW_KILL_SECONDS = 1800L;
     /** 敵対している（エレノアが狙っている）間、挑んだ相手が死なずに十分たったら（秒）、その人のティアを一段上げる。上がるたびに数え直す */
-    public static final int SURVIVE_SECONDS = 120;
+    public static final int SURVIVE_SECONDS = 180;
     /** 技が通らなかった回数がこれ（から、感知した分を引いた数）に達すると、ティアが一段上がる（緩め） */
     public static final int BASE_FAILS = 4;
     private static final int WINDOW_TICKS = 200;
@@ -162,6 +162,7 @@ public final class ElenorPressure {
         if (!(elenor.level() instanceof ServerLevel level) || level.getGameTime() % 20 != 0) return;
         long now = level.getGameTime();
         syncTiers(level, now);
+        finishCorpses(level);
         if (fixedTier < 0) {
             checkSlowKill(level, now);
             checkSurvival(level);
@@ -207,6 +208,7 @@ public final class ElenorPressure {
         tiers.put(id, tier + 1);
         fails.put(id, 0);
         if (!(victim instanceof Player)) nonPlayers.add(id);
+        if (elenor.level() instanceof ServerLevel level) ElenorFx.tierUp(level, victim.position(), tier + 1);
         if (victim instanceof Player player) {
             player.displayClientMessage(Component.translatable(messageKey, tier + 1,
                     Component.translatable("bossbar.automata_valkyries.elenor.tier.name." + (tier + 1))).withStyle(net.minecraft.ChatFormatting.LIGHT_PURPLE), true);
@@ -261,7 +263,7 @@ public final class ElenorPressure {
         float drop = hpHistory.peekFirst() - hp;
         if (drop <= 0.5F) return; // 削られていない（戦っていない）間は数えない
         double eta = hp / (drop / 60.0D);
-        if (eta <= SLOW_KILL_SECONDS || now - lastSlowKillTier < 1200L) return;
+        if (eta <= SLOW_KILL_SECONDS || now - lastSlowKillTier < 2400L) return; // 2 分に 1 回まで
         lastSlowKillTier = now;
         List<LivingEntity> fighters = new ArrayList<>(level.getEntitiesOfClass(Player.class, new AABB(elenor.blockPosition()).inflate(RANGE),
                 ElenorPressure::fightable));
@@ -270,10 +272,48 @@ public final class ElenorPressure {
         for (LivingEntity fighter : fighters) raise(fighter, "message.automata_valkyries.elenor.slowkill");
     }
 
+    /** エレノアが攻撃した、プレイヤー以外の相手（倒し切ったかを見届ける） */
+    private final java.util.Set<UUID> struck = new java.util.HashSet<>();
+    /** 死んだ状態になったのを最初に見た時刻（自前の死亡処理で deathTime が進まない MOD もあるので、こちらで数える） */
+    private final Map<UUID, Long> deadSince = new HashMap<>();
+
+    /**
+     * 倒し切る: エレノアが攻撃した相手が、死んだ状態（HP 0・死亡中）のまま 2 秒（40 Tick）以上ワールドに残っていたら消去する。
+     * Omni-Mobs などは自前の死亡処理が最後まで進まず、死体が残っていた（2026-10-23）。プレイヤーとこのMOD の守られたエンティティは対象外
+     */
+    private void finishCorpses(ServerLevel level) {
+        if (struck.isEmpty()) return;
+        for (java.util.Iterator<UUID> it = struck.iterator(); it.hasNext(); ) {
+            Entity entity = level.getEntity(it.next());
+            if (!(entity instanceof LivingEntity living) || living.isRemoved()) {
+                if (entity == null || entity.isRemoved()) deadSince.remove(entity == null ? null : entity.getUUID());
+                it.remove();
+                continue;
+            }
+            if (living instanceof Player || living instanceof com.automatavalkyries.protect.IEprotected) {
+                it.remove();
+                continue;
+            }
+            boolean dead = !(living.getHealth() > 0.0F) || living.isDeadOrDying();
+            if (!dead) {
+                deadSince.remove(living.getUUID());
+                continue;
+            }
+            long since = deadSince.computeIfAbsent(living.getUUID(), k -> level.getGameTime());
+            if (level.getGameTime() - since >= 40L) {
+                deadSince.remove(living.getUUID());
+                level.sendParticles(net.minecraft.core.particles.ParticleTypes.POOF, living.getX(), living.getY(0.5), living.getZ(), 20, 0.4, 0.4, 0.4, 0.02);
+                living.remove(Entity.RemovalReason.KILLED);
+                it.remove();
+            }
+        }
+    }
+
     /** 近くのプレイヤーへ、その人に使っているティアを知らせる（変わったとき、と 5 秒ごと） */
     private void syncTiers(ServerLevel level, long now) {
-        for (net.minecraft.server.level.ServerPlayer player : level.getEntitiesOfClass(net.minecraft.server.level.ServerPlayer.class,
-                new AABB(elenor.blockPosition()).inflate(64.0D))) {
+        java.util.Set<net.minecraft.server.level.ServerPlayer> viewers = new java.util.HashSet<>(elenor.bossBarViewers());
+        viewers.addAll(level.getEntitiesOfClass(net.minecraft.server.level.ServerPlayer.class, new AABB(elenor.blockPosition()).inflate(64.0D)));
+        for (net.minecraft.server.level.ServerPlayer player : viewers) {
             int tier = tier(player);
             int entityTier = entityTier();
             int key = tier * 8 + entityTier;
@@ -295,9 +335,9 @@ public final class ElenorPressure {
         boolean finite = Float.isFinite(amount);
         float max = elenor.getMaxHealth();
         if (source.is(DamageTypes.GENERIC_KILL) || source.is(DamageTypes.FELL_OUT_OF_WORLD) || !finite || amount >= 1000.0F) {
-            sense(source.getEntity(), 2);
+            onVicious(Vicious.LETHAL, source.getEntity());
         } else if (amount > max * 0.1F) {
-            sense(source.getEntity(), 1);
+            onVicious(Vicious.EXCESS, source.getEntity());
         }
         if (!finite) return amount;
         hits.add(new Hit(level.getGameTime(), Math.min(amount, 1000.0F)));
@@ -307,12 +347,158 @@ public final class ElenorPressure {
 
     /** die() の直接呼び出し（即死）を Eprotect が断ったとき */
     void onInstantKillRefused(@Nullable DamageSource source) {
-        sense(source == null ? null : source.getEntity(), 2);
+        onVicious(Vicious.DEATH, source == null ? null : source.getEntity());
     }
+
+    // ---- 凶悪技術（受けた攻撃の凶悪度。凶悪なほど、ティアが上がりやすい。2026-10-23 ユーザー指定） ----
+
+    /**
+     * 凶悪度 I〜V。重み（{@link #weight}）だけ「通らなかった回数」の要る数が減る。IV・V は、使った相手（分かったときだけ）の
+     * ティアをその場で一段上げる（10 秒に 1 回まで）
+     */
+    public enum Vicious {
+        /** I 過剰ナ一撃: 最大 HP の 10% を超える一撃 */
+        EXCESS(1),
+        /** II 即死ノ刃: 即死の大きさ・種類のダメージ（無限大・NaN・generic_kill・奈落）、ダメージ外の HP の減少・同期データへの書き込み・読み出しの偽装 */
+        LETHAL(2),
+        /** III 死ノ宣告: die() の直接呼び出し・死亡の印・Hyperlink の novelize などの即死の操作 */
+        DEATH(3),
+        /** IV 存在ノ抹消: 消去（remove・discard）・ワールドからの取り外し・奈落への強制移動・次元移動 */
+        ERASURE(4),
+        /** V 理ノ改竄: Tick の停止・時間停止・最大 HP（属性）の改ざん・入れ物の差し替え・イベントの横取り */
+        TAMPER(6);
+
+        public final int weight;
+
+        Vicious(int weight) {
+            this.weight = weight;
+        }
+    }
+
+    /** 近く（64 m）の、その MOD のエンティティ（プレイヤー・エレノア自身を除く）のうち一番近いもの。Minecraft とこのMOD の名前では探さない */
+    @Nullable
+    private LivingEntity findByMod(ServerLevel level, String mod) {
+        if (mod.isEmpty() || "minecraft".equals(mod) || "forge".equals(mod) || com.automatavalkyries.AutomataValkyries.MODID.equals(mod)) return null;
+        LivingEntity best = null;
+        double bestDistance = Double.MAX_VALUE;
+        for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, elenor.getBoundingBox().inflate(64.0D),
+                x -> !(x instanceof Player) && x != elenor && !(x instanceof ElenorEntity)
+                        && mod.equals(net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(x.getType()).getNamespace()))) {
+            double d = elenor.distanceToSqr(e);
+            if (d < bestDistance) {
+                bestDistance = d;
+                best = e;
+            }
+        }
+        return best;
+    }
+
+    /** 保護の記録（AttackLog）の操作の名前から、凶悪度を決める。数えない操作（撤退など）は null */
+    @Nullable
+    public static Vicious classify(String op, boolean blacklisted) {
+        Vicious base = classifyOp(op.toLowerCase(java.util.Locale.ROOT));
+        if (!blacklisted) return base;
+        // ブラックリストの MOD は、その操作の本来の凶悪度を一段だけ上げる（一律 V にすると、精鋭の MOD はほとんど V になっていた。2026-10-23）
+        if (base == null) return Vicious.LETHAL;
+        return Vicious.values()[Math.min(base.ordinal() + 1, Vicious.TAMPER.ordinal())];
+    }
+
+    private static Vicious classifyOp(String o) {
+        if (o.startsWith("retreat")) return null;
+        // 即死 MOD 専用の対策（compat:MOD:操作）と、外した印（neutralized:種類:…）は、操作の中身で分ける
+        if (o.startsWith("compat:")) {
+            String[] parts = o.split(":", 3);
+            return classifyCounter(parts.length >= 3 ? parts[2] : o);
+        }
+        if (o.startsWith("neutralized")) {
+            if (o.contains("kill_list") || o.contains("remove") || o.contains("erase")) return Vicious.ERASURE;
+            if (o.contains("time") || o.contains("frozen") || o.contains("stop")) return Vicious.TAMPER;
+            return Vicious.DEATH;
+        }
+        if (o.contains("tick") || o.contains("max_health") || o.contains("entity_data_container") || o.contains("event_bus")
+                || o.contains("presence")) return Vicious.TAMPER;
+        if (o.startsWith("remove") || o.startsWith("discard") || o.contains("removed_from_world") || o.contains("removal")
+                || o.contains("unsafe_position") || o.contains("forced_relocation") || o.contains("dimension_change")) return Vicious.ERASURE;
+        if (o.startsWith("die") || o.startsWith("novelize") || o.contains("dead_flag") || o.equals("repair:health")) return Vicious.DEATH;
+        if (o.startsWith("kill_damage") || o.startsWith("health") || o.startsWith("synched_data") || o.startsWith("spoofed_read")
+                || o.contains("health_cut") || o.contains("health_spoof")) return Vicious.LETHAL;
+        if (o.startsWith("damage")) return Vicious.EXCESS;
+        return null;
+    }
+
+    /** 即死 MOD 専用の対策が止めた操作の名前（erase・instantKill・setHealth など）から凶悪度を決める */
+    private static Vicious classifyCounter(String name) {
+        if (name.contains("time") || name.contains("stop") || name.contains("frozen") || name.contains("freeze") || name.contains("tick")
+                || name.contains("attribute") || name.contains("maxhealth") || name.contains("max_health") || name.contains("container")
+                || name.contains("event")) return Vicious.TAMPER;
+        if (name.contains("erase") || name.contains("remove") || name.contains("discard") || name.contains("setpos") || name.contains("teleport")
+                || name.contains("position") || name.contains("dimension") || name.contains("relocat") || name.contains("void")) return Vicious.ERASURE;
+        if (name.contains("health") || name.contains("damage") || name.contains("hurt")) return Vicious.LETHAL;
+        return Vicious.DEATH; // instantKill・die・kill・novel・schedule など、名前で分からない即死の操作
+    }
+
+    private final long[] lastVicious = new long[Vicious.values().length];
+    private final long[] lastViciousNotice = new long[Vicious.values().length];
+    private long lastViciousRaise = Long.MIN_VALUE / 2;
+
+    /** 凶悪技術を使ってきた相手（UUID → 最後の時刻）。敵対の相手に加える（{@link #isViciousAttacker}） */
+    private final Map<UUID, Long> viciousAttackers = new HashMap<>();
+
+    /** 最近（30 秒以内に）凶悪技術を使ってきた相手か */
+    public boolean isViciousAttacker(Entity entity) {
+        Long at = viciousAttackers.get(entity.getUUID());
+        return at != null && elenor.level().getGameTime() - at < 600L;
+    }
+
+    public void onVicious(Vicious vicious, @Nullable Entity attacker) {
+        onVicious(vicious, attacker, null);
+    }
+
+    /**
+     * 凶悪技術を受けた。attacker が分からなければ、記録の MOD の名前（mod）から近くのその MOD のエンティティを探し、
+     * それも無ければ最近エレノアを攻撃した相手、それも分からなければ全員の上がりやすさに効く。
+     * 見つけた相手は敵対の相手にし、狙っている相手がいなければ狙う（即死系の操作はダメージでないので、そのままでは敵対されなかった）
+     */
+    public void onVicious(Vicious vicious, @Nullable Entity attacker, @Nullable String mod) {
+        if (!(elenor.level() instanceof ServerLevel level) || !level.getServer().isSameThread()) return;
+        long now = level.getGameTime();
+        if (attacker == null && mod != null) attacker = findByMod(level, mod);
+        if (attacker instanceof LivingEntity living && !(living instanceof Player) && living != elenor) {
+            viciousAttackers.put(living.getUUID(), now);
+            if (viciousAttackers.size() > 64) viciousAttackers.values().removeIf(at -> now - at > 600L);
+            LivingEntity current = elenor.getTarget();
+            if (current == null || !current.isAlive() || current instanceof Player player && !fightable(player)) elenor.setTarget(living);
+        }
+        int i = vicious.ordinal();
+        if (now - lastVicious[i] < 20L) return; // 同じ凶悪度は 1 秒に 1 回だけ数える（毎 Tick 起きる操作もある）
+        lastVicious[i] = now;
+        if (attacker == null && elenor.getLastHurtByMob() != null && elenor.tickCount - elenor.getLastHurtByMobTimestamp() < 200) {
+            attacker = elenor.getLastHurtByMob();
+        }
+        sense(attacker, vicious.weight);
+        if (vicious.ordinal() >= Vicious.DEATH.ordinal() && now - lastViciousNotice[i] > 200L) {
+            lastViciousNotice[i] = now;
+            ElenorFx.viciousReaction(level, elenor.position().add(0, 1.2, 0), vicious.ordinal() + 1);
+            Component name = Component.translatable("message.automata_valkyries.elenor.vicious." + vicious.name().toLowerCase(java.util.Locale.ROOT));
+            for (Player player : level.getEntitiesOfClass(Player.class, new AABB(elenor.blockPosition()).inflate(RANGE))) {
+                player.displayClientMessage(Component.translatable("message.automata_valkyries.elenor.vicious", name)
+                        .withStyle(net.minecraft.ChatFormatting.DARK_RED), true);
+            }
+        }
+        if (fixedTier < 0 && vicious.ordinal() >= Vicious.ERASURE.ordinal() && now - lastViciousRaise >= 200L) {
+            // 使った相手が分かったときだけ上げる（分からないのに狙っている相手を上げると、無関係の相手が高いティアで倒されていた。2026-10-23）
+            LivingEntity who = attacker instanceof LivingEntity living && fightable(living) ? living : null;
+            if (who != null) {
+                lastViciousRaise = now;
+                raise(who, "message.automata_valkyries.elenor.tier");
+            }
+        }
+    }
+
 
     /** 過剰な攻撃・即死の感知。ティアが高いほど、同じ攻撃でも重く数える（上がりやすくなる） */
     private void sense(@Nullable Entity attacker, int weight) {
-        if (attacker instanceof LivingEntity living) sensed.merge(living.getUUID(), weight + tier(living) / 2, Integer::sum);
+        if (attacker instanceof LivingEntity living) sensed.merge(living.getUUID(), weight + tier(living) / 3, Integer::sum);
         else globalSense += weight;
     }
 
@@ -326,13 +512,14 @@ public final class ElenorPressure {
 
     /** 次の段へ上がるのに要る、技が通らなかった回数（感知した分だけ減る。最小 1） */
     public int failThreshold(UUID victim) {
-        return Math.max(1, BASE_FAILS - sensed.getOrDefault(victim, 0) - globalSense - tiers.getOrDefault(victim, 0) / 2); // ティアが高いほど上がりやすい
+        return Math.max(1, BASE_FAILS - sensed.getOrDefault(victim, 0) - globalSense - tiers.getOrDefault(victim, 0) / 3); // ティアが高いほど上がりやすい（最小 1）
     }
 
     /** victim へ amount の攻撃を、その相手のティアの攻め方で通す。通らなかったらティアが上がる方向に数える */
     public void strike(LivingEntity victim, float amount) {
         if (!(elenor.level() instanceof ServerLevel level) || !victim.isAlive() || !Float.isFinite(amount) || amount <= 0.0F) return;
         int tier = tier(victim);
+        if (!(victim instanceof Player) && struck.size() < 256) struck.add(victim.getUUID());
         float before = victim.getHealth();
         float judged = amount;
         try {

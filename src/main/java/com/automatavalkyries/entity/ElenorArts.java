@@ -46,16 +46,32 @@ public final class ElenorArts {
 
     private enum Move { NONE, LUNGE, VOLLEY, NOVA, BLINK, RING, SIGIL, TRANSITION, BIND, MIRAGE, CURTAIN }
 
+    /** 飛ぶ解けたリボン（もとは光弾）。進む向きに対して横にしなりながら飛ぶ */
     private static final class Orb {
         Vec3 pos;
         final Vec3 vel;
+        final double phase;
         int life = 80;
 
         Orb(Vec3 pos, Vec3 vel) {
             this.pos = pos;
             this.vel = vel;
+            this.phase = (pos.x * 7.3 + pos.z * 3.1 + vel.x * 11.0) % (Math.PI * 2);
+        }
+
+        /** しなり: 横へ揺れる量（進む向きは変えない） */
+        Vec3 sway() {
+            Vec3 side = new Vec3(-vel.z, 0, vel.x);
+            if (side.lengthSqr() < 1.0e-6) return Vec3.ZERO;
+            return side.normalize().scale(Math.sin(life * 0.45 + phase) * 0.12);
         }
     }
+
+    /** 近接の鞭を払う向き（左右交互） */
+    private int meleeSide = 1;
+
+    /** 劇場（開幕・幕・結界・閉幕） */
+    private final ElenorTheater theater;
 
     private static final class Sigil {
         final Vec3 at;
@@ -96,6 +112,7 @@ public final class ElenorArts {
         this.elenor = elenor;
         this.fullPower = elenor.fullPower();
         this.pressure = new ElenorPressure(elenor, !fullPower, fullPower ? ElenorPressure.MAX_TIER : -1);
+        this.theater = new ElenorTheater(elenor);
     }
 
     public ElenorPressure pressure() {
@@ -132,13 +149,12 @@ public final class ElenorArts {
 
     public void tickProjectiles() {
         if (!(elenor.level() instanceof ServerLevel level)) return;
+        theater.tick(level, elenor.getTarget() != null);
         for (Iterator<Orb> it = orbs.iterator(); it.hasNext(); ) {
             Orb orb = it.next();
-            orb.pos = orb.pos.add(orb.vel);
-            if (orb.life % 2 == 0) { // 粒子の送信を半分に（光弾は多いと 30 発を超える）
-                level.sendParticles(PURPLE, orb.pos.x, orb.pos.y, orb.pos.z, 1, 0.05, 0.05, 0.05, 0.0);
-                level.sendParticles(ParticleTypes.END_ROD, orb.pos.x, orb.pos.y, orb.pos.z, 1, 0.0, 0.0, 0.0, 0.0);
-            }
+            Vec3 previous = orb.pos;
+            orb.pos = orb.pos.add(orb.vel).add(orb.sway());
+            ElenorFx.ribbonStrand(level, previous, orb.pos, orb.life); // 解けたリボンの帯
             boolean hit = false;
             for (LivingEntity player : foes(level, new net.minecraft.world.phys.AABB(orb.pos, orb.pos).inflate(0.7))) {
                 if (!ElenorPressure.fightable(player)) continue;
@@ -148,16 +164,19 @@ public final class ElenorArts {
             }
             BlockPos block = BlockPos.containing(orb.pos);
             if (hit || --orb.life <= 0 || !level.getBlockState(block).getCollisionShape(level, block).isEmpty()) {
-                level.sendParticles(ParticleTypes.WITCH, orb.pos.x, orb.pos.y, orb.pos.z, 8, 0.2, 0.2, 0.2, 0.05);
+                if (!hit) ElenorFx.petalBurst(level, orb.pos, 4, 0.15, ElenorFx.LIGHT); // 当たったときは hurt の着弾の演出
                 it.remove();
             }
         }
         for (Iterator<Sigil> it = sigils.iterator(); it.hasNext(); ) {
             Sigil sigil = it.next();
-            if (sigil.ticks % 3 == 0) ring(level, sigil.at, 2.5, 14);
+            if (sigil.ticks % 6 == 0) ring(level, sigil.at, 2.5, 14);
             if (--sigil.ticks > 0) continue;
-            level.sendParticles(ParticleTypes.EXPLOSION, sigil.at.x, sigil.at.y + 0.3, sigil.at.z, 1, 0, 0, 0, 0);
-            level.sendParticles(ParticleTypes.WITCH, sigil.at.x, sigil.at.y + 0.5, sigil.at.z, 30, 1.2, 0.6, 1.2, 0.1);
+            // 炸裂: レースの輪と衝撃波、花が開いて花びらが舞い上がる
+            ElenorFx.lace(level, sigil.at, ElenorFx.HOT, 3.2F, 14);
+            com.automatavalkyries.weapon.Fx.shockwave(level, sigil.at.add(0, 0.1, 0), ElenorFx.PINK, 3.0F, 10);
+            ElenorFx.impact(level, sigil.at.add(0, 0.6, 0), 0);
+            ElenorFx.petalBurst(level, sigil.at.add(0, 0.4, 0), 14, 0.35, ElenorFx.PINK);
             level.playSound(null, sigil.at.x, sigil.at.y, sigil.at.z, SoundEvents.GENERIC_EXPLODE, elenor.getSoundSource(), 0.8F, 1.4F);
             for (LivingEntity player : foes(level, new net.minecraft.world.phys.AABB(sigil.at, sigil.at).inflate(2.5, 2.0, 2.5))) {
                 if (!ElenorPressure.fightable(player)) continue;
@@ -170,10 +189,7 @@ public final class ElenorArts {
 
     /** 床に光の輪を描く（前兆・魔法陣） */
     private static void ring(ServerLevel level, Vec3 center, double radius, int points) {
-        for (int i = 0; i < points; i++) {
-            double angle = Math.PI * 2 * i / points;
-            level.sendParticles(PURPLE, center.x + Math.cos(angle) * radius, center.y + 0.1, center.z + Math.sin(angle) * radius, 1, 0, 0, 0, 0);
-        }
+        ElenorFx.floorRing(level, center, radius, points, ElenorFx.PINK);
     }
 
     /**
@@ -192,6 +208,9 @@ public final class ElenorArts {
 
     /** 技のダメージを、相手のティアの攻め方で通す（攻撃力・係数を掛ける） */
     private void hurt(LivingEntity victim, float base) {
+        if (elenor.level() instanceof ServerLevel level) {
+            ElenorFx.impact(level, victim.position().add(0, victim.getBbHeight() * 0.55, 0), pressure.tier(victim));
+        }
         pressure.strike(victim, (float) (base * scale() * pressure.attackScale()));
     }
 
@@ -208,6 +227,7 @@ public final class ElenorArts {
         float ratio = testRatio >= 0.0F ? testRatio : elenor.getEprotect().healthRatio();
         int now = phaseFor(ratio);
         if (fullPower) now = 3; // 最初から第 3
+        theater.open(level, now); // 開幕（開いていれば、戦っていることだけ伝える）
         if (!introDone) {
             introDone = true;
             phase = now;
@@ -217,6 +237,7 @@ public final class ElenorArts {
         } else if (now > phase) {
             phase = now;
             enterPhase(level);
+            theater.nextAct(level, now);
         } else if (!curtainDone && move != Move.TRANSITION && ratio <= CURTAIN_RATIO) {
             curtainDone = true;
             start(Move.CURTAIN);
@@ -238,12 +259,34 @@ public final class ElenorArts {
             choose(distance, target);
             if (move != Move.NONE) return;
         }
-        // 技の合間: 近接
-        if (distance > 2.2D) {
+        // 技の合間: 近接（解けたリボンの鞭。素手より遠く 3.5 ブロックまで届く）
+        if (distance > 3.2D) {
             elenor.getNavigation().moveTo(target, 1.2D);
         } else if (meleeCooldown <= 0) {
-            elenor.doHurtTarget(target);
+            ribbonMelee(level, target);
             meleeCooldown = 24;
+        }
+    }
+
+    /**
+     * 近接: 解けたリボンの鞭で、前の半円を斜めに払う（左右交互）。当たり判定も前の半円（3.5 ブロック）で、届いた相手みんなに当たる。
+     * 終焉の許可が入っている間は、今までどおり終焉で打つ（{@link ElenorEntity#doHurtTarget}）
+     */
+    private void ribbonMelee(ServerLevel level, LivingEntity target) {
+        Vec3 dir = target.position().subtract(elenor.position());
+        meleeSide = -meleeSide;
+        ElenorFx.ribbonWhip(level, elenor.position(), dir, 3.5, meleeSide);
+        level.playSound(null, elenor.blockPosition(), SoundEvents.PLAYER_ATTACK_SWEEP, elenor.getSoundSource(), 1.0F, 1.3F);
+        elenor.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
+        elenor.triggerAnim("action", "point");
+        if (elenor.isTerminusEnabled()) {
+            elenor.doHurtTarget(target);
+            return;
+        }
+        for (LivingEntity foe : foes(level, elenor.getBoundingBox().inflate(3.5, 1.0, 3.5))) {
+            Vec3 rel = foe.position().subtract(elenor.position());
+            if (rel.x * dir.x + rel.z * dir.z < 0.0) continue; // 後ろには届かない
+            if (ElenorPressure.fightable(foe) && elenor.distanceTo(foe) <= 4.0F) hurt(foe, 12.0F);
         }
     }
 
@@ -266,25 +309,12 @@ public final class ElenorArts {
 
     /** 黒とピンクのリボンの粒の渦（angle から始まる 2 本の螺旋。高さ height、半径 radius） */
     static void ribbonSwirl(ServerLevel level, Vec3 base, double radius, double height, double angle) {
-        for (int i = 0; i < 8; i++) {
-            double t = i / 8.0;
-            for (int strand = 0; strand < 2; strand++) {
-                double a = angle + t * Math.PI * 2 + strand * Math.PI;
-                level.sendParticles(strand == 0 ? RIBBON_PINK : RIBBON_BLACK,
-                        base.x + Math.cos(a) * radius, base.y + t * height, base.z + Math.sin(a) * radius, 1, 0, 0, 0, 0);
-            }
-        }
+        ElenorFx.ribbonSwirl(level, base, radius, height, angle);
     }
 
     /** 粒の残像（ドレスの形: 細い胴と、裾の広がった輪） */
     private static void mirage(ServerLevel level, Vec3 at, int tick) {
-        for (int i = 0; i < 6; i++) {
-            level.sendParticles(i % 2 == 0 ? RIBBON_PINK : RIBBON_BLACK, at.x, at.y + 0.7 + i * 0.18, at.z, 1, 0.08, 0.02, 0.08, 0);
-        }
-        for (int i = 0; i < 10; i++) {
-            double a = Math.PI * 2 * i / 10.0 + tick * 0.15;
-            level.sendParticles(PURPLE, at.x + Math.cos(a) * 0.45, at.y + 0.35, at.z + Math.sin(a) * 0.45, 1, 0, 0, 0, 0);
-        }
+        ElenorFx.mirage(level, at, tick);
     }
 
     /** from から標的へ、count 発を扇に撃つ（間隔 spread 度） */
@@ -345,15 +375,20 @@ public final class ElenorArts {
                     lungeDir = new Vec3(flat.x, 0, flat.z).normalize();
                     level.playSound(null, elenor.blockPosition(), SoundEvents.AMETHYST_BLOCK_CHIME, elenor.getSoundSource(), 1.2F, 0.7F);
                 }
-                if (moveTick <= 18) { // 前兆: 進む先に光の筋
-                    for (int i = 1; i <= 6; i++) {
-                        Vec3 p = elenor.position().add(lungeDir.scale(i));
-                        level.sendParticles(PURPLE, p.x, p.y + 0.2, p.z, 1, 0.1, 0, 0.1, 0);
-                    }
-                } else if (moveTick <= 24) { // 踏み込み
+                if (moveTick <= 18) { // 前兆: 進む先へ光の筋が流れ、行き先の床に輪
+                    Vec3 from = elenor.position().add(0, 0.3, 0);
+                    if (moveTick % 3 == 0) ElenorFx.streakLine(level, from, from.add(lungeDir.scale(7.0)), 4, ElenorFx.PINK);
+                    if (moveTick % 6 == 0) ring(level, elenor.position().add(lungeDir.scale(7.0)), 1.0, 10);
+                } else if (moveTick <= 24) { // 踏み込み: リボンと光の筋の残像
+                    if (moveTick == 19) elenor.triggerAnim("action", "lunge");
                     elenor.setDeltaMovement(lungeDir.x * 1.2, elenor.getDeltaMovement().y, lungeDir.z * 1.2);
                     elenor.hurtMarked = true;
-                    for (LivingEntity player : foes(level, elenor.getBoundingBox().inflate(0.8))) {
+                    Vec3 back = elenor.position().add(0, 1.0, 0);
+                    ElenorFx.streakLine(level, back, back.subtract(lungeDir.scale(2.5)), 3, ElenorFx.LIGHT);
+                    ElenorFx.ribbonArc(level, elenor.position(), lungeDir, 2.6, (moveTick - 18) / 6.0); // 解けたリボンの鞭で前を払う
+                    for (LivingEntity player : foes(level, elenor.getBoundingBox().inflate(2.6, 0.8, 2.6))) { // 鞭の届く前の半円
+                        Vec3 rel = player.position().subtract(elenor.position());
+                        if (rel.x * lungeDir.x + rel.z * lungeDir.z < -0.5) continue;
                         if (ElenorPressure.fightable(player) && player.invulnerableTime <= 10) hurt(player, 14.0F);
                     }
                 } else {
@@ -361,13 +396,24 @@ public final class ElenorArts {
                 }
             }
             case NOVA -> {
-                if (moveTick == 1) level.playSound(null, elenor.blockPosition(), SoundEvents.BEACON_ACTIVATE, elenor.getSoundSource(), 1.0F, 1.5F);
+                if (moveTick == 1) {
+                    level.playSound(null, elenor.blockPosition(), SoundEvents.BEACON_ACTIVATE, elenor.getSoundSource(), 1.0F, 1.5F);
+                    ElenorFx.lace(level, elenor.position(), ElenorFx.HOT, 5.0F, 20); // 前兆: 届く範囲にレースの輪
+                    elenor.triggerAnim("action", "cast");
+                }
                 if (moveTick < 20) {
-                    ring(level, elenor.position(), 5.0 * moveTick / 20.0, 20);
-                    ring(level, elenor.position(), 5.0, 24);
+                    if (moveTick % 4 == 0) ring(level, elenor.position(), 5.0, 24);
+                    if (moveTick % 3 == 0) com.automatavalkyries.weapon.Fx.gather(level, com.automatavalkyries.weapon.Fx.opt(
+                            com.automatavalkyries.registry.ModParticles.PETAL.get(), ElenorFx.PINK, 0.16F, 10), elenor.position().add(0, 1.0, 0), 6, 4.0, 10);
                 } else if (moveTick == 20) {
                     elenor.triggerAnim("action", "skirt_spread");
-                    level.sendParticles(ParticleTypes.EXPLOSION, elenor.getX(), elenor.getY() + 0.5, elenor.getZ(), 3, 1.5, 0.2, 1.5, 0);
+                    // 炸裂: 衝撃波とレース、花びらの嵐
+                    com.automatavalkyries.weapon.Fx.shockwave(level, elenor.position().add(0, 0.1, 0), ElenorFx.PINK, 6.0F, 12);
+                    ElenorFx.lace(level, elenor.position(), ElenorFx.LIGHT, 6.0F, 14);
+                    ElenorFx.petalBurst(level, elenor.position().add(0, 1.0, 0), 24, 0.6, ElenorFx.PINK);
+                    ElenorFx.ribbonBurst(level, elenor.position(), 12, 0.55); // 解けたリボンが四方へ放たれる
+                    com.automatavalkyries.weapon.Fx.one(level, com.automatavalkyries.weapon.Fx.opt(com.automatavalkyries.registry.ModParticles.BLOOM.get(),
+                            ElenorFx.HOT, 2.4F, 14), elenor.position().add(0, 1.0, 0), Vec3.ZERO);
                     level.playSound(null, elenor.blockPosition(), SoundEvents.GENERIC_EXPLODE, elenor.getSoundSource(), 0.9F, 1.2F);
                     for (LivingEntity player : foes(level, elenor.getBoundingBox().inflate(5.0, 2.0, 5.0))) {
                         if (!ElenorPressure.fightable(player)) continue;
@@ -381,9 +427,15 @@ public final class ElenorArts {
                 }
             }
             case VOLLEY -> {
-                if (moveTick < 16) {
-                    level.sendParticles(ParticleTypes.WITCH, eye.x, eye.y + 0.6, eye.z, 4, 0.4, 0.3, 0.4, 0.02);
+                if (moveTick < 16) { // 前兆: 光が胸元に集まり、小さな星の陣
+                    if (moveTick % 2 == 0) com.automatavalkyries.weapon.Fx.gather(level, com.automatavalkyries.weapon.Fx.opt(
+                            com.automatavalkyries.registry.ModParticles.GLOW.get(), ElenorFx.PINK, 0.25F, 8), eye.add(0, 0.4, 0), 3, 1.6, 8);
+                    if (moveTick == 2) {
+                        com.automatavalkyries.weapon.Fx.mandala(level, eye.add(0, 0.4, 0), ElenorFx.HOT, 0.8F, 16, true, false);
+                        elenor.triggerAnim("action", "point");
+                    }
                 } else if (moveTick == 16) {
+                    com.automatavalkyries.weapon.Fx.star(level, eye.add(0, 0.4, 0), ElenorFx.LIGHT, 1.2F, 8, Vec3.ZERO);
                     int count = phase >= 3 ? 7 : 5;
                     Vec3 aim = target.position().add(0, target.getBbHeight() * 0.5, 0).subtract(eye).normalize();
                     double base = Math.atan2(aim.z, aim.x);
@@ -397,23 +449,34 @@ public final class ElenorArts {
                 }
             }
             case BLINK -> {
-                if (moveTick == 1) {
-                    level.sendParticles(ParticleTypes.PORTAL, elenor.getX(), elenor.getY() + 1.0, elenor.getZ(), 40, 0.4, 0.8, 0.4, 0.4);
+                if (moveTick == 1) { // 花びらにほどけて消え、相手の背後で花びらから現れる。間を光の筋が走る
+                    elenor.triggerAnim("action", "spin");
+                    Vec3 from = elenor.position().add(0, 1.0, 0);
+                    ElenorFx.petalBurst(level, from, 18, 0.3, ElenorFx.PINK);
+                    ElenorFx.ribbonSwirl(level, elenor.position(), 0.6, 2.0, 0.0);
                     blinkBehind(level, target);
-                    level.sendParticles(ParticleTypes.PORTAL, elenor.getX(), elenor.getY() + 1.0, elenor.getZ(), 40, 0.4, 0.8, 0.4, 0.4);
+                    Vec3 to = elenor.position().add(0, 1.0, 0);
+                    ElenorFx.streakLine(level, from, to, 8, ElenorFx.LIGHT);
+                    ElenorFx.petalBurst(level, to, 18, 0.3, ElenorFx.PINK);
+                    ElenorFx.ribbonSwirl(level, elenor.position(), 0.6, 2.0, 1.0);
                     level.playSound(null, elenor.blockPosition(), SoundEvents.ENDERMAN_TELEPORT, elenor.getSoundSource(), 1.0F, 1.2F);
                 } else if (moveTick >= 12) { // 背後から一撃
-                    if (elenor.distanceTo(target) <= 3.0D) elenor.doHurtTarget(target);
+                    if (elenor.distanceTo(target) <= 4.0D) ribbonMelee(level, target); // 背後からリボンの鞭
                     meleeCooldown = 20;
                     finish();
                 }
             }
             case RING -> {
                 if (moveTick < 25 && ringsLeft == 2) {
-                    ring(level, elenor.position(), 1.0 + moveTick * 0.12, 20);
+                    if (moveTick == 1) {
+                        ElenorFx.lace(level, elenor.position(), ElenorFx.PINK, 4.0F, 24);
+                        elenor.triggerAnim("action", "cast");
+                    }
+                    if (moveTick % 3 == 0) ring(level, elenor.position(), 1.0 + moveTick * 0.12, 20);
                 } else if (moveTick == 25 || (moveTick == 45 && ringsLeft == 1)) {
                     double offset = ringsLeft == 1 ? Math.PI / 16.0 : 0.0;
                     level.playSound(null, elenor.blockPosition(), SoundEvents.BLAZE_SHOOT, elenor.getSoundSource(), 1.0F, 0.8F);
+                    com.automatavalkyries.weapon.Fx.star(level, eye, ElenorFx.LIGHT, 1.4F, 8, Vec3.ZERO);
                     for (int i = 0; i < 16; i++) {
                         double angle = Math.PI * 2 * i / 16.0 + offset;
                         orbs.add(new Orb(eye, new Vec3(Math.cos(angle) * 0.45, 0.0, Math.sin(angle) * 0.45)));
@@ -424,6 +487,7 @@ public final class ElenorArts {
                 }
             }
             case SIGIL -> {
+                if (moveTick == 1) elenor.triggerAnim("action", "cast");
                 if (moveTick == 12) {
                     level.playSound(null, elenor.blockPosition(), SoundEvents.ENCHANTMENT_TABLE_USE, elenor.getSoundSource(), 1.2F, 0.8F);
                     sigils.add(new Sigil(target.position()));
@@ -431,6 +495,7 @@ public final class ElenorArts {
                         double angle = elenor.getRandom().nextDouble() * Math.PI * 2;
                         sigils.add(new Sigil(target.position().add(Math.cos(angle) * 3.0, 0, Math.sin(angle) * 3.0)));
                     }
+                    for (Sigil sigil : sigils) ElenorFx.sigil(level, sigil.at, 2.5F, sigil.ticks); // 床に星の陣が回る（炸裂まで）
                 } else if (moveTick > 24) {
                     finish();
                 }
@@ -444,9 +509,12 @@ public final class ElenorArts {
                 }
                 if (moveTick < 24 && moveTick % 2 == 0) ribbonSwirl(level, elenor.position(), 1.6 - moveTick * 0.04, 2.4, moveTick * 0.35);
                 if (moveTick == 24) {
-                    level.sendParticles(RIBBON_PINK, elenor.getX(), elenor.getY() + 1.0, elenor.getZ(), 40, 1.5, 0.8, 1.5, 0);
-                    level.sendParticles(RIBBON_BLACK, elenor.getX(), elenor.getY() + 1.0, elenor.getZ(), 40, 1.5, 0.8, 1.5, 0);
-                    level.sendParticles(ParticleTypes.END_ROD, elenor.getX(), elenor.getY() + 1.0, elenor.getZ(), 30, 0.5, 1.0, 0.5, 0.15);
+                    // リボンと花びらの嵐、足もとにレースの輪、大きな花が開く
+                    ElenorFx.petalBurst(level, elenor.position().add(0, 1.0, 0), 30, 0.7, ElenorFx.PINK);
+                    ElenorFx.petalBurst(level, elenor.position().add(0, 1.0, 0), 16, 0.5, ElenorFx.DARK);
+                    ElenorFx.lace(level, elenor.position(), ElenorFx.HOT, 4.5F, 16);
+                    com.automatavalkyries.weapon.Fx.one(level, com.automatavalkyries.weapon.Fx.opt(com.automatavalkyries.registry.ModParticles.BLOOM.get(),
+                            ElenorFx.PINK, 3.0F, 16), elenor.position().add(0, 1.2, 0), Vec3.ZERO);
                     ring(level, elenor.position(), 3.0, 24);
                     level.playSound(null, elenor.blockPosition(), SoundEvents.GENERIC_EXPLODE, elenor.getSoundSource(), 0.6F, 1.6F);
                     for (LivingEntity player : foes(level, elenor.getBoundingBox().inflate(6.0, 3.0, 6.0))) {
@@ -456,6 +524,7 @@ public final class ElenorArts {
                         player.hurtMarked = true;
                     }
                 }
+                if (moveTick == 26) elenor.triggerAnim("action", "curtsy");
                 if (moveTick > 36) {
                     finish();
                     cooldown = 20;
@@ -465,21 +534,20 @@ public final class ElenorArts {
                 // 前兆: 標的へ向かう線（14 Tick まで標的を追い、そこで向きが決まる）→ リボンが先へ伸びる。当たると引き寄せて鈍足
                 if (moveTick <= 14) {
                     bindDir = target.position().add(0, 1.0, 0).subtract(eye).normalize();
-                    if (moveTick == 1) level.playSound(null, elenor.blockPosition(), SoundEvents.ARMOR_EQUIP_LEATHER, elenor.getSoundSource(), 1.5F, 0.7F);
+                    if (moveTick == 1) {
+                        level.playSound(null, elenor.blockPosition(), SoundEvents.ARMOR_EQUIP_LEATHER, elenor.getSoundSource(), 1.5F, 0.7F);
+                        elenor.triggerAnim("action", "point");
+                    }
                 }
                 if (moveTick <= 22) {
-                    if (moveTick % 2 == 0) {
-                        for (int i = 1; i <= 14; i++) {
-                            Vec3 p = eye.add(bindDir.scale(i));
-                            level.sendParticles(moveTick > 14 ? RIBBON_PINK : PURPLE, p.x, p.y, p.z, 1, 0, 0, 0, 0);
-                        }
-                    }
+                    if (moveTick % 3 == 0) ElenorFx.streakLine(level, eye, eye.add(bindDir.scale(14.0)), 5, moveTick > 14 ? ElenorFx.HOT : ElenorFx.PINK); // 前兆の線
                 } else if (moveTick <= 30 && !bindHit) {
                     if (moveTick == 23) level.playSound(null, elenor.blockPosition(), SoundEvents.FISHING_BOBBER_THROW, elenor.getSoundSource(), 1.5F, 0.6F);
                     double reach = (moveTick - 22) * 1.75; // 8 Tick で 14 ブロック
-                    for (double d = 0.5; d <= reach; d += 0.5) {
+                    for (double d = 0.8; d <= reach; d += 0.8) { // リボンが先へ伸びる（桃と暗い紫が交互）
                         Vec3 p = eye.add(bindDir.scale(d));
-                        level.sendParticles(((int) (d * 2)) % 2 == 0 ? RIBBON_PINK : RIBBON_BLACK, p.x, p.y, p.z, 1, 0, 0, 0, 0);
+                        com.automatavalkyries.weapon.Fx.one(level, com.automatavalkyries.weapon.Fx.opt(com.automatavalkyries.registry.ModParticles.RIBBON.get(),
+                                ((int) (d / 0.8)) % 2 == 0 ? ElenorFx.PINK : ElenorFx.DARK, 0.3F, 10), p, Vec3.ZERO);
                     }
                     Vec3 tip = eye.add(bindDir.scale(reach));
                     for (LivingEntity player : foes(level, new net.minecraft.world.phys.AABB(eye, tip).inflate(1.0))) {
@@ -495,6 +563,7 @@ public final class ElenorArts {
                         player.hurtMarked = true;
                         player.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.MOVEMENT_SLOWDOWN, 60, 1));
                         level.playSound(null, player.blockPosition(), SoundEvents.LEASH_KNOT_PLACE, elenor.getSoundSource(), 1.5F, 0.8F);
+                        ElenorFx.ribbonSwirl(level, player.position(), 0.7, 1.8, 0.0); // 相手にリボンが巻きつく
                         break;
                     }
                 } else if (moveTick > 34) {
@@ -509,16 +578,17 @@ public final class ElenorArts {
                     mirages.add(target.position().add(side.scale(5.0)));
                     mirages.add(target.position().add(side.scale(-5.0)));
                     level.playSound(null, elenor.blockPosition(), SoundEvents.ILLUSIONER_MIRROR_MOVE, elenor.getSoundSource(), 1.5F, 1.0F);
-                    elenor.triggerAnim("action", "skirt_spread");
+                    elenor.triggerAnim("action", "spin");
                 }
                 if (moveTick % 2 == 0) {
                     for (Vec3 at : mirages) mirage(level, at, moveTick);
                 }
                 if ((moveTick == 20 || moveTick == 32) && mirages.size() == 2) {
+                    com.automatavalkyries.weapon.Fx.star(level, mirages.get(moveTick == 20 ? 0 : 1).add(0, 1.2, 0), ElenorFx.VIOLET, 1.2F, 8, Vec3.ZERO);
                     fan(level, mirages.get(moveTick == 20 ? 0 : 1).add(0, 1.0, 0), target, 3, 14.0, 0.6);
                 }
                 if (moveTick > 44) {
-                    for (Vec3 at : mirages) level.sendParticles(ParticleTypes.WITCH, at.x, at.y + 1.0, at.z, 16, 0.3, 0.5, 0.3, 0.05);
+                    for (Vec3 at : mirages) ElenorFx.petalBurst(level, at.add(0, 1.0, 0), 14, 0.3, ElenorFx.VIOLET); // 残像は花びらにほどけて消える
                     mirages.clear();
                     finish();
                 }
@@ -531,6 +601,7 @@ public final class ElenorArts {
                     level.playSound(null, elenor.blockPosition(), SoundEvents.BELL_RESONATE, elenor.getSoundSource(), 2.0F, 1.2F);
                 }
                 if (moveTick % 3 == 0) ribbonSwirl(level, elenor.position(), 1.2, 2.2, moveTick * 0.3);
+                if (moveTick % 5 == 0 && moveTick < 85) ElenorFx.petals(level, elenor.position().add(0, 5.0, 0), 8, 7.0, ElenorFx.PINK); // 花びらが降りしきる
                 if (moveTick >= 10 && moveTick <= 100 && moveTick % 10 == 0) {
                     double offset = moveTick * 0.13;
                     for (int i = 0; i < 12; i++) {
@@ -540,12 +611,16 @@ public final class ElenorArts {
                     level.playSound(null, elenor.blockPosition(), SoundEvents.BLAZE_SHOOT, elenor.getSoundSource(), 0.8F, 0.9F);
                 }
                 if (moveTick >= 25 && moveTick <= 100 && moveTick % 25 == 0) fan(level, eye, target, 5, 10.0, 0.75);
-                if (moveTick >= 85 && moveTick < 105 && moveTick % 5 == 0) { // 前兆: 終わりに来る輪（半径 14）
+                if (moveTick >= 85 && moveTick < 105 && moveTick % 5 == 0) { // 前兆: 終わりに来る輪（半径 14）に、緞帳が降りてくる
                     ring(level, elenor.position(), 14.0, 48);
-                    ribbonSwirl(level, elenor.position(), 14.0, 1.0, moveTick * 0.2);
+                    ElenorFx.curtainCircle(level, elenor.position(), 14.0, 16, moveTick * 0.05);
                 }
-                if (moveTick == 105) { // 終焉の幕引き
+                if (moveTick == 105) { // 終焉の幕引き: 暗いレースが広がり、真ん中で黒い花が開く
                     level.playSound(null, elenor.blockPosition(), SoundEvents.WITHER_DEATH, elenor.getSoundSource(), 1.2F, 1.5F);
+                    ElenorFx.lace(level, elenor.position(), ElenorFx.DARK, 14.0F, 24);
+                    com.automatavalkyries.weapon.Fx.shockwave(level, elenor.position().add(0, 0.1, 0), ElenorFx.CRIMSON, 14.0F, 18);
+                    ElenorFx.impact(level, elenor.position().add(0, 1.2, 0), 7);
+                    elenor.triggerAnim("action", "curtsy"); // 幕引きのお辞儀
                     for (LivingEntity player : foes(level, elenor.getBoundingBox().inflate(14.0, 6.0, 14.0))) {
                         if (ElenorPressure.fightable(player)) terminusOn(level, player);
                     }
@@ -593,7 +668,7 @@ public final class ElenorArts {
         @Override
         public boolean canUse() {
             LivingEntity target = elenor.getTarget();
-            return elenor.arts() != null && target != null
+            return elenor.arts() != null && target != null && elenor.isReachable(target)
                     && (target.isAlive() || com.automatavalkyries.annihilate.MadnessAnnihilation.isMadness(target));
         }
 

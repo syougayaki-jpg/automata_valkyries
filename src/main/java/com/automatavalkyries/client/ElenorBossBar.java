@@ -41,7 +41,12 @@ public final class ElenorBossBar {
     private static final String KEY = "entity.automata_valkyries.elenor";
     /** 描く細かさ（GUI の 1 点を R × R の点に分ける） */
     private static final int R = 2;
-    private static final int W = 182, H = 7, INCREMENT = 72;
+    /**
+     * ロゴ・ティアの札・禍々しさの飾りはバーの上へはみ出すので、自分の枠の中に収まるよう {@link #TOP_PAD} だけ下げて描き、
+     * その分だけ次のボスバーとの間（INCREMENT）も広げる（2026-10-23。ほかのボスバーと重なっていた）
+     */
+    private static final int TOP_PAD = 14;
+    private static final int W = 182, H = 7, INCREMENT = 72 + TOP_PAD;
     private static final int BLACK = 0xFF0C070D, SATIN = 0xFF15101A, PINK = 0xFFFF3FB4, HOT = 0xFFFF1F8E, LIGHT = 0xFFFFA6DC, DEEP = 0xFF9A1068, FRAME = 0xFF241A28, FRAME_HI = 0xFF4A3A52;
     private static final int LACE = 0xFFE8D0E0;
     /** 市松の 1 マスの大きさ（細かい点で） */
@@ -116,7 +121,7 @@ public final class ElenorBossBar {
         event.setIncrement(INCREMENT);
         if (STATES.size() > 16) STATES.clear();
         State st = STATES.computeIfAbsent(boss.getId(), k -> new State());
-        draw(event.getGuiGraphics(), st, boss, event.getGuiGraphics().guiWidth() / 2, event.getY());
+        draw(event.getGuiGraphics(), st, boss, event.getGuiGraphics().guiWidth() / 2, event.getY() + TOP_PAD);
     }
 
     private static void draw(GuiGraphics g, State st, LerpingBossEvent boss, int cx, int y) {

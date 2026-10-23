@@ -38,6 +38,19 @@ public final class ModParticles {
     public static final RegistryObject<FxOptions.Type> MANDALA = PARTICLES.register("fx_mandala", FxOptions.Type::new);
     /** 光線の輪: 光線に垂直な面で広がる電光の輪（向きは速さの向きで渡す。パニッシュメント・レールガン） */
     public static final RegistryObject<FxOptions.Type> BEAM_RING = PARTICLES.register("fx_beam_ring", FxOptions.Type::new);
+    // ---- エレノアの攻撃演出（2026-10-23） ----
+    /** リボン: ねじれながら（4 コマ）ひらひら漂う */
+    public static final RegistryObject<FxOptions.Type> RIBBON = PARTICLES.register("fx_ribbon", FxOptions.Type::new);
+    /** 花びら: 揺れながら舞い落ちる */
+    public static final RegistryObject<FxOptions.Type> PETAL = PARTICLES.register("fx_petal", FxOptions.Type::new);
+    /** 花: 蕾から開いて（4 コマ）消える（着弾の印） */
+    public static final RegistryObject<FxOptions.Type> BLOOM = PARTICLES.register("fx_bloom", FxOptions.Type::new);
+    /** レースの輪: 地面と平行に広がる（scale = 半径） */
+    public static final RegistryObject<FxOptions.Type> LACE = PARTICLES.register("fx_lace", FxOptions.Type::new);
+    /** 光の筋: 細い光が一瞬走る（roll で向き） */
+    public static final RegistryObject<FxOptions.Type> STREAK = PARTICLES.register("fx_streak", FxOptions.Type::new);
+    /** 緞帳: 房の付いた幕がゆっくり降りて消える */
+    public static final RegistryObject<FxOptions.Type> CURTAIN = PARTICLES.register("fx_curtain", FxOptions.Type::new);
     /** 浮かび上がるダメージの数字 */
     public static final RegistryObject<DamageNumberOptions.Type> DAMAGE_NUMBER = PARTICLES.register("damage_number", DamageNumberOptions.Type::new);
 

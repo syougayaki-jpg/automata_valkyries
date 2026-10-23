@@ -163,6 +163,13 @@
 					"cubes": [{"origin": [-3, 6, -3.8], "size": [6, 8, 1], "uv": [64, 40]}]
 				},
 				{"name": "skirt_spread_ctrl", "parent": "root", "pivot": [0, 0, 0]},
+				{"name": "pose_root", "parent": "root", "pivot": [0, 0, 0]},
+				{"name": "pose_body", "parent": "root", "pivot": [0, 0, 0]},
+				{"name": "pose_head", "parent": "root", "pivot": [0, 0, 0]},
+				{"name": "pose_right_arm", "parent": "root", "pivot": [0, 0, 0]},
+				{"name": "pose_left_arm", "parent": "root", "pivot": [0, 0, 0]},
+				{"name": "pose_right_leg", "parent": "root", "pivot": [0, 0, 0]},
+				{"name": "pose_left_leg", "parent": "root", "pivot": [0, 0, 0]},
 				{
 					"name": "right_arm", "parent": "root", "pivot": [-4.5, 21, 0],
 					"cubes": [

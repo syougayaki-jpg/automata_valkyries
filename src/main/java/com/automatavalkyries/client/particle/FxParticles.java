@@ -49,15 +49,22 @@ public final class FxParticles {
         event.registerSpriteSet(ModParticles.STAR.get(), sprites -> (o, l, x, y, z, dx, dy, dz) -> new Star(l, x, y, z, dx, dy, dz, o, sprites));
         event.registerSpriteSet(ModParticles.MANDALA.get(), sprites -> (o, l, x, y, z, dx, dy, dz) -> new Mandala(l, x, y, z, o, sprites));
         event.registerSpriteSet(ModParticles.BEAM_RING.get(), sprites -> (o, l, x, y, z, dx, dy, dz) -> new BeamRing(l, x, y, z, dx, dy, dz, o, sprites));
+        event.registerSpriteSet(ModParticles.RIBBON.get(), sprites -> (o, l, x, y, z, dx, dy, dz) -> new Fx(l, x, y, z, dx, dy, dz, o, sprites, Kind.RIBBON));
+        event.registerSpriteSet(ModParticles.PETAL.get(), sprites -> (o, l, x, y, z, dx, dy, dz) -> new Fx(l, x, y, z, dx, dy, dz, o, sprites, Kind.PETAL));
+        event.registerSpriteSet(ModParticles.BLOOM.get(), sprites -> (o, l, x, y, z, dx, dy, dz) -> new Fx(l, x, y, z, dx, dy, dz, o, sprites, Kind.BLOOM));
+        event.registerSpriteSet(ModParticles.LACE.get(), sprites -> (o, l, x, y, z, dx, dy, dz) -> new Shockwave(l, x, y, z, o, sprites));
+        event.registerSpriteSet(ModParticles.STREAK.get(), sprites -> (o, l, x, y, z, dx, dy, dz) -> new Fx(l, x, y, z, dx, dy, dz, o, sprites, Kind.STREAK));
+        event.registerSpriteSet(ModParticles.CURTAIN.get(), sprites -> (o, l, x, y, z, dx, dy, dz) -> new Fx(l, x, y, z, dx, dy, dz, o, sprites, Kind.CURTAIN));
         event.registerSpecial(ModParticles.DAMAGE_NUMBER.get(), (o, l, x, y, z, dx, dy, dz) -> new DamageNumber(l, x, y, z, o));
     }
 
-    enum Kind { SPARK, GLOW, SLASH, GLYPH, HEX, SHARD, SAW }
+    enum Kind { SPARK, GLOW, SLASH, GLYPH, HEX, SHARD, SAW, RIBBON, PETAL, BLOOM, STREAK, CURTAIN }
 
     static class Fx extends TextureSheetParticle {
         private final SpriteSet sprites;
         private final Kind kind;
         private final float baseSize, baseAlpha, spin;
+        private float sway;
 
         Fx(ClientLevel level, double x, double y, double z, double dx, double dy, double dz, FxOptions o, SpriteSet sprites, Kind kind) {
             super(level, x, y, z);
@@ -73,12 +80,14 @@ public final class FxParticles {
             this.baseAlpha = kind == Kind.GLOW ? 0.85F : 1F;
             this.alpha = baseAlpha;
             this.hasPhysics = false;
-            this.gravity = kind == Kind.SHARD ? 0.04F : 0F;
+            this.gravity = kind == Kind.SHARD ? 0.04F : kind == Kind.PETAL ? 0.006F : kind == Kind.RIBBON ? 0.003F : kind == Kind.CURTAIN ? 0.01F : 0F;
             this.friction = kind == Kind.GLOW ? 0.9F : kind == Kind.SLASH || kind == Kind.SAW ? 0.5F : 0.86F;
-            this.roll = kind == Kind.SLASH ? o.roll() : random.nextFloat() * Mth.TWO_PI;
+            this.roll = kind == Kind.SLASH || kind == Kind.STREAK ? o.roll() : kind == Kind.CURTAIN ? 0F : random.nextFloat() * Mth.TWO_PI;
             this.oRoll = roll;
-            this.spin = kind == Kind.SAW ? -1.1F : kind == Kind.HEX || kind == Kind.SHARD ? (random.nextFloat() - 0.5F) * 0.5F : kind == Kind.GLYPH ? (random.nextFloat() - 0.5F) * 0.06F : 0;
-            if (kind == Kind.SPARK || kind == Kind.SAW) setSpriteFromAge(sprites);
+            this.spin = kind == Kind.SAW ? -1.1F : kind == Kind.HEX || kind == Kind.SHARD ? (random.nextFloat() - 0.5F) * 0.5F : kind == Kind.GLYPH ? (random.nextFloat() - 0.5F) * 0.06F
+                    : kind == Kind.PETAL ? (random.nextFloat() - 0.5F) * 0.3F : kind == Kind.RIBBON ? (random.nextFloat() - 0.5F) * 0.12F : 0;
+            this.sway = random.nextFloat() * Mth.TWO_PI;
+            if (kind == Kind.SPARK || kind == Kind.SAW || kind == Kind.BLOOM || kind == Kind.RIBBON) setSpriteFromAge(sprites);
             else pickSprite(sprites);
         }
 
@@ -111,6 +120,28 @@ public final class FxParticles {
                     alpha = t < 0.5F ? 1F : 1F - (t - 0.5F) / 0.5F;
                 }
                 case HEX, SHARD -> alpha = t < 0.6F ? 1F : 1F - (t - 0.6F) / 0.4F;
+                case RIBBON -> { // ねじれのコマを繰り返し、横に揺れながら漂う
+                    sprite = sprites.get((age / 3) % 4, 3);
+                    sway += 0.25F;
+                    xd += Mth.sin(sway) * 0.004;
+                    zd += Mth.cos(sway) * 0.004;
+                    alpha = t < 0.75F ? 1F : 1F - (t - 0.75F) / 0.25F;
+                }
+                case PETAL -> { // 揺れながら舞い落ちる
+                    sway += 0.18F;
+                    xd += Mth.sin(sway) * 0.006;
+                    alpha = t < 0.7F ? 1F : 1F - (t - 0.7F) / 0.3F;
+                }
+                case BLOOM -> { // 蕾から開いて、少し大きくなって消える
+                    setSpriteFromAge(sprites);
+                    quadSize = baseSize * (0.6F + 0.5F * Math.min(1F, t * 1.6F));
+                    alpha = t < 0.6F ? 1F : 1F - (t - 0.6F) / 0.4F;
+                }
+                case STREAK -> { // 一瞬で伸びて消える
+                    quadSize = baseSize * (t < 0.3F ? 0.4F + t * 2F : 1F);
+                    alpha = 1F - t * t;
+                }
+                case CURTAIN -> alpha = t < 0.2F ? t / 0.2F : t < 0.7F ? 1F : 1F - (t - 0.7F) / 0.3F; // 現れて、降りて、消える
             }
         }
 

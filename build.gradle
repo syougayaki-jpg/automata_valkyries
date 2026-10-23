@@ -482,8 +482,12 @@ dependencies {
             runtimeOnly fg.deobf("maven.modrinth:epic-core-api:1.1.8-fix")
             runtimeOnly fg.deobf("maven.modrinth:the-last-sword-you-never-forgot:1.1.1")
         }
-        runtimeOnly fg.deobf("maven.modrinth:manaitaplus-legacy:2.0.6.5")
-        runtimeOnly fg.deobf("maven.modrinth:manaitamtk:1.7.4")
+        // -PwithoutManaita: ManaitaPlus Legacy・ManaitaMTK を外す（2026-10-23。まな板が getAttributeValue に割り込んで永続データを読み、
+        // Omni-Mobs のボスがコンストラクタの途中で NullPointerException になって湧かない。Mixin はまな板のクラスに当たらなかった）
+        if (!project.hasProperty('withoutManaita')) {
+            runtimeOnly fg.deobf("maven.modrinth:manaitaplus-legacy:2.0.6.5")
+            runtimeOnly fg.deobf("maven.modrinth:manaitamtk:1.7.4")
+        }
         // Fantasy Ending は作業ディレクトリを変えないと起動できず、専用サーバーでも起動できないので -PwithFantasyEnding に分ける（併用可）
     }
 

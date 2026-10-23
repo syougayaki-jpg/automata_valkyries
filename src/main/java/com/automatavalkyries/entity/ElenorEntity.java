@@ -43,6 +43,7 @@ import net.minecraft.world.InteractionResult;
 public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, GeoEntity, ITerminusBearer, RetreatableBoss {
 
     private boolean terminusEnabled = false;
+    private int lastFlinch = -100;
 
     /** 正規撃破から消滅までの Tick 数（モデル側の座り込み演出もこれに合わせる） */
     public static final int DEATH_TICKS = 30;
@@ -76,6 +77,7 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
      */
     private void reacquireTarget() {
         if (tickCount % 10 != 0 || !isAlive() || this.level().getDifficulty() == net.minecraft.world.Difficulty.PEACEFUL) return;
+        if (!hasFreeWill()) return; // 自分で相手を探す仕組み（ゴール）を外された個体（GameTest の置き物など）は、自分では狙わない
         if (!(this.level() instanceof net.minecraft.server.level.ServerLevel server)) return;
         LivingEntity current = getTarget();
         if (current != null && isHostileCandidate(current)) return;
@@ -91,6 +93,28 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
         if (nearest != null) setTarget(nearest);
     }
 
+    /**
+     * 追いかけてよい相手か: 座標が数（NaN・無限大でない）で、同じワールドの {@link #HOSTILE_RANGE} の 1.5 倍以内。
+     * 遠くへ瞬間移動する相手（フラッシュファーなど）を技で追いかけて、エレノアが安全でない位置へ向かい続け、どこかへ行ってしまった（2026-10-23）
+     */
+    public boolean isReachable(net.minecraft.world.entity.Entity e) {
+        if (e.level() != this.level()) return false;
+        double x = e.getX(), y = e.getY(), z = e.getZ();
+        if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)) return false;
+        double limit = HOSTILE_RANGE * 1.5D;
+        return this.distanceToSqr(e) <= limit * limit;
+    }
+
+    /** ボスバーを見ているプレイヤー（ティアの表示を送る相手） */
+    public java.util.Collection<net.minecraft.server.level.ServerPlayer> bossBarViewers() {
+        return bossEvent.getPlayers();
+    }
+
+    /** 自分で相手を探す仕組み（狙いのゴール）があるか。GameTest の removeFreeWill で外された個体は false */
+    public boolean hasFreeWill() {
+        return !this.targetSelector.getAvailableGoals().isEmpty();
+    }
+
     /** 敵対探知の範囲（m） */
     static final double HOSTILE_RANGE = 96.0D;
 
@@ -100,9 +124,11 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
      */
     boolean isHostileCandidate(LivingEntity e) {
         if (e == null || e == this || e instanceof ElenorEntity) return false;
+        if (!isReachable(e)) return false;
         if (e instanceof Player player) return isFightable(player);
         if (e instanceof com.automatavalkyries.protect.IEprotected protectedEntity && !protectedEntity.isTerminusTestTarget()) return false;
         if (!e.isAlive() && !com.automatavalkyries.annihilate.MadnessAnnihilation.isMadness(e)) return false;
+        if (arts != null && arts.pressure().isViciousAttacker(e)) return true; // 凶悪技術を使ってきた相手（即死系の操作は、被弾として残らない）
         return e == getLastHurtByMob() || com.automatavalkyries.annihilate.FlagKillPredicates.hasDangerousFlag(e);
     }
 
@@ -129,6 +155,14 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
     public boolean hurt(net.minecraft.world.damagesource.DamageSource source, float amount) {
         // 受けたダメージを記録し、過剰な攻撃・即死を感知して、スケーリングで割り引く（ElenorPressure）
         if (arts != null && !this.level().isClientSide) amount = arts.pressure().onHurt(source, amount);
+        // 受けたときの反応: 花びらと火花、ときどき（1.5 秒に 1 回）のけぞる
+        if (this.level() instanceof net.minecraft.server.level.ServerLevel server && amount > 0.0F && Float.isFinite(amount) && isAlive()) {
+            ElenorFx.hitReaction(server, position().add(0, 1.2, 0));
+            if (tickCount - lastFlinch > 30) {
+                lastFlinch = tickCount;
+                triggerAnim("action", "flinch");
+            }
+        }
         if (!this.level().isClientSide && source.getEntity() instanceof Player attacker && isFightable(attacker)) this.setTarget(attacker); // 殴られたら無敵持ちでも敵対
         return super.hurt(source, amount);
     }
@@ -214,6 +248,15 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
         if (!this.level().isClientSide) {
             protect.tick(); // 撃破後の演出が進まないときの代行もここ（Eprotect#tick）
             tickRetreat();
+            // 同じ UUID で作り直す相手（フラッシュファーなど）は、ワールドに登録されている本体を狙い直す（古い複製を狙うと技が当たらない）
+            if (getTarget() != null && this.level() instanceof net.minecraft.server.level.ServerLevel server
+                    && server.getEntity(getTarget().getUUID()) instanceof LivingEntity live && live != getTarget()) {
+                setTarget(live);
+            }
+            // 追いかけられない相手（座標がおかしい・遠すぎる）は狙いから外す。速度が数でなくなっていたら止める
+            if (getTarget() != null && !isReachable(getTarget())) setTarget(null);
+            net.minecraft.world.phys.Vec3 motion = getDeltaMovement();
+            if (!Double.isFinite(motion.x) || !Double.isFinite(motion.y) || !Double.isFinite(motion.z)) setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
             reacquireTarget();
             if (arts != null) {
                 arts.tickProjectiles();
@@ -403,7 +446,13 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
     public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
         controllers.add(new AnimationController<>(this, "idle", 5, state -> state.setAndContinue(IDLE)));
         controllers.add(new AnimationController<>(this, "action", 0, state -> PlayState.STOP)
-                .triggerableAnim("skirt_spread", SKIRT_SPREAD));
+                .triggerableAnim("skirt_spread", SKIRT_SPREAD)
+                .triggerableAnim("lunge", RawAnimation.begin().thenPlay("animation.elenor.lunge"))
+                .triggerableAnim("cast", RawAnimation.begin().thenPlay("animation.elenor.cast"))
+                .triggerableAnim("point", RawAnimation.begin().thenPlay("animation.elenor.point"))
+                .triggerableAnim("spin", RawAnimation.begin().thenPlay("animation.elenor.spin"))
+                .triggerableAnim("curtsy", RawAnimation.begin().thenPlay("animation.elenor.curtsy"))
+                .triggerableAnim("flinch", RawAnimation.begin().thenPlay("animation.elenor.flinch")));
     }
 
     @Override

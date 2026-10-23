@@ -249,6 +249,12 @@ public final class AttackLog {
 
     private static void record(@Nullable Entity target, String mod, String op, Outcome outcome, String frame,
                                @Nullable String via, @Nullable String chargeMod) {
+        // エレノアが受けた凶悪技術は、凶悪度に応じてティアを上がりやすくする（docs/SPEC_ELENOR.md §2.3.3）
+        if (target instanceof com.automatavalkyries.entity.ElenorEntity elenor && elenor.arts() != null) {
+            com.automatavalkyries.entity.ElenorPressure.Vicious vicious =
+                    com.automatavalkyries.entity.ElenorPressure.classify(op, outcome == Outcome.BLOCKED_BLACKLIST);
+            if (vicious != null) elenor.arts().pressure().onVicious(vicious, null, chargeMod != null ? chargeMod : mod);
+        }
         String key = mod + "|" + op + "|" + outcome;
         Entry entry = ENTRIES.get(key);
         if (entry == null) {
