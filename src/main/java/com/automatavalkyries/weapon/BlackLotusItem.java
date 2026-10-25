@@ -205,6 +205,6 @@ public class BlackLotusItem extends TacticalWeaponItem implements ValkyrieArts.U
 
     @Override
     protected Object[] descArgs() {
-        return new Object[]{format(PER_STORM)};
+        return new Object[]{format(PER_HIT), format(PER_STORM)}; // 1 打・嵐 1 回の電力（説明文の %s の順）
     }
 }

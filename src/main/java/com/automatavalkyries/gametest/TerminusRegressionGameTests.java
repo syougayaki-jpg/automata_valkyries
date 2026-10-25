@@ -197,6 +197,126 @@ public class TerminusRegressionGameTests {
         helper.succeed();
     }
 
+    @GameTest(template = "empty")
+    public static void isolationDamageErodesNonEntityControllerAndBypassesTimeWindowCaps(GameTestHelper helper) {
+        com.automatavalkyries.annihilate.SpawnBanZone.clear();
+        var attacker = helper.makeMockPlayer();
+        try {
+            // 1. 非エンティティ本体（難読化 int HP f_699991_ = 150 + 毎tick getHP 上書き + プロキシ再生成）の侵食・撃破検証
+            SimulatedAvatarController controller = new SimulatedAvatarController();
+            SimulatedAvatarProxy proxy1 = new SimulatedAvatarProxy(helper.getLevel(), controller);
+            proxy1.setPos(helper.absolutePos(new BlockPos(2, 2, 2)).getCenter());
+            helper.getLevel().addFreshEntity(proxy1);
+
+            com.automatavalkyries.annihilate.IsolationDamageEngine.ensureIsolatedAttack(
+                    attacker, proxy1, attacker.damageSources().playerAttack(attacker), 10.0F);
+            controller.tickController();
+            helper.assertTrue(controller.f_699991_ < 150 && controller.f_699991_ > 0 && controller.getHP < 150.0F,
+                    "Value-matched obfuscated int HP f_699991_ was not eroded on Phase 1: " + controller.f_699991_);
+
+            // プロキシが再生成されても本体経由で IsolationState を引き継ぎ、致死到達時に f_699991_ == -1 & isDeathCrazy == true になること
+            SimulatedAvatarProxy proxy2 = new SimulatedAvatarProxy(helper.getLevel(), controller);
+            proxy2.setPos(helper.absolutePos(new BlockPos(2, 2, 2)).getCenter());
+            helper.getLevel().addFreshEntity(proxy2);
+            com.automatavalkyries.annihilate.IsolationDamageEngine.ensureIsolatedAttack(
+                    attacker, proxy2, attacker.damageSources().playerAttack(attacker), 30.0F);
+            controller.tickController();
+            helper.assertTrue(controller.f_699991_ < 0 && controller.isDeathCrazy,
+                    "Lethal erosion did not set controller f_699991_ < 0 or trigger isDeathCrazy: hp=" + controller.f_699991_);
+
+            // 2. 時間窓ダメージ上限（200 tick で 10% 上限）＋ hurtDepth > 0 & lastValidHealth <= 10% 致死制限ボスの1撃突破検証
+            WindowCappedBoss cappedBoss = new WindowCappedBoss(helper.getLevel());
+            cappedBoss.setPos(helper.absolutePos(new BlockPos(3, 2, 3)).getCenter());
+            helper.getLevel().addFreshEntity(cappedBoss);
+            com.automatavalkyries.annihilate.IsolationDamageEngine.ensureIsolatedAttack(
+                    attacker, cappedBoss, attacker.damageSources().playerAttack(attacker), 200.0F);
+            helper.assertTrue(cappedBoss.legitimateDefeatAccepted || cappedBoss.isDeadOrDying() || cappedBoss.isRemoved(),
+                    "Window-capped boss was not defeated through rapid window-reset cascade");
+        } finally {
+            com.automatavalkyries.annihilate.SpawnBanZone.clear();
+        }
+        helper.succeed();
+    }
+
+    public static class SimulatedAvatarController {
+        public double getMaxHP = 150.0;
+        public float getHP = 150.0F;
+        public int f_699991_ = 150;
+        public int hurtCooldown = 10;
+        public boolean isDeathCrazy = false;
+
+        public void tickController() {
+            this.getHP = (float) this.f_699991_;
+            if (this.f_699991_ < 0) {
+                this.isDeathCrazy = true;
+            }
+        }
+    }
+
+    public static class SimulatedAvatarProxy extends Zombie {
+        public SimulatedAvatarController target;
+
+        public SimulatedAvatarProxy(ServerLevel level, SimulatedAvatarController target) {
+            super(EntityType.ZOMBIE, level);
+            this.target = target;
+        }
+    }
+
+    public static class WindowDamageLimiterComponent {
+        public boolean windowOpen = false;
+        public long windowStart = 0L;
+        public float inWindow = 0.0F;
+        public float lastValidHealth = 20.0F;
+    }
+
+    public static class WindowCappedBoss extends Zombie {
+        public final WindowDamageLimiterComponent damageLimiter = new WindowDamageLimiterComponent();
+        public int hurtDepth = 0;
+        public boolean legitimateDefeatAccepted = false;
+
+        public WindowCappedBoss(ServerLevel level) {
+            super(EntityType.ZOMBIE, level);
+        }
+
+        @Override
+        public boolean hurt(net.minecraft.world.damagesource.DamageSource source, float amount) {
+            hurtDepth++;
+            try {
+                long now = this.level().getGameTime();
+                if (!damageLimiter.windowOpen || now - damageLimiter.windowStart >= 200L) {
+                    damageLimiter.windowOpen = true;
+                    damageLimiter.windowStart = now;
+                    damageLimiter.inWindow = 0.0F;
+                }
+                float cap = this.getMaxHealth() * 0.10F;
+                float allowed = Math.max(0.0F, Math.min(amount, cap - damageLimiter.inWindow));
+                damageLimiter.inWindow += allowed;
+                if (allowed <= 0.0F) {
+                    return false;
+                }
+                boolean res = super.hurt(source, allowed);
+                float hp = this.getHealth();
+                if (Float.isFinite(hp) && hp > 0.0F) {
+                    damageLimiter.lastValidHealth = hp;
+                }
+                return res;
+            } finally {
+                hurtDepth--;
+            }
+        }
+
+        @Override
+        public void die(net.minecraft.world.damagesource.DamageSource source) {
+            float maxSingleHit = this.getMaxHealth() * 0.10F + 1.0F;
+            if (hurtDepth <= 0 || damageLimiter.lastValidHealth > maxSingleHit) {
+                this.setHealth(damageLimiter.lastValidHealth);
+                return;
+            }
+            legitimateDefeatAccepted = true;
+            super.die(source);
+        }
+    }
+
     public static class PrimitiveState extends Zombie {
         public PrimitiveState(ServerLevel level) { super(EntityType.ZOMBIE, level); }
         public byte b = 127;

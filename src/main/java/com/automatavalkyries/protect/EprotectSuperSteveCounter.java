@@ -1,11 +1,14 @@
 package com.automatavalkyries.protect;
 
+import com.automatavalkyries.entity.akashic.AkashicProbeEntity;
 import com.automatavalkyries.mixin.EntityAccessor;
 import com.automatavalkyries.mixin.LivingEntityAccessor;
+import com.automatavalkyries.protect.attack.CallerAttribution;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.entity.EntityInLevelCallback;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 
 import java.lang.reflect.Field;
 
@@ -58,12 +61,25 @@ public final class EprotectSuperSteveCounter {
         // 1. 当たり判定（BoundingBox）の崩壊検知と復元
         AABB currentBb = entity.getBoundingBox();
         if (currentBb.getXsize() < 0.001D && currentBb.getYsize() < 0.001D && currentBb.getZsize() < 0.001D) {
+            if (entity instanceof AkashicProbeEntity probe && !probe.level().isClientSide) {
+                CallerAttribution.Attribution attr = CallerAttribution.attribute(probe);
+                String mod = attr.callerIsForeign() ? attr.callerMod()
+                        : attr.foreignMod() != null ? attr.foreignMod() : CallerAttribution.UNKNOWN;
+                probe.record().observe(mod, "spatial_tamper:aabb_corrupted", "REPAIRED",
+                        String.format("size=(%.2f, %.2f, %.2f)", currentBb.getXsize(), currentBb.getYsize(), currentBb.getZsize()), null);
+            }
             entity.refreshDimensions();
+            Vec3 p = entity.position();
+            ((EntityAccessor) entity).automata_valkyries$setBoundingBoxField(
+                    entity.getDimensions(entity.getPose()).makeBoundingBox(p.x, p.y, p.z));
             neutralized = true;
         }
 
         // 2. noPhysics の改ざん復元
         if (entity.noPhysics) {
+            if (entity instanceof AkashicProbeEntity probe && !probe.level().isClientSide) {
+                probe.record().observe(CallerAttribution.UNKNOWN, "direct_field:noPhysics", "REPAIRED", "Entity.noPhysics=true", null);
+            }
             entity.noPhysics = false;
             neutralized = true;
         }

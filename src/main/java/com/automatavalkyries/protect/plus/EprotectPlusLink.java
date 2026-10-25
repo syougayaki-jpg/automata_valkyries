@@ -734,9 +734,15 @@ public final class EprotectPlusLink {
     }
 
     /**
-     * 強化処理状態を即時リセットする（テスト環境・戦闘終了用）。
+     * 強化処理状態を即時リセットする（テスト環境・戦闘終了用）。外部 MOD からの不正呼び出しは拒否する。
      */
     public static void resetReinforced() {
+        String callerMod = CallerAttribution.immediateCallerMod(null);
+        if (CallerAttribution.isForeign(callerMod)) {
+            recordProtection("EprotectPlusLink", callerMod, "resetReinforced_blocked",
+                    "Blocked unauthorized resetReinforced() call from foreign mod");
+            return;
+        }
         LOCAL_REINFORCED_UNTIL_NS.set(System.nanoTime());
         LOCAL_REINFORCED_REASON = "";
         Class<?> type = bridge();

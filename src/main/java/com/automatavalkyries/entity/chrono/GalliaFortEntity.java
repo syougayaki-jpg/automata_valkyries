@@ -574,6 +574,11 @@ public class GalliaFortEntity extends Monster implements GeoEntity, ChronoGazer,
         return protect;
     }
 
+
+    @Override
+    public java.util.List<net.minecraft.server.level.ServerBossEvent> bossBars() {
+        return java.util.List.of(bossEvent, barrierEvent);
+    }
     @Override
     public void onAddedToWorld() {
         super.onAddedToWorld();
@@ -629,6 +634,7 @@ public class GalliaFortEntity extends Monster implements GeoEntity, ChronoGazer,
     /** 撃破: 脚が崩れて胴が沈み、あちこちで小さな爆発、最後に障壁の発生炉が弾けて大きな爆発（3 秒） */
     @Override
     protected void tickDeath() {
+        if (protect.refuseDeathTick()) return; // 撃破を認めていないのに演出を回された（The King Sword 等）
         ++deathTime;
         if (!level().isClientSide && !entityData.get(DEFEATED)) {
             entityData.set(DEFEATED, true);

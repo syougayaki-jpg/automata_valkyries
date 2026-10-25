@@ -45,4 +45,20 @@ public interface EntityAccessor {
 
     @Accessor("bb")
     void automata_valkyries$setBoundingBoxField(net.minecraft.world.phys.AABB bb);
+
+    /** UUID・ID を getter（{@code getUUID} は他 MOD に書き換えられうる）を通さずに読み書きする */
+    @Accessor("uuid")
+    java.util.UUID automata_valkyries$getUuidField();
+
+    @Accessor("uuid")
+    void automata_valkyries$setUuidField(java.util.UUID uuid);
+
+    @Accessor("stringUUID")
+    void automata_valkyries$setStringUuidField(String stringUuid);
+
+    @Accessor("id")
+    int automata_valkyries$getIdField();
+
+    @Accessor("id")
+    void automata_valkyries$setIdField(int id);
 }

@@ -2,6 +2,8 @@ package com.automatavalkyries.protect;
 
 import com.automatavalkyries.mixin.EntityAccessor;
 import com.automatavalkyries.mixin.LivingEntityAccessor;
+import com.automatavalkyries.mixin.SynchedEntityDataAccessor;
+import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import org.jetbrains.annotations.Nullable;
@@ -18,9 +20,48 @@ public final class DirectRead {
 
     private DirectRead() {}
 
-    /** 同期データにある実際の HP */
+    /**
+     * 同期データにある実際の HP。HP の項目そのものを同期データから抜かれていたら（The King Sword と組んだとき。vanilla の読み書きも
+     * 空を読んで落ち、サーバーが落ちた。2026-10-26）、保護対象なら最後に確かめた健全な値で項目を作り直してから読む（{@link #ensureHealthItem}）。
+     * 保護対象でない相手は書き換えず、HP 0 として読む
+     */
     public static float health(LivingEntity entity) {
-        return entity.getEntityData().get(LivingEntityAccessor.automata_valkyries$getDataHealthId());
+        SynchedEntityData.DataItem<?> item = healthItem(entity);
+        if (item == null && ensureHealthItem(entity)) item = healthItem(entity);
+        return item != null && item.getValue() instanceof Float value ? value : 0.0F;
+    }
+
+    @Nullable
+    private static SynchedEntityData.DataItem<?> healthItem(LivingEntity entity) {
+        SynchedEntityData data = ((EntityAccessor) entity).automata_valkyries$getEntityDataField();
+        if (data == null) return null;
+        var items = ((SynchedEntityDataAccessor) data).automata_valkyries$getItemsById();
+        return items != null ? items.get(LivingEntityAccessor.automata_valkyries$getDataHealthId().getId()) : null;
+    }
+
+    /**
+     * 保護対象の同期データから HP の項目が抜かれていたら、最後に確かめた健全な値（無ければ最大 HP）で作り直す。作り直したら true
+     */
+    public static boolean ensureHealthItem(LivingEntity entity) {
+        if (!(entity instanceof IEprotected provider)) return false;
+        SynchedEntityData data = ((EntityAccessor) entity).automata_valkyries$getEntityDataField();
+        if (data == null) return false;
+        var items = ((SynchedEntityDataAccessor) data).automata_valkyries$getItemsById();
+        var key = LivingEntityAccessor.automata_valkyries$getDataHealthId();
+        if (items == null || items.get(key.getId()) != null) return false;
+        Eprotect protect = provider.getEprotect();
+        float value = protect != null && protect.getLastValidHealth() > 0.0F ? protect.getLastValidHealth() : 0.0F;
+        if (!(value > 0.0F)) {
+            var attribute = entity.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH);
+            value = attribute != null ? (float) attribute.getValue() : 20.0F;
+        }
+        SynchedEntityData.DataItem<Float> item = new SynchedEntityData.DataItem<>(key, value);
+        item.setDirty(true);
+        items.put(key.getId(), item);
+        ((SynchedEntityDataAccessor) data).automata_valkyries$setDirty(true);
+        // 毎 Tick 抜かれることがあるので、記録は攻撃の記録だけ（同じ物はまとめて数える）
+        if (!entity.level().isClientSide) com.automatavalkyries.protect.attack.AttackLog.repaired(entity, "synched_data:health_entry_missing");
+        return true;
     }
 
     @Nullable

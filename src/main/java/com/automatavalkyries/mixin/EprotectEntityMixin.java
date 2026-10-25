@@ -144,6 +144,21 @@ public abstract class EprotectEntityMixin {
     }
 
     /**
+     * 保護中に、他 MOD が足元へ物を出させるのを断る（The King Sword の ForceDropHelp は、倒せなかった相手の持ち物の写しを
+     * spawnAtLocation で出す。2026-10-25）。このMOD 自身・vanilla からの呼び出しは通す
+     */
+    @Inject(method = "spawnAtLocation(Lnet/minecraft/world/item/ItemStack;F)Lnet/minecraft/world/entity/item/ItemEntity;", at = @At("HEAD"), cancellable = true)
+    private void automata_valkyries$guardSpawnAtLocation(net.minecraft.world.item.ItemStack stack, float yOffset,
+                                                          CallbackInfoReturnable<net.minecraft.world.entity.item.ItemEntity> cir) {
+        Eprotect protect = automata_valkyries$protect();
+        if (protect == null || ((Entity) (Object) this).level().isClientSide || !protect.isProtectionActive()) return;
+        String mod = com.automatavalkyries.protect.attack.CallerAttribution.immediateCallerMod((Entity) (Object) this);
+        if (!com.automatavalkyries.protect.attack.CallerAttribution.isForeign(mod)) return;
+        AttackLog.refused((Entity) (Object) this, AttackOp.DIE + ":drop_spawn", mod);
+        cir.setReturnValue(null);
+    }
+
+    /**
      * 次元移動（Forge の changeDimension）。移動先に複製を加えてから元の個体を消すので、途中では止められない。入口で判定し、
      * 通したものは最後まで通す（途中の setRemoved(CHANGED_DIMENSION) を止めない）。
      */
@@ -156,7 +171,9 @@ public abstract class EprotectEntityMixin {
             cir.setReturnValue(null);
             return;
         }
-        protect.approveDimensionChange(true);
+        // 許可を断った（他 MOD が呼んだ）なら、移動ごと止める。移動を進めると移動先に写しが作られ、元の個体の消去は許可が無いので断られて、
+        // 両方の次元に 1 体ずつ残った（2026-10-25）
+        if (!protect.approveDimensionChange(true)) cir.setReturnValue(null);
     }
 
     @Inject(method = "changeDimension(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraftforge/common/util/ITeleporter;)Lnet/minecraft/world/entity/Entity;",
@@ -176,7 +193,7 @@ public abstract class EprotectEntityMixin {
             cir.setReturnValue(false);
             return;
         }
-        protect.approveDimensionChange(true);
+        if (!protect.approveDimensionChange(true)) cir.setReturnValue(false); // 許可を断ったら移動ごと止める（写しを作らせない）
     }
 
     @Inject(method = "teleportTo(Lnet/minecraft/server/level/ServerLevel;DDDLjava/util/Set;FF)Z", at = @At("RETURN"))

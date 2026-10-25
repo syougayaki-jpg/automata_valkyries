@@ -164,13 +164,76 @@ public abstract class EprotectDamageMixin {
 
             if (!protect.canDie()) {
                 ci.cancel();
-                boolean malicious = protect.noteRefusedDeath(); // 凶悪技術なら罰則で HP を最大へ
-                float current = com.automatavalkyries.protect.DirectRead.health(self);
-                float fallback = !malicious && Float.isFinite(current) && current > 0.0F ? current : self.getMaxHealth();
-                self.setHealth(fallback);
-                self.deathTime = 0;
+                protect.refuseDeath(com.automatavalkyries.protect.attack.AttackOp.DIE); // 凶悪技術なら罰則で HP を最大へ
             }
         }
+    }
+
+    /** 撃破を認めていないのに死亡のドロップを出させられたら断る（{@link Eprotect#refuseDeathDrop}） */
+    @Inject(method = "dropAllDeathLoot", at = @At("HEAD"), cancellable = true)
+    private void automata_valkyries$guardDropAllDeathLoot(DamageSource source, CallbackInfo ci) {
+        Eprotect protect = automata_valkyries$getProtect();
+        if (protect != null && protect.refuseDeathDrop("all")) ci.cancel();
+    }
+
+    @Inject(method = "dropFromLootTable", at = @At("HEAD"), cancellable = true)
+    private void automata_valkyries$guardDropFromLootTable(DamageSource source, boolean byPlayer, CallbackInfo ci) {
+        Eprotect protect = automata_valkyries$getProtect();
+        if (protect != null && protect.refuseDeathDrop("loot_table")) ci.cancel();
+    }
+
+    @Inject(method = "dropCustomDeathLoot", at = @At("HEAD"), cancellable = true)
+    private void automata_valkyries$guardDropCustomDeathLoot(DamageSource source, int looting, boolean byPlayer, CallbackInfo ci) {
+        Eprotect protect = automata_valkyries$getProtect();
+        if (protect != null && protect.refuseDeathDrop("custom")) ci.cancel();
+    }
+
+    @Inject(method = "dropEquipment", at = @At("HEAD"), cancellable = true)
+    private void automata_valkyries$guardDropEquipment(CallbackInfo ci) {
+        Eprotect protect = automata_valkyries$getProtect();
+        if (protect != null && protect.refuseDeathDrop("equipment")) ci.cancel();
+    }
+
+    @Inject(method = "dropExperience", at = @At("HEAD"), cancellable = true)
+    private void automata_valkyries$guardDropExperience(CallbackInfo ci) {
+        Eprotect protect = automata_valkyries$getProtect();
+        if (protect != null && protect.refuseDeathDrop("experience")) ci.cancel();
+    }
+
+    @Inject(method = "getExperienceReward", at = @At("HEAD"), cancellable = true)
+    private void automata_valkyries$guardExperienceReward(CallbackInfoReturnable<Integer> cir) {
+        Eprotect protect = automata_valkyries$getProtect();
+        if (protect != null && !((LivingEntity) (Object) this).level().isClientSide && protect.isProtectionActive()) cir.setReturnValue(0);
+    }
+
+    /**
+     * 動けないかを、倒れかけかどうか（vanilla と同じ決まり。倒れかけの判定はこの Mixin が実際の値で直す）で答える。
+     * The King Sword は isImmobile を丸ごと置き換え、強制死亡の印（ID）が付いた相手を動けなくする（2026-10-25「止まります」）
+     */
+    @Inject(method = "isImmobile", at = @At("RETURN"), cancellable = true)
+    private void automata_valkyries$guardIsImmobile(CallbackInfoReturnable<Boolean> cir) {
+        Eprotect protect = automata_valkyries$getProtect();
+        if (protect != null && cir.getReturnValue() && protect.isProtectionActive() && !protect.isDying()) {
+            cir.setReturnValue(((LivingEntity) (Object) this).isDeadOrDying());
+        }
+    }
+
+    /**
+     * 撃破を認めていないのに撃破の演出（tickDeath）を回されたら止める（{@link Eprotect#refuseDeathTick}）。
+     * tickDeath を上書きする個体は、上書きの先頭で同じ物を呼ぶ（上書きされるとここは通らない）
+     */
+    @Inject(method = "tickDeath", at = @At("HEAD"), cancellable = true)
+    private void automata_valkyries$guardTickDeath(CallbackInfo ci) {
+        Eprotect protect = automata_valkyries$getProtect();
+        if (protect == null) return;
+        if (protect.refuseDeathTick()) {
+            ci.cancel();
+            return;
+        }
+        // vanilla の撃破の演出（20 Tick で消滅の煙を出して remove(KILLED)）を使う個体は、最後の Tick の前に演出の終わりを保護へ伝える。
+        // 伝えないと消去が撃破の演出中として断られ続け、毎 Tick 煙を出して残った（2026-10-25、アカシック・プローブの直接対決で倒したとき）
+        LivingEntity self = (LivingEntity) (Object) this;
+        if (!self.level().isClientSide && protect.isDying() && self.deathTime + 1 >= 20) protect.finishDeath();
     }
 
     /**
@@ -178,6 +241,17 @@ public abstract class EprotectDamageMixin {
      * 正規に死亡していない（!protect.isDying() && !protect.isDefeated()）のに 0 以下の値に改変された場合、健全なHPを返す。
      * ただし、正規のダメージ処理中による最後の一撃（protect.isLegitimateFatalBlow()）の場合は 0.0F を通す。
      */
+    /** HP の項目を同期データから抜かれていたら、vanilla が読む前に作り直す（{@link com.automatavalkyries.protect.DirectRead#ensureHealthItem}） */
+    @Inject(method = "getHealth", at = @At("HEAD"))
+    private void automata_valkyries$ensureHealthEntry(CallbackInfoReturnable<Float> cir) {
+        if ((Object) this instanceof IEprotected) com.automatavalkyries.protect.DirectRead.ensureHealthItem((LivingEntity) (Object) this);
+    }
+
+    @Inject(method = "setHealth", at = @At("HEAD"))
+    private void automata_valkyries$ensureHealthEntryBeforeWrite(float health, CallbackInfo ci) {
+        if ((Object) this instanceof IEprotected) com.automatavalkyries.protect.DirectRead.ensureHealthItem((LivingEntity) (Object) this);
+    }
+
     @Inject(method = "getHealth", at = @At("RETURN"), cancellable = true)
     private void automata_valkyries$guardGetHealth(CallbackInfoReturnable<Float> cir) {
         Eprotect protect = automata_valkyries$getProtect();

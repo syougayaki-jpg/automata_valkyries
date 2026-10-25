@@ -29,6 +29,36 @@ public abstract class ClientAddEntityGuardMixin {
         com.automatavalkyries.client.ProtectedEntityKeeper.onRemoved(packet.getEntityIds());
     }
 
+    /** サーバーから届いた同期データ（HP を含む）を覚える（手元で書き換えられたら戻す先。ProtectedEntityKeeper） */
+    @Inject(method = "handleSetEntityData", at = @At("TAIL"))
+    private void automata_valkyries$serverData(net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket packet, CallbackInfo ci) {
+        if (this.level == null) return;
+        int healthId = com.automatavalkyries.mixin.LivingEntityAccessor.automata_valkyries$getDataHealthId().getId();
+        for (var value : packet.packedItems()) {
+            if (value.id() == healthId) { // HP が入った同期だけ（入っていない同期のときに、手元で書き換えられた値を覚えないように）
+                com.automatavalkyries.client.ProtectedEntityKeeper.onServerData(this.level, packet.id());
+                return;
+            }
+        }
+    }
+
+    /**
+     * 手元に同じ ID・同じ UUID のこのMOD のエンティティがもういるところへ出現の知らせが来たら、作り直さずにその個体へ当てる
+     * （2026-10-25 ユーザー指定「一瞬かくっとなる」。サーバーの保護が入り直すと出現の知らせが来て、手元で新しい個体に差し替わり、
+     * 動き・モデルのアニメーションが最初からになっていた）
+     */
+    @Inject(method = "handleAddEntity", at = @At("HEAD"), cancellable = true)
+    private void automata_valkyries$reuseExisting(ClientboundAddEntityPacket packet, CallbackInfo ci) {
+        if (this.level == null || !net.minecraft.client.Minecraft.getInstance().isSameThread()) return; // 別のスレッドなら vanilla が回し直す
+        var key = ForgeRegistries.ENTITY_TYPES.getKey(packet.getType());
+        if (key == null || !AutomataValkyries.MODID.equals(key.getNamespace())) return;
+        Entity existing = this.level.getEntity(packet.getId());
+        if (existing == null || existing.getType() != packet.getType() || !existing.getUUID().equals(packet.getUUID()) || existing.isRemoved()) return;
+        existing.recreateFromPacket(packet);
+        com.automatavalkyries.client.ProtectedEntityKeeper.onAdded(this.level, packet);
+        ci.cancel();
+    }
+
     @Inject(method = "handleAddEntity", at = @At("TAIL"))
     private void automata_valkyries$verifyAdded(ClientboundAddEntityPacket packet, CallbackInfo ci) {
         if (this.level != null) com.automatavalkyries.client.ProtectedEntityKeeper.onAdded(this.level, packet);

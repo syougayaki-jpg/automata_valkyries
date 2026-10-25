@@ -12,6 +12,14 @@ public interface IEprotected {
     /** 個体ごとの保護コントローラー */
     Eprotect getEprotect();
 
+    /**
+     * この個体のボスバー（無ければ空）。他 MOD に見ている人を外されたら、追跡で見えている人へ戻す（{@code Eprotect.restoreBossBarViewers}。
+     * The King Sword はボスバーの全員をリフレクションで外す。2026-10-25）
+     */
+    default java.util.List<net.minecraft.server.level.ServerBossEvent> bossBars() {
+        return java.util.List.of();
+    }
+
     /** AI（GoalSelector）が外部 MOD によって全消去された場合に復元するコールバック */
     default void restoreGoalsIfEmpty() {}
 

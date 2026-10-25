@@ -112,7 +112,7 @@ public final class CallerAttribution {
         WALKS.incrementAndGet();
         Class<?> targetClass = target != null ? target.getClass() : null;
         return WALKER.walk(frames -> {
-            Iterator<StackWalker.StackFrame> it = frames.limit(64).iterator();
+            Iterator<StackWalker.StackFrame> it = frames.limit(MAX_FRAMES).iterator();
             while (it.hasNext()) {
                 StackWalker.StackFrame frame = it.next();
                 Class<?> type = frame.getDeclaringClass();
@@ -201,12 +201,21 @@ public final class CallerAttribution {
      */
     private static boolean isOwnPlumbing(Class<?> type, String method) {
         String name = type.getName();
-        return name.startsWith("com.automatavalkyries.protect.attack.")
+        if (name.startsWith("com.automatavalkyries.protect.attack.")
                 || name.equals("com.automatavalkyries.protect.Eprotect")
                 || name.equals("com.automatavalkyries.protect.EprotectCompat")
-                || name.equals("com.automatavalkyries.protect.EprotectForgeEvents")
-                || method.contains("automata_valkyries$")
-                || name.startsWith("org.spongepowered.");
+                || name.equals("com.automatavalkyries.protect.EprotectForgeEvents")) {
+            return true;
+        }
+        // 他 MOD が自前のクラスに "automata_valkyries$" を含むメソッド名や "org.spongepowered." パッケージを付けて偽装するのを防ぐため、
+        // 宣言クラス自身が他 MOD ではない（バニラ・Forge・自MOD・プラットフォーム）場合のみ内部配管として扱う
+        if (method.contains("automata_valkyries$")) {
+            return !isForeign(modOf(type));
+        }
+        if (name.startsWith("org.spongepowered.")) {
+            return !isForeign(modOf(type));
+        }
+        return false;
     }
 
     /** vanilla 等のクラスに差し込まれた他 MOD のメソッドなら、その MOD を返す（このMOD の差し込みは {@link #isOwnPlumbing} で除外済み） */

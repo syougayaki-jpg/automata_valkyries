@@ -69,28 +69,93 @@ public final class EprotectRegistry {
     private final Map<UUID, Entry> entries = new LinkedHashMap<>();
     private final Store primary;
     private final Store backup;
+    /**
+     * DimensionDataStorage の Map 直消しに対するメモリ上の予備写し（ワールドの保存先とディメンション → UUID → Entry）。
+     * 鍵にワールドの保存先を含め、サーバーが止まったら捨てる（{@link #clearMemoryMirror}）。ディメンション名だけを鍵にしていたとき、
+     * シングルプレイで別のワールドを開くと前のワールドの記録が混ざり、前のワールドのボスが作り直された（2026-10-25）
+     */
+    private static final Map<String, Map<UUID, Entry>> MEMORY_MIRROR = new java.util.concurrent.ConcurrentHashMap<>();
+    private String dimensionKey = "";
 
-    private EprotectRegistry(Store primary, Store backup) {
+    private EprotectRegistry(Store primary, Store backup, String dimKey) {
         this.primary = primary;
         this.backup = backup;
+        this.dimensionKey = dimKey;
         // 正本が壊れていたら予備を使う（記録ごと）
         entries.putAll(backup.loaded);
         entries.putAll(primary.loaded);
-        if (!primary.loaded.keySet().containsAll(backup.loaded.keySet()) || primary.rejected > 0 || backup.rejected > 0) {
-            AutomataValkyries.LOGGER.warn("[eprotect] Registry integrity: primary {} ok / {} rejected, backup {} ok / {} rejected",
-                    primary.loaded.size(), primary.rejected, backup.loaded.size(), backup.rejected);
+        Map<UUID, Entry> mirrored = MEMORY_MIRROR.get(dimKey);
+        boolean restoredFromMirror = false;
+        if (mirrored != null && !mirrored.isEmpty()) {
+            for (var e : mirrored.entrySet()) {
+                if (!entries.containsKey(e.getKey())) {
+                    entries.put(e.getKey(), e.getValue());
+                    restoredFromMirror = true;
+                }
+            }
+        }
+        if (restoredFromMirror || !primary.loaded.keySet().containsAll(backup.loaded.keySet()) || primary.rejected > 0 || backup.rejected > 0) {
+            AutomataValkyries.LOGGER.warn("[eprotect] Registry integrity: primary {} ok / {} rejected, backup {} ok / {} rejected (mirrorRestored={})",
+                    primary.loaded.size(), primary.rejected, backup.loaded.size(), backup.rejected, restoredFromMirror);
             markDirty(); // 壊れていた側を正しい内容で書き直す
         }
+        for (Entry entry : entries.values()) mirrorPut(entry);
         primary.owner = this;
         backup.owner = this;
     }
 
+    /** 変わった 1 件だけを写しに反映する（全部を毎回写し直すと、保護対象が多いと重い） */
+    private void mirrorPut(Entry src) {
+        if (dimensionKey == null || dimensionKey.isEmpty()) return;
+        MEMORY_MIRROR.computeIfAbsent(dimensionKey, k -> new java.util.concurrent.ConcurrentHashMap<>()).put(src.uuid, copyOf(src));
+    }
+
+    private void mirrorRemove(UUID uuid) {
+        if (dimensionKey == null || dimensionKey.isEmpty()) return;
+        Map<UUID, Entry> map = MEMORY_MIRROR.get(dimensionKey);
+        if (map != null) map.remove(uuid);
+    }
+
+    private static Entry copyOf(Entry src) {
+        Entry copy = new Entry(src.uuid, src.state, src.snapshot.copy(), src.health, src.safePos);
+        copy.restoresInWindow = src.restoresInWindow;
+        copy.restoreWindowStart = src.restoreWindowStart;
+        return copy;
+    }
+
+    /** サーバーが止まったら写しを捨てる（次に開くワールドへ混ざらないように。{@code EprotectManager.onServerStopped}） */
+    public static void clearMemoryMirror() {
+        MEMORY_MIRROR.clear();
+    }
+
+    /** 写しの鍵: ワールドの保存先（シングルプレイで開き直す別のワールドと分ける）とディメンション */
+    private static String mirrorKey(ServerLevel level) {
+        String world;
+        try {
+            world = level.getServer().getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT).toAbsolutePath().normalize().toString();
+        } catch (RuntimeException e) {
+            world = String.valueOf(System.identityHashCode(level.getServer()));
+        }
+        return world + "|" + level.dimension().location();
+    }
+
     /** そのディメンションの登録簿（無ければ作る） */
     public static EprotectRegistry get(ServerLevel level) {
+        String dimKey = mirrorKey(level);
         Store primary = level.getDataStorage().computeIfAbsent(Store::load, Store::new, PRIMARY_NAME);
         Store backup = level.getDataStorage().computeIfAbsent(Store::load, Store::new, BACKUP_NAME);
-        if (primary.owner != null && primary.owner == backup.owner) return primary.owner;
-        return new EprotectRegistry(primary, backup);
+        if (primary.owner != null && primary.owner == backup.owner) {
+            // 外部から entries が空にされていた場合はメモリミラーから復元する
+            if (primary.owner.entries.isEmpty()) {
+                Map<UUID, Entry> mirrored = MEMORY_MIRROR.get(dimKey);
+                if (mirrored != null && !mirrored.isEmpty()) {
+                    for (Entry entry : mirrored.values()) primary.owner.entries.put(entry.uuid, copyOf(entry));
+                    primary.owner.markDirty();
+                }
+            }
+            return primary.owner;
+        }
+        return new EprotectRegistry(primary, backup, dimKey);
     }
 
     public Collection<Entry> entries() {
@@ -115,6 +180,7 @@ public final class EprotectRegistry {
             entry.health = DirectRead.health(entity);
             entry.safePos = safePos;
         }
+        mirrorPut(entries.get(entity.getUUID()));
         markDirty();
     }
 
@@ -123,6 +189,7 @@ public final class EprotectRegistry {
         Entry entry = entries.get(uuid);
         if (entry != null && entry.state != State.DEFEATED) {
             entry.state = State.DEFEATED;
+            mirrorPut(entry);
             markDirty();
         }
     }
@@ -132,13 +199,17 @@ public final class EprotectRegistry {
         Entry entry = entries.get(uuid);
         if (entry != null && entry.state == State.DEFEATED) {
             entry.state = State.ACTIVE;
+            mirrorPut(entry);
             markDirty();
         }
     }
 
     /** 正規の撃破完了・正規退場・次元移動の元側。記録を消す */
     public void forget(UUID uuid) {
-        if (entries.remove(uuid) != null) markDirty();
+        if (entries.remove(uuid) != null) {
+            mirrorRemove(uuid);
+            markDirty();
+        }
     }
 
     /** 記録を全部消す（GameTest のサーバーの起動時だけ。{@link GameTestCleanup}）。消した数を返す */
@@ -146,7 +217,12 @@ public final class EprotectRegistry {
         int n = entries.size();
         if (n > 0) {
             entries.clear();
+            Map<UUID, Entry> mirrored = MEMORY_MIRROR.get(dimensionKey);
+            if (mirrored != null) mirrored.clear();
             markDirty();
+        } else if (dimensionKey != null && !dimensionKey.isEmpty()) {
+            Map<UUID, Entry> mirrored = MEMORY_MIRROR.get(dimensionKey);
+            if (mirrored != null) mirrored.clear();
         }
         return n;
     }

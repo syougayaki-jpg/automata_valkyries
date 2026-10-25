@@ -111,12 +111,21 @@ public class ProtectDummyZombieEntity extends Zombie implements IEprotected {
                     || (this.getEprotect() != null && this.getEprotect().isReinforcedActive());
             long remainingMs = EprotectPlusLink.getReinforcedRemainingMs();
 
+            var prof = com.automatavalkyries.entity.akashic.AkashicDamageFlowchart.getProfileIfPresent(this.getUUID());
+            String formulaLine = "";
+            if (prof != null) {
+                long now = this.level().getGameTime();
+                formulaLine = "\n§eUniversal DPS: §b" + prof.dpsTelemetry.formatSummary(now, hp, prof.healRatePerSec, 0.0F)
+                        + (prof.lastOptimalPlan != null ? "\n§eOptimal Formula: §d" + prof.lastOptimalPlan.formulaSummary() : "");
+            }
+
             player.sendSystemMessage(Component.literal("§6[DummyZombie Diagnostic]§r\n"
                     + "§eHP: §a" + hp + " / " + maxHp + "\n"
                     + "§eAlive: §a" + alive + " (removed: " + removed + ")\n"
                     + "§eEprotect Active: §a" + protectActive + "\n"
                     + "§eReinforced Mode: §d" + reinforced + (reinforced ? " (" + remainingMs + "ms remaining)" : "") + "\n"
-                    + "§eTerminus Test Target (終焉保護対象外): §c" + isTerminusTestTarget()));
+                    + "§eTerminus Test Target (終焉保護対象外): §c" + isTerminusTestTarget()
+                    + formulaLine));
             return InteractionResult.SUCCESS;
         }
         return super.mobInteract(player, hand);

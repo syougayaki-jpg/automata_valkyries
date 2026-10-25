@@ -255,6 +255,8 @@ public final class AttackLog {
                     com.automatavalkyries.entity.ElenorPressure.classify(op, outcome == Outcome.BLOCKED_BLACKLIST);
             if (vicious != null) elenor.arts().pressure().onVicious(vicious, null, chargeMod != null ? chargeMod : mod);
         }
+        // 事象観測体アカシック・プローブは、自分が受けた物を全部観測する（docs/SPEC_AKASHIC_PROBE.md）
+        if (target instanceof com.automatavalkyries.entity.akashic.AkashicProbeEntity probe) probe.observe(mod, op, outcome.name(), frame, via);
         String key = mod + "|" + op + "|" + outcome;
         Entry entry = ENTRIES.get(key);
         if (entry == null) {

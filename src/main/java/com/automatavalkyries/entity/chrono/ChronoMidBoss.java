@@ -137,6 +137,11 @@ public abstract class ChronoMidBoss extends Monster implements GeoEntity, Chrono
         if (goalSelector.getAvailableGoals().isEmpty()) registerGoals();
     }
 
+
+    @Override
+    public java.util.List<net.minecraft.server.level.ServerBossEvent> bossBars() {
+        return java.util.List.of(bossEvent);
+    }
     @Override
     public void onAddedToWorld() {
         super.onAddedToWorld();
@@ -175,6 +180,7 @@ public abstract class ChronoMidBoss extends Monster implements GeoEntity, Chrono
     /** 撃破: 火花と煙を噴いて崩れ、最後に爆発して消え、宝箱を置く */
     @Override
     protected void tickDeath() {
+        if (protect.refuseDeathTick()) return; // 撃破を認めていないのに演出を回された（The King Sword 等）
         ++deathTime;
         if (level().isClientSide) {
             protect.markDefeated();

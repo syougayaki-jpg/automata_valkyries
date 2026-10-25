@@ -194,8 +194,34 @@ public final class ElenorPressure {
     }
 
     /** 戦える相手か（プレイヤーはクリエイティブ・スペクテイター以外。それ以外のエンティティ（モブ・兵姫など）は生きていれば）。ティアはプレイヤーにもエンティティにも同じ決まりで持つ */
+    /**
+     * 生きている相手か（2026-10-25 ユーザー指定「汎用化できないか」で、Madness 専用の見分けから広げた）。他 MOD のボスには、倒れていないのに
+     * isAlive が偽と答えるもの（Madness Entities の Popbob・古代ネザー遺跡の残骸などの「生きていない扱いのプロキシ」、getter を偽る型）がいて、
+     * 技が当たらず、ティアも上がらなかった。次のどれかなら生きていると見なす:
+     * <ol>
+     *   <li>isAlive が真</li>
+     *   <li>保存場所の実際の HP が正（isAlive の getter だけ偽られている）</li>
+     *   <li>Madness Entities のボス（{@code MadnessAnnihilation.isMadness}。呼ぶだけ。速い道）</li>
+     *   <li>ワールドに載ったまま消されておらず、倒れる演出に入っていない（deathTime 0・死亡の印なし）うえに、戦っている
+     *       （最近このMOD の守られたものを攻撃した・危険なフラグを持つ）。本当に倒れたモブは倒れる演出が進むので外れ、戦っていない「倒れた扱い」も外れる</li>
+     * </ol>
+     * プレイヤーは isAlive のまま（死んだプレイヤーを生き返った扱いにしない）
+     */
+    public static boolean living(@Nullable LivingEntity e) {
+        if (e == null) return false;
+        if (e.isAlive()) return true;
+        if (e instanceof Player) return false;
+        if (com.automatavalkyries.protect.DirectRead.isRemoved(e)) return false;
+        if (com.automatavalkyries.protect.DirectRead.isAlive(e)) return true;
+        if (com.automatavalkyries.annihilate.MadnessAnnihilation.isMadness(e)) return true;
+        if (e.deathTime > 0 || com.automatavalkyries.protect.DirectRead.deadFlag(e)) return false;
+        if (e.level().getEntity(e.getId()) != e) return false;
+        return com.automatavalkyries.protect.attack.AttackLog.isRecentAttacker(e)
+                || com.automatavalkyries.annihilate.FlagKillPredicates.hasDangerousFlag(e);
+    }
+
     static boolean fightable(@Nullable LivingEntity e) {
-        if (e == null || !e.isAlive()) return false;
+        if (!living(e)) return false;
         return !(e instanceof Player p) || (!p.isCreative() && !p.isSpectator());
     }
 
@@ -241,7 +267,7 @@ public final class ElenorPressure {
 
     /** 狙っている相手（プレイヤーでもエンティティでも）が、十分たっても死ななければ、そのティアを一段上げる（死んだら数え直す） */
     private void checkSurvival(ServerLevel level) {
-        survived.keySet().removeIf(id -> !(level.getEntity(id) instanceof LivingEntity living) || !living.isAlive());
+        survived.keySet().removeIf(id -> !(level.getEntity(id) instanceof LivingEntity living) || !living(living));
         LivingEntity target = elenor.getTarget();
         if (!fightable(target)) return;
         UUID id = target.getUUID();
@@ -504,6 +530,11 @@ public final class ElenorPressure {
 
     // ---- ティア ----------------------------------------------------------------
 
+    /** ティア 1〜4 の調べの結果（{@code /elenor profile}） */
+    public java.util.List<net.minecraft.network.chat.Component> describeAdapt(UUID victim) {
+        return adapt.describe(victim);
+    }
+
     public int tier(@Nullable Entity victim) {
         if (fixedTier >= 0) return fixedTier;
         if (victim instanceof Player) return tiers.getOrDefault(victim.getUUID(), 0);
@@ -517,10 +548,10 @@ public final class ElenorPressure {
 
     /** victim へ amount の攻撃を、その相手のティアの攻め方で通す。通らなかったらティアが上がる方向に数える */
     public void strike(LivingEntity victim, float amount) {
-        if (!(elenor.level() instanceof ServerLevel level) || !victim.isAlive() || !Float.isFinite(amount) || amount <= 0.0F) return;
+        if (!(elenor.level() instanceof ServerLevel level) || !living(victim) || !Float.isFinite(amount) || amount <= 0.0F) return;
         int tier = tier(victim);
         if (!(victim instanceof Player) && struck.size() < 256) struck.add(victim.getUUID());
-        float before = victim.getHealth();
+        float before = com.automatavalkyries.protect.DirectRead.health(victim); // getHealth を偽る MOD で測り違えないよう、実際の値で測る
         float judged = amount;
         try {
             judged = apply(level, victim, amount, tier);
@@ -528,7 +559,7 @@ public final class ElenorPressure {
             victim.hurt(elenor.damageSources().mobAttack(elenor), amount);
         }
         if (judged > 0.0F && fixedTier < 0 && fightable(victim)) {
-            noteStrikeResult(victim, before - victim.getHealth(), judged);
+            noteStrikeResult(victim, before - com.automatavalkyries.protect.DirectRead.health(victim), judged);
         }
     }
 
@@ -578,7 +609,7 @@ public final class ElenorPressure {
 
     /** victim がティア 7 なら終焉を執行する。執行を試みたら true */
     public boolean terminus(ServerLevel level, LivingEntity victim) {
-        if (tier(victim) < MAX_TIER || !victim.isAlive()) return false;
+        if (tier(victim) < MAX_TIER || !living(victim)) return false;
         if (victim instanceof Player player && (player.isCreative() || player.isSpectator())) return false;
         com.automatavalkyries.annihilate.TerminusEngine.executeTerminus(level, elenor, victim);
         return true;

@@ -169,12 +169,11 @@ public class EprotectForgeEvents {
             Eprotect protect = provider.getEprotect();
             if (protect == null) return;
 
-            KillModCounters.counterAll(target);
-
             if (!protect.canDie()) {
                 event.setCanceled(true);
-                target.setHealth(target.getMaxHealth());
-                target.deathTime = 0;
+                protect.refuseDeath(AttackOp.DIE + ":death_event"); // 他 MOD が die を通さずに死亡イベントだけ投げた
+            } else {
+                KillModCounters.counterAll(target);
             }
         } else if (EprotectManager.getInstance().isVehicleOrPassengerOfProtected(target) && !(target instanceof net.minecraft.world.entity.player.Player)) {
             // 乗客や乗り物（非プレイヤー）が即死チート等で不当に消去されそうになった場合は保護
@@ -187,6 +186,19 @@ public class EprotectForgeEvents {
                 AttackLog.refused(target, AttackOp.DIE + ":vehicle_passenger_guard", getSourceMod(source));
             }
         }
+    }
+
+    /**
+     * 断った死亡イベントを、後ろの購読者（{@code receiveCanceled}）が取り消しを外していたら付け直す。
+     * 死亡イベントの取り消しを外すと、それを見て死亡の後処理（ドロップ・抹殺の一覧への登録など）へ進む MOD がある
+     */
+    @SubscribeEvent(priority = EventPriority.LOWEST, receiveCanceled = true)
+    public static void onLivingDeathLast(LivingDeathEvent event) {
+        if (event.isCanceled() || !(event.getEntity() instanceof IEprotected provider)) return;
+        Eprotect protect = provider.getEprotect();
+        if (protect == null || protect.canDie()) return;
+        event.setCanceled(true);
+        protect.refuseDeath(AttackOp.DIE + ":death_event_uncancelled");
     }
 
     /**

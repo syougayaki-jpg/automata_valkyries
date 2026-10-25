@@ -15,6 +15,9 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.BossEvent;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.CustomizeGuiOverlayEvent;
+import net.minecraftforge.client.event.RenderGuiOverlayEvent;
+import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
+import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
@@ -113,11 +116,67 @@ public final class ElenorBossBar {
         g.pose().popPose();
     }
 
+    private static boolean isElenor(LerpingBossEvent boss) {
+        return boss.getName().getContents() instanceof TranslatableContents tc && KEY.equals(tc.getKey());
+    }
+
+    /** 今のフレームで、エレノアのボスバーを一番上に描き終えたか（このときはボスバーの並びの中では描かず、場所も取らない） */
+    private static boolean drawnOnTop;
+
+    /**
+     * エレノアのボスバーを一番上に描き、他のボスバーをその下へずらす（2026-10-24 ユーザー指定「ボスバーが被る問題が解消できていなかった」）。
+     * 他の MOD のボスバー（Aquamirae のコーネリア船長・BOMD・Cataclysm など）は、場所（INCREMENT）を 19 のままで大きな絵を描くので、
+     * 並びの中でエレノアのすぐ上に来ると、エレノアの飾りに被さっていた。エレノアのボスバーがあるときは、ボスバーの描画を自分で受け持ち、
+     * エレノアを上から順に描いた後、ずらした高さで vanilla のボスバーの並び（他の MOD の描き方も含む）を描く。押し下げと戻しは、この中で閉じる
+     */
+    @SubscribeEvent(priority = EventPriority.LOWEST)
+    public static void onBossOverlay(RenderGuiOverlayEvent.Pre event) {
+        if (!VanillaGuiOverlay.BOSS_EVENT_PROGRESS.id().equals(event.getOverlay().id())) return;
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.options.hideGui || !(mc.gui instanceof net.minecraftforge.client.gui.overlay.ForgeGui gui)) return;
+        var overlay = mc.gui.getBossOverlay();
+        if (overlay instanceof BossBarRestorer restorer) restorer.automata_valkyries$restoreRemoved(); // 他 MOD に手元で消されたボスバーを戻してから描く
+        var events = ((com.automatavalkyries.mixin.client.BossHealthOverlayAccessor) overlay).automata_valkyries$getEvents();
+        boolean any = false;
+        for (LerpingBossEvent boss : events.values()) {
+            if (isElenor(boss)) {
+                any = true;
+                break;
+            }
+        }
+        if (!any) return;
+        event.setCanceled(true);
+        GuiGraphics g = event.getGuiGraphics();
+        gui.setupOverlayRenderState(true, false);
+        g.pose().pushPose();
+        g.pose().translate(0, 0, -90);
+        int y = 12;
+        if (STATES.size() > 16) STATES.clear();
+        for (LerpingBossEvent boss : events.values()) {
+            if (!isElenor(boss)) continue;
+            draw(g, STATES.computeIfAbsent(boss.getId(), k -> new State()), boss, g.guiWidth() / 2, y + TOP_PAD);
+            y += INCREMENT;
+        }
+        g.pose().translate(0, y - 12, 0); // 他のボスバーは、エレノアの下から
+        drawnOnTop = true;
+        try {
+            overlay.render(g);
+        } finally {
+            drawnOnTop = false;
+            g.pose().popPose();
+        }
+    }
+
     @SubscribeEvent
     public static void onBossBar(CustomizeGuiOverlayEvent.BossEventProgress event) {
         LerpingBossEvent boss = event.getBossEvent();
-        if (!(boss.getName().getContents() instanceof TranslatableContents tc) || !KEY.equals(tc.getKey())) return;
+        if (!isElenor(boss)) return;
         event.setCanceled(true);
+        if (drawnOnTop) { // もう一番上に描いた: 並びの中では場所を取らない
+            event.setIncrement(0);
+            return;
+        }
+        // 一番上に描けなかったとき（他の MOD がボスバーの描画を止めて自分で描くなど）は、これまでどおり並びの中に描く
         event.setIncrement(INCREMENT);
         if (STATES.size() > 16) STATES.clear();
         State st = STATES.computeIfAbsent(boss.getId(), k -> new State());

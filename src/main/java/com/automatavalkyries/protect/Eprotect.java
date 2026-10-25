@@ -75,11 +75,14 @@ public class Eprotect {
 
     private final LivingEntity owner;
     /** 正規退場中（消去を許可する） */
-    private boolean despawning = false;
+    private volatile boolean despawning = false;
     /** 正規の戦闘で倒された（死亡を許可する。消去は撃破演出が終わるまで保留） */
-    private boolean defeated = false;
+    private volatile boolean defeated = false;
     /** 撃破演出が終わった（ここで初めて消去を許可する） */
-    private boolean deathFinished = false;
+    private volatile boolean deathFinished = false;
+    /** Unsafe / リフレクションによる boolean フィールド一括書き換えを検知・自己修復するための個体別トークン */
+    private final int stateSecret = System.identityHashCode(this) ^ 0x5A3C9E17;
+    private volatile int stateAuth = System.identityHashCode(this) ^ 0x5A3C9E17; // volatile: 別のスレッドからも書いた順に見える
     /** hurt() の実行中か。この間の die() だけを正規の死亡として扱う */
     private int hurtDepth = 0;
     private float lastValidHealth = -1.0F;
@@ -89,8 +92,13 @@ public class Eprotect {
      * 最大 HP を返すと、vanilla の setHealth(getHealth() - ダメージ) が最大 HP から引かれ、何度当てても最大 HP − 1 撃分に戻っていた）
      */
     private float pendingDamage = -1.0F;
+    /** 現在の hurt() で許された HP の下限（同じ hurt の中で 2 回目以降の setHealth が被弾の時間窓を二重に消費しないようにする。-1 は未確定） */
+    private float hurtHealthFloor = -1.0F;
     /** 前の Tick の死亡演出のカウンタ（{@link #tick} で進んだかを見る） */
     private int deathTimeSeen = -1;
+    /** ワールドに載ったときの UUID・ID（{@link #restoreIdentity}） */
+    private java.util.UUID identityUuid;
+    private int identityId;
     /** 入口の判定を通った次元移動の最中か */
     private boolean dimensionChangeApproved = false;
     /** 最後に確認した正常な座標（入り直しの際、壊された座標を戻す先） */
@@ -149,8 +157,56 @@ public class Eprotect {
         return owner;
     }
 
+    // 印（despawning・defeated・deathFinished）は、検証用の値（stateAuth）を先に書いてから印を書く。印を先に書くと、その間に別のスレッド
+    // （描画のスレッド・自分のスレッドから保護対象に触る MOD がある）が {@link #verifyLifecycleFlags} を通すと、正しい撃破を改ざんと見て
+    // 戻してしまう。検証用の値が先なら、その間に見られても印は書くはずの値へ揃うだけ（2026-10-25）
+    private void setDespawningInternal(boolean value) {
+        int mask = (stateAuth ^ stateSecret) & 7;
+        mask = value ? (mask | 1) : (mask & ~1);
+        this.stateAuth = stateSecret ^ mask; // 検証用の値を先に（下の注）
+        this.despawning = value;
+    }
+
+    private void setDefeatedInternal(boolean value) {
+        int mask = (stateAuth ^ stateSecret) & 7;
+        mask = value ? (mask | 2) : (mask & ~2);
+        this.stateAuth = stateSecret ^ mask; // 検証用の値を先に（下の注）
+        this.defeated = value;
+    }
+
+    private void setDeathFinishedInternal(boolean value) {
+        int mask = (stateAuth ^ stateSecret) & 7;
+        mask = value ? (mask | 4) : (mask & ~4);
+        this.stateAuth = stateSecret ^ mask; // 検証用の値を先に（下の注）
+        this.deathFinished = value;
+    }
+
+    /**
+     * Unsafe 等による despawning / defeated / deathFinished フィールドの直接改ざんを検知し、正規の認証状態へ戻す。
+     */
+    private void verifyLifecycleFlags() {
+        int diff = stateAuth ^ stateSecret;
+        if ((diff & ~7) != 0) {
+            // stateAuth 自体が 0 や -1 等に上書きされた場合は全フラグを保護有効状態にリセット
+            stateAuth = stateSecret;
+            diff = 0;
+        }
+        boolean expDespawning = (diff & 1) != 0;
+        boolean expDefeated = (diff & 2) != 0;
+        boolean expDeathFinished = (diff & 4) != 0;
+        if (despawning != expDespawning || defeated != expDefeated || deathFinished != expDeathFinished) {
+            despawning = expDespawning;
+            defeated = expDefeated;
+            deathFinished = expDeathFinished;
+            if (!owner.level().isClientSide) {
+                AttackLog.repaired(owner, "lifecycle_flag_tamper");
+            }
+        }
+    }
+
     /** 保護が有効か（正規退場・正規撃破の後は無効） */
     public boolean isProtectionActive() {
+        verifyLifecycleFlags();
         return !despawning && !defeated;
     }
 
@@ -161,6 +217,7 @@ public class Eprotect {
 
     /** 撃破演出の最中か（倒されたが、まだ消去してはいけない） */
     public boolean isDying() {
+        verifyLifecycleFlags();
         return defeated && !deathFinished && !despawning;
     }
 
@@ -170,10 +227,12 @@ public class Eprotect {
     }
 
     public boolean isDespawning() {
+        verifyLifecycleFlags();
         return despawning;
     }
 
     public boolean isDefeated() {
+        verifyLifecycleFlags();
         return defeated;
     }
 
@@ -212,6 +271,7 @@ public class Eprotect {
      */
     public void onAddedToWorld() {
         if (!(owner.level() instanceof ServerLevel)) return;
+        rememberIdentity();
         EprotectManager.getInstance().register(this);
         tickGuard.markTicked(); // 追加直後に Tick 停止されても検出できるよう、ここを起点にする
         rememberHealthyState(); // 最初の Tick より前に飛ばされても戻す先があるように
@@ -220,8 +280,12 @@ public class Eprotect {
     public void onRemovedFromWorld() {
         if (!(owner.level() instanceof ServerLevel)) return;
         Entity.RemovalReason reason = DirectRead.removalReason(owner);
-        // Mixin をすり抜けた不正消去: マネージャーが復元できるよう登録とチャンクロックを維持する
-        if (isGuardingRemoval() && isIllegalRemoval(owner, reason)) return;
+        // Mixin をすり抜けた不正消去: マネージャーが復元できるよう登録とチャンクロックを維持する。
+        // 消去の理由が無いまま呼ばれたとき（チャンクの見え方が下がった、または他 MOD が直に呼んだ）も見張りを続ける。
+        // The King Sword の forceRemove は、相手の引数なしの「set・start・remove」を含むメソッドをリフレクションで全部呼ぶので、
+        // ここが呼ばれて見張りをやめ、その後の消去・UUID の書き換えから誰も戻さず、リログで登録簿から作り直されて増えた（2026-10-25）
+        if (isGuardingRemoval() && (reason == null || isIllegalRemoval(owner, reason)
+                || reason == Entity.RemovalReason.CHANGED_DIMENSION && !dimensionChangeApproved)) return;
         // 次元移動: 移動先で同じ UUID の個体が改めて登録されるので、元の次元の記録は消す（残すと元の次元で復元されて複製になる）
         if (reason == Entity.RemovalReason.CHANGED_DIMENSION) registry().forget(owner.getUUID());
         forcedChunk.release();
@@ -238,6 +302,8 @@ public class Eprotect {
         }
         deathTimeSeen = owner.deathTime;
         hurtDepth = 0; // hurt() 中に例外が出てカウンタが残った場合の保険
+        pendingDamage = -1.0F;
+        hurtHealthFloor = -1.0F;
         dimensionChangeApproved = false; // 次元移動の途中で例外が出て許可が残った場合の保険
         if (!isGuardingRemoval()) return;
         // onRemovedFromWorld はチャンクの可視性低下（トラッキング終了）でも呼ばれるが、
@@ -270,9 +336,14 @@ public class Eprotect {
             viewersResyncPending = true;
             return true;
         }
-        // 次元移動を装った消去: 正規の次元移動（{@link #approveDimensionChange} 中）以外で、ブラックリストの MOD が直接呼んだもの
-        return reason == Entity.RemovalReason.CHANGED_DIMENSION && !dimensionChangeApproved
-                && blacklistedCaller(AttackOp.REMOVE + ":changed_dimension", true);
+        // 次元移動を装った消去: 正規の次元移動（changeDimension・別の次元への teleportTo。どちらも入口で {@link #approveDimensionChange}
+        // を立てる）以外は、呼んだのが誰でも断る（前はブラックリストの MOD だけ。The King Sword は removeAfterChangingDimensions を
+        // リフレクションで呼ぶ。通すと onRemovedFromWorld が登録簿の写しを消し、戻れなくなる。2026-10-25）
+        if (reason == Entity.RemovalReason.CHANGED_DIMENSION && !dimensionChangeApproved) {
+            AttackLog.refused(owner, AttackOp.REMOVE + ":changed_dimension");
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -294,8 +365,16 @@ public class Eprotect {
     }
 
     /** 次元移動を許可した（入口の判定を通った）間は、途中の setRemoved(CHANGED_DIMENSION) を止めない（止めると複製が残る） */
-    public void approveDimensionChange(boolean approved) {
+    public boolean approveDimensionChange(boolean approved) {
+        if (approved && !owner.level().isClientSide && isProtectionActive()) {
+            String callerMod = CallerAttribution.immediateCallerMod(owner);
+            if (CallerAttribution.isForeign(callerMod)) {
+                AttackLog.refused(owner, AttackOp.DIMENSION_CHANGE + ":spoof_approve", callerMod);
+                return false; // 呼び出し側（次元移動の入口）は移動ごと止める
+            }
+        }
         this.dimensionChangeApproved = approved;
+        return true;
     }
 
     /**
@@ -329,7 +408,11 @@ public class Eprotect {
 
     /** 撃破演出の終わりに所有エンティティが呼ぶ。以後の消去を許可する */
     public void finishDeath() {
-        this.deathFinished = true;
+        if (!owner.level().isClientSide && !isDying()) { // 撃破を認めていないのに呼ばれた（復元の記録を消させない）
+            AttackLog.refused(owner, AttackOp.DIE + ":finish_death");
+            return;
+        }
+        setDeathFinishedInternal(true);
         if (owner.level() instanceof ServerLevel) registry().forget(owner.getUUID());
     }
 
@@ -368,6 +451,9 @@ public class Eprotect {
     /** hurt() 経由で HP が尽きた場合だけ死亡を許可する（die() の直接呼び出しは拒否） */
     public boolean canDie() {
         if (!isProtectionActive()) return true;
+        // 最大 HP を他 MOD に下げられている間は、HP もそこまで切り詰められて 1 撃で倒せる残量に見えるので、正規の撃破と見なさない
+        // （2026-10-24。Madness・DOOM が最大 HP を 1 にした Tick に、クルーシブルの連打・皆殺しの剣の 1 撃で「正規の撃破」として通っていた）
+        if (maxHealthLowered()) return false;
         // 正規の hurt 処理中であり、被弾前の体力が1撃で倒せる残量（最大HPの10%）以下で、
         // かつ現在のHPが本当に 0 以下になった場合のみ許可する
         return isLegitimateFatalBlow() && !(DirectRead.health(owner) > 0.0F);
@@ -380,16 +466,69 @@ public class Eprotect {
      */
     public boolean interceptDie() {
         if (!canDie()) {
-            boolean malicious = noteRefusedDeath();
-            float current = DirectRead.health(owner);
-            owner.setHealth(!malicious && Float.isFinite(current) && current > 0.0F ? current : owner.getMaxHealth());
-            owner.deathTime = 0;
-            KillModCounters.counterAll(owner);
+            if (maxHealthLowered() && restoreMaxHealth()) { // 下げられた最大 HP と、切り詰められた HP をその場で戻す
+                owner.deathTime = 0;
+                noteRefusedDeath();
+                KillModCounters.counterAll(owner);
+                return true;
+            }
+            refuseDeath(AttackOp.DIE);
             return true;
         }
         logAcceptedDefeat();
         markDefeated();
+        // 他 MOD に立てられた dead が残っていると、vanilla の die が「もう死んでいる」と見て、ドロップ・死亡イベントごと飛ばす
+        ((LivingEntityAccessor) owner).automata_valkyries$setDead(false);
         return false;
+    }
+
+    /**
+     * 正規の撃破でない死亡（die の直接呼び出し・死亡イベントの直接の発行など）を断ったときの後始末。HP は今の値が正ならそのまま、
+     * 0 以下なら最後に確かめた健全な値へ戻す（最大 HP まで戻すと、偽の死亡を投げるだけで削った分が消えた）。凶悪技術なら罰則で最大へ。
+     * 倒れてからの時間と dead も戻す
+     *
+     * @param op 攻撃の記録に残す操作名
+     */
+    public void refuseDeath(String op) {
+        AttackLog.refused(owner, op);
+        boolean malicious = maliciousRefusal();
+        owner.setHealth(malicious ? owner.getMaxHealth() : healthAfterRefusal());
+        owner.deathTime = 0;
+        ((LivingEntityAccessor) owner).automata_valkyries$setDead(false);
+        KillModCounters.counterAll(owner);
+    }
+
+    private float healthAfterRefusal() {
+        float current = DirectRead.health(owner);
+        if (Float.isFinite(current) && current > 0.0F) return current;
+        return lastValidHealth > 0.0F && Float.isFinite(lastValidHealth) ? lastValidHealth : owner.getMaxHealth();
+    }
+
+    /**
+     * 撃破を認めていないのに死亡のドロップ（ルート・装備・経験値）を出させられたら断る（呼び出し側は何もせずに return）。
+     * The King Sword の {@code ForceDropHelp.dropLoot} は、倒せなかった相手からも dropAllDeathLoot・dropFromLootTable・dropEquipment などを
+     * 直に呼び、持っている物の写しも足元に出す（2026-10-25 ユーザー指定「座り込んでアイテムドロップして止まります」）
+     *
+     * @param what 攻撃の記録に残す種類
+     */
+    public boolean refuseDeathDrop(String what) {
+        if (owner.level().isClientSide || !isProtectionActive()) return false;
+        AttackLog.refused(owner, AttackOp.DIE + ":drop_" + what);
+        return true;
+    }
+
+    /**
+     * 撃破の演出（tickDeath）を進めてよいかの入口（所有エンティティの tickDeath の先頭と、vanilla の tickDeath の Mixin から呼ぶ）。
+     * 保護が撃破を認めていないのに回されたら、倒れてからの時間と dead を戻して true（呼び出し側は何もせずに return）。
+     * The King Sword は LivingEntity.tick の先頭で dead を立てて deathTime を毎 Tick 進め、HP を 0 に書くので、演出が最後まで進み、
+     * 演出の終わりの {@link #finishDeath} で復元の記録が消えて、その後の消去から戻れなかった（2026-10-25、エレノア）
+     */
+    public boolean refuseDeathTick() {
+        if (owner.level().isClientSide || !isProtectionActive()) return false;
+        if (owner.deathTime > 0) AttackLog.refused(owner, AttackOp.DIE + ":death_tick");
+        owner.deathTime = 0;
+        ((LivingEntityAccessor) owner).automata_valkyries$setDead(false);
+        return true;
     }
 
     /** 正規の撃破として die() を通したときの状況を残す（「保護されたボスが死んだ」の原因を後から追えるように。2026-10-22） */
@@ -406,35 +545,61 @@ public class Eprotect {
 
     /** ボスバー等に出す HP の割合（0〜1）。他 MOD に書き換えられうる getHealth ではなく実際の値で出す */
     public float healthRatio() {
-        float max = owner.getMaxHealth();
+        // 最大 HP も getter を通さず属性の値で（getMaxHealth を偽る MOD で、生きているのにボスバーが 0% になった。2026-10-24 Madness + SuperSteve + DOOM）
+        var attribute = owner.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH);
+        float max = attribute != null ? (float) attribute.getValue() : owner.getMaxHealth();
+        if (!(max > 0.0F) || !Float.isFinite(max)) max = owner.getMaxHealth();
         float ratio = max > 0.0F ? DirectRead.health(owner) / max : 0.0F;
         return Float.isFinite(ratio) ? Math.max(0.0F, Math.min(1.0F, ratio)) : 0.0F;
     }
 
     public void markDefeated() {
-        this.defeated = true;
+        if (!owner.level().isClientSide && isProtectionActive() && !canDie()) {
+            String callerMod = CallerAttribution.immediateCallerMod(owner);
+            if (CallerAttribution.isForeign(callerMod)) {
+                AttackLog.refused(owner, AttackOp.DIE + ":mark_defeated", callerMod);
+                return;
+            }
+        }
+        setDefeatedInternal(true);
         if (owner.level() instanceof ServerLevel) registry().markDefeated(owner.getUUID());
     }
 
     /** 撃破が取り消された（他 MOD が死亡を取り消して HP が戻った等）。保護を再開する */
     public void cancelDefeat() {
+        verifyLifecycleFlags();
         if (!defeated || deathFinished) return;
-        this.defeated = false;
+        setDefeatedInternal(false);
         if (owner.level() instanceof ServerLevel) registry().markActive(owner.getUUID());
     }
 
     public void beginHurt() {
+        if (hurtDepth == 0) {
+            pendingDamage = -1.0F;
+            hurtHealthFloor = -1.0F;
+        }
         hurtDepth++;
     }
 
     /** 被弾の最終ダメージ（上限の後）を覚える。直後の HP の書き込みで実際の HP から引く */
     public void notePendingDamage(float amount) {
-        pendingDamage = hurtDepth > 0 && amount > 0.0F ? amount : -1.0F;
+        if (hurtDepth > 0 && amount >= 0.0F) {
+            pendingDamage = amount;
+            float actual = DirectRead.health(owner);
+            if (Float.isFinite(actual) && actual > 0.0F) {
+                hurtHealthFloor = Math.max(0.0F, actual - amount);
+            }
+        } else {
+            pendingDamage = -1.0F;
+        }
     }
 
     public void endHurt() {
         if (hurtDepth > 0) hurtDepth--;
-        if (hurtDepth == 0) pendingDamage = -1.0F;
+        if (hurtDepth == 0) {
+            pendingDamage = -1.0F;
+            hurtHealthFloor = -1.0F;
+        }
         // 正規の被弾で減った HP を「直前の正常値」として記録（同 Tick 内の即死ハックで被弾前に戻らないように）
         float hp = DirectRead.health(owner);
         if (Float.isFinite(hp) && hp > 0.0F) lastValidHealth = hp;
@@ -509,17 +674,43 @@ public class Eprotect {
             }
         } else {
             // 被弾の HP の書き込みを「実際の HP − 最終ダメージ」に直す（getHealth が書き換えられて最大 HP から引かれた分を戻さない）
+            float actual = DirectRead.health(owner);
+            float minAllowed = fallback - (owner.getMaxHealth() * profile.maxHitRatio() + 1.0F);
             if (pendingDamage >= 0.0F) {
-                float actual = DirectRead.health(owner);
                 float corrected = actual - pendingDamage;
                 pendingDamage = -1.0F;
-                if (Float.isFinite(actual) && actual > 0.0F && health > corrected + 0.01F) {
-                    AttackLog.repaired(owner, "health_spoof_in_hurt");
-                    health = corrected;
+                if (Float.isFinite(actual) && actual > 0.0F) {
+                    hurtHealthFloor = Math.max(0.0F, corrected);
+                    if (health > corrected + 0.01F) {
+                        AttackLog.repaired(owner, "health_spoof_in_hurt");
+                        health = corrected;
+                    } else if (profile.capDamage() && health < corrected - 0.01F) {
+                        health = corrected;
+                    }
+                }
+            } else if (profile.capDamage() && Float.isFinite(actual) && actual > 0.0F && health < actual) {
+                // 同じ hurt() の中で 2 回目以降の setHealth が呼ばれた場合は、すでに計算済みの下限（hurtHealthFloor）で止めるだけにし、
+                // 200 Tick の被弾時間窓（capFinalDamage）に二重で足さない（2026-10-25）
+                if (hurtHealthFloor >= 0.0F) {
+                    if (health < hurtHealthFloor - 0.01F) {
+                        health = hurtHealthFloor;
+                    }
+                } else {
+                    // onLivingDamage を経ずに hurtDepth > 0 の状態で直接 setHealth が呼ばれた場合も、
+                    // この hurt の中で 1 回だけ被弾時間窓（capFinalDamage）を通して下限を決める
+                    if (health <= 0.0F && minAllowed > 0.0F) {
+                        AttackLog.refused(owner, AttackOp.HEALTH_LOSS + ":fatal_in_hurt");
+                        health = minAllowed;
+                    }
+                    float loss = actual - health;
+                    float allowed = capFinalDamage(loss, owner.getLastDamageSource());
+                    hurtHealthFloor = Math.max(Math.max(0.0F, minAllowed), actual - allowed);
+                    if (health < hurtHealthFloor - 0.01F) {
+                        health = hurtHealthFloor;
+                    }
                 }
             }
             // hurt() 実行中であっても、1 撃の最大ダメージ（EprotectProfile#maxHitRatio）を超える不当な HP 0 化を弾く
-            float minAllowed = fallback - (owner.getMaxHealth() * profile.maxHitRatio() + 1.0F);
             if (health <= 0.0F && minAllowed > 0.0F && profile.capDamage()) { // 上限なしの個体は、被弾での HP 0 を通す
                 AttackLog.refused(owner, AttackOp.HEALTH_LOSS + ":fatal_in_hurt");
                 return minAllowed;
@@ -566,6 +757,9 @@ public class Eprotect {
         }
         if (!isProtectionActive()) return;
 
+        // UUID・ID を書き換えられていたら、ほかの点検（どれも UUID・ID で一覧を引く）より先に戻す
+        boolean identityRestored = restoreIdentity();
+
         // 終末機構の汎用化への対（2026-10-21 ユーザー指定）: 辞書に無い名前で殺しに来ても正常時の値へ戻す。
         // 死亡の兆候が出ている Tick だけ回す（下で deathTime をリセットする前に見る）
         boolean deathAttempt = isUnderDeathAttempt();
@@ -595,6 +789,7 @@ public class Eprotect {
         if (restoreEntityDataContainer()) anomalies++; // HP の読み書きを切り詰める入れ物は、最初に付け替える（以降の HP の判定がその値を見ないように）
         if (restoreMaxHealth()) anomalies++;
         if (restoreHealth()) anomalies++;
+        if (identityRestored) anomalies++;
         if (clearDeadFlag()) anomalies++;
         if (restoreVanillaFlags()) anomalies++;
         int presence = restorePresence();
@@ -608,6 +803,7 @@ public class Eprotect {
         timeStopExemption.update(); // 掃除の後に回す（真似ている値を掃除に戻されないため）
         resyncViewersIfPending();
         lateResyncIfDue();
+        if (serverClock() % 10L == 0L) restoreBossBarViewers();
 
         updateCombat();
         if (anomalies > 0) noteAnomalies(anomalies);
@@ -690,11 +886,41 @@ public class Eprotect {
     /** 出てすぐとみなす Tick（この間に最大 HP を下げられたら HP も満タンへ戻す） */
     static final int FRESH_SPAWN_TICKS = 40;
 
+    /**
+     * 最大 HP が手つかずだった最後の Tick の HP（実際の値）。他 MOD に最大 HP を下げられると、vanilla が HP もそこまで切り詰めるので、
+     * 戻すときにこの値まで戻す（2026-10-24）。負ならまだ控えていない
+     */
+    private float untamperedHealth = -1.0F;
+
+    /** このMOD の修飾子だけを掛けた、本来の最大 HP（他 MOD の修飾子・書き換えた基礎値を除く） */
+    public double trueMaxHealth() {
+        AttributeInstance attribute = owner.getAttribute(Attributes.MAX_HEALTH);
+        if (attribute == null) return owner.getMaxHealth();
+        double value = defaultMaxHealth(attribute);
+        double base = value;
+        List<AttributeModifier> own = attribute.getModifiers().stream().filter(m -> m.getName().startsWith(AutomataValkyries.MODID)).toList();
+        for (AttributeModifier m : own) if (m.getOperation() == AttributeModifier.Operation.ADDITION) value += m.getAmount();
+        double added = value;
+        for (AttributeModifier m : own) if (m.getOperation() == AttributeModifier.Operation.MULTIPLY_BASE) value += added * m.getAmount();
+        for (AttributeModifier m : own) if (m.getOperation() == AttributeModifier.Operation.MULTIPLY_TOTAL) value *= 1.0 + m.getAmount();
+        return Double.isFinite(value) && value > 0.0 ? attribute.getAttribute().sanitizeValue(value) : base;
+    }
+
+    /** 最大 HP が、本来の値より下げられているか */
+    public boolean maxHealthLowered() {
+        AttributeInstance attribute = owner.getAttribute(Attributes.MAX_HEALTH);
+        return attribute != null && attribute.getValue() < trueMaxHealth() - 1.0E-3;
+    }
+
     private boolean restoreMaxHealth() {
         AttributeInstance attribute = owner.getAttribute(Attributes.MAX_HEALTH);
         if (attribute == null) return false;
         double expectedBase = defaultMaxHealth(attribute);
         double oldValue = attribute.getValue();
+        if (!maxHealthLowered()) {
+            float real = DirectRead.health(owner);
+            if (Float.isFinite(real) && real > 0.0F && oldValue >= trueMaxHealth() - 1.0E-3) untamperedHealth = real;
+        }
         int removed = 0;
         for (AttributeModifier modifier : List.copyOf(attribute.getModifiers())) {
             if (!modifier.getName().startsWith(AutomataValkyries.MODID)) {
@@ -709,7 +935,12 @@ public class Eprotect {
         float max = owner.getMaxHealth();
         if (lastValidHealth > max) lastValidHealth = max;
         if (!(DirectRead.health(owner) <= max)) owner.setHealth(max); // NaN も含めて切り詰める
-        else if (owner.tickCount < FRESH_SPAWN_TICKS && oldValue < max) {
+        else if (oldValue < max && untamperedHealth > 0.0F && DirectRead.health(owner) < untamperedHealth) {
+            // 下げられた最大 HP で切り詰められた HP を、手つかずだった最後の HP まで戻す（その間に通った正規のダメージは、最大 HP の 10% の上限で小さい）
+            float back = Math.min(max, untamperedHealth);
+            owner.setHealth(back);
+            lastValidHealth = back;
+        } else if (owner.tickCount < FRESH_SPAWN_TICKS && oldValue < max) {
             // 出てすぐ（他 MOD が出現時に最大 HP をばらつかせる。Craziness Awakened の healthvariation 0.8〜1.2 など）に下げられた分は、
             // HP も下げた最大まで切り詰められているので満タンへ戻す（2026-10-20 ユーザー指定「沸かせたときちょっとだけダメージを喰らっているのはなぜ」）
             owner.setHealth(max);
@@ -871,13 +1102,74 @@ public class Eprotect {
             } else {
                 missing.append("(not tracked) ");
             }
+            // 見えていない人がいるときだけ見せ直す（全員に見えているのに見せ直すと、手元で個体が差し替わって一瞬かくっとなった。2026-10-25）
+            if (missing.length() == 0) return;
             AutomataValkyries.LOGGER.info("[eprotect] Late viewer check of {}: players in range not in the tracker's seen-by set: [{}]; showing it again once more", owner, missing.toString().trim());
             level.getChunkSource().removeEntity(owner);
             level.getChunkSource().addEntity(owner);
-            AttackLog.repaired(owner, missing.length() > 0 ? "viewers_missing" : "viewers_resync_late");
+            AttackLog.repaired(owner, "viewers_missing");
         } catch (Throwable t) {
             AutomataValkyries.LOGGER.debug("[eprotect] Late viewer resync of {} failed: {}", owner, t.toString());
         }
+    }
+
+    /**
+     * ボスバーから他 MOD に外された人を戻す: 追跡で自分が見えている人（vanilla が startSeenByPlayer でボスバーに足す相手）のうち、
+     * ボスバーに居ない人を足す（The King Sword の {@code EntityRemove.clearBossbars} は、相手のボスバーの全員をリフレクションで外す。2026-10-25）
+     */
+    private void restoreBossBarViewers() {
+        if (!(owner instanceof IEprotected provider) || !(owner.level() instanceof ServerLevel level)) return;
+        java.util.List<net.minecraft.server.level.ServerBossEvent> bars = provider.bossBars();
+        if (bars.isEmpty()) return;
+        Object tracked = ((com.automatavalkyries.mixin.ChunkMapAccessor) level.getChunkSource().chunkMap).automata_valkyries$getEntityMap().get(owner.getId());
+        if (!(tracked instanceof com.automatavalkyries.mixin.TrackedEntityAccessor entry)) return;
+        int restored = 0;
+        for (net.minecraft.server.network.ServerPlayerConnection connection : entry.automata_valkyries$getSeenBy()) {
+            net.minecraft.server.level.ServerPlayer player = connection.getPlayer();
+            for (net.minecraft.server.level.ServerBossEvent bar : bars) {
+                if (bar.isVisible() && !bar.getPlayers().contains(player)) {
+                    bar.addPlayer(player);
+                    restored++;
+                }
+            }
+        }
+        if (restored > 0) AttackLog.repaired(owner, "boss_bar_viewers");
+    }
+
+    /** ワールドに載ったときの ID（書き換えられていても、覚えた値。まだ覚えていなければ今の ID） */
+    public int identityId() {
+        return identityUuid != null ? identityId : owner.getId();
+    }
+
+    /**
+     * ワールドに載ったときの UUID・ID を覚える（最初の 1 回だけ。入り直しのたびに覚え直すと、書き換えられた後の値を覚えてしまう）
+     */
+    private void rememberIdentity() {
+        if (identityUuid != null) return;
+        EntityAccessor fields = (EntityAccessor) owner;
+        identityUuid = fields.automata_valkyries$getUuidField();
+        identityId = fields.automata_valkyries$getIdField();
+    }
+
+    /**
+     * ワールドに載った後に UUID・ID を書き換えられていたら戻す（2026-10-25 ユーザー指定「リログすると倒した分だけ増えた」）。
+     * The King Sword の消去（{@code EntityChunkMapEraser}）は、消去を断られても UUID と ID を乱数へ書き換え、追跡からも外す。
+     * 手元へは二度と送られず消えたように見え、登録簿の写しは元の UUID のままなので、リログで写しから作り直された元の UUID の個体と、
+     * 新しい UUID で保存された本体の両方が読み込まれて、倒した分だけ増えた。ワールドの一覧は元の値で引かれたままなので、
+     * フィールドを元へ戻せば一覧と食い違わなくなり、外された追跡は下の点検（MISSING_TRACKER）で入り直して戻る
+     */
+    private boolean restoreIdentity() {
+        if (identityUuid == null) return false;
+        EntityAccessor fields = (EntityAccessor) owner;
+        java.util.UUID uuid = fields.automata_valkyries$getUuidField();
+        int id = fields.automata_valkyries$getIdField();
+        if (identityUuid.equals(uuid) && identityId == id) return false;
+        fields.automata_valkyries$setUuidField(identityUuid);
+        fields.automata_valkyries$setStringUuidField(identityUuid.toString());
+        fields.automata_valkyries$setIdField(identityId);
+        AutomataValkyries.LOGGER.warn("[eprotect] Restored the identity of {}: uuid {} -> {}, id {} -> {}", owner, uuid, identityUuid, id, identityId);
+        AttackLog.repaired(owner, "identity");
+        return true;
     }
 
     /** 強制デスフラグ（dead = true）が残ると以後の死亡処理・ドロップが壊れるので戻す */
@@ -900,6 +1192,7 @@ public class Eprotect {
         EnumSet<WorldPresence.Issue> issues = WorldPresence.inspect(level, owner);
         presenceHealthy = issues.isEmpty();
         if (presenceHealthy) return 0;
+        if (retireIfSuperseded(level)) return 0;
 
         AttackLog.repaired(owner, "presence");
         // 戻す先が無い（一度も正常な座標を見ていない）ときはワールドの出現地点へ
@@ -923,11 +1216,46 @@ public class Eprotect {
     }
 
     /**
+     * ワールドに同じ UUID の生きた個体（同じ種類）がもう載っていれば、この個体は消された後に残った古い写し。入り直させずに保護を解く
+     * （2026-10-25 ユーザー指定「たまに皆殺しの剣でエレノアが消える」。皆殺しの剣が座標 -999999 へ飛ばして消した古い写しの保護が生きたままで、
+     * 8 秒ほどごとに入り直しを試し、同じ UUID の重複として断られ続けた。生きた個体が読み込み直しなどで一瞬外れた隙に古い写しが入ると、
+     * ワールドに載ったのは画面の外の写しになり、エレノアが消えたように見えた）。解いたら true
+     */
+    private boolean retireIfSuperseded(ServerLevel level) {
+        Entity current = level.getEntity(owner.getUUID());
+        if (current == null || current == owner || current.getType() != owner.getType()) return false;
+        if (!(current instanceof LivingEntity living) || !DirectRead.isAlive(living)) return false;
+        // 偽ドッペルゲンガー（攻撃側が同じ UUID を付けた未登録・不完全なダミー個体）による自己引退トラップを防ぐため、
+        // ワールド側の個体も正規の Eprotect を持ち、かつワールドの全一覧に健全に載っていることを確認する
+        if (owner instanceof IEprotected) {
+            if (!(current instanceof IEprotected currentProtected)) return false;
+            Eprotect currentProtect = currentProtected.getEprotect();
+            if (currentProtect == null || !currentProtect.isProtectionActive()
+                    || !WorldPresence.inspect(level, living).isEmpty()) {
+                return false;
+            }
+        }
+        AutomataValkyries.LOGGER.warn("[eprotect] {} is a stale copy left after a removal ({} is the live one in the world); retiring it instead of rejoining",
+                owner, current);
+        AttackLog.repaired(owner, "stale_copy_retired");
+        retireReplaced();
+        return true;
+    }
+
+    /**
      * 入り直しを拒否されて同じ UUID の新しい個体に差し替えたあと、古い個体（ワールドのどこにも載っていない）の保護を解く。
      * 以後の保護は新しい個体の Eprotect が担う。
      */
     public void retireReplaced() {
-        despawning = true; // 保護を解く（セリフ・効果音は出さない）
+        if (!owner.level().isClientSide && isProtectionActive()
+                && !com.automatavalkyries.protect.plus.EprotectPlusLink.isPrivilegedOrBypassing()) {
+            String callerMod = CallerAttribution.immediateCallerMod(owner);
+            if (CallerAttribution.isForeign(callerMod)) {
+                AttackLog.refused(owner, AttackOp.REMOVE + ":retire_replaced", callerMod);
+                return;
+            }
+        }
+        setDespawningInternal(true); // 保護を解く（セリフ・効果音は出さない）
         if (owner instanceof IEprotected protectedOwner) protectedOwner.onRetired();
         forcedChunk.release();
         EprotectManager.getInstance().unregister(this);
@@ -936,8 +1264,16 @@ public class Eprotect {
 
     /** GameTest の後片付けの直前に保護を外す（セリフ・効果音は出さない。消すのは GameTest の側。{@link GameTestCleanup}） */
     public void releaseForCleanup() {
+        verifyLifecycleFlags();
         if (despawning || owner.level().isClientSide) return;
-        despawning = true;
+        if (isProtectionActive() && !com.automatavalkyries.protect.plus.EprotectPlusLink.isPrivilegedOrBypassing()) {
+            String callerMod = CallerAttribution.immediateCallerMod(owner);
+            if (CallerAttribution.isForeign(callerMod)) {
+                AttackLog.refused(owner, AttackOp.REMOVE + ":release_cleanup", callerMod);
+                return;
+            }
+        }
+        setDespawningInternal(true);
         registry().forget(owner.getUUID());
         forcedChunk.release();
         EprotectManager.getInstance().unregister(this);
@@ -1157,8 +1493,16 @@ public class Eprotect {
 
     /** プレイヤー全滅時などの安全退場処理。セリフと効果音を出してから消去する */
     public void triggerDespawn() {
+        verifyLifecycleFlags();
         if (despawning || owner.level().isClientSide) return;
-        despawning = true;
+        if (isProtectionActive() && !com.automatavalkyries.protect.plus.EprotectPlusLink.isPrivilegedOrBypassing()) {
+            String callerMod = CallerAttribution.immediateCallerMod(owner);
+            if (CallerAttribution.isForeign(callerMod)) {
+                AttackLog.refused(owner, AttackOp.DISCARD + ":trigger_despawn", callerMod);
+                return;
+            }
+        }
+        setDespawningInternal(true);
         registry().forget(owner.getUUID());
 
         forcedChunk.release();

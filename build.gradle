@@ -526,6 +526,23 @@ dependencies {
             logger.warn('[withBossMods] Wither Storm を読むには先に python tools/prepare_boss_mods.py を実行する')
         }
     }
+    // 他の MOD のボスをさらに足す（-PwithMoreBossMods、2026-10-24 ユーザー指定「他のMODのボスと戦わせたいのでよさげなMODをダウンロードして」）。
+    // -PwithBossMods と一緒にも使える。どれも Java エージェント・入れ子の jar を持たない（mods.toml と MANIFEST で確かめた）。前提は mods.toml の必須だけ
+    //   ./gradlew runClient -PwithMoreBossMods
+    if (project.hasProperty('withMoreBossMods')) {
+        runtimeOnly fg.deobf("maven.modrinth:mowzies-mobs:acYEfsJa")                   // Mowzie's Mobs 1.8.2（フェロス・ラウトノート、フロストモー、ウムヴゥシ、彫刻家）
+        runtimeOnly fg.deobf("maven.modrinth:aquamirae:rRfT3ynS")                      // Aquamirae 7.1.14（コーネリア船長、深淵の顎）
+        runtimeOnly fg.deobf("maven.modrinth:fragmentum:T7QOSm4k")                     // Fragmentum 5.4.0（Aquamirae の前提）
+        runtimeOnly fg.deobf("maven.modrinth:mutant-monsters:CUgYzMnF")                // Mutant Monsters 8.0.8（ミュータント・ゾンビ／スケルトン／クリーパー／エンダーマン）
+        runtimeOnly fg.deobf("maven.modrinth:puzzles-lib:hOfDHA4g")                    // Puzzles Lib 8.1.36（Mutant Monsters の前提）
+        runtimeOnly fg.deobf("maven.modrinth:borninchaos:8wmEhUSt")                    // Born in Chaos 1.7.5（パンプキンヘッドの君主、宣教師など）
+        runtimeOnly fg.deobf("maven.modrinth:goety:jVPGt2qM")                          // Goety 2.5.59.2（アポストル、ヴィジエ、ウィザーの死霊術師など）
+        runtimeOnly fg.deobf("maven.modrinth:irons-spells-n-spellbooks:hZaEegS9")      // Iron's Spells 'n Spellbooks 3.16.3（死せる王、炎の守護者など）
+        runtimeOnly fg.deobf("maven.modrinth:irons-lib:6HqXQkgC")                      // Iron's Lib 1.20.1-2.2.0（Iron's Spells の前提）
+        runtimeOnly fg.deobf("maven.modrinth:playeranimator:xe2EVE6q")                 // playerAnimator 1.0.2-rc1（Iron's Spells の前提）
+        runtimeOnly fg.deobf("maven.modrinth:caelus:mRry0DgY")                         // Caelus API 3.2.0（Iron's Spells の前提。-PwithBossMods と同じ版）
+        runtimeOnly fg.deobf("maven.modrinth:curios:5.14.1+1.20.1")                    // Curios API（Goety・Iron's Spells の前提。-PwithBossMods と同じ版）
+    }
     // DOOM The Titans 5.0.0（中身は MOD ID transfinity_improved。1.7.10 の The Titans Mod の作り直しで、より強いタイタンと OP 装備）。
     // 自分で付く Java エージェント（runtime-agent: GodHelper・HealthGuard・EventBusFixer・HardenedThread など）を同梱し、実行中にクラスを書き換えるので、
     // 他のボス MOD と分けて -PwithDoomTitans で読む（2026-10-20）

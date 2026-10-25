@@ -550,11 +550,24 @@ public final class UnsafeHelper {
                 if (THE_UNSAFE != null && !Modifier.isStatic(f.getModifiers())) {
                     long offset = objectFieldOffset(f);
                     if (offset >= 0) {
-                        if (f.getType() == boolean.class) {
-                            putBoolean(target, offset, (Boolean) value);
-                        } else if (f.getType() == int.class) {
-                            putInt(target, offset, (Integer) value);
-                        } else {
+                        Class<?> type = f.getType();
+                        if (type == boolean.class && value instanceof Boolean b) {
+                            putBoolean(target, offset, b);
+                        } else if (type == int.class && value instanceof Number n) {
+                            putInt(target, offset, n.intValue());
+                        } else if (type == long.class && value instanceof Number n) {
+                            putLong(target, offset, n.longValue());
+                        } else if (type == float.class && value instanceof Number n) {
+                            putFloat(target, offset, n.floatValue());
+                        } else if (type == double.class && value instanceof Number n) {
+                            putDouble(target, offset, n.doubleValue());
+                        } else if (type == byte.class && value instanceof Number n) {
+                            THE_UNSAFE.putByte(target, offset, n.byteValue());
+                        } else if (type == short.class && value instanceof Number n) {
+                            THE_UNSAFE.putShort(target, offset, n.shortValue());
+                        } else if (type == char.class && value instanceof Character c) {
+                            THE_UNSAFE.putChar(target, offset, c);
+                        } else if (!type.isPrimitive()) {
                             putObject(target, offset, value);
                         }
                         return;

@@ -22,12 +22,27 @@ public final class EntityDataContainer {
 
     private EntityDataContainer() {}
 
-    /** その個体の入れ物が、他 MOD の継承クラスに作り替えられていれば、そのクラス（フィールドを直接読む） */
+    /**
+     * その個体の入れ物、または中身（{@code SynchedEntityData.DataItem}）が他 MOD の継承クラスに作り替えられていれば、そのクラス（フィールドを直接読む）。
+     */
     @Nullable
     public static Class<?> foreignContainerClass(Entity entity) {
         SynchedEntityData data = ((EntityAccessor) entity).automata_valkyries$getEntityDataField();
-        if (data == null || data.getClass() == SynchedEntityData.class) return null;
-        return CallerAttribution.isForeign(CallerAttribution.modOf(data.getClass())) ? data.getClass() : null;
+        if (data == null) return null;
+        if (data.getClass() != SynchedEntityData.class
+                && CallerAttribution.isForeign(CallerAttribution.modOf(data.getClass()))) {
+            return data.getClass();
+        }
+        var items = ((SynchedEntityDataAccessor) data).automata_valkyries$getItemsById();
+        if (items != null) {
+            for (SynchedEntityData.DataItem<?> item : items.values()) {
+                if (item != null && item.getClass() != SynchedEntityData.DataItem.class
+                        && CallerAttribution.isForeign(CallerAttribution.modOf(item.getClass()))) {
+                    return item.getClass();
+                }
+            }
+        }
+        return null;
     }
 
     /** 作り替えた MOD の名前（{@link #foreignContainerClass} が返したクラスから） */
@@ -47,9 +62,24 @@ public final class EntityDataContainer {
         AutomataValkyries.LOGGER.warn("[eprotect] Replaced the synched-data container of {} ({}) with a vanilla one", entity, old.getClass().getName());
     }
 
-    /** データの置き場と更新済みの印を、{@code from} から {@code to} へ引き継ぐ（テストからも使う） */
+    /**
+     * データの置き場と更新済みの印を、{@code from} から {@code to} へ引き継ぐ（テストからも使う）。
+     * 中身の {@code DataItem} 自体が他 MOD の継承クラスに差し替えられていた場合は、vanilla の {@code DataItem} で作り直す。
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public static void copyState(SynchedEntityData from, SynchedEntityData to) {
-        ((SynchedEntityDataAccessor) to).automata_valkyries$getItemsById().putAll(((SynchedEntityDataAccessor) from).automata_valkyries$getItemsById());
+        var targetItems = ((SynchedEntityDataAccessor) to).automata_valkyries$getItemsById();
+        var sourceItems = ((SynchedEntityDataAccessor) from).automata_valkyries$getItemsById();
+        for (var entry : sourceItems.int2ObjectEntrySet()) {
+            SynchedEntityData.DataItem<?> item = entry.getValue();
+            if (item != null && item.getClass() != SynchedEntityData.DataItem.class) {
+                SynchedEntityData.DataItem replacement = new SynchedEntityData.DataItem(item.getAccessor(), item.getValue());
+                replacement.setDirty(item.isDirty());
+                targetItems.put(entry.getIntKey(), replacement);
+            } else {
+                targetItems.put(entry.getIntKey(), item);
+            }
+        }
         ((SynchedEntityDataAccessor) to).automata_valkyries$setDirty(((SynchedEntityDataAccessor) from).automata_valkyries$getDirty());
     }
 }

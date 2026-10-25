@@ -186,6 +186,8 @@ public class ModItems {
             new ForgeSpawnEggItem(ModEntities.FARTHEST_ELENOR, 0x120018, 0xb00020, new Item.Properties()));
     public static final RegistryObject<Item> PROTECT_DUMMY_ZOMBIE_SPAWN_EGG = ITEMS.register("protect_dummy_zombie_spawn_egg", () ->
             new ForgeSpawnEggItem(ModEntities.PROTECT_DUMMY_ZOMBIE, 0x00aa00, 0xffd700, new Item.Properties()));
+    public static final RegistryObject<Item> AKASHIC_PROBE_SPAWN_EGG = ITEMS.register("akashic_probe_spawn_egg", () ->
+            new ForgeSpawnEggItem(ModEntities.AKASHIC_PROBE, 0xe8ecf4, 0xff4fd8, new Item.Properties()));
 
     // ---- テスト用 ----
     public static final RegistryObject<Item> DEBUG_KILL_STICK = ITEMS.register("debug_kill_stick", () ->
@@ -196,6 +198,14 @@ public class ModItems {
             new UltraKillStickItem(UltraKillStickItem.defaultProperties()));
     public static final RegistryObject<Item> TERMINUS_STICK = ITEMS.register("terminus_stick", () ->
             new com.automatavalkyries.item.TerminusStickItem(com.automatavalkyries.item.TerminusStickItem.defaultProperties()));
+    public static final RegistryObject<Item> TERMINUS_DAMAGE_LEXICON = ITEMS.register("terminus_damage_lexicon", () ->
+            new com.automatavalkyries.item.AkashicLexiconItem(
+                    com.automatavalkyries.entity.akashic.AkashicResistanceAuditor.TechniqueKind.DAMAGE,
+                    com.automatavalkyries.item.AkashicLexiconItem.defaultProperties()));
+    public static final RegistryObject<Item> TERMINUS_INSTANT_KILL_LEXICON = ITEMS.register("terminus_instant_kill_lexicon", () ->
+            new com.automatavalkyries.item.AkashicLexiconItem(
+                    com.automatavalkyries.entity.akashic.AkashicResistanceAuditor.TechniqueKind.INSTANT_KILL,
+                    com.automatavalkyries.item.AkashicLexiconItem.defaultProperties()));
 
     // ---- プレイヤー用（2026-10-04 ユーザー指定で作り直し。中身は protect/PlayerWard） ----
     /** 救済通信機（2026-10-04 ユーザー指定）: オメガコア無しで消去された戦術兵姫をバックアップから呼び出す */

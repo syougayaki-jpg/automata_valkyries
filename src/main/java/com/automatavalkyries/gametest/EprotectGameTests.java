@@ -192,7 +192,7 @@ public class EprotectGameTests {
         });
     }
 
-    @GameTest(template = TEMPLATE)
+    @GameTest(template = TEMPLATE, timeoutTicks = 200)
     public static void legitimateDefeatIsAllowed(GameTestHelper helper) {
         ElenorEntity elenor = spawnElenor(helper);
         for (int i = 0; i < 100 && !elenor.isDeadOrDying(); i++) {
@@ -245,7 +245,7 @@ public class EprotectGameTests {
     }
 
     /** 正規撃破の直後に強制消去されても、撃破演出を最後まで再生してから消える */
-    @GameTest(template = TEMPLATE)
+    @GameTest(template = TEMPLATE, timeoutTicks = 200)
     public static void deathAnimationIsNotSkipped(GameTestHelper helper) {
         ElenorEntity elenor = spawnElenor(helper);
         for (int i = 0; i < 100 && elenor.getHealth() > elenor.getMaxHealth() * Eprotect.MAX_HIT_RATIO; i++) {

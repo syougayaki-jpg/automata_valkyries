@@ -66,6 +66,7 @@ public final class StaticReferencePurger {
                     } else if (value instanceof Reference<?> reference) {
                         if (matches(reference.get(), victims, uuid)) {
                             reference.clear();
+                            reference.enqueue();
                             removed = 1;
                         }
                     } else if (matches(value, victims, uuid)) {
@@ -86,13 +87,29 @@ public final class StaticReferencePurger {
 
     /** 指定した static フィールドだけから取り除く（覚えておいた抹殺予定の一覧を毎 Tick 掃除する用。ログは呼び出し側が出す）。@return 取り除いた件数 */
     public static int purgeFields(Collection<Field> fields, Set<Object> victims, UUID uuid, String targetName) {
+        return purgeFields(fields, victims, uuid, NO_ID, targetName);
+    }
+
+    /**
+     * 抹殺予定の一覧と分かっている static フィールドから、エンティティの ID（整数）で持たれた要素・鍵も取り除く
+     * （The King Sword の {@code MarkersForTransformer.ENTITIES_TO_FORCE_DEATH} などは ID の Set・ID を鍵にする Map。2026-10-25）。
+     * 一覧と分かっているフィールドにだけ使う（無関係な数値の一覧を取り違えない）
+     */
+    public static int purgeFields(Collection<Field> fields, Set<Object> victims, UUID uuid, int killListEntityId, String targetName) {
         int total = 0;
         for (Field field : fields) {
             try {
                 Object value = field.get(null);
                 int removed = 0;
-                if (value instanceof Collection<?> collection) removed = purgeCollection(collection, victims, uuid);
-                else if (value instanceof Map<?, ?> map) removed = purgeMap(map, victims, uuid, NO_ID);
+                if (value instanceof Collection<?> collection) {
+                    removed = purgeCollection(collection, victims, uuid);
+                    if (killListEntityId != NO_ID) removed += removeByIterator(collection.iterator(),
+                            e -> e instanceof Integer id && id == killListEntityId, collection.size());
+                } else if (value instanceof Map<?, ?> map) {
+                    removed = purgeMap(map, victims, uuid, NO_ID);
+                    if (killListEntityId != NO_ID) removed += removeByIterator(map.entrySet().iterator(),
+                            e -> e instanceof Map.Entry<?, ?> en && en.getKey() instanceof Integer id && id == killListEntityId, map.size());
+                }
                 total += removed;
             } catch (Throwable ignored) {}
         }
@@ -195,7 +212,12 @@ public final class StaticReferencePurger {
         }
         if (element instanceof Reference<?> reference) {
             Object inner = reference.get();
-            return inner != null && (victims.contains(inner) || (uuid != null && uuid.equals(inner)));
+            if (inner != null && (victims.contains(inner) || (uuid != null && uuid.equals(inner)))) {
+                reference.clear();
+                reference.enqueue();
+                return true;
+            }
+            return false;
         }
         return false;
     }

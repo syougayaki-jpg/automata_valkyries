@@ -99,6 +99,14 @@ public final class IsolationDamageMixin {
             }
         }
 
+        @Inject(method = "getMainHandItem", at = @At("HEAD"), cancellable = true)
+        private void automata_valkyries$spoofVanillaWeaponForForeignCheck(CallbackInfoReturnable<ItemStack> cir) {
+            if ((Object) this instanceof Player player
+                    && IsolationDamageEngine.shouldSpoofVanillaWeaponForForeignCaller(player)) {
+                cir.setReturnValue(IsolationDamageEngine.getSpoofedVanillaSword());
+            }
+        }
+
         @Inject(method = "getEffect", at = @At("RETURN"), cancellable = true)
         private void automata_valkyries$preventNightVisionNpe(MobEffect effect, CallbackInfoReturnable<MobEffectInstance> cir) {
             if (effect == MobEffects.NIGHT_VISION && cir.getReturnValue() == null) {
@@ -112,24 +120,59 @@ public final class IsolationDamageMixin {
         @Unique
         private int automata_valkyries$preTickDeathTime;
 
-        @Inject(method = "tick", at = @At("HEAD"))
+        @Unique
+        private boolean automata_valkyries$inLivingTick;
+
+        @Inject(method = "tick", at = @At("HEAD"), cancellable = true)
         private void automata_valkyries$isolationTickHead(CallbackInfo ci) {
-            if ((Object) this instanceof Player player) {
+            LivingEntity self = (LivingEntity) (Object) this;
+            if (self instanceof Player player) {
                 IsolationDamageEngine.suppressPlayerActiveDefensesOnTick(player);
+                return;
+            }
+            if (!IsolationDamageEngine.isProtectedTarget(self)
+                    && com.automatavalkyries.annihilate.AnnihilationExecutionAgent.isAnnihilated(self)) {
+                ((EntityAccessor) self).automata_valkyries$setRemovalReason(Entity.RemovalReason.KILLED);
+                ci.cancel();
+                return;
+            }
+            automata_valkyries$inLivingTick = true;
+            automata_valkyries$preTickDeathTime = self.deathTime;
+        }
+
+        @Inject(method = "tick", at = @At("TAIL"))
+        private void automata_valkyries$isolationTickTail(CallbackInfo ci) {
+            LivingEntity self = (LivingEntity) (Object) this;
+            boolean wasInTick = automata_valkyries$inLivingTick;
+            automata_valkyries$inLivingTick = false;
+            if (wasInTick && !(self instanceof Player)) {
+                IsolationDamageEngine.onLivingBaseTickTail(self, automata_valkyries$preTickDeathTime);
             }
         }
 
-        @Inject(method = "baseTick", at = @At("HEAD"))
+        @Inject(method = "baseTick", at = @At("HEAD"), cancellable = true)
         private void automata_valkyries$isolationBaseTickHead(CallbackInfo ci) {
-            if ((Object) this instanceof Player player) {
+            LivingEntity self = (LivingEntity) (Object) this;
+            if (self instanceof Player player) {
                 IsolationDamageEngine.suppressPlayerActiveDefensesOnTick(player);
+                return;
             }
-            automata_valkyries$preTickDeathTime = ((LivingEntity) (Object) this).deathTime;
+            if (!IsolationDamageEngine.isProtectedTarget(self)
+                    && com.automatavalkyries.annihilate.AnnihilationExecutionAgent.isAnnihilated(self)) {
+                ((EntityAccessor) self).automata_valkyries$setRemovalReason(Entity.RemovalReason.KILLED);
+                ci.cancel();
+                return;
+            }
+            if (!automata_valkyries$inLivingTick) {
+                automata_valkyries$preTickDeathTime = self.deathTime;
+            }
         }
 
         @Inject(method = "baseTick", at = @At("TAIL"))
         private void automata_valkyries$isolationBaseTickTail(CallbackInfo ci) {
-            IsolationDamageEngine.onLivingBaseTickTail((LivingEntity) (Object) this, automata_valkyries$preTickDeathTime);
+            if (!automata_valkyries$inLivingTick) {
+                IsolationDamageEngine.onLivingBaseTickTail((LivingEntity) (Object) this, automata_valkyries$preTickDeathTime);
+            }
         }
     }
 
@@ -185,7 +228,8 @@ public final class IsolationDamageMixin {
         @Inject(method = "attack", at = @At("HEAD"))
         private void automata_valkyries$onAttackHead(Entity target, CallbackInfo ci) {
             Player self = (Player) (Object) this;
-            if (!self.level().isClientSide() && target instanceof LivingEntity victim && Overload.holding(self)) {
+            LivingEntity victim = !self.level().isClientSide() ? IsolationDamageEngine.resolveLivingTarget(target) : null;
+            if (victim != null && Overload.holding(self)) {
                 IsolationDamageEngine.IsolationState state = IsolationDamageEngine.getState(victim);
                 automata_valkyries$preAttackIsolationTotal = state != null ? state.flatIsolation : 0.0F;
             } else {
@@ -199,10 +243,11 @@ public final class IsolationDamageMixin {
             automata_valkyries$preAttackIsolationTotal = null;
             if (preTotal == null) return;
             Player self = (Player) (Object) this;
-            if (!self.level().isClientSide() && target instanceof LivingEntity victim && Overload.holding(self)) {
+            LivingEntity victim = !self.level().isClientSide() ? IsolationDamageEngine.resolveLivingTarget(target) : null;
+            if (victim != null && Overload.holding(self)) {
                 IsolationDamageEngine.IsolationState afterState = IsolationDamageEngine.getState(victim);
                 float afterTotal = afterState != null ? afterState.flatIsolation : 0.0F;
-                // もし対象が hurt() をサブクラスで握り潰して LivingEntity.hurt に到達しなかった場合でも、隔絶ダメージを強制直撃させる
+                // もし対象（または PartEntity 部位）が hurt() を握り潰して LivingEntity.hurt に到達しなかった場合でも、親本体へ隔絶ダメージを強制直撃させる
                 if (afterTotal <= preTotal) {
                     float baseAttack = (float) self.getAttributeValue(Attributes.ATTACK_DAMAGE);
                     if (baseAttack <= 0.0F || !Float.isFinite(baseAttack)) {

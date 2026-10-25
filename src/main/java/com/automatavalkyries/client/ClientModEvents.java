@@ -29,6 +29,13 @@ public class ClientModEvents {
         });
     }
 
+    /** メッシュのモデル（事象観測体アカシック・プローブ）を、リソースの読み直しのたびに読む */
+    @SubscribeEvent
+    public static void registerReloadListeners(net.minecraftforge.client.event.RegisterClientReloadListenersEvent event) {
+        ObjMesh.want(AkashicProbeRenderer.MESH);
+        event.registerReloadListener(new ObjMesh.Loader());
+    }
+
     /** 兵装の自作エフェクトの粒子 */
     @SubscribeEvent
     public static void registerParticles(net.minecraftforge.client.event.RegisterParticleProvidersEvent event) {
@@ -45,6 +52,7 @@ public class ClientModEvents {
     @SubscribeEvent
     public static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerEntityRenderer(ModEntities.ELENOR.get(), ElenorRenderer::new);
+        event.registerEntityRenderer(ModEntities.AKASHIC_PROBE.get(), AkashicProbeRenderer::new);
         event.registerEntityRenderer(ModEntities.VALKYRIE.get(), ValkyrieRenderer::new);
         event.registerEntityRenderer(ModEntities.CHRONO_SCOUT_DRONE.get(), c -> new ChronoGazerRenderer<>(c, "chrono_scout_drone", 0.4F));
         event.registerEntityRenderer(ModEntities.CHRONO_SPIDER_BOT.get(), c -> new ChronoGazerRenderer<>(c, "chrono_spider_bot", 0.5F));

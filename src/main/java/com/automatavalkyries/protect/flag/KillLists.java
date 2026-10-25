@@ -118,7 +118,8 @@ public final class KillLists {
         int total = 0;
         for (Map.Entry<Field, String> entry : LISTS.entrySet()) {
             Field field = entry.getKey();
-            int removed = StaticReferencePurger.purgeFields(List.of(field), victims, target.getUUID(), target.getName().getString());
+            // ID（整数）で持つ一覧からも外す（The King Sword の強制死亡・強制消去の印。2026-10-25、Claude がユーザー指定で足した）
+            int removed = StaticReferencePurger.purgeFields(List.of(field), victims, target.getUUID(), target.getId(), target.getName().getString());
             if (removed == 0) continue;
             total += removed;
             AttackLog.neutralized(target, entry.getValue(),

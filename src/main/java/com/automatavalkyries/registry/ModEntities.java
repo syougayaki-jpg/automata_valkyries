@@ -51,6 +51,14 @@ public class ModEntities {
                             .clientTrackingRange(8)
                             .build("protect_dummy_zombie"));
 
+    /** 事象観測体アカシック・プローブ: 即死・凶悪技術の観測に特化した、倒れない観測用のモブ（2026-10-25、docs/SPEC_AKASHIC_PROBE.md） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.akashic.AkashicProbeEntity>> AKASHIC_PROBE =
+            ENTITY_TYPES.register("akashic_probe", () ->
+                    EntityType.Builder.of(com.automatavalkyries.entity.akashic.AkashicProbeEntity::new, MobCategory.MISC)
+                            .sized(0.6F, 1.75F)
+                            .clientTrackingRange(10)
+                            .build("akashic_probe"));
+
     /** テスト用: 30 ブロック上に浮く HP 1 万のボススケルトン（スラスター・回避の確認用。2026-10-06） */
     public static final RegistryObject<EntityType<com.automatavalkyries.entity.SkyBossSkeleton>> SKY_BOSS_SKELETON =
             ENTITY_TYPES.register("sky_boss_skeleton", () ->
@@ -293,6 +301,7 @@ public class ModEntities {
         event.put(ELENOR.get(), ElenorEntity.createAttributes().build());
         event.put(FARTHEST_ELENOR.get(), ElenorEntity.createAttributes().build());
         event.put(PROTECT_DUMMY_ZOMBIE.get(), com.automatavalkyries.entity.ProtectDummyZombieEntity.createAttributes().build());
+        event.put(AKASHIC_PROBE.get(), com.automatavalkyries.entity.akashic.AkashicProbeEntity.createAttributes().build());
         event.put(PULSE_PHALANX.get(), com.automatavalkyries.entity.chrono.PulsePhalanxEntity.createAttributes().build());
         event.put(SIEGE_CANNON.get(), com.automatavalkyries.entity.chrono.SiegeCannonEntity.createAttributes().build());
         event.put(SIREN_EYE.get(), com.automatavalkyries.entity.chrono.SirenEyeEntity.createAttributes().build());

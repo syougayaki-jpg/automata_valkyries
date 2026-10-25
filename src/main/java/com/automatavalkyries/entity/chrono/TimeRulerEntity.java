@@ -1822,6 +1822,7 @@ public class TimeRulerEntity extends Monster implements GeoEntity, ChronoGazer, 
      */
     @Override
     protected void tickDeath() {
+        if (protect.refuseDeathTick()) return; // 撃破を認めていないのに演出を回された（The King Sword 等）
         ++deathTime;
         if (level().isClientSide) {
             if (deathTime == 1) net.minecraftforge.fml.DistExecutor.unsafeRunWhenOn(net.minecraftforge.api.distmarker.Dist.CLIENT,
@@ -1936,6 +1937,11 @@ public class TimeRulerEntity extends Monster implements GeoEntity, ChronoGazer, 
         if (goalSelector.getAvailableGoals().isEmpty()) registerGoals();
     }
 
+
+    @Override
+    public java.util.List<net.minecraft.server.level.ServerBossEvent> bossBars() {
+        return java.util.List.of(bossEvent);
+    }
     @Override
     public void onAddedToWorld() {
         super.onAddedToWorld();

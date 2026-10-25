@@ -275,6 +275,11 @@ public class MementoMoriEntity extends Monster implements GeoEntity, ChronoGazer
         return protect;
     }
 
+
+    @Override
+    public java.util.List<net.minecraft.server.level.ServerBossEvent> bossBars() {
+        return java.util.List.of(bossEvent);
+    }
     @Override
     public void onAddedToWorld() {
         super.onAddedToWorld();
@@ -329,6 +334,7 @@ public class MementoMoriEntity extends Monster implements GeoEntity, ChronoGazer
      */
     @Override
     protected void tickDeath() {
+        if (protect.refuseDeathTick()) return; // 撃破を認めていないのに演出を回された（The King Sword 等）
         ++deathTime;
         if (!level().isClientSide && !entityData.get(DEFEATED)) entityData.set(DEFEATED, true);
         if (!level().isClientSide && stage() != STAGE_NONE) startStage(STAGE_NONE);

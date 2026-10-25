@@ -933,6 +933,7 @@ public class LostCatastropheEntity extends Monster implements GeoEntity, ChronoG
      */
     @Override
     protected void tickDeath() {
+        if (protect.refuseDeathTick()) return; // 撃破を認めていないのに演出を回された（The King Sword 等）
         ++deathTime;
         if (level().isClientSide) {
             if (deathTime > 10 && deathTime < 130 && deathTime % 2 == 0) {
@@ -1025,6 +1026,11 @@ public class LostCatastropheEntity extends Monster implements GeoEntity, ChronoG
         if (goalSelector.getAvailableGoals().isEmpty()) registerGoals();
     }
 
+
+    @Override
+    public java.util.List<net.minecraft.server.level.ServerBossEvent> bossBars() {
+        return java.util.List.of(bossEvent);
+    }
     @Override
     public void onAddedToWorld() {
         super.onAddedToWorld();

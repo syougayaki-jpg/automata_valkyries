@@ -3,7 +3,6 @@ package com.automatavalkyries.entity;
 import com.automatavalkyries.protect.Eprotect;
 import com.automatavalkyries.protect.IProviderWithSpeech;
 import net.minecraft.ChatFormatting;
-import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerBossEvent;
 import net.minecraft.server.level.ServerPlayer;
@@ -45,8 +44,8 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
     private boolean terminusEnabled = false;
     private int lastFlinch = -100;
 
-    /** 正規撃破から消滅までの Tick 数（モデル側の座り込み演出もこれに合わせる） */
-    public static final int DEATH_TICKS = 30;
+    /** 正規撃破から消滅までの Tick 数（座り込み → 最後のセリフ → リボンがほどける → 緞帳が降りる。{@link ElenorTheater#finale}） */
+    public static final int DEATH_TICKS = 80;
 
     private final Eprotect protect = new Eprotect(this);
     /** 画面上部のボスバー（HP の見える化）。追跡中のプレイヤーだけに表示する */
@@ -55,6 +54,9 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
                     BossEvent.BossBarOverlay.NOTCHED_10);
     /** 挑む相手（48 ブロック以内）がいなくなって 10 秒で撤収する */
     private final BossRetreatWatch retreatWatch = new BossRetreatWatch(48.0D, 200);
+
+    /** 足場を失ったときに、飛んで近くの足場へ戻る（{@link ElenorFlight}） */
+    private final ElenorFlight flight = new ElenorFlight(this);
 
     /** 3 フェーズの戦い方（{@link ElenorArts}）。使わない型（最果てのエレノア）では null */
     private final ElenorArts arts = usesBossArts() ? new ElenorArts(this) : null;
@@ -127,7 +129,7 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
         if (!isReachable(e)) return false;
         if (e instanceof Player player) return isFightable(player);
         if (e instanceof com.automatavalkyries.protect.IEprotected protectedEntity && !protectedEntity.isTerminusTestTarget()) return false;
-        if (!e.isAlive() && !com.automatavalkyries.annihilate.MadnessAnnihilation.isMadness(e)) return false;
+        if (!ElenorPressure.living(e)) return false; // 倒れていないのに isAlive が偽と答えるボスも狙う（ElenorPressure.living）
         if (arts != null && arts.pressure().isViciousAttacker(e)) return true; // 凶悪技術を使ってきた相手（即死系の操作は、被弾として残らない）
         return e == getLastHurtByMob() || com.automatavalkyries.annihilate.FlagKillPredicates.hasDangerousFlag(e);
     }
@@ -146,13 +148,66 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
         return super.canAttack(target);
     }
 
+    /**
+     * HP は保存場所の実際の値で答える（2026-10-24 ユーザー指定「戻って来ても体力が 0 で殴れない」）。他の MOD が LivingEntity の getHealth を
+     * 書き換えて 0 と答えさせると、vanilla の hurt が「もう倒れている」と見て攻撃を受け付けず、プレイヤーが殴れなかった（実際の HP は残っていた）。
+     * このクラスで答えを決めれば、LivingEntity の書き換えは届かない。実際の HP が 0 以下（正規に倒れた）のときは、今までどおり vanilla に任せる
+     */
+    @Override
+    public float getHealth() {
+        if (this.getEntityData() == null) return super.getHealth(); // 構築の途中
+        float real = com.automatavalkyries.protect.DirectRead.health(this);
+        return Float.isFinite(real) && real > 0.0F ? real : super.getHealth();
+    }
+
+    /** 生きているかも実際の値で答える（isAlive を偽る MOD で、技・飛行・打ち上げからの復帰が「倒れている」と見て止まった。2026-10-24） */
+    @Override
+    public boolean isAlive() {
+        if (this.getEntityData() == null) return super.isAlive();
+        if (com.automatavalkyries.protect.DirectRead.isAlive(this)) return true; // 消去されておらず、実際の HP が正
+        return !com.automatavalkyries.protect.DirectRead.isRemoved(this) && !actuallyFalling();
+    }
+
+    /** 倒れかけかも実際の値で答える（isDeadOrDying を偽る MOD で、攻撃を受け付けなかった） */
+    @Override
+    public boolean isDeadOrDying() {
+        if (this.getEntityData() == null) return super.isDeadOrDying();
+        float real = com.automatavalkyries.protect.DirectRead.health(this);
+        return !(Float.isFinite(real) && real > 0.0F) && actuallyFalling();
+    }
+
+    /**
+     * 実際の HP が尽きているときに、本当に倒れているか。保護が撃破を認めた後か、正規の最後の 1 撃の最中だけ真。
+     * それ以外（他 MOD に HP を 0 に書かれた Tick）は倒れていないと答える（vanilla の isDeadOrDying の Mixin と同じ決まり。
+     * 上書きするとそちらは通らず、The King Sword に HP を 0 に書かれた Tick に vanilla が撃破の演出を回した。2026-10-25）
+     */
+    private boolean actuallyFalling() {
+        return protect == null || !protect.isProtectionActive() || protect.isDying() || protect.isLegitimateFatalBlow();
+    }
+
     /** 最初から全開か（最果てのエレノア。コンストラクタの前から呼ばれるので、定数で答える） */
     protected boolean fullPower() {
         return false;
     }
 
+    /**
+     * サーバーのスレッドの外か（2026-10-25 ユーザー指定「落ちた」）。Madness Entities は、クライアントの描画スレッドや自分のスレッドから、
+     * サーバーのエンティティの hurt・die を直接呼ぶ。エレノアの受けたときの処理（花びらの演出・ティアの数え・保護）がそのスレッドで動き、
+     * サーバーのワールドの乱数をサーバーのスレッド（自然湧き）と同時に使って「Accessing LegacyRandomSource from multiple threads」で落ちた
+     */
+    private boolean offServerThread() {
+        return !this.level().isClientSide && this.level().getServer() != null && !this.level().getServer().isSameThread();
+    }
+
     @Override
     public boolean hurt(net.minecraft.world.damagesource.DamageSource source, float amount) {
+        if (offServerThread()) { // サーバーのスレッドへ回して、そこで受ける（ここでは受けない）
+            final float deferred = amount;
+            this.level().getServer().execute(() -> {
+                if (!this.isRemoved()) this.hurt(source, deferred);
+            });
+            return false;
+        }
         // 受けたダメージを記録し、過剰な攻撃・即死を感知して、スケーリングで割り引く（ElenorPressure）
         if (arts != null && !this.level().isClientSide) amount = arts.pressure().onHurt(source, amount);
         // 受けたときの反応: 花びらと火花、ときどき（1.5 秒に 1 回）のけぞる
@@ -170,6 +225,10 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
     /** 技（{@link ElenorArts}）で戦うか。最果てのエレノアは終焉の権能で戦うので使わない（コンストラクタの前から呼ばれるので、定数で答える） */
     protected boolean usesBossArts() {
         return true;
+    }
+
+    public ElenorFlight flight() {
+        return flight;
     }
 
     @org.jetbrains.annotations.Nullable
@@ -230,6 +289,11 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
 
     // ---- eprotect への委譲 ---------------------------------------------------
 
+
+    @Override
+    public java.util.List<net.minecraft.server.level.ServerBossEvent> bossBars() {
+        return java.util.List.of(bossEvent);
+    }
     @Override
     public void onAddedToWorld() {
         super.onAddedToWorld();
@@ -258,12 +322,15 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
             net.minecraft.world.phys.Vec3 motion = getDeltaMovement();
             if (!Double.isFinite(motion.x) || !Double.isFinite(motion.y) || !Double.isFinite(motion.z)) setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
             reacquireTarget();
+            if (this.level() instanceof net.minecraft.server.level.ServerLevel flightLevel) flight.tick(flightLevel); // 足場を壊されて落ちたら、飛んで戻る
             if (arts != null) {
                 arts.tickProjectiles();
                 arts.pressure().tick();
             }
             // 実際の HP で出す（他 MOD のエージェントが getHealth を書き換えて最大 HP を返すと、削れていても満タンに見えていた。2026-10-05）
-            bossEvent.setProgress(protect.healthRatio());
+            // HP を一瞬 0 に書かれて保護が戻した Tick（倒れていない）は、前の値のまま見せる（ボスバーが一瞬 0 になって戻って見えた。2026-10-24）
+            float ratio = protect.healthRatio();
+            if (ratio > 0.0F || this.deathTime > 0) bossEvent.setProgress(ratio);
         } else {
             protect.clientTick();
         }
@@ -323,6 +390,12 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
 
     @Override
     public void die(DamageSource source) {
+        if (offServerThread()) { // サーバーのスレッドへ回す（そこで保護が正規の撃破かを見る）
+            this.level().getServer().execute(() -> {
+                if (!this.isRemoved()) this.die(source);
+            });
+            return;
+        }
         // hurt() を経ない die() の直接呼び出し（即死攻撃）は断り、健全な HP へ戻す（凶悪技術なら罰則で HP を最大へ）
         if (protect.interceptDie()) {
             if (arts != null) arts.pressure().onInstantKillRefused(source); // 即死を感知（ペナルティのティアが上がりやすくなる）
@@ -332,46 +405,19 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
     }
 
     /**
-     * 正規撃破時の演出。バニラの「横倒し 20 Tick」の代わりに、座り込み（モデル側）→ 光の粒 → 消滅を {@link #DEATH_TICKS} かけて行う。
+     * 正規撃破時の演出。バニラの「横倒し 20 Tick」の代わりに、座り込み（モデル側）→ 最後のセリフ → リボンがほどけて舞い上がる →
+     * 緞帳が降りて閉幕、を {@link #DEATH_TICKS} かけて行う（{@link ElenorTheater#finale}、2026-10-24）。
      */
     @Override
     protected void tickDeath() {
+        if (protect.refuseDeathTick()) return; // 撃破を認めていないのに演出を回された（The King Sword。2026-10-25）
         ++this.deathTime;
-        if (this.level().isClientSide) {
-            spawnDeathParticles();
-        } else if (this.deathTime >= DEATH_TICKS && !com.automatavalkyries.protect.DirectRead.isRemoved(this)) {
+        if (this.level().isClientSide) return;
+        if (this.level() instanceof net.minecraft.server.level.ServerLevel server && arts != null) arts.theater().finale(server, this.deathTime);
+        if (this.deathTime >= DEATH_TICKS && !com.automatavalkyries.protect.DirectRead.isRemoved(this)) {
             this.level().broadcastEntityEvent(this, (byte) 60); // 消滅時の煙
             protect.finishDeath(); // ここで初めて消去を許可（撃破演出中の強制消去は eprotect が拒否）
             this.remove(RemovalReason.KILLED);
-        }
-    }
-
-    private void spawnDeathParticles() {
-        // 座り込んだ後（約 0.6 秒後）から、体の周りに紫の光の粒が舞い上がる
-        if (this.deathTime < 12) return;
-        int count = this.deathTime >= DEATH_TICKS - 2 ? 12 : 2;
-        for (int i = 0; i < count; i++) {
-            double x = this.getX() + (this.random.nextDouble() - 0.5D) * 1.2D;
-            double y = this.getY() + this.random.nextDouble() * 1.0D;
-            double z = this.getZ() + (this.random.nextDouble() - 0.5D) * 1.2D;
-            this.level().addParticle(i % 3 == 0 ? ParticleTypes.END_ROD : ParticleTypes.WITCH,
-                    x, y, z, 0.0D, 0.03D + this.random.nextDouble() * 0.04D, 0.0D);
-        }
-        // 頭のリボンがほどけて、黒とピンクの 2 本の帯が螺旋を描いて舞い上がる（2026-10-22）
-        double rise = (this.deathTime - 12) / (double) (DEATH_TICKS - 12);
-        for (int strand = 0; strand < 2; strand++) {
-            double angle = this.deathTime * 0.35 + strand * Math.PI;
-            double radius = 0.35 + rise * 0.6;
-            this.level().addParticle(strand == 0 ? ElenorArts.RIBBON_PINK : ElenorArts.RIBBON_BLACK,
-                    this.getX() + Math.cos(angle) * radius, this.getY() + 1.4D + rise * 1.6D, this.getZ() + Math.sin(angle) * radius,
-                    0.0D, 0.0D, 0.0D);
-        }
-        if (this.deathTime == DEATH_TICKS - 2) {
-            for (int i = 0; i < 24; i++) {
-                this.level().addParticle(i % 2 == 0 ? ElenorArts.RIBBON_PINK : ElenorArts.RIBBON_BLACK,
-                        this.getX() + (this.random.nextDouble() - 0.5D) * 1.6D, this.getY() + 1.0D + this.random.nextDouble() * 1.5D,
-                        this.getZ() + (this.random.nextDouble() - 0.5D) * 1.6D, 0.0D, 0.0D, 0.0D);
-            }
         }
     }
 
@@ -452,7 +498,9 @@ public class ElenorEntity extends PathfinderMob implements IProviderWithSpeech, 
                 .triggerableAnim("point", RawAnimation.begin().thenPlay("animation.elenor.point"))
                 .triggerableAnim("spin", RawAnimation.begin().thenPlay("animation.elenor.spin"))
                 .triggerableAnim("curtsy", RawAnimation.begin().thenPlay("animation.elenor.curtsy"))
-                .triggerableAnim("flinch", RawAnimation.begin().thenPlay("animation.elenor.flinch")));
+                .triggerableAnim("flinch", RawAnimation.begin().thenPlay("animation.elenor.flinch"))
+                .triggerableAnim("mie", RawAnimation.begin().thenPlay("animation.elenor.mie"))
+                .triggerableAnim("solo", RawAnimation.begin().thenPlay("animation.elenor.solo")));
     }
 
     @Override

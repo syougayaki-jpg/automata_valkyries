@@ -71,6 +71,29 @@ public class EprotectManager {
         protectedEntities.remove(protect.getOwner().getUUID(), protect);
     }
 
+    /**
+     * 手元へ「消した」と送ろうとしている ID が、保護中（撃破を認める前・撃破の演出中）で、そのプレイヤーにまだ見えているはずの個体なら
+     * その保護を返す（{@code EprotectRemovePacketMixin}）。ID は今の値と、ワールドに載ったときの値（書き換えられていても）の両方で見る。
+     * 見えているはず = 同じ次元にいて、追跡の届く距離（種類の追跡範囲と描画距離の小さい方）から 8 ブロック内側
+     */
+    @org.jetbrains.annotations.Nullable
+    public Eprotect findVisibleTo(net.minecraft.server.level.ServerPlayer player, int entityId) {
+        if (protectedEntities.isEmpty()) return null;
+        for (Eprotect protect : protectedEntities.values()) {
+            LivingEntity owner = protect.getOwner();
+            if (owner == null || (owner.getId() != entityId && protect.identityId() != entityId)) continue;
+            if (!protect.isGuardingRemoval() || owner.level() != player.level()) return null;
+            var server = player.getServer();
+            int view = Math.max(server != null ? server.getPlayerList().getViewDistance() * 16 : 160, 32); // 描画距離 0 のサーバー（GameTest 等）でも近くは見える
+            double range = Math.min(owner.getType().clientTrackingRange() * 16, view) - 8.0;
+            net.minecraft.world.phys.Vec3 at = owner.position();
+            if (!Double.isFinite(at.x) || !Double.isFinite(at.y) || !Double.isFinite(at.z)) return protect; // 座標を壊された直後（戻す前）
+            double dx = at.x - player.getX(), dz = at.z - player.getZ();
+            return range > 0 && dx * dx + dz * dz <= range * range ? protect : null;
+        }
+        return null;
+    }
+
     public boolean isRegistered(Eprotect protect) {
         return protectedEntities.get(protect.getOwner().getUUID()) == protect;
     }
@@ -280,6 +303,7 @@ public class EprotectManager {
     public void onServerStopped(ServerStoppedEvent event) {
         ShutdownDiagnostics.onStopped();
         protectedEntities.clear();
+        EprotectRegistry.clearMemoryMirror(); // 次に開くワールドへ前のワールドの記録が混ざらないように
         tickCounter = 0;
         AttackLog.flush();
         AttackLog.clear();

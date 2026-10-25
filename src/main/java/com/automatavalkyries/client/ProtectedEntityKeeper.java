@@ -27,14 +27,18 @@ import java.util.Map;
  * 当たり判定ごと消えて見える。2026-10-22）、サーバーから除去の知らせが来るまで、最後の出現の知らせから作り直して入れ直す。
  * <p>
  * サーバーの正規の除去（撃破・退場・遠く離れた・次元移動）は ClientboundRemoveEntitiesPacket で来るので、それが来たら記録を捨てる。
- * ワールドが変わったとき（次元移動・ログアウト）も捨てる。入れ直しは 5 Tick に 1 回、同じ個体につき 400 回まで。
- * 手元の個体が消去の抜け殻（除去の印・体積 0 の当たり判定・外されたコールバック）になっていたら、誰がやったかを問わず外して作り直す（準汎用）
+ * ワールドが変わったとき（次元移動・ログアウト）も捨てる。入れ直しは、はじめの 20 回は毎 Tick、その後は 5 Tick に 1 回、同じ個体につき 400 回まで。
+ * 手元の個体が消去の抜け殻（除去の印・体積 0 の当たり判定・外されたコールバック）になっていたら、誰がやったかを問わず外して作り直す（準汎用）。
+ * 入れ直すときは、まず消される前の同じ個体を戻す（動き・モデルのアニメーションが途切れない）。戻せなければ出現の知らせから作り直す。
+ * サーバーが送ってきた HP と違う値を手元で書かれていたら戻す（The King Sword は手元の HP を 0 に書く。2026-10-25）
  * </p>
  */
 @Mod.EventBusSubscriber(modid = AutomataValkyries.MODID, value = Dist.CLIENT)
 public final class ProtectedEntityKeeper {
 
     private static final int RETRY_TICKS = 5;
+    /** はじめのこの回数までは毎 Tick 入れ直す（他 MOD に手元から消された直後のちらつきを 1 Tick に抑える。2026-10-25） */
+    private static final int FAST_RETRIES = 20;
     private static final int MAX_RETRIES = 400;
 
     private ProtectedEntityKeeper() {}
@@ -42,6 +46,10 @@ public final class ProtectedEntityKeeper {
     private static final class Record {
         final ClientLevel level;
         final ClientboundAddEntityPacket packet;
+        /** 消される前の個体（同じ個体を戻すため。弱い参照） */
+        java.lang.ref.WeakReference<Entity> instance = new java.lang.ref.WeakReference<>(null);
+        /** サーバーが最後に送ってきた HP（NaN = まだ） */
+        float serverHealth = Float.NaN;
         long lastTry;
         int tries;
 
@@ -58,7 +66,56 @@ public final class ProtectedEntityKeeper {
     public static void onAdded(ClientLevel level, ClientboundAddEntityPacket packet) {
         var key = ForgeRegistries.ENTITY_TYPES.getKey(packet.getType());
         if (key == null || !AutomataValkyries.MODID.equals(key.getNamespace())) return;
-        RECORDS.put(packet.getId(), new Record(level, packet));
+        Record record = new Record(level, packet);
+        Entity added = level.getEntity(packet.getId());
+        if (added != null) record.instance = new java.lang.ref.WeakReference<>(added);
+        RECORDS.put(packet.getId(), record);
+    }
+
+    /** サーバーから同期データ（HP を含む）が届いた後: その HP を覚える（手元で書き換えられたら戻す先） */
+    public static void onServerData(ClientLevel level, int id) {
+        Record record = RECORDS.get(id);
+        if (record == null || record.level != level || !(level.getEntity(id) instanceof net.minecraft.world.entity.LivingEntity living)) return;
+        record.serverHealth = living.getEntityData().get(com.automatavalkyries.mixin.LivingEntityAccessor.automata_valkyries$getDataHealthId());
+        record.instance = new java.lang.ref.WeakReference<>(living);
+    }
+
+    /** 手元の HP が、サーバーが送ってきた値から書き換えられていたら戻す */
+    private static void restoreServerHealth(Record record, Entity present) {
+        if (!(present instanceof net.minecraft.world.entity.LivingEntity living) || !(record.serverHealth > 0.0F)) return;
+        var key = com.automatavalkyries.mixin.LivingEntityAccessor.automata_valkyries$getDataHealthId();
+        float local = living.getEntityData().get(key);
+        if (local == record.serverHealth) return;
+        living.getEntityData().set(key, record.serverHealth);
+        if (living.deathTime > 0) living.deathTime = 0;
+    }
+
+    /**
+     * 消される前の同じ個体を手元の世界へ戻す（作り直すと、動きやモデルのアニメーションが最初からになって目立つ）。
+     * 除去の印・外されたコールバック・残った古い検索表の項目を片付け、ID・UUID・壊された座標を出現の知らせの値に戻してから入れる
+     */
+    private static boolean readdSameInstance(ClientLevel current, int id, Record record) {
+        Entity entity = record.instance.get();
+        if (entity == null || entity.level() != current) return false;
+        try {
+            evict(current, entity);
+            EntityAccessor fields = (EntityAccessor) entity;
+            fields.automata_valkyries$setRemovalReason(null);
+            fields.automata_valkyries$setLevelCallback(EntityInLevelCallback.NULL);
+            fields.automata_valkyries$setAddedToWorld(false);
+            fields.automata_valkyries$setIdField(id);
+            fields.automata_valkyries$setUuidField(record.packet.getUUID());
+            fields.automata_valkyries$setStringUuidField(record.packet.getUUID().toString());
+            if (!Double.isFinite(entity.getX()) || !Double.isFinite(entity.getY()) || !Double.isFinite(entity.getZ())) {
+                entity.setPos(record.packet.getX(), record.packet.getY(), record.packet.getZ());
+            }
+            entity.refreshDimensions();
+            current.putNonPlayerEntity(id, entity);
+            return current.getEntity(id) == entity;
+        } catch (Throwable t) {
+            AutomataValkyries.LOGGER.warn("[client] Could not put entity id {} back as the same instance: {}", id, t.toString());
+            return false;
+        }
     }
 
     /** サーバーから除去の知らせが来た: 正規の除去なので、入れ直さない */
@@ -140,6 +197,8 @@ public final class ProtectedEntityKeeper {
             String tamper = tamperedReason(present);
             if (tamper == null) {
                 restoreUuidEntry(current, present);
+                restoreServerHealth(record, present);
+                record.instance = new java.lang.ref.WeakReference<>(present);
                 return false;
             }
             // 消された後の抜け殻（除去の印・体積 0 の当たり判定・外されたコールバック）。誰がやったかは問わず、外して作り直す
@@ -147,9 +206,16 @@ public final class ProtectedEntityKeeper {
                     ForgeRegistries.ENTITY_TYPES.getKey(present.getType()), id, tamper);
             evict(current, present);
         }
-        if (clock - record.lastTry < RETRY_TICKS) return false;
+        if (record.tries >= FAST_RETRIES && clock - record.lastTry < RETRY_TICKS) return false;
         record.lastTry = clock;
         record.tries++;
+        if (readdSameInstance(current, id, record)) {
+            if (record.tries <= 3 || record.tries % 40 == 0) {
+                AutomataValkyries.LOGGER.warn("[client] {} (id {}) vanished from the local world without a removal packet; put the same instance back (attempt {})",
+                        ForgeRegistries.ENTITY_TYPES.getKey(record.packet.getType()), id, record.tries);
+            }
+            return false;
+        }
         try {
             Entity entity = record.packet.getType().create(current);
             if (entity == null) return false;

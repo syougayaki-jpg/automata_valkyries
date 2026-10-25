@@ -169,6 +169,13 @@ public class FarthestElenorEntity extends ElenorEntity {
         return super.mobInteract(player, hand);
     }
 
+    /**
+     * 反撃の待ち行列。モブの AI（ゴール・Brain）の Tick の中から殴られたときは、その場では終焉を撃たず、自分の次の Tick の初めに撃つ（2026-10-24）。
+     * その場で撃つと、終焉（抹殺）が相手のゴールの一覧を消すので、相手のゴールの Tick が一覧を回している途中で ConcurrentModificationException が出て、
+     * ゲームが落ちていた（Craziness Awakened のモブジラが最果てのエレノアを殴ったとき）。それ以外（プレイヤーの攻撃・直接の呼び出し）は、これまでどおりその場で撃つ
+     */
+    private final java.util.ArrayDeque<DamageSource> pendingRetaliations = new java.util.ArrayDeque<>();
+
     @Override
     public boolean hurt(DamageSource source, float amount) {
         boolean hurt = super.hurt(source, amount);
@@ -179,12 +186,38 @@ public class FarthestElenorEntity extends ElenorEntity {
     private void retaliate(DamageSource source) {
         if (retaliating || source == null || !(this.level() instanceof ServerLevel serverLevel)) return;
         // Madness Entities (The Moon / Ancient Nether Avatar 等) は Render thread や Thread-3 から
-        // ServerLevel エンティティの hurt() を直接呼び出すことがあるため、サーバースレッド外ならキューへ委譲する
+        // ServerLevel エンティティの hurt() を直接呼び出すことがあるため、サーバースレッド外ならサーバースレッドで行列に積む
         if (!serverLevel.getServer().isSameThread()) {
-            serverLevel.getServer().execute(() -> retaliateOnServerThread(serverLevel, source));
+            serverLevel.getServer().execute(() -> queueRetaliation(source));
             return;
         }
-        retaliateOnServerThread(serverLevel, source);
+        queueRetaliation(source);
+    }
+
+    private void queueRetaliation(DamageSource source) {
+        if (!(this.level() instanceof ServerLevel serverLevel)) return;
+        if (!insideAiTick()) {
+            retaliateOnServerThread(serverLevel, source);
+            return;
+        }
+        if (pendingRetaliations.size() < 32) pendingRetaliations.add(source);
+    }
+
+    /** 今、どれかのモブの AI（ゴールの一覧・Brain）の Tick の中か（クラスの名前は本番でも Mojang の名前） */
+    private static boolean insideAiTick() {
+        return StackWalker.getInstance().walk(frames -> frames.limit(160).anyMatch(f -> {
+            String c = f.getClassName();
+            return c.equals("net.minecraft.world.entity.ai.goal.GoalSelector") || c.equals("net.minecraft.world.entity.ai.Brain");
+        }));
+    }
+
+    @Override
+    public void baseTick() {
+        // 自分の Tick の初め（他のエンティティのゴールの Tick の外）で、積んだ反撃を撃つ
+        if (!pendingRetaliations.isEmpty() && this.level() instanceof ServerLevel serverLevel) {
+            for (int i = 0; i < 8 && !pendingRetaliations.isEmpty(); i++) retaliateOnServerThread(serverLevel, pendingRetaliations.poll());
+        }
+        super.baseTick();
     }
 
     private void retaliateOnServerThread(ServerLevel serverLevel, DamageSource source) {

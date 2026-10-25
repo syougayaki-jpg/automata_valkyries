@@ -356,6 +356,11 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
         return protect;
     }
 
+
+    @Override
+    public java.util.List<net.minecraft.server.level.ServerBossEvent> bossBars() {
+        return java.util.List.of(bossEvent);
+    }
     @Override
     public void onAddedToWorld() {
         super.onAddedToWorld();
@@ -431,6 +436,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
 
     @Override
     protected void tickDeath() {
+        if (protect.refuseDeathTick()) return; // 撃破を認めていないのに演出を回された（The King Sword 等）
         ++deathTime;
         if (!level().isClientSide && !entityData.get(DEFEATED)) { // die() を通らずに倒れた（HP を直接 0 にされた等）ときも演出を出す
             entityData.set(DEFEATED, true);
