@@ -437,7 +437,7 @@ public final class EprotectPlusAgent {
         }
         // 対 Java エージェント汎用対策 ①: バニラ重要クラスのバイトコードに注入された外部フッククラスへの参照をパッシブ記録する
         inspectVanillaBytecodeHooks(className, bytes);
-        if (AgentCollisionPolicy.isPassive()) return null;
+        if (AgentCollisionPolicy.isConfiguredPassive()) return null;
         if (!isCriticalClass(className)) return null;
         if (redefined == null) {
             baseline().capture(loader, className, bytes);
@@ -451,7 +451,9 @@ public final class EprotectPlusAgent {
         if (java.util.Arrays.equals(baseline, bytes)) return null;
         String caller = extractCaller(Thread.currentThread().getStackTrace());
         boolean foreign = isForeignCaller(caller);
+        boolean ownCriticalClass = className.startsWith("com/automatavalkyries/");
         List<String> neuteredMethods = new ArrayList<>();
+        boolean foreignHookInjected = false;
         try {
             ClassSummary before = ClassSummary.parse(baseline);
             ClassSummary now = ClassSummary.parse(bytes);
@@ -460,14 +462,21 @@ public final class EprotectPlusAgent {
                 if (old != null && entry.getValue().trivialReturn() && !old.trivialReturn())
                     neuteredMethods.add(entry.getKey());
             }
+            for (String ref : now.referencedClasses) {
+                if (!before.referencedClasses.contains(ref) && isInspectableForeignClassName(ref)) {
+                    foreignHookInjected = true;
+                    break;
+                }
+            }
         } catch (java.io.IOException | RuntimeException exception) {
             ERRORS.incrementAndGet();
         }
-        if (!foreign && neuteredMethods.isEmpty()) return null;
+        if (!foreign && !ownCriticalClass && !foreignHookInjected && neuteredMethods.isEmpty()) return null;
         if (!AgentCollisionPolicy.allowReplacement(className)) {
             state = "PASSIVE_COLLISION_LIMIT";
             return null;
         }
+        state = "ACTIVE";
         DIRTY.set(true);
         EprotectPlusBridge.recordInterference(className, caller, "retransform/redefine", "ShortReturns=" + neuteredMethods);
         RESTORED.incrementAndGet();
@@ -532,10 +541,25 @@ public final class EprotectPlusAgent {
                             currentInst.retransformClasses(type);
                             transformed++;
                         } catch (Throwable exception) {
-                            AUDIT_UNSUPPORTED.put(type, Boolean.TRUE);
-                            ERRORS.incrementAndGet();
-                            EprotectPlusBridge.recordEvent("警告", type.getName(), "EprotectPlusAgent", "active_retransform",
-                                    "能動的監査非対応", exception.toString());
+                            // 対エージェント仕掛け ③: retransformClasses（canRetransform=true パイプライン）が妨害・拒否された場合、
+                            // redefineClasses（canRetransform=false 先行パイプライン＋保存済み baseline 直接供給）へ非対称フォールバックする
+                            boolean redefinedOk = false;
+                            if (currentInst.isRedefineClassesSupported()) {
+                                byte[] savedBytes = store.get(type.getClassLoader(), type.getName().replace('.', '/'));
+                                if (savedBytes != null) {
+                                    try {
+                                        currentInst.redefineClasses(new java.lang.instrument.ClassDefinition(type, savedBytes));
+                                        transformed++;
+                                        redefinedOk = true;
+                                    } catch (Throwable ignored) {}
+                                }
+                            }
+                            if (!redefinedOk) {
+                                AUDIT_UNSUPPORTED.put(type, Boolean.TRUE);
+                                ERRORS.incrementAndGet();
+                                EprotectPlusBridge.recordEvent("警告", type.getName(), "EprotectPlusAgent", "active_retransform",
+                                        "能動的監査非対応", exception.toString());
+                            }
                         }
                     }
                 } catch (Throwable exception) {

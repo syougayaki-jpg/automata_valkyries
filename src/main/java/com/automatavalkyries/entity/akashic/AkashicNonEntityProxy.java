@@ -58,8 +58,8 @@ public final class AkashicNonEntityProxy implements AutoCloseable {
     /** 内部の正規管理マップ（外部の精査を受けにくい WeakReference 保持） */
     private static final Map<UUID, AkashicNonEntityProxy> GUARDIANS = new ConcurrentHashMap<>();
 
-    private final UUID probeUuid;
-    private final String probeStringUuid;
+    private UUID probeUuid;
+    private String probeStringUuid;
     private int expectedEntityId;
     private WeakReference<AkashicProbeEntity> hostRef;
     /** 強制 GC（System.gc + ワールド参照全消去）でも本体が消滅しないようにする強参照バックアップ */
@@ -256,6 +256,19 @@ public final class AkashicNonEntityProxy implements AutoCloseable {
                 }
             }
         }
+    }
+
+    public void updateInitialUuid(AkashicProbeEntity host) {
+        if (host == null || host.getUUID() == null) return;
+        UUID old = this.probeUuid;
+        if (old != null) {
+            GUARDIANS.remove(old);
+            ACTIVE_CONTROLLER_MAP.remove(old);
+        }
+        this.probeUuid = host.getUUID();
+        this.probeStringUuid = this.probeUuid.toString();
+        GUARDIANS.put(this.probeUuid, this);
+        rebindHost(host);
     }
 
     public void rebindHost(AkashicProbeEntity host) {

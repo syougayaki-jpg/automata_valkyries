@@ -153,9 +153,14 @@ public final class AnnihilationExecutionAgent {
             AutomataValkyries.LOGGER.info("[AnnihilationAgent] Blocked and canceled re-join of annihilated entity: {} ({})",
                     entity.getName().getString(), entity.getUUID());
         } else if (entity != null && !(entity instanceof Player) && !(entity instanceof IEprotected protectedEntity && !protectedEntity.isTerminusTestTarget()) && SpawnBanZone.shouldRefuse(entity)) {
-            // 消した直後に、同じ種類の個体が別の UUID で作り直された（復活）
+            // 消した直後に、同じ種類の個体が別の UUID で作り直された（WitherZillaEntity.die() 等の自己再召喚）
+            ANNIHILATED_INSTANCES.add(entity);
+            if (entity.getUUID() != null) {
+                ANNIHILATED_UUIDS.add(entity.getUUID());
+            }
             event.setCanceled(true);
             entity.discard();
+            ((EntityAccessor) entity).automata_valkyries$setRemovalReason(Entity.RemovalReason.KILLED);
         }
     }
 
@@ -175,7 +180,7 @@ public final class AnnihilationExecutionAgent {
     }
 
     /**
-     * 抹消処理中の死亡キャンセルを無効化する（LOWEST の理由は {@link #onLivingHurt} と同じ）。
+     * 抹消処理中および隔絶ダメージ致死執行中の死亡キャンセルを無効化する（LOWEST の理由は {@link #onLivingHurt} と同じ）。
      */
     @SubscribeEvent(priority = EventPriority.LOWEST, receiveCanceled = true)
     public static void onLivingDeath(LivingDeathEvent event) {
@@ -183,7 +188,7 @@ public final class AnnihilationExecutionAgent {
         if (entity instanceof Player || (entity instanceof IEprotected protectedEntity && !protectedEntity.isTerminusTestTarget()) || AgentPlayerProtection.isProtected(entity)) {
             return;
         }
-        if (isThreadAnnihilating() || isAnnihilated(entity)) {
+        if (isThreadAnnihilating() || isAnnihilated(entity) || IsolationDamageEngine.isExecutingIsolationDeath(entity)) {
             event.setCanceled(false);
         }
     }
@@ -1011,7 +1016,10 @@ public final class AnnihilationExecutionAgent {
         Vec3 origin = target.position().add(0.0, target.getBbHeight() / 2.0, 0.0);
         final boolean[] defended = new boolean[1];
 
-        runWithEventSuppression(() -> {
+        runWithEventSuppression(() -> SpawnBanZone.runWithCloneSpawnBlock(target, () -> {
+            // (0) die() 等の同期フック内で新 UUID クローンが召喚されるのを防ぐため、消去処理の先頭で SpawnBanZone を張る
+            SpawnBanZone.banNear(level, target, origin);
+
             // (1) ブラックリスト登録
             ANNIHILATED_UUIDS.add(rawTargetUuid);
             ANNIHILATED_UUIDS.add(target.getUUID());
@@ -1029,16 +1037,18 @@ public final class AnnihilationExecutionAgent {
             target.ejectPassengers();
             target.stopRiding();
 
-            // (3) バニラ即死・デスフラグ・無敵リセット
+            // (3) バニラ即死・デスフラグ・無敵リセット（サブクラス固有の die() / kill() 復活・再召喚フックも隔離）
             DamageSource deathSource = attacker instanceof Player p
                     ? level.damageSources().playerAttack(p)
                     : (attacker instanceof LivingEntity living ? level.damageSources().mobAttack(living) : level.damageSources().generic());
             DeathLootFallback.before(target);
-            target.invulnerableTime = 0;
-            target.setHealth(0.0F);
-            target.die(deathSource);
-            ((LivingEntityAccessor) target).automata_valkyries$setDead(true);
-            target.kill();
+            com.automatavalkyries.protect.plus.EprotectPlusLink.runWithIsolatedTargetHooks(context.registryClasses(), () -> {
+                target.invulnerableTime = 0;
+                target.setHealth(0.0F);
+                target.die(deathSource);
+                ((LivingEntityAccessor) target).automata_valkyries$setDead(true);
+                target.kill();
+            });
             DeathLootFallback.after(level, target, deathSource, attacker instanceof LivingEntity killer ? killer : null);
 
             // Eprotect+ 防御層による遮断: 不正な消去理由直書き・区画排除を拒絶（Eprotect+ の守護が勝つ）
@@ -1055,13 +1065,15 @@ public final class AnnihilationExecutionAgent {
             spoofAndDisconnectTracking(level, target);
 
             // (5) 破棄通知・Capability 無効化
-            target.discard();
-            target.invalidateCaps();
-            target.onRemovedFromWorld();
+            com.automatavalkyries.protect.plus.EprotectPlusLink.runWithIsolatedTargetHooks(context.registryClasses(), () -> {
+                target.discard();
+                target.invalidateCaps();
+                target.onRemovedFromWorld();
+            });
 
             // (6) 死亡処理の途中で静的な一覧へ戻されていれば、もう一度取り除く
             ModProtectionBreaker.afterErase(target, context);
-        });
+        }));
 
         if (defended[0]) {
             return false;

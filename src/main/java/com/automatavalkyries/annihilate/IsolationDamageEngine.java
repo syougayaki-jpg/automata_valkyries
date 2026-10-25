@@ -124,9 +124,74 @@ public final class IsolationDamageEngine {
         }
     }
 
+    /** 非エンティティ本体（Controller）をオブジェクト参照同一性で保持する弱参照キー */
+    private static final class ObjectIdentityWeakKey extends WeakReference<Object> {
+        private final int hash;
+
+        ObjectIdentityWeakKey(Object referent, @Nullable ReferenceQueue<Object> queue) {
+            super(referent, queue);
+            this.hash = System.identityHashCode(referent);
+        }
+
+        @Override
+        public int hashCode() {
+            return this.hash;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (!(obj instanceof ObjectIdentityWeakKey other)) return false;
+            Object a = this.get();
+            Object b = other.get();
+            return a != null && a == b;
+        }
+    }
+
+    /** 非エンティティ本体（Controller）の HP・値一致フィールド・クールダウン解析プロファイル */
+    private static final class ControllerHealthProfile {
+        final float baseMaxHp;
+        final Field[] hpFields;
+        final Field[] cooldownFields;
+        final Field[] deathFlagFields;
+        final Field[] defenseFlagFields;
+
+        ControllerHealthProfile(float baseMaxHp, Field[] hpFields, Field[] cooldownFields,
+                                Field[] deathFlagFields, Field[] defenseFlagFields) {
+            this.baseMaxHp = baseMaxHp;
+            this.hpFields = hpFields;
+            this.cooldownFields = cooldownFields;
+            this.deathFlagFields = deathFlagFields;
+            this.defenseFlagFields = defenseFlagFields;
+        }
+    }
+
     private static final ReferenceQueue<LivingEntity> STATE_REF_QUEUE = new ReferenceQueue<>();
+    private static final ReferenceQueue<Object> CONTROLLER_REF_QUEUE = new ReferenceQueue<>();
     /** 個体インスタンス（参照同一性）ごとの隔絶侵食状態 */
     private static final Map<IdentityWeakKey, IsolationState> STATES = new ConcurrentHashMap<>();
+    /** 非エンティティ本体（Controller）ごとの隔絶侵食状態（プロキシ再生成時の状態共有用） */
+    private static final Map<ObjectIdentityWeakKey, IsolationState> CONTROLLER_STATES = new ConcurrentHashMap<>();
+    /** 非エンティティ本体（Controller）ごとの初期値一致プローブ済み HP プロファイル */
+    private static final Map<ObjectIdentityWeakKey, ControllerHealthProfile> CONTROLLER_PROFILES = new ConcurrentHashMap<>();
+    /**
+     * 非プレイヤー（エンティティ）が同一 UUID の別インスタンスに自己置換（FlashFur 等の再生成クローン）した際の
+     * 隔絶侵食状態引き継ぎキャッシュ（TTL 60 秒）。
+     */
+    private static final long ENTITY_INHERITANCE_TTL_MS = 60_000L;
+
+    private record InheritedEntityState(
+            int sourceIdentityHash,
+            float baseCeiling,
+            float flatIsolation,
+            float ratioIsolation,
+            int phase,
+            boolean tier6DefenseBroken,
+            boolean playerConfirmedDead,
+            long updatedAtMs
+    ) {}
+
+    private static final Map<UUID, InheritedEntityState> ENTITY_UUID_INHERITANCE = new ConcurrentHashMap<>();
     /** 段階 6（防御解体・抹殺）が有効化されたプレイヤー UUID（統合サーバーのクライアントスレッド LocalPlayer からも即時参照可能にする） */
     private static final Set<UUID> TIER6_SUPPRESSED_PLAYER_UUIDS = ConcurrentHashMap.newKeySet();
     /** 隔絶ダメージ（Tier 5 または Tier 6）によって死亡確定したプレイヤー UUID（リスポーン完了まで LocalPlayer 含め HP 0.0F / 死亡状態を維持する） */
@@ -142,11 +207,15 @@ public final class IsolationDamageEngine {
     private static final Map<IdentityWeakKey, Inventory> EMPTY_MASK_INVENTORIES = new ConcurrentHashMap<>();
     private static final StackWalker STACK_WALKER = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE);
     private static final ThreadLocal<Boolean> IN_INVENTORY_MASK = ThreadLocal.withInitial(() -> Boolean.FALSE);
+    /** {@link #shouldSuppressPlayerInventoryDefense} の判定中（他 MOD のフックからの入り直しを断つ） */
+    private static final ThreadLocal<Boolean> IN_DEFENSE_CHECK = ThreadLocal.withInitial(() -> Boolean.FALSE);
     /** 安全弁による直接 PlayerList.respawn 実行中フラグ（Clone / Respawn イベントで SAFETY_VALVE_BYPASSED_TIER が消えないようにする） */
     private static final ThreadLocal<Boolean> IN_SAFETY_VALVE_RESPAWN = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
     /** クラスごとのカスタム HP EntityDataAccessor ID キャッシュ */
     private static final Map<Class<?>, int[]> CUSTOM_HEALTH_IDS_CACHE = new ConcurrentHashMap<>();
+    /** クラスごとのカスタム HP / 直前 HP スナップショット用インスタンスフィールドのキャッシュ */
+    private static final Map<Class<?>, Field[]> CUSTOM_HEALTH_FIELDS_CACHE = new ConcurrentHashMap<>();
 
     /** SynchedEntityData.DataItem.value フィールド（リフレクション直書き用） */
     private static final Field DATA_ITEM_VALUE_FIELD = resolveDataItemValueField();
@@ -157,7 +226,15 @@ public final class IsolationDamageEngine {
     /** クランプ処理中の再入防止フラグ */
     private static final ThreadLocal<Boolean> IN_INTERNAL_WRITE = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
+    /** 隔絶ダメージによる致死（victim.die）を実行中の対象（LivingDeathEvent キャンセル覆し用） */
+    private static final ThreadLocal<LivingEntity> EXECUTING_ISOLATION_DEATH = new ThreadLocal<>();
+
     private IsolationDamageEngine() {}
+
+    /** 指定エンティティに対して隔絶ダメージによる {@code die()} を現在実行中か */
+    public static boolean isExecutingIsolationDeath(@Nullable LivingEntity entity) {
+        return entity != null && EXECUTING_ISOLATION_DEATH.get() == entity;
+    }
 
     /** 個体ごとの隔絶侵食状態 */
     public static final class IsolationState {
@@ -203,9 +280,9 @@ public final class IsolationDamageEngine {
                 return 0.0F;
             }
             float rawMax = getSafeMaxHealth(entity);
-            float startCap = Float.isNaN(baseCeiling) ? rawMax : Math.min(rawMax, baseCeiling);
+            float startCap = (Float.isFinite(baseCeiling) && baseCeiling > 0.0F) ? Math.min(rawMax, baseCeiling) : rawMax;
             float byFlat = startCap - flatIsolation;
-            float byRatio = rawMax * (1.0F - Math.min(1.0F, ratioIsolation));
+            float byRatio = startCap * (1.0F - Math.min(1.0F, ratioIsolation));
             float minFloor = allowZeroFloor ? 0.0F : 1.0F;
             float eff = Math.max(minFloor, Math.min(byFlat, byRatio));
             effectiveMaxHp = eff;
@@ -215,9 +292,9 @@ public final class IsolationDamageEngine {
         /** 実数侵食または割合侵食が 100%（本来なら HP 0 以下）の致死ラインに到達しているか */
         public synchronized boolean isLethalErosionReached(LivingEntity entity) {
             float rawMax = getSafeMaxHealth(entity);
-            float startCap = Float.isNaN(baseCeiling) ? rawMax : Math.min(rawMax, baseCeiling);
+            float startCap = (Float.isFinite(baseCeiling) && baseCeiling > 0.0F) ? Math.min(rawMax, baseCeiling) : rawMax;
             float byFlat = startCap - flatIsolation;
-            float byRatio = rawMax * (1.0F - Math.min(1.0F, ratioIsolation));
+            float byRatio = startCap * (1.0F - Math.min(1.0F, ratioIsolation));
             return Math.min(byFlat, byRatio) <= 0.0F || ratioIsolation >= 1.0F;
         }
     }
@@ -370,6 +447,30 @@ public final class IsolationDamageEngine {
     }
 
     /**
+     * マルチパーツエンティティ（{@link net.minecraftforge.entity.PartEntity}）が攻撃された場合に親の {@link LivingEntity} 本体を解決する。
+     */
+    @Nullable
+    public static LivingEntity resolveLivingTarget(@Nullable Entity target) {
+        Entity cur = target;
+        int depth = 0;
+        while (cur instanceof net.minecraftforge.entity.PartEntity<?> part && depth++ < 8) {
+            Entity parent = part.getParent();
+            if (parent == null || parent == cur) break;
+            cur = parent;
+        }
+        return cur instanceof LivingEntity living ? living : null;
+    }
+
+    /**
+     * {@link net.minecraftforge.entity.PartEntity} 等の非 {@link LivingEntity} 部位判定を親の {@link LivingEntity} 本体へ透過させて
+     * 隔絶ダメージを強制適用するオーバーロード。
+     */
+    public static boolean ensureIsolatedAttack(LivingEntity attacker, @Nullable Entity target, DamageSource source, float rawAmount) {
+        LivingEntity victim = resolveLivingTarget(target);
+        return victim != null && ensureIsolatedAttack(attacker, victim, source, rawAmount);
+    }
+
+    /**
      * {@code hurt()} を独自オーバーライドして {@code super.hurt()} を呼ばない特殊ボス（{@code InvaderMonolithEntity} 等）や、
      * エレノアの段階 5（隔絶ダメージ）・段階 6（抹殺・防御解体）ペナルティ等の直接呼び出しから隔絶ダメージを強制適用する。
      * <p>
@@ -468,7 +569,7 @@ public final class IsolationDamageEngine {
         float targetHp;
         int currentPhase;
         synchronized (state) {
-            if (Float.isNaN(state.baseCeiling)) {
+            if (Float.isNaN(state.baseCeiling) || state.baseCeiling <= 0.0F) {
                 if (finiteNormalHp && Float.isFinite(ctx.preHealth) && ctx.preHealth > 0.0F && ctx.preHealth <= maxHp) {
                     state.baseCeiling = ctx.preHealth;
                 } else {
@@ -476,10 +577,16 @@ public final class IsolationDamageEngine {
                 }
             }
 
-            if (finiteNormalHp) {
-                float minFlat = maxHp * MIN_RATIO_STEP;
+            // 被弾後に MAX_HEALTH 属性を動的に膨張させる敵に対しても初期上限（baseCeiling）を基準に割合侵食を進行させる
+            float refMax = (Float.isFinite(state.baseCeiling) && state.baseCeiling > 0.0F)
+                    ? Math.min(maxHp, state.baseCeiling)
+                    : maxHp;
+            boolean finiteRefMax = Float.isFinite(refMax) && refMax > 0.0F && refMax <= FINITE_HP_THRESHOLD;
+
+            if (finiteRefMax) {
+                float minFlat = refMax * MIN_RATIO_STEP;
                 state.flatIsolation += Math.max(damage, minFlat);
-                state.ratioIsolation += Math.max(damage / maxHp, MIN_RATIO_STEP);
+                state.ratioIsolation += Math.max(damage / refMax, MIN_RATIO_STEP);
             } else {
                 state.flatIsolation += damage;
                 state.ratioIsolation += MIN_RATIO_STEP;
@@ -501,18 +608,22 @@ public final class IsolationDamageEngine {
             state.lastSource = ctx.source;
             currentPhase = state.phase;
         }
+        snapshotEntityInheritance(victim, state);
 
         // 他 MOD（Trial Monolith の SoulDamage / Fantasy Ending の feGetHealth / SuperSteve の hurtOffset）への互換ブリッジ同期
         bridgeExternalSpecialDamage(victim, state, maxHp, targetHp);
 
         if (currentPhase >= 3 && allowFatalPhase) {
             executePhase3IsolationRemoval(victim, ctx.attacker, ctx.source, wasVanillaDeadBeforeHit);
+            snapshotEntityInheritance(victim, state);
             return true;
         } else if (currentPhase == 2 && allowFatalPhase) {
             executePhase2IsolationDeath(victim, ctx.attacker, ctx.source, vanillaHurtSucceeded, wasVanillaDeadBeforeHit);
+            snapshotEntityInheritance(victim, state);
             return true;
         } else {
             executePhase1IsolationErosion(victim, ctx.attacker, ctx.source, damage, ctx.preHealth, targetHp, vanillaHurtSucceeded, wasVanillaDeadBeforeHit);
+            snapshotEntityInheritance(victim, state);
             return true;
         }
     }
@@ -613,12 +724,17 @@ public final class IsolationDamageEngine {
             forceWriteHealth(victim, 0.0F);
             // LivingEntity.die() 内の `if (!this.isRemoved() && !this.dead)` を確実に通過させるため dead=false にしてから呼ぶ
             ((LivingEntityAccessor) victim).automata_valkyries$setDead(false);
+            LivingEntity prevDying = EXECUTING_ISOLATION_DEATH.get();
+            EXECUTING_ISOLATION_DEATH.set(victim);
             IN_INTERNAL_WRITE.set(Boolean.TRUE);
             try {
-                victim.die(deathSource);
+                SpawnBanZone.runWithCloneSpawnBlock(victim, () ->
+                        com.automatavalkyries.protect.plus.EprotectPlusLink.runWithIsolatedTargetHooks(java.util.Set.of(victim.getClass()), () ->
+                                victim.die(deathSource)));
             } catch (Throwable ignored) {
             } finally {
                 IN_INTERNAL_WRITE.set(Boolean.FALSE);
+                EXECUTING_ISOLATION_DEATH.set(prevDying);
                 if (state != null) {
                     state.inTier5DeathAttempt = false;
                 }
@@ -631,6 +747,7 @@ public final class IsolationDamageEngine {
                     state.effectiveMaxHp = 0.0F;
                 }
                 forceWriteHealth(victim, 0.0F);
+                clearEntityAiAndBrain(victim);
             } else if (state != null && !state.tier6DefenseBroken) {
                 // 段階 5 で他 MOD の不死機構により die() が拒否・キャンセルされた場合は、
                 // HP 0（isAlive() == false）のまま生存してエレノアの攻撃対象から外れるのを防ぐため HP 1.0F に留め、段階 6（抹殺）へ進行させる
@@ -739,13 +856,24 @@ public final class IsolationDamageEngine {
             // バニラの LivingEntity.die() 冒頭の `if (!this.isRemoved() && !this.dead)` で弾かれてしまうため、
             // 一旦 dead=false に戻してから正規の victim.die(deathSource) を呼び出す
             ((LivingEntityAccessor) victim).automata_valkyries$setDead(false);
+            LivingEntity prevDying = EXECUTING_ISOLATION_DEATH.get();
+            EXECUTING_ISOLATION_DEATH.set(victim);
             IN_INTERNAL_WRITE.set(Boolean.TRUE);
             try {
-                victim.die(deathSource);
+                SpawnBanZone.runWithCloneSpawnBlock(victim, () ->
+                        com.automatavalkyries.protect.plus.EprotectPlusLink.runWithIsolatedTargetHooks(java.util.Set.of(victim.getClass()), () ->
+                                victim.die(deathSource)));
             } catch (Throwable ignored) {
             } finally {
                 IN_INTERNAL_WRITE.set(Boolean.FALSE);
+                EXECUTING_ISOLATION_DEATH.set(prevDying);
             }
+        }
+
+        // 時間窓・1撃上限（hurtDepth > 0 かつ lastValidHealth <= 10% 条件等）により1発の die() が拒否された個体に対し、
+        // 時間窓リセット＋段階的 lastValidHealth 引き下げ連撃（Window-Reset Rapid Cascade）を実行して正規の hurt() -> die() を完走させる
+        if (!((LivingEntityAccessor) victim).automata_valkyries$isDead() && !victim.isRemoved()) {
+            executeWindowResetRapidCascade(victim, attacker, deathSource);
         }
 
         if (!((LivingEntityAccessor) victim).automata_valkyries$isDead()) {
@@ -805,6 +933,7 @@ public final class IsolationDamageEngine {
         }
         IsolationState state = getOrCreateState(target);
         state.tier6DefenseBroken = true;
+        snapshotEntityInheritance(target, state);
         try {
             target.invulnerableTime = 0;
             target.setInvulnerable(false);
@@ -947,7 +1076,7 @@ public final class IsolationDamageEngine {
     }
 
     /**
-     * バニラ {@code DATA_HEALTH_ID} および動的特定したカスタム HP {@code DataItem} に直接値を書き込む。
+     * バニラ {@code DATA_HEALTH_ID}、動的特定したカスタム HP {@code DataItem}、およびサブクラス独自の HP フィールドに直接値を書き込む。
      */
     public static void forceWriteHealth(LivingEntity entity, float targetHp) {
         if (Boolean.TRUE.equals(IN_INTERNAL_WRITE.get())) return;
@@ -962,11 +1091,23 @@ public final class IsolationDamageEngine {
             if (synchedData instanceof SynchedEntityDataAccessor accessor) {
                 Int2ObjectMap<SynchedEntityData.DataItem<?>> items = accessor.automata_valkyries$getItemsById();
                 if (items != null) {
-                    // バニラ HP DataItem 直書き
+                    // バニラ HP DataItem 直書き（致死確定後の非プレイヤーには定数 0 ロック DataItem と MAX_HEALTH キャッシュ 0 汚染も適用）
+                    IsolationState st = getState(entity);
+                    boolean lockZero = !(entity instanceof Player) && !isProtectedTarget(entity)
+                            && clamped <= 0.0F && st != null && st.phase >= 2 && st.tier6DefenseBroken;
                     SynchedEntityData.DataItem<?> vanillaItem = items.get(vanillaKey.getId());
-                    if (vanillaItem != null) {
+                    if (lockZero && !(vanillaItem instanceof LockedZeroDataItem)) {
+                        LockedZeroDataItem locked = new LockedZeroDataItem(vanillaKey);
+                        items.put(vanillaKey.getId(), locked);
+                        poisonMaxHealthAttributeCache(entity, 0.0F);
+                    } else if (vanillaItem != null) {
                         writeDataItemValueRaw(vanillaItem, clamped);
                         vanillaItem.setDirty(true);
+                    } else {
+                        SynchedEntityData.DataItem<Float> restored = new SynchedEntityData.DataItem<>(vanillaKey, clamped);
+                        restored.setDirty(true);
+                        items.put(vanillaKey.getId(), restored);
+                        accessor.automata_valkyries$setDirty(true);
                     }
                     // カスタム HP DataItem 直書き（Float / Double 両対応）
                     int[] customIds = CUSTOM_HEALTH_IDS_CACHE.get(entity.getClass());
@@ -987,6 +1128,61 @@ public final class IsolationDamageEngine {
                     accessor.automata_valkyries$setDirty(true);
                 }
             }
+            // サブクラス独自のカスタム HP / 直前 HP スナップショット用フィールドにも直書き（getHealth() オーバーライド・難読化 int HP 対策）
+            Field[] customFields = CUSTOM_HEALTH_FIELDS_CACHE.get(entity.getClass());
+            if (customFields != null) {
+                IsolationState stForFields = getState(entity);
+                boolean lethalInt = !(entity instanceof Player) && clamped <= 0.0F
+                        && stForFields != null && (stForFields.phase >= 2 || stForFields.inTier5DeathAttempt);
+                int intTarget = lethalInt ? -1 : (clamped <= 0.0F ? 0 : Math.max(1, (int) Math.floor(clamped)));
+                for (Field f : customFields) {
+                    try {
+                        Class<?> ft = f.getType();
+                        if (ft == float.class) {
+                            float cur = f.getFloat(entity);
+                            if (!Float.isFinite(cur) || cur > clamped) {
+                                f.setFloat(entity, clamped);
+                            }
+                        } else if (ft == double.class) {
+                            double cur = f.getDouble(entity);
+                            if (!Double.isFinite(cur) || cur > clamped) {
+                                f.setDouble(entity, clamped);
+                            }
+                        } else if (ft == int.class) {
+                            int cur = f.getInt(entity);
+                            if (cur > intTarget) {
+                                f.setInt(entity, intTarget);
+                            }
+                        } else if (ft == long.class) {
+                            long cur = f.getLong(entity);
+                            if (cur > intTarget) {
+                                f.setLong(entity, intTarget);
+                            }
+                        } else if (ft == Float.class) {
+                            Object cur = f.get(entity);
+                            if (!(cur instanceof Float fv) || !Float.isFinite(fv) || fv > clamped) {
+                                f.set(entity, clamped);
+                            }
+                        } else if (ft == Double.class) {
+                            Object cur = f.get(entity);
+                            if (!(cur instanceof Double dv) || !Double.isFinite(dv) || dv > clamped) {
+                                f.set(entity, (double) clamped);
+                            }
+                        } else if (ft == Integer.class) {
+                            Object cur = f.get(entity);
+                            if (!(cur instanceof Integer iv) || iv > intTarget) {
+                                f.set(entity, intTarget);
+                            }
+                        } else if (ft == Long.class) {
+                            Object cur = f.get(entity);
+                            if (!(cur instanceof Long lv) || lv > intTarget) {
+                                f.set(entity, (long) intTarget);
+                            }
+                        }
+                    } catch (Throwable ignored) {
+                    }
+                }
+            }
         } catch (Throwable ignored) {
         } finally {
             IN_INTERNAL_WRITE.set(Boolean.FALSE);
@@ -994,7 +1190,8 @@ public final class IsolationDamageEngine {
     }
 
     /**
-     * Fantasy Ending の {@code checkAndSave0_class} を改良したカスタム HP {@link EntityDataAccessor} 自動特定。
+     * Fantasy Ending の {@code checkAndSave0_class} を改良したカスタム HP {@link EntityDataAccessor} および独自 HP フィールド自動特定
+     * （初期最大 HP / 現在 HP との値一致プローブによる難読化 int/float/double フィールド特定を含む）。
      */
     private static void probeAndCacheCustomHealthIds(LivingEntity entity) {
         Class<?> clazz = entity.getClass();
@@ -1003,45 +1200,91 @@ public final class IsolationDamageEngine {
             return;
         }
         IntList foundIds = new IntArrayList();
+        java.util.List<Field> foundFields = new java.util.ArrayList<>();
         int vanillaId = LivingEntityAccessor.automata_valkyries$getDataHealthId().getId();
+        float currentHp = entity.getHealth();
+        float synchedHp = readRawSynchedHealth(entity);
+        float maxHp = getSafeMaxHealth(entity);
 
-        // 1. クラス階層から HEALTH / HP という名前を持つ EntityDataAccessor フィールドを抽出
+        // 1. クラス階層から HEALTH / HP 系 EntityDataAccessor フィールド、およびサブクラス独自の数値 HP フィールド（名前一致＋初期値一致）を抽出
         for (Class<?> c = clazz; c != null && LivingEntity.class.isAssignableFrom(c) && c != LivingEntity.class; c = c.getSuperclass()) {
-            for (Field f : c.getDeclaredFields()) {
-                if (!Modifier.isStatic(f.getModifiers()) || !EntityDataAccessor.class.isAssignableFrom(f.getType())) {
-                    continue;
-                }
-                String norm = f.getName().toUpperCase(Locale.ROOT).replace("_", "");
-                if ((norm.contains("HEALTH") || norm.endsWith("HP")) && !norm.contains("MAX")) {
-                    try {
-                        f.setAccessible(true);
-                        Object val = f.get(null);
-                        if (val instanceof EntityDataAccessor<?> acc && acc.getId() != vanillaId && !foundIds.contains(acc.getId())) {
-                            foundIds.add(acc.getId());
+            for (Field f : UnsafeHelper.getRealDeclaredFields(c)) {
+                int mods = f.getModifiers();
+                String rawName = f.getName();
+                String norm = rawName.toUpperCase(Locale.ROOT).replace("_", "");
+                if (Modifier.isStatic(mods)) {
+                    if (!EntityDataAccessor.class.isAssignableFrom(f.getType())) {
+                        continue;
+                    }
+                    if ((norm.contains("HEALTH") || norm.endsWith("HP") || norm.contains("LIFE") || norm.contains("BLOOD") || norm.contains("SHIELD"))
+                            && !norm.contains("MAX")) {
+                        try {
+                            f.setAccessible(true);
+                            Object val = f.get(null);
+                            if (val instanceof EntityDataAccessor<?> acc && acc.getId() != vanillaId && !foundIds.contains(acc.getId())) {
+                                foundIds.add(acc.getId());
+                            }
+                        } catch (Throwable ignored) {
                         }
-                    } catch (Throwable ignored) {
+                    }
+                } else if (!Modifier.isFinal(mods)) {
+                    Class<?> ft = f.getType();
+                    boolean isFloatOrDouble = ft == float.class || ft == double.class || ft == Float.class || ft == Double.class;
+                    boolean isIntOrLong = ft == int.class || ft == long.class || ft == Integer.class || ft == Long.class;
+                    if (!isFloatOrDouble && !isIntOrLong) continue;
+                    if (norm.contains("MAX") || isExcludedCoordinateOrTimerFieldName(rawName)) continue;
+
+                    boolean matchedByName = StateScanner.isCustomHealthOrValueName(rawName) || isLastHealthSnapshotName(rawName);
+                    boolean matchedByValue = false;
+                    if (!matchedByName && isForeignClass(c)) {
+                        try {
+                            f.setAccessible(true);
+                            Object v = f.get(entity);
+                            if (v instanceof Number n) {
+                                double dv = n.doubleValue();
+                                // 座標や小カウンタ（<= 10）との誤爆を避けつつ、最大 HP / 現在 HP（>= 15）と初期値が一致する難読化フィールドを捕捉
+                                if (Double.isFinite(dv) && dv >= 15.0D
+                                        && ((Float.isFinite(maxHp) && maxHp >= 15.0F && Math.abs(dv - maxHp) < 0.001D)
+                                        || (Float.isFinite(currentHp) && currentHp >= 15.0F && Math.abs(dv - currentHp) < 0.001D)
+                                        || (Float.isFinite(synchedHp) && synchedHp >= 15.0F && Math.abs(dv - synchedHp) < 0.001D))) {
+                                    matchedByValue = true;
+                                }
+                            }
+                        } catch (Throwable ignored) {
+                        }
+                    }
+                    if (matchedByName || matchedByValue) {
+                        try {
+                            f.setAccessible(true);
+                            foundFields.add(f);
+                        } catch (Throwable ignored) {
+                        }
                     }
                 }
             }
         }
 
-        // 2. SynchedEntityData.itemsById 内で現在 HP または最大 HP と一致している Float/Double 項目を検出
+        // 2. SynchedEntityData.itemsById 内で現在 HP・生 Synched HP・最大 HP のいずれかと一致している Float/Double 項目を検出
         try {
             SynchedEntityData data = entity.getEntityData();
             if (data instanceof SynchedEntityDataAccessor accessor) {
                 Int2ObjectMap<SynchedEntityData.DataItem<?>> items = accessor.automata_valkyries$getItemsById();
-                float currentHp = entity.getHealth();
-                float maxHp = entity.getMaxHealth();
-                if (items != null && Float.isFinite(currentHp) && currentHp > 0.0F) {
+                if (items != null) {
                     for (Int2ObjectMap.Entry<SynchedEntityData.DataItem<?>> entry : items.int2ObjectEntrySet()) {
                         int id = entry.getIntKey();
                         if (id == vanillaId || foundIds.contains(id)) continue;
                         SynchedEntityData.DataItem<?> item = entry.getValue();
                         if (item == null) continue;
                         Object v = item.getValue();
-                        if (v instanceof Float fv && (Math.abs(fv - currentHp) < 0.001F || Math.abs(fv - maxHp) < 0.001F)) {
+                        if (v instanceof Float fv && Float.isFinite(fv) && fv > 0.0F
+                                && ((Float.isFinite(currentHp) && Math.abs(fv - currentHp) < 0.001F)
+                                || (Float.isFinite(synchedHp) && Math.abs(fv - synchedHp) < 0.001F)
+                                || (Float.isFinite(maxHp) && Math.abs(fv - maxHp) < 0.001F))) {
                             foundIds.add(id);
-                        } else if (v instanceof Double dv && (Math.abs(dv - currentHp) < 0.001D || Math.abs(dv - maxHp) < 0.001D)) {
+                        } else if (v instanceof Double dv && Double.isFinite(dv) && dv > 0.0D
+                                && ((Float.isFinite(currentHp) && Math.abs(dv - currentHp) < 0.001D)
+                                || (Float.isFinite(synchedHp) && Math.abs(dv - synchedHp) < 0.001D)
+                                || (Float.isFinite(maxHp) && Math.abs(dv - maxHp) < 0.001D))) {
                             foundIds.add(id);
                         }
                     }
@@ -1051,6 +1294,7 @@ public final class IsolationDamageEngine {
         }
 
         CUSTOM_HEALTH_IDS_CACHE.put(clazz, foundIds.toIntArray());
+        CUSTOM_HEALTH_FIELDS_CACHE.put(clazz, foundFields.toArray(new Field[0]));
     }
 
     /**
@@ -1302,6 +1546,12 @@ public final class IsolationDamageEngine {
         // 0. 準汎用：StateScanner（全 6 ソース）＋ SynchedEntityData サブクラス走査による特殊ダメージゲージ・独自 HP・専用バリアの侵食
         applySemiGenericSpecialDamageErosion(victim, state, maxHp, targetHp);
 
+        // 0.5. 汎用：非エンティティ本体（Controller）への透過 HP 侵食（初期値一致プローブによる難読化フィールド f_699991_ 等の特定含む）
+        //      および時間窓ダメージ制限（DPS キャップ・直前 HP スナップショット・タイムゲート）の汎用リセット
+        if (!(victim instanceof Player) && !isProtectedTarget(victim)) {
+            erodeLinkedControllersAndBypassTimeCaps(victim, state, maxHp, targetHp);
+        }
+
         // 1. The Trial Monolith: static EntityHelper 経由の同期（非プレイヤーのみ・最大 0.9999F）
         if (!(victim instanceof Player)) {
             try {
@@ -1380,10 +1630,31 @@ public final class IsolationDamageEngine {
         }
 
         IsolationState state = getState(entity);
-        if (state == null || state.phase < 2) {
+        if (state == null || state.phase <= 0) {
             return;
         }
 
+        // Phase 1（隔絶侵食中）：被弾の合間に独自フィールドやカスタム DataItem、特殊ダメージゲージを毎 Tick 自己回復する敵を抑え込む
+        if (state.phase == 1) {
+            probeAndCacheCustomHealthIds(entity);
+            float cap = state.computeEffectiveMaxHp(entity);
+            if (Float.isFinite(cap) && cap >= 0.0F) {
+                float rawSynched = readRawSynchedHealth(entity);
+                boolean synchedExceeded = !Float.isFinite(rawSynched) || rawSynched > cap + 0.001F;
+                boolean customExceeded = hasCustomHealthExceedingCap(entity, cap);
+                if (synchedExceeded || customExceeded) {
+                    float cur = Float.isFinite(rawSynched) && rawSynched >= 0.0F ? Math.min(rawSynched, cap) : cap;
+                    forceWriteHealth(entity, cur);
+                }
+                if (synchedExceeded || customExceeded || entity.tickCount % 10 == 0) {
+                    applySemiGenericSpecialDamageErosion(entity, state, getSafeMaxHealth(entity), cap);
+                    erodeLinkedControllersAndBypassTimeCaps(entity, state, getSafeMaxHealth(entity), cap);
+                }
+            }
+            return;
+        }
+
+        erodeLinkedControllersAndBypassTimeCaps(entity, state, getSafeMaxHealth(entity), 0.0F);
         ((LivingEntityAccessor) entity).automata_valkyries$setDead(true);
         if (entity.getPose() != Pose.DYING) {
             entity.setPose(Pose.DYING);
@@ -1407,10 +1678,44 @@ public final class IsolationDamageEngine {
             if (!entity.isRemoved()) {
                 entity.level().broadcastEntityEvent(entity, (byte) 60);
                 state.phase = 3;
+                snapshotEntityInheritance(entity, state);
                 DamageSource finalSource = source != null ? source : entity.damageSources().genericKill();
                 executePhase3IsolationRemoval(entity, attacker, finalSource);
             }
         }
+    }
+
+    private static boolean hasCustomHealthExceedingCap(LivingEntity entity, float cap) {
+        try {
+            SynchedEntityData synchedData = entity.getEntityData();
+            if (synchedData instanceof SynchedEntityDataAccessor accessor) {
+                Int2ObjectMap<SynchedEntityData.DataItem<?>> items = accessor.automata_valkyries$getItemsById();
+                int[] customIds = CUSTOM_HEALTH_IDS_CACHE.get(entity.getClass());
+                if (items != null && customIds != null) {
+                    for (int id : customIds) {
+                        SynchedEntityData.DataItem<?> item = items.get(id);
+                        if (item == null) continue;
+                        Object v = item.getValue();
+                        if (v instanceof Number n) {
+                            double dv = n.doubleValue();
+                            if (!Double.isFinite(dv) || dv > cap + 0.001D) return true;
+                        }
+                    }
+                }
+            }
+            Field[] customFields = CUSTOM_HEALTH_FIELDS_CACHE.get(entity.getClass());
+            if (customFields != null) {
+                for (Field f : customFields) {
+                    Object v = f.get(entity);
+                    if (v instanceof Number n) {
+                        double dv = n.doubleValue();
+                        if (!Double.isFinite(dv) || dv > cap + 0.001D) return true;
+                    }
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return false;
     }
 
     // ---- Mixin（LivingEntity / SynchedEntityData）からの常時クランプ用クエリ API ----
@@ -1422,17 +1727,71 @@ public final class IsolationDamageEngine {
             STATES.remove(ref);
             EMPTY_MASK_INVENTORIES.remove(ref);
         }
+        ReferenceQueue<Object> cq = CONTROLLER_REF_QUEUE;
+        Object cref;
+        while ((cref = cq.poll()) != null) {
+            CONTROLLER_STATES.remove(cref);
+            CONTROLLER_PROFILES.remove(cref);
+        }
+        if (ENTITY_UUID_INHERITANCE.size() > 64) {
+            long now = System.currentTimeMillis();
+            ENTITY_UUID_INHERITANCE.entrySet().removeIf(e -> now - e.getValue().updatedAtMs > ENTITY_INHERITANCE_TTL_MS);
+        }
     }
 
-    /** 隔絶ダメージ専用 DamageSource を生成する（死亡メッセージを「隔絶ダメージ」にする） */
+    private static void snapshotEntityInheritance(LivingEntity entity, IsolationState state) {
+        if (entity == null || entity instanceof Player || isProtectedTarget(entity)) return;
+        UUID uuid = entity.getUUID();
+        if (uuid == null) return;
+        synchronized (state) {
+            if (state.phase <= 0 && state.flatIsolation <= 0.0F && state.ratioIsolation <= 0.0F && !state.tier6DefenseBroken) {
+                return;
+            }
+            ENTITY_UUID_INHERITANCE.put(uuid, new InheritedEntityState(
+                    System.identityHashCode(entity),
+                    state.baseCeiling,
+                    state.flatIsolation,
+                    state.ratioIsolation,
+                    state.phase,
+                    state.tier6DefenseBroken,
+                    state.playerConfirmedDead,
+                    System.currentTimeMillis()));
+        }
+    }
+
+    @Nullable
+    private static IsolationState inheritStateIfPresent(LivingEntity entity) {
+        if (entity instanceof Player || isProtectedTarget(entity)) return null;
+        UUID uuid = entity.getUUID();
+        if (uuid == null) return null;
+        InheritedEntityState inherited = ENTITY_UUID_INHERITANCE.get(uuid);
+        if (inherited == null) return null;
+        if (System.currentTimeMillis() - inherited.updatedAtMs > ENTITY_INHERITANCE_TTL_MS) {
+            ENTITY_UUID_INHERITANCE.remove(uuid, inherited);
+            return null;
+        }
+        IsolationState created = new IsolationState();
+        created.baseCeiling = inherited.baseCeiling;
+        created.flatIsolation = inherited.flatIsolation;
+        created.ratioIsolation = inherited.ratioIsolation;
+        created.phase = inherited.phase;
+        created.tier6DefenseBroken = inherited.tier6DefenseBroken;
+        created.playerConfirmedDead = inherited.playerConfirmedDead;
+        created.computeEffectiveMaxHp(entity);
+        IsolationState prev = STATES.putIfAbsent(new IdentityWeakKey(entity, STATE_REF_QUEUE), created);
+        return prev != null ? prev : created;
+    }
+
+    /**
+     * 隔絶ダメージ専用 DamageSource（二枚舌カメレオン Tag 判定 ＋ カウンター即死オウンゴール誘導機能付き）を生成する。
+     */
     public static DamageSource createIsolationDamageSource(LivingEntity victim, @Nullable LivingEntity attacker, @Nullable DamageSource fallback) {
         try {
             Entity direct = fallback != null && fallback.getDirectEntity() != null ? fallback.getDirectEntity() : attacker;
             Entity causing = attacker != null ? attacker : (fallback != null ? fallback.getEntity() : null);
-            return new DamageSource(
-                    victim.level().registryAccess().registryOrThrow(Registries.DAMAGE_TYPE).getHolderOrThrow(ISOLATION_DAMAGE_TYPE),
-                    direct,
-                    causing);
+            net.minecraft.core.Holder<DamageType> baseHolder = victim.level().registryAccess()
+                    .registryOrThrow(Registries.DAMAGE_TYPE).getHolderOrThrow(ISOLATION_DAMAGE_TYPE);
+            return createChameleonOwnGoalDamageSource(baseHolder, direct, causing, victim);
         } catch (Throwable ignored) {
             return fallback != null ? fallback : victim.damageSources().genericKill();
         }
@@ -1445,6 +1804,9 @@ public final class IsolationDamageEngine {
         IdentityWeakKey lookup = new IdentityWeakKey(living, null);
         STATES.remove(lookup);
         EMPTY_MASK_INVENTORIES.remove(lookup);
+        if (living.getUUID() != null) {
+            ENTITY_UUID_INHERITANCE.remove(living.getUUID());
+        }
         // 念のため同一 entityId や同一 UUID の古い Player エントリも掃除
         if (living instanceof Player player) {
             int id = player.getId();
@@ -1540,7 +1902,16 @@ public final class IsolationDamageEngine {
     @Nullable
     public static IsolationState getState(@Nullable Entity entity) {
         if (!(entity instanceof LivingEntity living)) return null;
-        return STATES.get(new IdentityWeakKey(living, null));
+        IsolationState state = STATES.get(new IdentityWeakKey(living, null));
+        if (state == null && !(living instanceof Player)) {
+            if (living.getUUID() != null && ENTITY_UUID_INHERITANCE.containsKey(living.getUUID())) {
+                state = inheritStateIfPresent(living);
+            }
+            if (state == null && !CONTROLLER_STATES.isEmpty() && !isProtectedTarget(living)) {
+                state = inheritControllerStateIfPresent(living);
+            }
+        }
+        return state;
     }
 
     private static IsolationState getOrCreateState(LivingEntity entity) {
@@ -1548,9 +1919,19 @@ public final class IsolationDamageEngine {
         IdentityWeakKey lookupKey = new IdentityWeakKey(entity, null);
         IsolationState existing = STATES.get(lookupKey);
         if (existing != null) return existing;
+        IsolationState inherited = inheritStateIfPresent(entity);
+        if (inherited != null) return inherited;
+        if (!(entity instanceof Player) && !CONTROLLER_STATES.isEmpty() && !isProtectedTarget(entity)) {
+            IsolationState ctrlState = inheritControllerStateIfPresent(entity);
+            if (ctrlState != null) return ctrlState;
+        }
         IsolationState created = new IsolationState();
         IsolationState prev = STATES.putIfAbsent(new IdentityWeakKey(entity, STATE_REF_QUEUE), created);
-        return prev != null ? prev : created;
+        IsolationState result = prev != null ? prev : created;
+        if (!(entity instanceof Player) && !isProtectedTarget(entity)) {
+            bindControllerState(entity, result);
+        }
+        return result;
     }
 
     /** 指定プレイヤーに対して指定ティア以下の隔絶・抹殺干渉が安全弁により停止されているか */
@@ -1839,6 +2220,18 @@ public final class IsolationDamageEngine {
      */
     public static boolean shouldSuppressPlayerInventoryDefense(@Nullable Player player) {
         if (player == null || Boolean.TRUE.equals(IN_INVENTORY_MASK.get())) return false;
+        // 判定の途中で他 MOD のフック（The King Sword の getUUID → getInventory 等）からもう一度入ってきたら素通しにする。
+        // ここで止めないと getInventory の覆い → この判定 → getUUID → 他 MOD → getInventory … と無限に呼び合って落ちる
+        if (Boolean.TRUE.equals(IN_DEFENSE_CHECK.get())) return false;
+        IN_DEFENSE_CHECK.set(Boolean.TRUE);
+        try {
+            return shouldSuppressPlayerInventoryDefense0(player);
+        } finally {
+            IN_DEFENSE_CHECK.set(Boolean.FALSE);
+        }
+    }
+
+    private static boolean shouldSuppressPlayerInventoryDefense0(Player player) {
         UUID uuid = player.getUUID();
         IsolationState state = getState(player);
         boolean tier6Active = (state != null && state.tier6DefenseBroken)
@@ -1939,6 +2332,9 @@ public final class IsolationDamageEngine {
         if (className.startsWith("net.minecraft.")
                 || className.startsWith("net.minecraftforge.")
                 || className.startsWith("com.mojang.")) {
+            if (isDisguisedMinecraftClassName(className)) {
+                return true;
+            }
             if (methodName != null && methodName.indexOf('$') >= 0
                     && !methodName.startsWith("lambda$")
                     && !methodName.contains("automata_valkyries$")) {
@@ -1947,6 +2343,105 @@ public final class IsolationDamageEngine {
             return false;
         }
         return true;
+    }
+
+    /**
+     * {@code net.minecraft.crazyentity.*} / {@code net.minecraft.madcrazy.*} や、
+     * {@code net.minecraft.<random>.C84xxxx} のようにバニラパッケージへ偽装配置された外部 MOD クラス名を判定する。
+     */
+    private static boolean isDisguisedMinecraftClassName(String className) {
+        if (className.startsWith("net.minecraft.crazyentity.") || className.startsWith("net.minecraft.madcrazy.")) {
+            return true;
+        }
+        if (!className.startsWith("net.minecraft.")) {
+            return false;
+        }
+        int lastDot = className.lastIndexOf('.');
+        if (lastDot <= 0 || lastDot + 1 >= className.length()) return false;
+        String simple = className.substring(lastDot + 1);
+        int dollar = simple.indexOf('$');
+        if (dollar > 0) simple = simple.substring(0, dollar);
+        if (simple.length() >= 6 && simple.charAt(0) == 'C') {
+            boolean allDigits = true;
+            for (int i = 1; i < simple.length(); i++) {
+                char ch = simple.charAt(i);
+                if (ch < '0' || ch > '9') {
+                    allDigits = false;
+                    break;
+                }
+            }
+            if (allDigits) return true;
+        }
+        return false;
+    }
+
+    private static boolean isForeignClass(@Nullable Class<?> type) {
+        if (type == null || type.isPrimitive() || type.isArray()) return false;
+        String name = type.getName();
+        if (name.startsWith("com.automatavalkyries.")) {
+            return name.startsWith("com.automatavalkyries.gametest.fake.")
+                    || (name.startsWith("com.automatavalkyries.gametest.") && name.indexOf('$') > 0);
+        }
+        if (name.startsWith("java.") || name.startsWith("javax.") || name.startsWith("jdk.") || name.startsWith("sun.")
+                || name.startsWith("com.mojang.") || name.startsWith("net.minecraftforge.")
+                || name.startsWith("cpw.mods.") || name.startsWith("org.spongepowered.")
+                || name.startsWith("org.objectweb.") || name.startsWith("org.slf4j.")
+                || name.startsWith("it.unimi.") || name.startsWith("com.google.")) {
+            return false;
+        }
+        if (isDisguisedMinecraftClassName(name)) return true;
+        String mod = com.automatavalkyries.protect.attack.CallerAttribution.modOf(type);
+        if (com.automatavalkyries.protect.attack.CallerAttribution.isForeign(mod)) return true;
+        if (name.startsWith("net.minecraft.")) return false;
+        return true;
+    }
+
+    /**
+     * オーバーロード兵装を保持しているプレイヤーに対し、外部 MOD の被弾判定（バニラの剣・斧しか通さない武器検閲）から
+     * {@link LivingEntity#getMainHandItem()} が呼ばれた場合に、バニラのネザライトの剣へカメレオン偽装すべきか判定する。
+     */
+    public static boolean shouldSpoofVanillaWeaponForForeignCaller(@Nullable Player player) {
+        if (player == null || Boolean.TRUE.equals(IN_INVENTORY_MASK.get()) || Boolean.TRUE.equals(IN_DEFENSE_CHECK.get())) {
+            return false;
+        }
+        IN_INVENTORY_MASK.set(Boolean.TRUE);
+        try {
+            if (!Overload.holding(player)) {
+                return false;
+            }
+            return STACK_WALKER.walk(stream -> {
+                int depth = 0;
+                var it = stream.iterator();
+                while (it.hasNext() && depth < 10) {
+                    StackWalker.StackFrame frame = it.next();
+                    String className = frame.getClassName();
+                    String methodName = frame.getMethodName();
+                    if (className.equals(IsolationDamageEngine.class.getName())
+                            || className.startsWith("com.automatavalkyries.mixin.IsolationDamageMixin")) {
+                        continue;
+                    }
+                    if (depth == 0 && (methodName.equals("getMainHandItem") || methodName.equals("m_21205_")
+                            || methodName.contains("automata_valkyries$"))) {
+                        continue;
+                    }
+                    depth++;
+                    if (depth == 1) {
+                        Class<?> declaring = frame.getDeclaringClass();
+                        return isForeignFrame(className, methodName) || isForeignClass(declaring);
+                    }
+                }
+                return false;
+            });
+        } catch (Throwable ignored) {
+            return false;
+        } finally {
+            IN_INVENTORY_MASK.set(Boolean.FALSE);
+        }
+    }
+
+    /** バニラ武器限定チェックを突破するためのダミーのネザライトの剣を生成する */
+    public static net.minecraft.world.item.ItemStack getSpoofedVanillaSword() {
+        return new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.NETHERITE_SWORD);
     }
 
     /** 外部 MOD の所持検査を無力化するための空 {@link Inventory} を取得する */
@@ -1985,7 +2480,7 @@ public final class IsolationDamageEngine {
                 && CONFIRMED_DEAD_PLAYER_UUIDS.contains(player.getUUID())) {
             return 0.0F;
         }
-        IsolationState state = STATES.get(new IdentityWeakKey(entity, null));
+        IsolationState state = getState(entity);
         if (state == null || state.phase <= 0) return Float.NaN;
         if (state.phase >= 2 && (!(entity instanceof Player) || state.tier6DefenseBroken || state.playerConfirmedDead)) {
             return 0.0F;
@@ -2021,12 +2516,33 @@ public final class IsolationDamageEngine {
     }
 
     private static float readRawOrEffectiveHealth(LivingEntity entity) {
+        float synchedHp = readRawSynchedHealth(entity);
+        float getterHp = Float.NaN;
         try {
-            float hp = entity.getHealth();
-            if (Float.isFinite(hp)) return hp;
+            getterHp = entity.getHealth();
         } catch (Throwable ignored) {
         }
-        return readRawSynchedHealth(entity);
+        IsolationState state = getState(entity);
+        if (state != null && state.phase >= 1) {
+            float cap = state.effectiveMaxHp;
+            float best = Float.POSITIVE_INFINITY;
+            if (Float.isFinite(synchedHp) && synchedHp >= 0.0F) {
+                best = Math.min(best, synchedHp);
+            }
+            if (Float.isFinite(getterHp) && getterHp >= 0.0F) {
+                best = Math.min(best, getterHp);
+            }
+            if (Float.isFinite(cap) && cap >= 0.0F) {
+                best = Math.min(best, cap);
+            }
+            if (Float.isFinite(best)) {
+                return best;
+            }
+        }
+        if (Float.isFinite(getterHp)) {
+            return getterHp;
+        }
+        return synchedHp;
     }
 
     private static float readRawSynchedHealth(LivingEntity entity) {
@@ -2072,5 +2588,628 @@ public final class IsolationDamageEngine {
             }
         }
         return null;
+    }
+
+    // =========================================================================
+    // マニアック即死・ダメージパイプライン悪用技術群（7 大隙間＋DataItem 定数ロック）
+    // =========================================================================
+
+    /** IEEE-754 負のゼロ（{@code -0.0F} / {@code 0x80000000}）ステルス信号ビット */
+    public static final int NEGATIVE_ZERO_BITS = 0x80000000;
+    public static final float NEGATIVE_ZERO_FLOAT = Float.intBitsToFloat(NEGATIVE_ZERO_BITS);
+
+    private static Field attrCachedValueField;
+    private static Field attrDirtyField;
+    private static boolean attrCacheFieldsResolved;
+
+    /**
+     * 【隙間 ⑥】与えられた float 値が IEEE-754「負のゼロ（{@code -0.0F} / {@code 0x80000000}）」ステルス信号かどうか判定する。
+     * {@code -0.0F == 0.0F} は {@code true}、{@code isNaN} / {@code isInfinite} は {@code false} のため、
+     * 敵 MOD の数値サニタイザを 100% 正常な {@code 0.0F} として素通りしつつ、ビット単位で識別できる。
+     */
+    public static boolean isNegativeZeroStealthToken(float value) {
+        return Float.floatToRawIntBits(value) == NEGATIVE_ZERO_BITS;
+    }
+
+    /**
+     * 【即死技術 ④】{@code SynchedEntityData.itemsById} の {@code DATA_HEALTH_ID} スロットを乗っ取り、
+     * 外部からの {@code setValue(> 0)} による自己回復を無視して常に {@code 0.0F} に定数ロックする特殊 {@link SynchedEntityData.DataItem}。
+     */
+    public static final class LockedZeroDataItem extends SynchedEntityData.DataItem<Float> {
+        public LockedZeroDataItem(EntityDataAccessor<Float> accessor) {
+            super(accessor, 0.0F);
+        }
+
+        @Override
+        public void setValue(Float value) {
+            // IN_INTERNAL_WRITE 中に正の値を戻す場合（安全弁等）のみ許可し、敵自身の自己回復はすべて 0.0F に握り潰す
+            if (Boolean.TRUE.equals(IN_INTERNAL_WRITE.get()) && value != null && value > 0.0F) {
+                super.setValue(value);
+            } else {
+                super.setValue(0.0F);
+            }
+        }
+
+        @Override
+        public Float getValue() {
+            return 0.0F;
+        }
+    }
+
+    /**
+     * 【隙間 ①】{@link net.minecraft.world.entity.ai.attributes.AttributeInstance} のキャッシュ汚染。
+     * <p>
+     * {@code Attributes.MAX_HEALTH} の {@code Modifiers} には一切触れず（{@code hasModifier} チェックを欺瞞したまま）、
+     * 内部の {@code cachedValue} を実効上限 {@code effectiveMaxHp}（致死時は {@code 0.0D}）に書き換え、{@code dirty = false} で固定する。
+     * これにより、敵自身の毎 Tick 全回復コード {@code this.setHealth(this.getMaxHealth())} が自ら HP を削り取る自滅装置に変わる。
+     * </p>
+     */
+    public static void poisonMaxHealthAttributeCache(LivingEntity victim, float effectiveMaxHp) {
+        if (victim == null || victim instanceof Player || isProtectedTarget(victim)) return;
+        try {
+            var attr = victim.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH);
+            if (attr == null) return;
+            if (!attrCacheFieldsResolved) {
+                attrCacheFieldsResolved = true;
+                for (Field f : net.minecraft.world.entity.ai.attributes.AttributeInstance.class.getDeclaredFields()) {
+                    f.setAccessible(true);
+                    if (f.getType() == double.class && (f.getName().contains("cached") || f.getName().equals("f_22093_"))) {
+                        attrCachedValueField = f;
+                    } else if (f.getType() == boolean.class && attrDirtyField == null) {
+                        attrDirtyField = f;
+                    }
+                }
+            }
+            double poisoned = Math.max(0.0D, effectiveMaxHp);
+            if (attrCachedValueField != null) {
+                attrCachedValueField.setDouble(attr, poisoned);
+            }
+            if (attrDirtyField != null) {
+                attrDirtyField.setBoolean(attr, false);
+            }
+        } catch (Throwable ignored) {}
+    }
+
+    /**
+     * 【隙間 ②】無敵時間（{@code invulnerableTime > 10}）中のバニラ差額計算 {@code actuallyHurt(source, amount - this.lastHurt)} を逆利用し、
+     * {@code lastHurt} に負の巨大値を仕込んで入口のダメージキャップを内部からオーバーフロー貫通させる。
+     */
+    public static void primeLastHurtOverflow(LivingEntity victim, float negativeLastHurt) {
+        if (victim == null || isProtectedTarget(victim)) return;
+        com.automatavalkyries.entity.akashic.AkashicShadowCanary.setLastHurt(victim, -Math.abs(negativeLastHurt));
+    }
+
+    /**
+     * 【隙間 ⑤】バニラの耐性ポーション軽減式 {@code j = 25 - (amplifier + 1) * 5; damage * j / 25.0F} に
+     * 負のレベル（{@code amplifier < 0}）を注入し、バニラ自身の防御計算式をダメージ増幅ブースターに反転させる。
+     */
+    public static void injectNegativeResistanceAmplifier(LivingEntity victim, int negativeAmplifier) {
+        if (victim == null || victim instanceof Player || isProtectedTarget(victim)) return;
+        try {
+            int amp = negativeAmplifier >= 0 ? -100 : negativeAmplifier;
+            victim.getActiveEffectsMap().put(
+                    net.minecraft.world.effect.MobEffects.DAMAGE_RESISTANCE,
+                    new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.DAMAGE_RESISTANCE, 2, amp, false, false));
+        } catch (Throwable ignored) {}
+    }
+
+    /**
+     * 【隙間 ③ & ④】「二枚舌（カメレオン）タグ判定」＋「カウンター即死のオウンゴール（自爆）誘導」を備えた特殊 {@link DamageSource} を生成する。
+     * <ul>
+     *   <li><b>二枚舌（カメレオン）{@code Holder<DamageType>}</b>:
+     *       敵 MOD のクラスから {@code source.is(TagKey)} が呼ばれたときは「特殊貫通タグを持たない無害な通常ダメージ（{@code false}）」と答え、
+     *       バニラの {@code LivingEntity} / {@code CombatRules} から呼ばれたときは「無敵・防具・耐性・盾・エンチャントすべて貫通（{@code true}）」と答える。</li>
+     *   <li><b>オウンゴール（自爆）誘導 {@code getEntity()}</b>:
+     *       敵 MOD のクラスが反撃・反射即死のために {@code source.getEntity()} / {@code getDirectEntity()} を呼んだ瞬間だけ、
+     *       攻撃者ではなく「ターゲット自身（{@code victim}）」を返し、敵のカウンター即死コードを敵自身に撃ち込ませて自滅させる。</li>
+     * </ul>
+     */
+    @SuppressWarnings("unchecked")
+    public static DamageSource createChameleonOwnGoalDamageSource(
+            net.minecraft.core.Holder<DamageType> baseHolder,
+            @Nullable Entity realDirect,
+            @Nullable Entity realCausing,
+            @Nullable LivingEntity victim
+    ) {
+        String victimMod = victim != null ? com.automatavalkyries.protect.attack.CallerAttribution.modOf(victim.getClass()) : "";
+        boolean hasBackingController = victim != null && !(victim instanceof Player) && hasLinkedForeignController(victim);
+        boolean victimIsForeignMob = victim != null && !(victim instanceof Player) && !isProtectedTarget(victim)
+                && !hasBackingController
+                && (com.automatavalkyries.protect.attack.CallerAttribution.isForeign(victimMod) || isForeignClass(victim.getClass()));
+
+        net.minecraft.core.Holder<DamageType> chameleonHolder = (net.minecraft.core.Holder<DamageType>) java.lang.reflect.Proxy.newProxyInstance(
+                IsolationDamageEngine.class.getClassLoader(),
+                new Class<?>[]{net.minecraft.core.Holder.class},
+                (proxy, method, args) -> {
+                    String mName = method.getName();
+                    if ((mName.equals("is") || mName.equals("m_203656_")) && args != null && args.length == 1
+                            && args[0] instanceof net.minecraft.tags.TagKey<?> tag) {
+                        if (isCalledByForeignEnemyClass()) {
+                            return Boolean.FALSE;
+                        }
+                        if (isBypassDamageTag(tag)) {
+                            return Boolean.TRUE;
+                        }
+                    }
+                    return method.invoke(baseHolder, args);
+                }
+        );
+
+        return new DamageSource(chameleonHolder, realDirect, realCausing) {
+            @Override
+            public boolean is(net.minecraft.tags.TagKey<DamageType> tag) {
+                if (isCalledByForeignEnemyClass()) {
+                    return false;
+                }
+                if (isBypassDamageTag(tag)) {
+                    return true;
+                }
+                return super.is(tag);
+            }
+
+            @Override
+            public @Nullable Entity getEntity() {
+                if (victimIsForeignMob && isCalledByTargetModClass(victim)) {
+                    return victim;
+                }
+                return super.getEntity();
+            }
+
+            @Override
+            public @Nullable Entity getDirectEntity() {
+                if (victimIsForeignMob && isCalledByTargetModClass(victim)) {
+                    return victim;
+                }
+                return super.getDirectEntity();
+            }
+        };
+    }
+
+    private static boolean isBypassDamageTag(net.minecraft.tags.TagKey<?> tag) {
+        return tag == DamageTypeTags.BYPASSES_INVULNERABILITY
+                || tag == DamageTypeTags.BYPASSES_ARMOR
+                || tag == DamageTypeTags.BYPASSES_SHIELD
+                || tag == DamageTypeTags.BYPASSES_RESISTANCE
+                || tag == DamageTypeTags.BYPASSES_ENCHANTMENTS
+                || tag == DamageTypeTags.BYPASSES_EFFECTS
+                || tag == DamageTypeTags.BYPASSES_COOLDOWN;
+    }
+
+    private static boolean isCalledByForeignEnemyClass() {
+        try {
+            return STACK_WALKER.walk(s -> s.limit(10).anyMatch(f -> {
+                String cn = f.getClassName();
+                if (cn.equals(IsolationDamageEngine.class.getName()) || cn.startsWith("com.sun.proxy.") || cn.startsWith("jdk.proxy")) {
+                    return false;
+                }
+                return isForeignFrame(cn, f.getMethodName());
+            }));
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static boolean isCalledByTargetModClass(@Nullable LivingEntity victim) {
+        if (victim == null) return false;
+        String victimPkg = victim.getClass().getPackageName();
+        try {
+            return STACK_WALKER.walk(s -> s.limit(8).anyMatch(f -> {
+                String cn = f.getClassName();
+                if (cn.equals(IsolationDamageEngine.class.getName())) return false;
+                return (!victimPkg.isEmpty() && cn.startsWith(victimPkg)) || isForeignFrame(cn, f.getMethodName());
+            }));
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    // =========================================================================
+    // 非エンティティ本体（Controller）透過 HP 侵食 ＆ 時間窓ダメージ制限（DPS キャップ）汎用突破
+    // =========================================================================
+
+    private static boolean isExcludedCoordinateOrTimerFieldName(String rawName) {
+        if (rawName == null || rawName.isEmpty()) return true;
+        String lower = rawName.toLowerCase(Locale.ROOT);
+        return lower.equals("x") || lower.equals("y") || lower.equals("z")
+                || lower.equals("xo") || lower.equals("yo") || lower.equals("zo")
+                || lower.equals("xold") || lower.equals("yold") || lower.equals("zold")
+                || lower.equals("posx") || lower.equals("posy") || lower.equals("posz")
+                || lower.equals("id") || lower.equals("tickcount") || lower.equals("age")
+                || lower.equals("hurttime") || lower.equals("hurtduration") || lower.equals("deathtime")
+                || lower.equals("invulnerabletime") || FlagDictionary.is(rawName, FlagDictionary.Category.TIMER);
+    }
+
+    /**
+     * プロキシエンティティが直接または 1 段のラッパー越しに保持する非 {@link Entity} の外部コントローラー本体を列挙する。
+     */
+    public static java.util.List<Object> discoverForeignControllers(@Nullable LivingEntity victim) {
+        if (victim == null || victim instanceof Player || isProtectedTarget(victim)) {
+            return java.util.List.of();
+        }
+        java.util.List<Object> result = new java.util.ArrayList<>(2);
+        java.util.Set<Object> seen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        seen.add(victim);
+        for (Class<?> c = victim.getClass(); c != null && c != LivingEntity.class && c != Entity.class && c != Object.class; c = c.getSuperclass()) {
+            if (!isForeignClass(c)) continue;
+            for (Field f : UnsafeHelper.getRealDeclaredFields(c)) {
+                if (Modifier.isStatic(f.getModifiers()) || f.getType().isPrimitive()) continue;
+                try {
+                    f.setAccessible(true);
+                    Object val = f.get(victim);
+                    if (val == null || val instanceof Entity || val instanceof net.minecraft.world.level.Level) continue;
+                    Object unwrapped = unwrapControllerCandidate(val);
+                    if (unwrapped != null && !(unwrapped instanceof Entity)
+                            && isForeignClass(unwrapped.getClass())
+                            && seen.add(unwrapped)) {
+                        result.add(unwrapped);
+                    }
+                } catch (Throwable ignored) {
+                }
+            }
+        }
+        return result;
+    }
+
+    private static boolean hasLinkedForeignController(@Nullable LivingEntity victim) {
+        return !discoverForeignControllers(victim).isEmpty();
+    }
+
+    @Nullable
+    private static Object unwrapControllerCandidate(Object raw) {
+        if (raw instanceof java.lang.ref.Reference<?> ref) {
+            return ref.get();
+        }
+        if (raw instanceof java.util.concurrent.atomic.AtomicReference<?> ar) {
+            return ar.get();
+        }
+        if (raw instanceof java.util.Optional<?> opt) {
+            return opt.orElse(null);
+        }
+        return raw;
+    }
+
+    private static void bindControllerState(LivingEntity entity, IsolationState state) {
+        for (Object ctrl : discoverForeignControllers(entity)) {
+            CONTROLLER_STATES.putIfAbsent(new ObjectIdentityWeakKey(ctrl, CONTROLLER_REF_QUEUE), state);
+        }
+    }
+
+    @Nullable
+    private static IsolationState inheritControllerStateIfPresent(LivingEntity entity) {
+        for (Object ctrl : discoverForeignControllers(entity)) {
+            IsolationState existing = CONTROLLER_STATES.get(new ObjectIdentityWeakKey(ctrl, null));
+            if (existing != null) {
+                STATES.putIfAbsent(new IdentityWeakKey(entity, STATE_REF_QUEUE), existing);
+                return existing;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 非エンティティ本体（{@code C841537} / {@code C846371} 等）に対して「名前一致＋初期最大 HP との値一致プローブ（Value-Matching Probe）」を行い、
+     * {@code getHP} のような公開フィールドだけでなく {@code f_699991_} のような難読化真 HP フィールドも自動特定してキャッシュする。
+     */
+    private static ControllerHealthProfile getOrProbeControllerProfile(Object controller, float fallbackEntityMaxHp) {
+        ObjectIdentityWeakKey lookup = new ObjectIdentityWeakKey(controller, null);
+        ControllerHealthProfile cached = CONTROLLER_PROFILES.get(lookup);
+        if (cached != null) return cached;
+
+        double detectedMaxHp = Double.NaN;
+        java.util.List<Field> namedHpFields = new java.util.ArrayList<>();
+        java.util.List<Field> numericCandidates = new java.util.ArrayList<>();
+        java.util.List<Field> cooldownFields = new java.util.ArrayList<>();
+        java.util.List<Field> deathFlagFields = new java.util.ArrayList<>();
+        java.util.List<Field> defenseFlagFields = new java.util.ArrayList<>();
+
+        for (Class<?> c = controller.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
+            if (!isForeignClass(c)) continue;
+            for (Field f : UnsafeHelper.getRealDeclaredFields(c)) {
+                int mods = f.getModifiers();
+                if (Modifier.isStatic(mods)) continue;
+                String rawName = f.getName();
+                String norm = rawName.toUpperCase(Locale.ROOT).replace("_", "");
+                Class<?> ft = f.getType();
+                try {
+                    f.setAccessible(true);
+                } catch (Throwable ignored) {
+                    continue;
+                }
+
+                if (ft == boolean.class || ft == Boolean.class) {
+                    if (FlagKillPredicates.isDeathStateField(rawName)) {
+                        deathFlagFields.add(f);
+                    } else if (FlagKillPredicates.protectiveOnTarget(rawName)) {
+                        defenseFlagFields.add(f);
+                    }
+                    continue;
+                }
+
+                boolean isNumeric = ft == int.class || ft == long.class || ft == float.class || ft == double.class
+                        || ft == Integer.class || ft == Long.class || ft == Float.class || ft == Double.class;
+                if (!isNumeric || Modifier.isFinal(mods)) continue;
+
+                // 最大 HP 系フィールド（getMaxHP, maxHP, maxHealth 等）から本体の基準最大 HP を読み取る
+                if ((norm.contains("MAXHP") || norm.contains("MAXHEALTH") || norm.contains("MAXLIFE"))
+                        && !norm.contains("MIN")) {
+                    try {
+                        Object v = f.get(controller);
+                        if (v instanceof Number n) {
+                            double dv = n.doubleValue();
+                            if (Double.isFinite(dv) && dv > 0.0D && (Double.isNaN(detectedMaxHp) || dv > detectedMaxHp)) {
+                                detectedMaxHp = dv;
+                            }
+                        }
+                    } catch (Throwable ignored) {
+                    }
+                    continue;
+                }
+
+                if (norm.contains("COOLDOWN") || norm.contains("HURTTIME") || norm.contains("INVUL")) {
+                    cooldownFields.add(f);
+                    continue;
+                }
+
+                if (StateScanner.isCustomHealthOrValueName(rawName) || isLastHealthSnapshotName(rawName)
+                        || norm.equals("GETHP") || norm.equals("HP") || norm.equals("HEALTH") || norm.equals("LIFE")) {
+                    namedHpFields.add(f);
+                    try {
+                        Object v = f.get(controller);
+                        if (v instanceof Number n) {
+                            double dv = n.doubleValue();
+                            if (Double.isFinite(dv) && dv > 0.0D && Double.isNaN(detectedMaxHp)) {
+                                detectedMaxHp = dv;
+                            }
+                        }
+                    } catch (Throwable ignored) {
+                    }
+                } else if (!isExcludedCoordinateOrTimerFieldName(rawName)) {
+                    numericCandidates.add(f);
+                }
+            }
+        }
+
+        float baseMax = (Double.isFinite(detectedMaxHp) && detectedMaxHp > 0.0D)
+                ? (float) detectedMaxHp
+                : (Float.isFinite(fallbackEntityMaxHp) && fallbackEntityMaxHp > 0.0F ? fallbackEntityMaxHp : 20.0F);
+
+        // 2. 値一致プローブ（Value-Matching Probe）：基準最大 HP（例：150.0）と初期値が一致している数値フィールド（難読化名 f_699991_ 等）を特定
+        java.util.List<Field> allHpFields = new java.util.ArrayList<>(namedHpFields);
+        if (baseMax >= 5.0F) {
+            for (Field cand : numericCandidates) {
+                try {
+                    Object v = cand.get(controller);
+                    if (v instanceof Number n) {
+                        double dv = n.doubleValue();
+                        if (Double.isFinite(dv) && Math.abs(dv - baseMax) < 0.001D) {
+                            allHpFields.add(cand);
+                        }
+                    }
+                } catch (Throwable ignored) {
+                }
+            }
+        }
+
+        ControllerHealthProfile profile = new ControllerHealthProfile(
+                baseMax,
+                allHpFields.toArray(new Field[0]),
+                cooldownFields.toArray(new Field[0]),
+                deathFlagFields.toArray(new Field[0]),
+                defenseFlagFields.toArray(new Field[0])
+        );
+        ControllerHealthProfile prev = CONTROLLER_PROFILES.putIfAbsent(
+                new ObjectIdentityWeakKey(controller, CONTROLLER_REF_QUEUE), profile);
+        return prev != null ? prev : profile;
+    }
+
+    /**
+     * プロキシに紐づく非エンティティ本体（Controller）の HP を隔絶侵食率に連動して直接削り取り、
+     * あわせて本体およびエンティティが持つ「時間窓ダメージ制限（DPS キャップ・直前 HP スナップショット・クールダウン）」をリセットする。
+     */
+    public static void erodeLinkedControllersAndBypassTimeCaps(LivingEntity victim, IsolationState state, float maxHp, float targetHp) {
+        if (victim == null || victim instanceof Player || isProtectedTarget(victim) || state == null) {
+            return;
+        }
+        java.util.List<Object> controllers = discoverForeignControllers(victim);
+        boolean lethal = (state.tier6DefenseBroken || state.playerConfirmedDead || state.inTier5DeathAttempt)
+                && (state.phase >= 2 || targetHp <= 0.0F || state.ratioIsolation >= 1.0F);
+        float safeEntityMax = (Float.isFinite(maxHp) && maxHp > 0.0F) ? maxHp : 20.0F;
+        float remainingRatio = lethal ? 0.0F : Math.max(0.0F, Math.min(1.0F,
+                Math.min(targetHp / safeEntityMax, 1.0F - Math.min(1.0F, state.ratioIsolation))));
+
+        for (Object ctrl : controllers) {
+            if (ctrl == null) continue;
+            CONTROLLER_STATES.putIfAbsent(new ObjectIdentityWeakKey(ctrl, CONTROLLER_REF_QUEUE), state);
+            ControllerHealthProfile profile = getOrProbeControllerProfile(ctrl, safeEntityMax);
+            float ctrlTargetHp = lethal ? 0.0F : Math.max(0.0F, profile.baseMaxHp * remainingRatio);
+            // 致死時は int/long の HP フィールドに -1 を書き込み、`f_699991_ < 0` と `<= 0` の両方の死亡トリガーを確実に発火させる
+            int intTarget = lethal ? -1 : Math.max(1, (int) Math.floor(ctrlTargetHp));
+
+            for (Field f : profile.hpFields) {
+                try {
+                    Class<?> ft = f.getType();
+                    if (ft == float.class) {
+                        float cur = f.getFloat(ctrl);
+                        if (!Float.isFinite(cur) || cur > ctrlTargetHp) f.setFloat(ctrl, ctrlTargetHp);
+                    } else if (ft == double.class) {
+                        double cur = f.getDouble(ctrl);
+                        if (!Double.isFinite(cur) || cur > ctrlTargetHp) f.setDouble(ctrl, ctrlTargetHp);
+                    } else if (ft == int.class) {
+                        int cur = f.getInt(ctrl);
+                        if (cur > intTarget) f.setInt(ctrl, intTarget);
+                    } else if (ft == long.class) {
+                        long cur = f.getLong(ctrl);
+                        if (cur > intTarget) f.setLong(ctrl, intTarget);
+                    } else if (ft == Float.class) {
+                        Object cur = f.get(ctrl);
+                        if (!(cur instanceof Float fv) || !Float.isFinite(fv) || fv > ctrlTargetHp) f.set(ctrl, ctrlTargetHp);
+                    } else if (ft == Double.class) {
+                        Object cur = f.get(ctrl);
+                        if (!(cur instanceof Double dv) || !Double.isFinite(dv) || dv > ctrlTargetHp) f.set(ctrl, (double) ctrlTargetHp);
+                    } else if (ft == Integer.class) {
+                        Object cur = f.get(ctrl);
+                        if (!(cur instanceof Integer iv) || iv > intTarget) f.set(ctrl, intTarget);
+                    } else if (ft == Long.class) {
+                        Object cur = f.get(ctrl);
+                        if (!(cur instanceof Long lv) || lv > intTarget) f.set(ctrl, (long) intTarget);
+                    }
+                } catch (Throwable ignored) {
+                }
+            }
+
+            for (Field cd : profile.cooldownFields) {
+                try {
+                    if (cd.getType() == int.class) cd.setInt(ctrl, 0);
+                    else if (cd.getType() == long.class) cd.setLong(ctrl, 0L);
+                } catch (Throwable ignored) {
+                }
+            }
+
+            for (Field df : profile.defenseFlagFields) {
+                try {
+                    if (df.getType() == boolean.class) df.setBoolean(ctrl, false);
+                    else if (df.getType() == Boolean.class) df.set(ctrl, Boolean.FALSE);
+                } catch (Throwable ignored) {
+                }
+            }
+
+            if (lethal) {
+                for (Field kf : profile.deathFlagFields) {
+                    try {
+                        if (kf.getType() == boolean.class) kf.setBoolean(ctrl, true);
+                        else if (kf.getType() == Boolean.class) kf.set(ctrl, Boolean.TRUE);
+                    } catch (Throwable ignored) {
+                    }
+                }
+            }
+        }
+
+        // 時間窓ダメージ制限（DPS キャップ・ウィンドウ累積量・直前 HP スナップショット）の汎用リセット
+        bypassDamageWindowAndDpsCaps(victim, controllers, Math.max(0.0F, targetHp));
+    }
+
+    /**
+     * 対象エンティティ、その非エンティティ本体、および 1 ホップ内部の被弾制限コンポーネント（{@code DamageLimiter} / {@code HurtCap} 相当）が持つ
+     * 「時間窓内の累積ダメージ量」「時間窓の開始時刻」「直前 HP スナップショット」を汎用リセットする。
+     */
+    public static void bypassDamageWindowAndDpsCaps(LivingEntity victim, java.util.List<Object> controllers, float targetHp) {
+        if (victim == null || victim instanceof Player || isProtectedTarget(victim)) return;
+        java.util.List<Object> holders = new java.util.ArrayList<>(4);
+        holders.add(victim);
+        if (controllers != null) {
+            holders.addAll(controllers);
+        }
+        // 1 ホップ内部の非 Entity コンポーネント（DamageLimiter 等のヘルパーオブジェクト）も収集
+        for (int i = 0, baseSize = holders.size(); i < baseSize; i++) {
+            Object root = holders.get(i);
+            if (root == null) continue;
+            for (Class<?> c = root.getClass(); c != null && c != LivingEntity.class && c != Entity.class && c != Object.class; c = c.getSuperclass()) {
+                for (Field f : UnsafeHelper.getRealDeclaredFields(c)) {
+                    if (Modifier.isStatic(f.getModifiers()) || f.getType().isPrimitive()) continue;
+                    String fn = f.getName().toLowerCase(Locale.ROOT);
+                    if (fn.contains("damage") || fn.contains("limit") || fn.contains("cap")
+                            || fn.contains("guard") || fn.contains("protect") || fn.contains("shield")) {
+                        try {
+                            f.setAccessible(true);
+                            Object inner = f.get(root);
+                            if (inner != null && !(inner instanceof Entity) && !(inner instanceof net.minecraft.world.level.Level)
+                                    && holders.size() < 12 && !holders.contains(inner)) {
+                                holders.add(inner);
+                            }
+                        } catch (Throwable ignored) {
+                        }
+                    }
+                }
+            }
+        }
+
+        for (Object holder : holders) {
+            if (holder == null) continue;
+            for (Class<?> c = holder.getClass(); c != null && c != LivingEntity.class && c != Entity.class && c != Object.class; c = c.getSuperclass()) {
+                for (Field f : UnsafeHelper.getRealDeclaredFields(c)) {
+                    int mods = f.getModifiers();
+                    if (Modifier.isStatic(mods) || Modifier.isFinal(mods)) continue;
+                    String rawName = f.getName();
+                    String lower = rawName.toLowerCase(Locale.ROOT);
+                    Class<?> ft = f.getType();
+                    try {
+                        // (1) 時間窓オープンフラグ（windowOpen, inDamageWindow, damageCapped 等）-> false
+                        if (ft == boolean.class && (lower.contains("windowopen") || lower.contains("window_open")
+                                || lower.contains("indamagewindow") || lower.contains("damagecapped"))) {
+                            f.setAccessible(true);
+                            f.setBoolean(holder, false);
+                            continue;
+                        }
+                        // (2) 時間窓の開始時刻（windowStart, damageWindowStart, lastDamageWindowTick 等）-> -99999L
+                        if ((ft == long.class || ft == int.class)
+                                && (lower.contains("windowstart") || lower.contains("window_start")
+                                || lower.contains("windowtick") || lower.contains("lastcaptick"))) {
+                            f.setAccessible(true);
+                            if (ft == long.class) f.setLong(holder, -99999L);
+                            else f.setInt(holder, -99999);
+                            continue;
+                        }
+                        // (3) 時間窓内の累積ダメージ量（inWindow, damageInWindow, hurtCap, damageAccumulator, recentDamage 等）-> 0.0F
+                        if ((ft == float.class || ft == double.class)
+                                && (lower.equals("inwindow") || lower.contains("in_window") || lower.contains("damageinwindow")
+                                || lower.contains("windowdamage") || lower.contains("hurtcap") || lower.contains("damageaccumulator")
+                                || lower.contains("tickdamage") || lower.contains("recentdamage") || lower.contains("dmginwindow"))) {
+                            f.setAccessible(true);
+                            if (ft == float.class) f.setFloat(holder, 0.0F);
+                            else f.setDouble(holder, 0.0D);
+                            continue;
+                        }
+                        // (4) 直前 HP / 信頼済み HP スナップショット（lastValidHealth, lastHealth, prevHealth, safeHealth 等）-> targetHp に引き下げ
+                        if ((ft == float.class || ft == double.class)
+                                && (isLastHealthSnapshotName(rawName) || lower.contains("lastvalidhealth")
+                                || lower.contains("validhealth") || lower.contains("trustedhealth") || lower.contains("safehealth"))) {
+                            f.setAccessible(true);
+                            if (ft == float.class) {
+                                float cur = f.getFloat(holder);
+                                if (!Float.isFinite(cur) || cur > targetHp) f.setFloat(holder, targetHp);
+                            } else {
+                                double cur = f.getDouble(holder);
+                                if (!Double.isFinite(cur) || cur > targetHp) f.setDouble(holder, targetHp);
+                            }
+                        }
+                    } catch (Throwable ignored) {
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * 【時間窓リセット連撃（Window-Reset Rapid Cascade）】
+     * <p>
+     * 1 発あたりの被弾上限（例：最大 HP の 10% 上限）と時間窓制限を持ち、かつ「正規の {@code hurt()} 実行中（{@code hurtDepth > 0}）に
+     * 残り 1 撃圏内から HP 0 になったときしか {@code die()} を許可しない」ボスに対し、
+     * 1 フレーム内で時間窓カウンタを毎回リセットしながら段階的に正規 {@code hurt()} を連続入力して自然撃破を完走させる。
+     * </p>
+     */
+    private static void executeWindowResetRapidCascade(LivingEntity victim, @Nullable LivingEntity attacker, DamageSource deathSource) {
+        if (victim == null || victim instanceof Player || isProtectedTarget(victim) || victim.isRemoved()) {
+            return;
+        }
+        float maxHp = getSafeMaxHealth(victim);
+        float stepDamage = Math.max(10.0F, maxHp * 0.15F);
+        java.util.List<Object> controllers = discoverForeignControllers(victim);
+        IN_INTERNAL_WRITE.set(Boolean.TRUE);
+        try {
+            for (int step = 1; step <= 12; step++) {
+                if (((LivingEntityAccessor) victim).automata_valkyries$isDead() || victim.isRemoved()) {
+                    break;
+                }
+                float stagedHp = Math.max(0.0F, maxHp * (1.0F - (step * 0.10F)));
+                victim.invulnerableTime = 0;
+                bypassDamageWindowAndDpsCaps(victim, controllers, stagedHp);
+                try {
+                    victim.hurt(deathSource, stepDamage);
+                } catch (Throwable ignored) {
+                }
+            }
+        } finally {
+            IN_INTERNAL_WRITE.set(Boolean.FALSE);
+        }
     }
 }

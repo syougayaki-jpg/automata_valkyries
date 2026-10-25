@@ -1644,13 +1644,12 @@ public final class AkashicResistanceAuditor {
             AkashicDamageFlowchart.TargetDamageProfile profile = AkashicDamageFlowchart.getProfileIfPresent(hudTargetId);
             if (profile != null) {
                 long nowTick = host.level() != null ? host.level().getGameTime() : 0L;
-                double windowDmg = profile.dealtInRollingWindow(nowTick, 100);
-                double windowDps = windowDmg / 5.0D;
-                double elapsedSec = Math.max(0.05D, (nowTick - profile.firstStrikeTick) / 20.0D);
-                double effectiveDps = profile.cumulativeDealtDamage / elapsedSec;
-                double ewmaDps = profile.ewmaInstantDps > 0.0D ? profile.ewmaInstantDps : effectiveDps;
-                double netBleed = Math.max(0.0D, Math.max(effectiveDps, ewmaDps) - profile.healRatePerSec);
-                double ettk = hudTargetHp <= 0.0F ? 0.0D : (netBleed > 1.0E-3D ? hudTargetHp / netBleed : -1.0D);
+                double effectiveDps = profile.dpsTelemetry.effectiveDealtDps(nowTick);
+                double ewmaDps = profile.dpsTelemetry.ewmaInstantDps(nowTick);
+                double windowDps = profile.dpsTelemetry.slidingWindowDps(nowTick);
+                double rawEttk = profile.dpsTelemetry.estimatedTtkSeconds(
+                        nowTick, hudTargetHp, profile.healRatePerSec, 0.0F);
+                double ettk = Double.isInfinite(rawEttk) ? -1.0D : rawEttk;
 
                 tag.putDouble("DpsEffective", effectiveDps);
                 tag.putDouble("DpsEwma", ewmaDps);

@@ -847,9 +847,9 @@ public class AkashicProbeGameTests {
      * 無クラッシュ修復・記録と、頭上専用観測 UI（{@link com.automatavalkyries.entity.akashic.AkashicProbeEntity#observationUiData()} /
      * {@link com.automatavalkyries.entity.akashic.AkashicProbeEntity#hologramLines()}）の同期検証。
      */
-    @GameTest(template = "empty_3x3x3", timeoutTicks = 120)
+    @GameTest(template = TEMPLATE, batch = "akashic", timeoutTicks = 120)
     public static void akashicHpDataSlotEvictionResilienceAndOverheadObservationUi(GameTestHelper helper) {
-        ServerLevel level = helper.getLevel();
+        var level = helper.getLevel();
         BlockPos pos = new BlockPos(1, 2, 1);
         var probe = helper.spawnWithNoFreeWill(ModEntities.AKASHIC_PROBE.get(), pos);
         UUID probeUuid = probe.getUUID();

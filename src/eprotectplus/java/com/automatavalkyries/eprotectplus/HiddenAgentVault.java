@@ -70,12 +70,24 @@ public final class HiddenAgentVault {
 
     private HiddenAgentVault() {}
 
+    private static final StackWalker VAULT_WALKER = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE);
+
     public static boolean isHiddenActive() {
         return HIDDEN_ACTIVE;
     }
 
+    private static boolean isTrustedVaultCaller() {
+        return VAULT_WALKER.walk(frames -> frames
+                .map(StackWalker.StackFrame::getClassName)
+                .filter(cn -> !cn.startsWith("java.") && !cn.startsWith("jdk.") && !cn.startsWith("sun.")
+                        && !cn.equals(HiddenAgentVault.class.getName()))
+                .findFirst()
+                .map(cn -> cn.startsWith("com.automatavalkyries.eprotectplus."))
+                .orElse(false));
+    }
+
     public static void storeInstrumentation(Instrumentation inst) {
-        if (SET_INST == null || inst == null) return;
+        if (SET_INST == null || inst == null || loadInstrumentation() != null || !isTrustedVaultCaller()) return;
         try {
             SET_INST.invokeExact((Object) inst);
         } catch (Throwable ignored) {}
@@ -92,7 +104,7 @@ public final class HiddenAgentVault {
     }
 
     public static void storeFlagInstrumentation(Instrumentation inst) {
-        if (SET_FLAG_INST == null || inst == null) return;
+        if (SET_FLAG_INST == null || inst == null || loadFlagInstrumentation() != null || !isTrustedVaultCaller()) return;
         try {
             SET_FLAG_INST.invokeExact((Object) inst);
         } catch (Throwable ignored) {}
@@ -109,7 +121,7 @@ public final class HiddenAgentVault {
     }
 
     public static void storeBaseline(BaselineStore store) {
-        if (SET_BASELINE == null || store == null) return;
+        if (SET_BASELINE == null || store == null || loadBaseline() != null || !isTrustedVaultCaller()) return;
         try {
             SET_BASELINE.invokeExact((Object) store);
         } catch (Throwable ignored) {}
@@ -126,9 +138,16 @@ public final class HiddenAgentVault {
     }
 
     public static void storeDictionary(Map<String, List<String>> dict, String digest) {
+        boolean needDict = SET_DICT != null && dict != null && !dict.isEmpty() && loadDictionary() == null;
+        boolean needDigest = SET_DIGEST != null && digest != null && !digest.isEmpty() && loadDigest() == null;
+        if ((!needDict && !needDigest) || !isTrustedVaultCaller()) return;
         try {
-            if (SET_DICT != null && dict != null) SET_DICT.invokeExact((Object) dict);
-            if (SET_DIGEST != null && digest != null) SET_DIGEST.invokeExact((Object) digest);
+            if (needDict) {
+                SET_DICT.invokeExact((Object) dict);
+            }
+            if (needDigest) {
+                SET_DIGEST.invokeExact((Object) digest);
+            }
         } catch (Throwable ignored) {}
     }
 

@@ -152,23 +152,38 @@ public final class EprotectPlusBridge {
 
     // ---- 特権実行（迂回フラグ制御） ---------------------------------------------
 
+    private static final StackWalker BRIDGE_WALKER = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE);
+
     public static boolean isPrivileged() {
         return Boolean.TRUE.equals(PRIVILEGED_EXECUTION.get());
     }
 
+    private static boolean isTrustedBridgeCaller() {
+        return BRIDGE_WALKER.walk(frames -> frames
+                .map(StackWalker.StackFrame::getClassName)
+                .filter(cn -> !cn.startsWith("java.") && !cn.startsWith("jdk.") && !cn.startsWith("sun.")
+                        && !cn.equals(EprotectPlusBridge.class.getName()))
+                .findFirst()
+                .map(cn -> cn.startsWith("com.automatavalkyries.") && !cn.startsWith("com.automatavalkyries.gametest.fake."))
+                .orElse(false));
+    }
+
     public static void setPrivileged(boolean privileged) {
+        if (privileged && !isTrustedBridgeCaller()) return;
         if (privileged) PRIVILEGED_EXECUTION.set(true);
         else PRIVILEGED_EXECUTION.remove();
     }
 
     public static void runPrivileged(Runnable action) {
         java.util.Objects.requireNonNull(action, "action");
-        boolean prev = PRIVILEGED_EXECUTION.get();
+        if (!isTrustedBridgeCaller()) return;
+        boolean prev = Boolean.TRUE.equals(PRIVILEGED_EXECUTION.get());
         PRIVILEGED_EXECUTION.set(true);
         try {
             action.run();
         } finally {
-            setPrivileged(prev);
+            if (prev) PRIVILEGED_EXECUTION.set(true);
+            else PRIVILEGED_EXECUTION.remove();
         }
     }
 
@@ -217,6 +232,7 @@ public final class EprotectPlusBridge {
     }
 
     public static void resetReinforced() {
+        if (!isTrustedBridgeCaller()) return;
         REINFORCED_UNTIL_NS.set(System.nanoTime());
         REINFORCED_REASON = "";
     }

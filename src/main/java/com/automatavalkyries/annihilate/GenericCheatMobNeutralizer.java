@@ -300,6 +300,17 @@ public final class GenericCheatMobNeutralizer {
                     } catch (Throwable ignored) {}
                 }
 
+                // 弱参照・ソフト参照（WeakReference / SoftReference）の強制 clear & enqueue（疑似 GC 追放）
+                if (java.lang.ref.Reference.class.isAssignableFrom(f.getType())) {
+                    try {
+                        f.setAccessible(true);
+                        if (f.get(core) instanceof java.lang.ref.Reference<?> ref) {
+                            ref.clear();
+                            ref.enqueue();
+                        }
+                    } catch (Throwable ignored) {}
+                }
+
                 // Collection / Map のクリア
                 if (FlagKillPredicates.isDefensiveField(name)) {
                     try {
@@ -429,6 +440,17 @@ public final class GenericCheatMobNeutralizer {
                             f.set(target, null);
                         } catch (Throwable ignored) {}
                     }
+                }
+
+                // 弱参照・ソフト参照（WeakReference / SoftReference）の強制 clear & enqueue（疑似 GC 追放）
+                if (java.lang.ref.Reference.class.isAssignableFrom(f.getType())) {
+                    try {
+                        f.setAccessible(true);
+                        if (f.get(target) instanceof java.lang.ref.Reference<?> ref) {
+                            ref.clear();
+                            ref.enqueue();
+                        }
+                    } catch (Throwable ignored) {}
                 }
 
                 // Collection / Map のクリア

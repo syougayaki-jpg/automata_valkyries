@@ -154,6 +154,18 @@ public class AkashicProbeEntity extends PathfinderMob implements IProviderWithSp
         this.setPersistenceRequired();
     }
 
+    @Override
+    public void setUUID(java.util.UUID uuid) {
+        boolean initialLoad = this.tickCount == 0 && !this.isAddedToWorld();
+        super.setUUID(uuid);
+        if (initialLoad) {
+            this.protectedCanaryList = new AkashicShadowCanary.ProtectedCanaryList(this.getUUID());
+            if (this.nonEntityProxy != null) {
+                this.nonEntityProxy.updateInitialUuid(this);
+            }
+        }
+    }
+
     /**
      * 初期生成された {@code SynchedEntityData.itemsById} 内の全スロット（{@code DATA_HEALTH_ID}, {@code HOLOGRAM},
      * {@code OBSERVATION_UI_DATA}, {@code DATA_SHARED_FLAGS_ID}, {@code DATA_POSE} 等）を記録し、

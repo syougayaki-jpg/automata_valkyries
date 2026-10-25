@@ -27,7 +27,7 @@ public final class FlagDictionaryAgent {
         @Override
         public byte[] transform(ClassLoader loader, String className, Class<?> classBeingRedefined,
                                 ProtectionDomain protectionDomain, byte[] classfileBuffer) {
-            if (com.automatavalkyries.eprotectplus.AgentCollisionPolicy.isPassive()) return null;
+            if (com.automatavalkyries.eprotectplus.AgentCollisionPolicy.isConfiguredPassive()) return null;
             if (className == null) return null;
             if (!className.equals(FLAG_DICT_INTERNAL) && !className.startsWith("com/automatavalkyries/protect/flag/")) {
                 return null;
