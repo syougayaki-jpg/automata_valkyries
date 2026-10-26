@@ -17,6 +17,7 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import sun.misc.Unsafe;
@@ -61,6 +62,10 @@ public final class AkashicNonEntityProxy implements AutoCloseable {
     private UUID probeUuid;
     private String probeStringUuid;
     private int expectedEntityId;
+    /** ワールドへ正式に追加（onAddedToWorld）されて UUID・entityId が確定したか（Entity.load 途中の仮 UUID 誤復元による増殖を防ぐ） */
+    private volatile boolean identityLocked = false;
+    /** Entity.load(CompoundTag) による NBT 読み込み実行中フラグ */
+    private volatile boolean loadingNbt = false;
     private WeakReference<AkashicProbeEntity> hostRef;
     /** 強制 GC（System.gc + ワールド参照全消去）でも本体が消滅しないようにする強参照バックアップ */
     private AkashicProbeEntity strongHost;
@@ -91,7 +96,7 @@ public final class AkashicNonEntityProxy implements AutoCloseable {
         this.probeStringUuid = this.probeUuid.toString();
         this.expectedEntityId = host.getId();
         this.hostRef = new WeakReference<>(host);
-        this.strongHost = host;
+        this.strongHost = null;
         if (host.level() instanceof ServerLevel sl) {
             this.lastKnownLevel = sl;
         }
@@ -99,9 +104,123 @@ public final class AkashicNonEntityProxy implements AutoCloseable {
         this.entityLink = host;
         this.proxyTrueLife = new AkashicShadowCanary.TrueLifeCanaryImpl(100.0F);
         captureCoreFieldSnapshot(host);
+        if (host.isAddedToWorld()) {
+            onHostAddedToWorld(host);
+        }
+    }
+
+    public boolean isIdentityLocked() {
+        return this.identityLocked;
+    }
+
+    public void setLoadingNbt(boolean loadingNbt) {
+        this.loadingNbt = loadingNbt;
+    }
+
+    /**
+     * ワールド追加前（{@code Entity.load(CompoundTag)} や初期 {@code setUUID}）に確定した正規 UUID を同期する。
+     */
+    public void syncPreWorldIdentity(AkashicProbeEntity host) {
+        if (host == null || host.getUUID() == null) return;
+        UUID old = this.probeUuid;
+        UUID actual = host.getUUID();
+        if (old != null && !old.equals(actual)) {
+            GUARDIANS.remove(old, this);
+            ACTIVE_CONTROLLER_MAP.remove(old, this);
+        }
+        this.probeUuid = actual;
+        this.probeStringUuid = actual.toString();
+        if (host.getId() > 0) {
+            this.expectedEntityId = host.getId();
+        }
+        this.hostRef = new WeakReference<>(host);
+        this.entityLink = host;
+        if (host.isAddedToWorld()) {
+            onHostAddedToWorld(host);
+        }
+    }
+
+    /**
+     * 本体がサーバーワールドへ正式に追加（{@code onAddedToWorld()}）された時点で UUID と Entity ID をロックし、
+     * 外部独立監視マップ（{@link #GUARDIANS}）へ登録する。
+     * <p>
+     * コンストラクタ時点の仮乱数 UUID でロックしてしまうと、直後の {@code Entity.load(CompoundTag)}（チャンク読み込みや
+     * {@code EprotectRegistry.recreate}）が {@code setUUID} を通さずにフィールドへ直接書き込んだ本来の UUID を
+     * 「UUID 改ざん」と誤認して仮乱数 UUID へ上書きし、{@code EprotectRegistry} が「元の UUID の個体が消えた」と判定して
+     * 毎秒複製をスポーンさせ続ける増殖バグの原因になるため、必ずワールド追加時点でロックする。
+     * </p>
+     */
+    public void onHostAddedToWorld(AkashicProbeEntity host) {
+        if (host == null || host.level().isClientSide) return;
+        UUID oldUuid = this.probeUuid;
+        UUID actualUuid = host.getUUID();
+        if (oldUuid != null && !oldUuid.equals(actualUuid)) {
+            GUARDIANS.remove(oldUuid, this);
+            ACTIVE_CONTROLLER_MAP.remove(oldUuid, this);
+        }
+        this.probeUuid = actualUuid;
+        this.probeStringUuid = actualUuid.toString();
+        this.expectedEntityId = host.getId();
+        this.identityLocked = true;
+        this.hostRef = new WeakReference<>(host);
+        this.strongHost = host;
+        if (host.level() instanceof ServerLevel sl) {
+            this.lastKnownLevel = sl;
+        }
+        if (Eprotect.isSafePosition(host, host.getX(), host.getY(), host.getZ())) {
+            this.lastSafePos = host.position();
+        }
+        this.entityLink = host;
+
+        AkashicNonEntityProxy existing = GUARDIANS.get(actualUuid);
+        if (existing != null && existing != this) {
+            AkashicProbeEntity oldHost = existing.strongHost != null
+                    ? existing.strongHost
+                    : (existing.hostRef != null ? existing.hostRef.get() : null);
+            if (oldHost != null && oldHost != host) {
+                host.inheritRuntimeStateFrom(oldHost);
+                String suspectMod = resolveSuspectMod(oldHost);
+                host.record().observe(suspectMod, "world_eviction:instance_replaced_by_clone", "REPAIRED",
+                        "oldId=" + oldHost.getId() + " -> newId=" + host.getId(), null);
+            }
+            this.identityLocked = false;
+            this.strongHost = null;
+            ACTIVE_CONTROLLER_LIST.remove(this);
+            ACTIVE_CONTROLLER_SET.remove(this);
+            existing.rebindHost(host);
+            host.nonEntityProxy = existing;
+            host.madnessControllerProxy = existing;
+            AkashicAgentCanary.captureBaseline(host);
+            if (oldHost != null && oldHost != host && !oldHost.isRemoved()) {
+                try {
+                    oldHost.getEprotect().retireReplaced();
+                } catch (Throwable ignored) {}
+            }
+            return;
+        }
+
+        this.coreFieldSnapshot.clear();
+        captureCoreFieldSnapshot(host);
         AkashicAgentCanary.captureBaseline(host);
         registerStaticCanaries();
         GUARDIANS.put(this.probeUuid, this);
+    }
+
+    /**
+     * 本体が差し替え引退（{@code Eprotect.retireReplaced()}）またはクリーンアップされた際に監視登録を解除する。
+     */
+    public void onHostRetired(AkashicProbeEntity host) {
+        if (this.strongHost != null && this.strongHost != host) {
+            return;
+        }
+        this.identityLocked = false;
+        this.strongHost = null;
+        ACTIVE_CONTROLLER_LIST.remove(this);
+        ACTIVE_CONTROLLER_SET.remove(this);
+        if (this.probeUuid != null) {
+            GUARDIANS.remove(this.probeUuid, this);
+            ACTIVE_CONTROLLER_MAP.remove(this.probeUuid, this);
+        }
     }
 
     /**
@@ -207,31 +326,48 @@ public final class AkashicNonEntityProxy implements AutoCloseable {
                 repairedAny = true;
             }
             // 3. UUID / stringUUID / entityId の乱数・負値書き換えからの即時修復
-            UUID currentUuid = acc.automata_valkyries$getUuidField();
-            int currentId = acc.automata_valkyries$getIdField();
-            if (!probeUuid.equals(currentUuid) || (expectedEntityId > 0 && currentId != expectedEntityId)) {
-                acc.automata_valkyries$setUuidField(probeUuid);
-                acc.automata_valkyries$setStringUuidField(probeStringUuid);
-                if (expectedEntityId > 0) {
-                    acc.automata_valkyries$setIdField(expectedEntityId);
+            // ※ワールド追加前（コンストラクタ直後や Entity.load(CompoundTag) の NBT 読み込み途中）は UUID・ID が確定していないため、
+            //   仮乱数 UUID で NBT の正規 UUID を上書きしないよう identityLocked && !loadingNbt && host.isAddedToWorld() のときのみ復元する
+            if (identityLocked && !loadingNbt && host.isAddedToWorld()) {
+                UUID currentUuid = acc.automata_valkyries$getUuidField();
+                int currentId = acc.automata_valkyries$getIdField();
+                if (!probeUuid.equals(currentUuid) || (expectedEntityId > 0 && currentId != expectedEntityId)) {
+                    acc.automata_valkyries$setUuidField(probeUuid);
+                    acc.automata_valkyries$setStringUuidField(probeStringUuid);
+                    if (expectedEntityId > 0) {
+                        acc.automata_valkyries$setIdField(expectedEntityId);
+                    }
+                    rec.observe(preMod, "identity_tamper:uuid_or_id_corrupted", "REPAIRED",
+                            "uuid=" + currentUuid + " id=" + currentId + " -> " + probeUuid + "#" + expectedEntityId, null);
+                    repairedAny = true;
                 }
-                rec.observe(preMod, "identity_tamper:uuid_or_id_corrupted", "REPAIRED",
-                        "uuid=" + currentUuid + " id=" + currentId + " -> " + probeUuid + "#" + expectedEntityId, null);
-                repairedAny = true;
+            } else if (!identityLocked) {
+                UUID currentUuid = acc.automata_valkyries$getUuidField();
+                if (currentUuid != null && !currentUuid.equals(this.probeUuid)) {
+                    this.probeUuid = currentUuid;
+                    this.probeStringUuid = currentUuid.toString();
+                }
+                int currentId = acc.automata_valkyries$getIdField();
+                if (currentId > 0) {
+                    this.expectedEntityId = currentId;
+                }
             }
         } catch (Throwable ignored) {}
         return repairedAny;
     }
 
     private void registerStaticCanaries() {
+        if (!identityLocked) return;
         if (!ACTIVE_CONTROLLER_LIST.contains(this)) ACTIVE_CONTROLLER_LIST.add(this);
         if (!ACTIVE_CONTROLLER_SET.contains(this)) ACTIVE_CONTROLLER_SET.add(this);
         ACTIVE_CONTROLLER_MAP.put(probeUuid, this);
     }
 
     public static void unregister(UUID uuid) {
+        if (uuid == null) return;
         AkashicNonEntityProxy proxy = GUARDIANS.remove(uuid);
         if (proxy != null) {
+            proxy.identityLocked = false;
             proxy.strongHost = null;
             ACTIVE_CONTROLLER_LIST.remove(proxy);
             ACTIVE_CONTROLLER_SET.remove(proxy);
@@ -259,22 +395,14 @@ public final class AkashicNonEntityProxy implements AutoCloseable {
     }
 
     public void updateInitialUuid(AkashicProbeEntity host) {
-        if (host == null || host.getUUID() == null) return;
-        UUID old = this.probeUuid;
-        if (old != null) {
-            GUARDIANS.remove(old);
-            ACTIVE_CONTROLLER_MAP.remove(old);
-        }
-        this.probeUuid = host.getUUID();
-        this.probeStringUuid = this.probeUuid.toString();
-        GUARDIANS.put(this.probeUuid, this);
-        rebindHost(host);
+        syncPreWorldIdentity(host);
     }
 
     public void rebindHost(AkashicProbeEntity host) {
         this.hostRef = new WeakReference<>(host);
         this.strongHost = host;
         this.expectedEntityId = host.getId();
+        this.identityLocked = true;
         if (host.level() instanceof ServerLevel sl) {
             this.lastKnownLevel = sl;
         }
@@ -285,6 +413,7 @@ public final class AkashicNonEntityProxy implements AutoCloseable {
         this.coreFieldSnapshot.clear();
         captureCoreFieldSnapshot(host);
         registerStaticCanaries();
+        GUARDIANS.put(this.probeUuid, this);
     }
 
     // ---- 反射呼び出し（ModProtectionBreaker / 総当たりメソッド実行）捕捉用トラップメソッド群 ----
@@ -423,18 +552,23 @@ public final class AkashicNonEntityProxy implements AutoCloseable {
     }
 
     /**
-     * サーバー Tick からの外部独立監視:
+     * サーバー Tick からの外部独立監視（{@code EventPriority.HIGHEST} で {@code EprotectManager.onServerTick} より先に走る）:
      * 本体（{@link AkashicProbeEntity}）が {@code entityTickList} から抜かれたり、{@code removalReason} を直書きされたりして
-     * 自力で {@code baseTick()} を回せなくなった場合でも、外側から検知・記録・修復する。
+     * 自力で {@code baseTick()} を回せなくなった場合でも、{@code Eprotect} が直して消す前に外側からすべて検知・記録・修復する。
      */
-    @SubscribeEvent
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase != TickEvent.Phase.END || GUARDIANS.isEmpty()) return;
         for (var it = GUARDIANS.entrySet().iterator(); it.hasNext(); ) {
             var entry = it.next();
             AkashicNonEntityProxy proxy = entry.getValue();
+            if (proxy == null || !proxy.identityLocked) {
+                it.remove();
+                continue;
+            }
             AkashicProbeEntity host = proxy.strongHost != null ? proxy.strongHost : (proxy.hostRef != null ? proxy.hostRef.get() : null);
             if (host == null) {
+                it.remove();
                 continue;
             }
             AkashicRecord rec = AkashicRecord.of(proxy.probeUuid);
@@ -443,33 +577,64 @@ public final class AkashicNonEntityProxy implements AutoCloseable {
             AkashicAgentCanary.verifyAndRestoreKlassWord(host, rec, preMod);
             proxy.restoreObliteratedCoreFields(host);
             ServerLevel level = host.level() instanceof ServerLevel sl ? sl : proxy.lastKnownLevel;
-            if (level == null) {
+            if (level == null || !level.getServer().isRunning()) {
                 continue;
             }
-            if (host.getEprotect().isDespawning() || host.getEprotect().isDying()) {
+            if (host.getEprotect().isDespawning() || host.getEprotect().isDying() || !host.getEprotect().isProtectionActive()) {
                 it.remove();
+                proxy.identityLocked = false;
                 proxy.strongHost = null;
                 ACTIVE_CONTROLLER_LIST.remove(proxy);
                 ACTIVE_CONTROLLER_SET.remove(proxy);
-                ACTIVE_CONTROLLER_MAP.remove(entry.getKey());
+                ACTIVE_CONTROLLER_MAP.remove(entry.getKey(), proxy);
                 continue;
+            }
+
+            // 既に Eprotect (WorldPresence.replaceWithClone / EprotectRegistry) が同一 UUID の新個体へ差し替えていた場合は、
+            // 古い個体を引退させて新個体へバインドを移し、二重存在・二重復活を防止する
+            Entity existingByUuid = level.getEntity(proxy.probeUuid);
+            if (existingByUuid instanceof AkashicProbeEntity newProbe
+                    && newProbe != host
+                    && newProbe.getEprotect().isProtectionActive()) {
+                newProbe.inheritRuntimeStateFrom(host);
+                String replaceMod = resolveSuspectMod(host);
+                rec.observe(replaceMod, "world_eviction:instance_replaced_by_clone", "REPAIRED",
+                        "oldId=" + host.getId() + " -> newId=" + newProbe.getId(), null);
+                proxy.rebindHost(newProbe);
+                newProbe.nonEntityProxy = proxy;
+                newProbe.madnessControllerProxy = proxy;
+                try {
+                    host.getEprotect().retireReplaced();
+                } catch (Throwable ignored) {}
+                newProbe.syncHologramAndUiNow();
+                host = newProbe;
             }
 
             proxy.verifyAndRepair(host);
             String suspectMod = resolveSuspectMod(host);
 
+            long chunkKey = ChunkPos.asLong(host.blockPosition());
+            if (!level.areEntitiesLoaded(chunkKey)) {
+                continue;
+            }
+
             // A. EntityTickList からの直接除外検知
             var tickList = ((ServerLevelTickListAccessor) level).automata_valkyries$getEntityTickList();
             boolean inTickList = tickList.contains(host);
-            if (!inTickList && level.getEntity(proxy.probeUuid) == host) {
+            if (!inTickList) {
                 rec.observe(suspectMod, "world_eviction:entity_tick_list", "REPAIRED", "ServerLevel.entityTickList", null);
-                try {
-                    tickList.add(host);
-                    inTickList = true;
-                } catch (Throwable ignored) {}
+                if (level.getEntity(proxy.probeUuid) == host) {
+                    try {
+                        tickList.add(host);
+                        inTickList = true;
+                    } catch (Throwable ignored) {}
+                }
             }
 
-            // B. RemovalReason の直接書き換え検知（remove() を通さない Unsafe / Reflection 直書き）
+            // B. RemovalReason / dead フラグの直接書き換え検知（remove() / die() を通さない Unsafe / Reflection 直書き）
+            if (((com.automatavalkyries.mixin.LivingEntityAccessor) host).automata_valkyries$isDead()) {
+                rec.observe(suspectMod, "direct_field:dead_flag_true", "REPAIRED", "LivingEntity.dead=true", null);
+            }
             Entity.RemovalReason rawReason = DirectRead.removalReason(host);
             if (rawReason != null) {
                 rec.observe(suspectMod, "direct_field:removalReason:" + rawReason.name(), "REPAIRED", "Entity.removalReason", null);
@@ -485,19 +650,36 @@ public final class AkashicNonEntityProxy implements AutoCloseable {
                 host.getEprotect().tick();
                 Entity currentInWorld = level.getEntity(proxy.probeUuid);
                 if (currentInWorld instanceof AkashicProbeEntity newProbe && newProbe != host) {
+                    newProbe.inheritRuntimeStateFrom(host);
+                    rec.observe(suspectMod, "world_eviction:instance_replaced_by_clone", "REPAIRED",
+                            "oldId=" + host.getId() + " -> newId=" + newProbe.getId(), null);
                     proxy.rebindHost(newProbe);
+                    newProbe.nonEntityProxy = proxy;
+                    newProbe.madnessControllerProxy = proxy;
+                    try {
+                        host.getEprotect().retireReplaced();
+                    } catch (Throwable ignored) {}
+                    newProbe.syncHologramAndUiNow();
                     host = newProbe;
-                } else if (currentInWorld == null) {
-                    // WorldPresence.rejoin すら通らなかった場合の最終防衛線: 同一 UUID・同一記録を引き継ぐ不死鳥（Phoenix）再受肉
-                    AkashicProbeEntity reincarnated = proxy.reincarnatePhoenix(level, rec, suspectMod);
+                } else if (currentInWorld instanceof AkashicProbeEntity rejoinedProbe) {
+                    rejoinedProbe.syncHologramAndUiNow();
+                } else if (currentInWorld == null
+                        && !((ServerLevelTickListAccessor) level).automata_valkyries$getEntityManager().isLoaded(proxy.probeUuid)) {
+                    // WorldPresence.rejoin すら通らず、EntityManager からも完全に消えている場合の最終防衛線: 不死鳥（Phoenix）再受肉
+                    AkashicProbeEntity reincarnated = proxy.reincarnatePhoenix(level, host, rec, suspectMod);
                     if (reincarnated != null) {
+                        reincarnated.syncHologramAndUiNow();
                         host = reincarnated;
                     }
                 }
             }
 
             // D. Tick 停止（Tick 一覧に居るのに baseTick が回っていない）検知と外部強制駆動
-            if (host.tickCount == proxy.lastObservedEntityTick) {
+            // ※自 MOD の正当な時間停止（タイムルーラー・ロストカタストロフィーの TimeStop）中は誤検知しない
+            if (com.automatavalkyries.entity.chrono.TimeStop.frozen(host)) {
+                proxy.stagnantServerTicks = 0;
+                proxy.lastObservedEntityTick = host.tickCount;
+            } else if (host.tickCount == proxy.lastObservedEntityTick) {
                 proxy.stagnantServerTicks++;
                 if (proxy.stagnantServerTicks >= 2) {
                     rec.observe(suspectMod, "tick_suppression:entity_tick_halted", "REPAIRED",
@@ -520,16 +702,38 @@ public final class AkashicNonEntityProxy implements AutoCloseable {
      * すべてのワールド内部マップから抹消され、既存インスタンスでの再参加すら妨害された場合でも、
      * 同一の {@code probeUuid} と {@link AkashicRecord} を引き継ぐ新個体を即座に生成・再配置する。
      */
-    private AkashicProbeEntity reincarnatePhoenix(ServerLevel level, AkashicRecord rec, String suspectMod) {
+    private AkashicProbeEntity reincarnatePhoenix(
+            ServerLevel level,
+            AkashicProbeEntity oldHost,
+            AkashicRecord rec,
+            String suspectMod
+    ) {
         try {
+            if (level.getEntity(probeUuid) != null
+                    || ((ServerLevelTickListAccessor) level).automata_valkyries$getEntityManager().isLoaded(probeUuid)) {
+                return null;
+            }
             AkashicProbeEntity fresh = ModEntities.AKASHIC_PROBE.get().create(level);
             if (fresh == null) {
                 fresh = new AkashicProbeEntity(ModEntities.AKASHIC_PROBE.get(), level);
             }
+            if (fresh.nonEntityProxy != null && fresh.nonEntityProxy != this) {
+                fresh.nonEntityProxy.onHostRetired(fresh);
+            }
+            fresh.nonEntityProxy = this;
+            fresh.madnessControllerProxy = this;
             Vec3 pos = lastSafePos != null ? lastSafePos : Vec3.atBottomCenterOf(level.getSharedSpawnPos());
             fresh.setUUID(probeUuid);
             fresh.moveTo(pos.x, pos.y, pos.z, 0.0F, 0.0F);
+            if (oldHost != null) {
+                fresh.inheritRuntimeStateFrom(oldHost);
+            }
             if (level.addFreshEntity(fresh)) {
+                if (oldHost != null && oldHost != fresh) {
+                    try {
+                        oldHost.getEprotect().retireReplaced();
+                    } catch (Throwable ignored) {}
+                }
                 rebindHost(fresh);
                 fresh.nonEntityProxy = this;
                 fresh.madnessControllerProxy = this;
@@ -545,8 +749,18 @@ public final class AkashicNonEntityProxy implements AutoCloseable {
         if (host.getLastHurtByMob() != null) {
             String m = CallerAttribution.modOf(host.getLastHurtByMob().getClass());
             if (CallerAttribution.isForeign(m)) return m;
+            net.minecraft.world.item.ItemStack held = host.getLastHurtByMob().getMainHandItem();
+            if (!held.isEmpty()) {
+                net.minecraft.resources.ResourceLocation itemKey =
+                        net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(held.getItem());
+                if (itemKey != null && !CallerAttribution.MINECRAFT.equals(itemKey.getNamespace())) {
+                    return itemKey.getNamespace();
+                }
+            }
         }
-        String lastAttackerMod = AkashicRecord.of(host.getUUID()).lastForeignMod();
-        return lastAttackerMod != null ? lastAttackerMod : CallerAttribution.UNKNOWN;
+        AkashicRecord rec = AkashicRecord.of(host.getUUID());
+        if (rec.lastForeignMod() != null) return rec.lastForeignMod();
+        if (rec.lastObservedMod() != null) return rec.lastObservedMod();
+        return CallerAttribution.UNKNOWN;
     }
 }

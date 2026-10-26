@@ -249,8 +249,31 @@ public class AkashicLexiconItem extends Item {
         AkashicCustomLexicon lexicon = AkashicCustomLexicon.fromStack(stack, kind);
         ChatFormatting theme = kind == TechniqueKind.DAMAGE ? ChatFormatting.GOLD : ChatFormatting.LIGHT_PURPLE;
         tooltip.add(Component.literal(lexicon.summaryText()).withStyle(theme));
-        tooltip.add(Component.literal("・スニーク＋右クリック: カスタム設定GUIを開く").withStyle(ChatFormatting.GRAY));
+        tooltip.add(Component.literal("・スニーク＋右クリック: カスタム設定＆仕様技術解説GUIを開く").withStyle(ChatFormatting.GRAY));
         tooltip.add(Component.literal("・敵へ左クリック/右クリック: プレイヤーが直接発動").withStyle(ChatFormatting.GRAY));
         tooltip.add(Component.literal("・アカシックへ右クリック: カスタム辞書をアカシックへ登録").withStyle(ChatFormatting.AQUA));
+
+        List<AkashicResistanceAuditor.AuditStage> ordered = lexicon.resolveOrderedStages();
+        if (!ordered.isEmpty()) {
+            AkashicResistanceAuditor.AuditStage first = ordered.get(0);
+            AkashicResistanceAuditor.AuditStage last = ordered.get(ordered.size() - 1);
+            tooltip.add(Component.literal(String.format(Locale.ROOT,
+                    "・初手: [T%d] %s (%s)", first.tier, first.titleJa(), first.description))
+                    .withStyle(ChatFormatting.YELLOW));
+            if (last != first) {
+                tooltip.add(Component.literal(String.format(Locale.ROOT,
+                        "・最終: [T%d] %s (%s)", last.tier, last.titleJa(), last.description))
+                        .withStyle(ChatFormatting.RED));
+            }
+        }
+
+        if (net.minecraft.client.gui.screens.Screen.hasShiftDown()) {
+            for (String line : com.automatavalkyries.entity.akashic.AkashicTechniqueSpecCatalog.lexiconArchitectureGuide(kind)) {
+                tooltip.add(Component.literal(line).withStyle(ChatFormatting.DARK_AQUA));
+            }
+        } else {
+            tooltip.add(Component.literal("[Shiftキー長押しで収録技術の体系解説を表示 / GUIで全" + lexicon.totalAvailableCount() + "種の個別仕様を閲覧]")
+                    .withStyle(ChatFormatting.DARK_GRAY));
+        }
     }
 }

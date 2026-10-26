@@ -46,6 +46,10 @@ public class UltraKillStickItem extends Item {
         }
 
         if (player.level() instanceof ServerLevel level) {
+            if (target instanceof com.automatavalkyries.entity.akashic.AkashicProbeEntity probe) {
+                probe.observeAnnihilationStickTrial(level, player, "ultra_kill_stick");
+                return InteractionResult.sidedSuccess(player.level().isClientSide);
+            }
             boolean success = AnnihilationExecutionAgent.annihilateEntity(level, player, target);
             if (success) {
                 player.displayClientMessage(Component.translatable("item.automata_valkyries.ultra_kill_stick.used",

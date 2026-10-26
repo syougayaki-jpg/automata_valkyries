@@ -134,10 +134,18 @@ public final class ModProtectionBreaker {
     public static void afterErase(Entity target, Context context) {
         if (MadnessAnnihilation.isMadness(target) && com.automatavalkyries.protect.SpecificCountermeasures.enabled()) return;
         cleanupForeignBoss(target);
-        for (Object controller : context.controllers()) cleanupForeignBoss(controller);
+        for (Object controller : context.controllers()) {
+            cleanupForeignBoss(controller);
+            if (controller instanceof net.minecraft.world.level.saveddata.SavedData savedData) {
+                try {
+                    savedData.setDirty();
+                } catch (Throwable ignored) {}
+            }
+        }
         purgeStaticReferences(target, context);
         if (context.report().foreign() || isForeign(target.getClass()) || !context.controllers().isEmpty()) {
             if (target.level() instanceof ServerLevel serverLevel) {
+                evictSubordinateIdentityEntities(serverLevel, target, context.identities());
                 severForeignThreadReferences(target, context);
                 deleteOwnedForeignSaveFiles(serverLevel, context.identities());
             }
@@ -145,8 +153,37 @@ public final class ModProtectionBreaker {
         }
     }
 
-    /** 抹殺の最後に呼ぶ: 対応する MOD 自身の撃破経路を走らせる（魂ダメージの最大化で死亡処理と完全消去） */
+    /**
+     * 本体やワールド {@code SavedData} に保持されていた従属・監視アンカー個体（{@code BossGuardianEntity} 等）のうち、
+     * 抹殺対象と同じ他 MOD に属するワールド内エンティティを連動して無力化・退去させる。
+     */
+    private static void evictSubordinateIdentityEntities(ServerLevel level, Entity target, Set<UUID> identities) {
+        if (level == null || target == null || identities == null || identities.isEmpty()) return;
+        String mod = CallerAttribution.modOf(target.getClass());
+        if (!CallerAttribution.isForeign(mod)) return;
+        UUID targetUuid = MadnessAnnihilation.uuid(target);
+        for (UUID id : identities) {
+            if (id == null || id.equals(targetUuid) || id.equals(target.getUUID())) continue;
+            try {
+                Entity sub = level.getEntity(id);
+                if (sub == null || sub == target || sub instanceof Player
+                        || (sub instanceof IEprotected protectedEntity && !protectedEntity.isTerminusTestTarget())) {
+                    continue;
+                }
+                if (!mod.equals(CallerAttribution.modOf(sub.getClass()))) continue;
+                breakProtectiveStates(sub);
+                AnnihilationExecutionAgent.spoofAndDisconnectTracking(level, sub);
+                sub.discard();
+                AutomataValkyries.LOGGER.info("[AnnihilationAgent] Evicted subordinate entity {} ({}) linked to {}",
+                        sub.getName().getString(), id, target.getName().getString());
+            } catch (Throwable ignored) {}
+        }
+    }
+
+    /** 抹殺の最後に呼ぶ: 対応する MOD 自身の撃破経路を走らせる（自己撃破・退役メソッドおよび魂ダメージの最大化で死亡処理と完全消去） */
     public static void finishWithModOwnDeath(Entity target) {
+        if (target == null) return;
+        invokeForeignSelfDefeatMethods(target);
         if (!com.automatavalkyries.protect.SpecificCountermeasures.enabled()) return;
         if (MadnessAnnihilation.isMadness(target)) {
             try { MadnessAnnihilation.nativeDelete(target); }
@@ -165,8 +202,36 @@ public final class ModProtectionBreaker {
     }
 
     /**
-     * 対象とつながった同じ MOD の個体（乗客・乗り物。部位は追跡偽装で扱う）。対象が他 MOD の個体のときだけ広げ、
-     * プレイヤー・保護対象（兵姫）は含めない。つながった個体からさらに広げはしない。
+     * 準汎用: 他 MOD の Entity サブクラス自身が宣言している引数なしの自己撃破・退役メソッド
+     * （{@code trueDefeat()}, {@code retire()}, {@code instantKill()} 等）を検出し、フック隔離下で呼び出す。
+     */
+    private static void invokeForeignSelfDefeatMethods(Entity target) {
+        if (target == null || target instanceof Player || !isForeign(target.getClass())) return;
+        if (com.automatavalkyries.protect.plus.EprotectPlusLink.hasHaltOrExitTrap(target.getClass())) return;
+        for (Class<?> c = target.getClass(); c != null && isForeign(c); c = c.getSuperclass()) {
+            if (com.automatavalkyries.protect.plus.EprotectPlusLink.hasHaltOrExitTrap(c)) continue;
+            Method[] methods;
+            try {
+                methods = com.automatavalkyries.util.UnsafeHelper.getRealDeclaredMethods(c);
+            } catch (Throwable t) {
+                continue;
+            }
+            for (Method m : methods) {
+                if (Modifier.isStatic(m.getModifiers()) || m.isSynthetic() || m.getParameterCount() != 0) continue;
+                if (!FlagKillPredicates.isSelfDefeatOrRetireMethod(m.getName())) continue;
+                try {
+                    m.setAccessible(true);
+                    m.invoke(target);
+                    AutomataValkyries.LOGGER.info("[AnnihilationAgent] Invoked foreign self-defeat method {}.{}() on {}",
+                            c.getSimpleName(), m.getName(), target.getName().getString());
+                } catch (Throwable ignored) {}
+            }
+        }
+    }
+
+    /**
+     * 対象とつながった同じ MOD の個体（乗客・乗り物・コントローラーや SavedData に記録された従属アンカー個体。部位は追跡偽装で扱う）。
+     * 対象が他 MOD の個体のときだけ広げ、プレイヤー・保護対象（兵姫）は含めない。つながった個体からさらに広げはしない。
      */
     public static List<Entity> connectedEntities(Entity target) {
         String mod = CallerAttribution.modOf(target.getClass());
@@ -174,6 +239,16 @@ public final class ModProtectionBreaker {
         Set<Entity> found = Collections.newSetFromMap(new IdentityHashMap<>());
         target.getIndirectPassengers().forEach(found::add);
         for (Entity vehicle = target.getVehicle(); vehicle != null; vehicle = vehicle.getVehicle()) found.add(vehicle);
+        if (target.level() instanceof ServerLevel serverLevel) {
+            try {
+                DefenseStructureAnalyzer.AnalysisReport report = DefenseStructureAnalyzer.analyze(target);
+                for (UUID id : report.identities()) {
+                    if (id == null || id.equals(target.getUUID())) continue;
+                    Entity sub = serverLevel.getEntity(id);
+                    if (sub != null) found.add(sub);
+                }
+            } catch (Throwable ignored) {}
+        }
         List<Entity> result = new ArrayList<>();
         for (Entity entity : found) {
             if (entity == target || entity instanceof Player || (entity instanceof IEprotected protectedEntity && !protectedEntity.isTerminusTestTarget())) continue;
@@ -451,16 +526,29 @@ public final class ModProtectionBreaker {
                     for (Class<?> c = controller.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
                         for (Method m : com.automatavalkyries.util.UnsafeHelper.getRealDeclaredMethods(c)) {
                             if (Modifier.isStatic(m.getModifiers()) || !Modifier.isPublic(m.getModifiers()) || isTrapTerminationName(m.getName())) continue;
-                            if (m.getParameterCount() == 1 && m.getParameterTypes()[0] == boolean.class
-                                    && FlagKillPredicates.isTerminationMethod(m.getName())) {
-                                m.setAccessible(true);
-                                m.invoke(controller, true);
-                                AutomataValkyries.LOGGER.info("[AnnihilationAgent] Called termination method {}. {}(true) (controller of {})",
-                                        controller.getClass().getSimpleName(), m.getName(), target.getName().getString());
-                                break outer;
+                            if (m.getParameterCount() == 1 && FlagKillPredicates.isTerminationMethod(m.getName())) {
+                                Class<?> paramType = m.getParameterTypes()[0];
+                                if (paramType == boolean.class) {
+                                    m.setAccessible(true);
+                                    m.invoke(controller, true);
+                                    AutomataValkyries.LOGGER.info("[AnnihilationAgent] Called termination method {}.{}(true) (controller of {})",
+                                            controller.getClass().getSimpleName(), m.getName(), target.getName().getString());
+                                    break outer;
+                                } else if (paramType == UUID.class) {
+                                    m.setAccessible(true);
+                                    m.invoke(controller, target.getUUID());
+                                    AutomataValkyries.LOGGER.info("[AnnihilationAgent] Called termination method {}.{}(uuid) (controller of {})",
+                                            controller.getClass().getSimpleName(), m.getName(), target.getName().getString());
+                                    break outer;
+                                }
                             }
                         }
                     }
+                }
+                if (controller instanceof net.minecraft.world.level.saveddata.SavedData savedData) {
+                    try {
+                        savedData.setDirty();
+                    } catch (Throwable ignored) {}
                 }
             } catch (Throwable ignored) {}
         }

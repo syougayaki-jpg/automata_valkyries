@@ -514,8 +514,8 @@ public class AkashicProbeGameTests {
                 "3rd cycleMode should switch to RESISTANCE_AUDIT");
         var immortalDummy = helper.spawnWithNoFreeWill(ModEntities.PROTECT_DUMMY_ZOMBIE.get(), new BlockPos(3, 2, 3));
         var dummyStage = probe.auditor().runFullAuditImmediately(helper.getLevel(), immortalDummy);
-        helper.assertTrue(dummyStage != null && dummyStage.tier >= 6 && dummyStage.number >= 62,
-                "ProtectDummyZombie should resist all 36 damage stages and T037..T061 instant-kill stages, and be penetrated at T062+, got: " + dummyStage);
+        helper.assertTrue(dummyStage != null && dummyStage.tier == 10 && dummyStage.number >= 105,
+                "ProtectDummyZombie should resist all stages through T104 (including T062 container replacement and T071) and be penetrated at Tier 10 (T105+), got: " + dummyStage);
 
         var auditKeys = AkashicRecord.keysForTest(probeUuid);
         helper.assertTrue(auditKeys.stream().anyMatch(k -> k.contains("audit:T001_normal_mob_hurt|DAMAGED")),
@@ -600,6 +600,21 @@ public class AkashicProbeGameTests {
         var player = helper.makeMockPlayer();
         var damageItem = (com.automatavalkyries.item.AkashicLexiconItem) com.automatavalkyries.registry.ModItems.TERMINUS_DAMAGE_LEXICON.get();
         var instantItem = (com.automatavalkyries.item.AkashicLexiconItem) com.automatavalkyries.registry.ModItems.TERMINUS_INSTANT_KILL_LEXICON.get();
+
+        // 0. 全108種の仕様技術解説カタログ（AkashicTechniqueSpecCatalog）が空欄なく網羅されていることを検証
+        for (var stage : com.automatavalkyries.entity.akashic.AkashicResistanceAuditor.AuditStage.values()) {
+            var spec = stage.spec();
+            helper.assertTrue(spec != null
+                            && !spec.titleJa().isBlank()
+                            && !spec.categoryJa().isBlank()
+                            && !spec.mechanismSpec().isBlank()
+                            && !spec.targetDefenseBypass().isBlank(),
+                    "Missing or blank technique specification entry for stage: " + stage.code);
+        }
+        for (int tier = 1; tier <= 10; tier++) {
+            helper.assertTrue(!com.automatavalkyries.entity.akashic.AkashicTechniqueSpecCatalog.tierOverview(tier).isBlank(),
+                    "Missing tier overview for tier " + tier);
+        }
 
         // 1. カスタムダメージ辞書を編集: T001 と T012 の2種のみ ON、降順（T012 → T001）、ダメージ倍率 x10.0
         var damageStack = new net.minecraft.world.item.ItemStack(damageItem);
@@ -915,6 +930,258 @@ public class AkashicProbeGameTests {
         auditVictim.discard();
         AkashicNonEntityProxy.unregister(probeUuid);
         probe.getEprotect().triggerDespawn();
+        helper.succeed();
+    }
+
+    /**
+     * 11. NBT 復元・EprotectRegistry 再生成・ロストカタストロフィー（時間停止・因果ロック）戦闘時の増殖防止＆重複クローン掃除の検証:
+     * <ul>
+     *   <li>{@code EntityType.create(tag, level)} で NBT から復元した際、コンストラクタの仮 UUID で保存済み UUID を上書きせず、
+     *       元の UUID と稼働モードを正確に引き継ぐこと（誤った {@code identity_tamper:uuid_or_id_corrupted} による無限クローン増殖が起きないこと）</li>
+     *   <li>ロストカタストロフィーの {@code TimeStop.freeze} や {@code CausalLock.lock}、初回通常被弾を受けても
+     *       誤検知（{@code damage_bit:nan}）やフェニックス転生による二重スポーンが発生しないこと</li>
+     *   <li>同一座標に重なった重複クローン個体が存在しても {@code deduplicateStackedClonesAndOrphans} で 1 体に自動整理されること</li>
+     * </ul>
+     */
+    @GameTest(template = TEMPLATE, batch = "akashic", timeoutTicks = 60)
+    public static void akashicNoProliferationOnNbtLoadAndLostCatastropheDummyFight(GameTestHelper helper) {
+        var level = helper.getLevel();
+        BlockPos pos = new BlockPos(2, 2, 2);
+        var original = helper.spawnWithNoFreeWill(ModEntities.AKASHIC_PROBE.get(), pos);
+        UUID expectedUuid = original.getUUID();
+        original.setMode(AkashicProbeEntity.Mode.DAMAGE_ONLY_AUDIT, null);
+
+        // 1. 初回の通常ダメージ（5.0F）で DamageLimiter 初期値 Float.NaN を damage_bit:nan と誤検知しないこと
+        original.hurt(level.damageSources().generic(), 5.0F);
+        var keysAfterFirstHit = AkashicRecord.keysForTest(expectedUuid);
+        helper.assertTrue(keysAfterFirstHit.stream().noneMatch(k -> k.contains("damage_bit:nan")),
+                "First normal hit must not trigger false damage_bit:nan from uninitialized DamageLimiter.lastRaw: " + keysAfterFirstHit);
+
+        // 2. NBT へ保存してから一旦退場させ、EntityType.create(tag, level)（チャンク読込・EprotectRegistry.recreate 相当）で復元
+        net.minecraft.nbt.CompoundTag savedTag = new net.minecraft.nbt.CompoundTag();
+        helper.assertTrue(original.saveAsPassenger(savedTag), "Failed to save AkashicProbeEntity to NBT");
+        original.retireDuplicateCloneSilently();
+
+        var loadedOpt = EntityType.create(savedTag, level);
+        helper.assertTrue(loadedOpt.isPresent() && loadedOpt.get() instanceof AkashicProbeEntity,
+                "EntityType.create failed to recreate AkashicProbeEntity from NBT");
+        AkashicProbeEntity reloaded = (AkashicProbeEntity) loadedOpt.get();
+        helper.assertTrue(reloaded.getUUID().equals(expectedUuid),
+                "NBT load overwrote saved UUID! expected=" + expectedUuid + " got=" + reloaded.getUUID());
+        helper.assertTrue(reloaded.mode() == AkashicProbeEntity.Mode.DAMAGE_ONLY_AUDIT,
+                "NBT load did not preserve AkashicMode: " + reloaded.mode());
+        level.addFreshEntity(reloaded);
+
+        // 3. ロストカタストロフィーの TimeStop（時間停止）と CausalLock（因果固定）を受けながらサーバー Tick が回っても増殖しないこと
+        Pig caster = helper.spawnWithNoFreeWill(EntityType.PIG, new BlockPos(3, 2, 2));
+        com.automatavalkyries.entity.chrono.TimeStop.start(level, caster, 10);
+        com.automatavalkyries.entity.chrono.CausalLock.lock(reloaded, 10, caster);
+        var serverTickEvent = new net.minecraftforge.event.TickEvent.ServerTickEvent(
+                net.minecraftforge.event.TickEvent.Phase.END, () -> true, level.getServer());
+        for (int i = 0; i < 6; i++) {
+            AkashicNonEntityProxy.onServerTick(serverTickEvent);
+        }
+        com.automatavalkyries.entity.chrono.TimeStop.stop();
+        com.automatavalkyries.entity.chrono.CausalLock.releaseBy(caster);
+        caster.discard();
+        reloaded.baseTick();
+
+        var keysAfterLoadAndFreeze = AkashicRecord.keysForTest(expectedUuid);
+        helper.assertTrue(keysAfterLoadAndFreeze.stream().noneMatch(k -> k.contains("identity_tamper:uuid_or_id_corrupted")),
+                "NBT load must not trigger false identity_tamper:uuid_or_id_corrupted: " + keysAfterLoadAndFreeze);
+
+        // 4. 同一座標に重複クローンが置かれても deduplicateStackedClonesAndOrphans で 1 体に掃除されること
+        var stackedClone = ModEntities.AKASHIC_PROBE.get().create(level);
+        if (stackedClone != null) {
+            stackedClone.moveTo(reloaded.getX(), reloaded.getY(), reloaded.getZ(), reloaded.getYRot(), reloaded.getXRot());
+            level.addFreshEntity(stackedClone);
+        }
+        reloaded.deduplicateStackedClonesAndOrphans(level);
+
+        var probesInBox = level.getEntitiesOfClass(
+                AkashicProbeEntity.class,
+                reloaded.getBoundingBox().inflate(2.0D),
+                e -> !e.isRemoved());
+        helper.assertTrue(probesInBox.size() == 1 && probesInBox.get(0).getUUID().equals(expectedUuid),
+                "Expected exactly 1 AkashicProbeEntity after NBT reload, TimeStop, and deduplication, but found: " + probesInBox);
+
+        reloaded.retireDuplicateCloneSilently();
+        helper.succeed();
+    }
+
+    /**
+     * 12. 超抹殺の棒（{@code super_kill_stick}）・超絶抹殺の棒（{@code ultra_kill_stick}）・終焉の魔杖（{@code terminus_stick}）を
+     * アカシックちゃんに使用した際のクローン差し替え・全層事象観測・頭上 UI 同期・右クリック操作継続の検証:
+     * <ul>
+     *   <li>超抹殺の棒で再参加拒否＆同 UUID クローン差し替え（{@code WorldPresence.replaceWithClone}）が発生した際、
+     *       {@code EprotectManager} に消される前に {@code entity_tick_list} 追放・{@code removalReason:KILLED}・{@code dead_flag_true}・
+     *       {@code world_presence_broken}・{@code instance_replaced_by_clone} をすべて観測・記録すること</li>
+     *   <li>差し替え後の新個体（新しい {@code entityId}、同一 {@code UUID}）が旧個体の稼働モード（例: {@code DAMAGE_ONLY_AUDIT}）や
+     *       {@code AkashicNonEntityProxy}、頭上ホログラム・{@code OBSERVATION_UI_DATA} をそのまま引き継ぎ、旧 {@code entityId} はサーバーから完全に消えていること</li>
+     *   <li>差し替え後の新個体に対して素手右クリック（{@code mobInteract}）でモード切替が正常に効き、超絶抹殺の棒・終焉の魔杖の観測も機能し、
+     *       スニーク素手右クリックで正規退場できること</li>
+     * </ul>
+     */
+    @GameTest(template = TEMPLATE, batch = "akashic", timeoutTicks = 60)
+    public static void akashicSuperKillStickCloneReplacementObservationAndRightClick(GameTestHelper helper) {
+        var level = helper.getLevel();
+        var player = helper.makeMockPlayer();
+        var probe = helper.spawnWithNoFreeWill(ModEntities.AKASHIC_PROBE.get(), new BlockPos(2, 2, 2));
+        UUID probeUuid = probe.getUUID();
+        int oldEntityId = probe.getId();
+
+        // 事前に素手右クリックでモードを ① OBSERVE_STANDBY → ② DAMAGE_ONLY_AUDIT に変更しておく
+        player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, net.minecraft.world.item.ItemStack.EMPTY);
+        probe.mobInteract(player, net.minecraft.world.InteractionHand.MAIN_HAND);
+        helper.assertTrue(probe.mode() == AkashicProbeEntity.Mode.DAMAGE_ONLY_AUDIT,
+                "Right-click before super_kill_stick should switch mode to DAMAGE_ONLY_AUDIT");
+
+        // 超抹殺の棒（SuperKillStickItem）を使用
+        var superStick = new net.minecraft.world.item.ItemStack(com.automatavalkyries.registry.ModItems.SUPER_KILL_STICK.get());
+        player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, superStick);
+        superStick.getItem().interactLivingEntity(superStick, player, probe, net.minecraft.world.InteractionHand.MAIN_HAND);
+
+        helper.runAfterDelay(3, () -> {
+            var current = level.getEntity(probeUuid);
+            helper.assertTrue(current instanceof AkashicProbeEntity surviving
+                            && surviving != probe
+                            && surviving.getId() != oldEntityId
+                            && surviving.isAlive()
+                            && !surviving.isRemoved(),
+                    "SuperKillStick should replace AkashicProbeEntity with a live clone of the same UUID and a new entityId, got: " + current);
+            AkashicProbeEntity surviving = (AkashicProbeEntity) current;
+
+            // 旧 entityId はワールドの検索表から消えており、新 entityId で引けること
+            helper.assertTrue(level.getEntity(oldEntityId) == null && level.getEntity(surviving.getId()) == surviving,
+                    "Old entityId must be gone and new entityId must resolve to surviving clone");
+
+            // 旧個体の稼働モード（DAMAGE_ONLY_AUDIT）がクローン差し替え後も失われず引き継がれていること
+            helper.assertTrue(surviving.mode() == AkashicProbeEntity.Mode.DAMAGE_ONLY_AUDIT,
+                    "Surviving clone must inherit runtime mode DAMAGE_ONLY_AUDIT, got: " + surviving.mode());
+
+            // 超抹殺の棒による一連の攻撃・追放・クローン差し替えがすべて AkashicRecord と頭上 UI に記録・同期されていること
+            var keys = AkashicRecord.keysForTest(probeUuid);
+            helper.assertTrue(keys.stream().anyMatch(k -> k.contains("direct_call:setHealth_zero|REFUSED")),
+                    "setHealth(0) from super_kill_stick was not observed: " + keys);
+            helper.assertTrue(keys.stream().anyMatch(k -> k.contains("direct_call:kill|REFUSED")),
+                    "kill() from super_kill_stick was not observed: " + keys);
+            helper.assertTrue(keys.stream().anyMatch(k -> k.contains("world_eviction:entity_tick_list|REPAIRED")),
+                    "entity_tick_list eviction from super_kill_stick was not observed: " + keys);
+            helper.assertTrue(keys.stream().anyMatch(k -> k.contains("direct_field:removalReason:KILLED|REPAIRED")),
+                    "removalReason=KILLED from super_kill_stick was not observed: " + keys);
+            helper.assertTrue(keys.stream().anyMatch(k -> k.contains("world_eviction:world_presence_broken|REPAIRED")),
+                    "world_presence_broken from super_kill_stick was not observed: " + keys);
+            helper.assertTrue(keys.stream().anyMatch(k -> k.contains("world_eviction:instance_replaced_by_clone|REPAIRED")),
+                    "instance_replaced_by_clone from super_kill_stick was not observed: " + keys);
+
+            var ui = surviving.observationUiData();
+            helper.assertTrue(!surviving.hologramLines().isEmpty()
+                            && ui.getLong("RefusedCount") > 0L
+                            && ui.getLong("RepairedCount") > 0L
+                            && !ui.getString("SuspectMod").isEmpty()
+                            && !"none".equals(ui.getString("SuspectMod")),
+                    "Surviving clone's hologram and OBSERVATION_UI_DATA were not synced: ui=" + ui);
+
+            // 超絶抹殺の棒・終焉の魔杖を新個体に直接使っても観測が記録され生存すること
+            var ultraStick = new net.minecraft.world.item.ItemStack(com.automatavalkyries.registry.ModItems.ULTRA_KILL_STICK.get());
+            ultraStick.getItem().interactLivingEntity(ultraStick, player, surviving, net.minecraft.world.InteractionHand.MAIN_HAND);
+            var terminusStick = new net.minecraft.world.item.ItemStack(com.automatavalkyries.registry.ModItems.TERMINUS_STICK.get());
+            terminusStick.getItem().interactLivingEntity(terminusStick, player, surviving, net.minecraft.world.InteractionHand.MAIN_HAND);
+            var keysAfterSticks = AkashicRecord.keysForTest(probeUuid);
+            helper.assertTrue(keysAfterSticks.stream().anyMatch(k -> k.contains("trial:ultra_kill_stick|SHIELDED"))
+                            && keysAfterSticks.stream().anyMatch(k -> k.contains("trial:terminus_stick|SHIELDED")),
+                    "UltraKillStick and TerminusStick trials were not observed: " + keysAfterSticks);
+
+            // 差し替え後の新個体に対して素手右クリック（モード切替）が正常に機能すること
+            player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, net.minecraft.world.item.ItemStack.EMPTY);
+            player.setShiftKeyDown(false);
+            var interactRes = surviving.mobInteract(player, net.minecraft.world.InteractionHand.MAIN_HAND);
+            helper.assertTrue(interactRes.consumesAction()
+                            && surviving.mode() == AkashicProbeEntity.Mode.INSTANT_KILL_ONLY_AUDIT,
+                    "Right-clicking surviving clone must switch mode from DAMAGE_ONLY_AUDIT to INSTANT_KILL_ONLY_AUDIT, got: " + surviving.mode());
+
+            // スニーク素手右クリックで正規退場できること
+            player.setShiftKeyDown(true);
+            surviving.mobInteract(player, net.minecraft.world.InteractionHand.MAIN_HAND);
+            helper.assertTrue(surviving.isRemoved() || surviving.getEprotect().isDespawning(),
+                    "Shift-right-clicking surviving clone must dismiss her normally");
+            helper.succeed();
+        });
+    }
+
+    /**
+     * ボスアカシック（{@link com.automatavalkyries.entity.seer.AkashicSeerEntity}）ベースの直接対決エンジン（{@link com.automatavalkyries.entity.akashic.AkashicDuelEngine}）検証:
+     * <ul>
+     *   <li>通常時は失敗8回（{@code BASE_FAILS = 8}）までペナルティ Tier が上がらない緩やかな昇格カーブであること</li>
+     *   <li>ボスアカシック由来の凶悪化結晶スキル（観測弾・データ雨・分光・結晶槍・檻・防壁・記録解放）と観測刻印・論理突破ゲージ・ステータス適応が動作すること</li>
+     *   <li>凶悪な攻撃・改ざん・チート防御（{@code setHealth(0)} / {@code kill()} / 強制追放 / チート不死身）を感知すると「凶悪感知（Vicious Sensing）」が作動し、ペナルティ昇格閾値の短縮（{@code 8 -> 1}）と即時 Tier ジャンプによって一気に終焉段階（Tier 7: Omega Terminus）まで跳ね上がること</li>
+     * </ul>
+     */
+    @GameTest(template = TEMPLATE, batch = "akashic", timeoutTicks = 80)
+    public static void akashicBossBasedDirectDuelGentlePenaltyAndViciousSensing(GameTestHelper helper) {
+        var level = helper.getLevel();
+        var probe = helper.spawnWithNoFreeWill(ModEntities.AKASHIC_PROBE.get(), new BlockPos(2, 2, 2));
+        UUID probeUuid = probe.getUUID();
+
+        // 1. 直接対決・制限解除（DIRECT_DUEL_UNCAPPED）へ切替: 初期状態は Penalty Tier 0、昇格必要失敗数 = 8（緩やか）
+        probe.setMode(AkashicProbeEntity.Mode.DIRECT_DUEL_UNCAPPED, null);
+        var duel = probe.duelEngine();
+        helper.assertTrue(duel.currentBasePenaltyTier() == 0,
+                "Initial currentBasePenaltyTier must be 0, got: " + duel.currentBasePenaltyTier());
+
+        // 2. 凶悪技を使わず単に通常の hurt() ダメージだけを無効化する相手に対し、
+        //    初期の昇格必要失敗数が BASE_FAILS = 8 であること（緩やかなペナルティ上昇の検証）
+        var tankTarget = helper.spawnWithNoFreeWill(EntityType.IRON_GOLEM, new BlockPos(4, 2, 2));
+        tankTarget.setCustomName(net.minecraft.network.chat.Component.literal("GentleCurveTarget"));
+        helper.assertTrue(duel.effectiveFailThreshold(tankTarget) == com.automatavalkyries.entity.akashic.AkashicDuelEngine.BASE_FAILS,
+                "Without vicious sensing, fail threshold must be BASE_FAILS (8), got: " + duel.effectiveFailThreshold(tankTarget));
+
+        // 3. ボスアカシック由来の観測刻印・論理突破ゲージ・ステータス適応を検証
+        duel.mark(tankTarget);
+        helper.assertTrue(duel.isMarked(tankTarget),
+                "Target must receive Akashic Observation Mark");
+        duel.adaptToTarget(tankTarget);
+        helper.assertTrue(duel.attackMultiplier(tankTarget) >= 1.35F,
+                "Marked target with high HP/armor must receive boosted attackMultiplier, got: " + duel.attackMultiplier(tankTarget));
+
+        // 4. 凶悪感知（Vicious Sensing）のトリガー検証:
+        //    相手側から hurt() を通さない不正な setHealth(0) / kill() / ワールド強制追放が仕掛けられた瞬間、
+        //    凶悪感知ウェイトが蓄積し、昇格必要失敗数が劇的に短縮され、即時 Tier ジャンプ＆論理突破ゲージ急上昇が起きること
+        probe.setHealth(0.0F);
+        probe.kill();
+        com.automatavalkyries.gametest.fake.FakeEntityEraser.discardAndDie(probe);
+        probe.baseTick();
+
+        int weightAfterVicious = duel.totalSensedWeight(tankTarget);
+        int tierAfterVicious = duel.penaltyTier(tankTarget);
+        int thresholdAfterVicious = duel.effectiveFailThreshold(tankTarget);
+        helper.assertTrue(weightAfterVicious >= 15,
+                "Vicious sensing weight must accumulate rapidly on direct setHealth(0)/kill()/discardAndDie, got: " + weightAfterVicious);
+        helper.assertTrue(tierAfterVicious >= 3,
+                "Vicious sensing must immediately jump Penalty Tier to >= 3, got: " + tierAfterVicious);
+        helper.assertTrue(thresholdAfterVicious <= 2,
+                "Vicious sensing must compress fail threshold from 8 down to <= 2, got: " + thresholdAfterVicious);
+        helper.assertTrue(probe.gauge() >= 30,
+                "Logical Breakthrough Gauge must surge upon vicious sensing, got: " + probe.gauge());
+
+        // 5. チート不死身（ProtectDummyZombie）を相手に直接対決の自律反撃を実行すると、
+        //    凶悪防御構造（IEprotected）を即時感知してペナルティが急上昇し、Omega Terminus まで到達して撃破できること
+        var immortalDummy = helper.spawnWithNoFreeWill(ModEntities.PROTECT_DUMMY_ZOMBIE.get(), new BlockPos(3, 2, 3));
+        for (int i = 0; i < 6 && com.automatavalkyries.entity.akashic.AkashicResistanceAuditor.isTargetStillPresent(immortalDummy); i++) {
+            probe.auditor().executeDuelCounterStrike(level, immortalDummy);
+        }
+        helper.assertTrue(!com.automatavalkyries.entity.akashic.AkashicResistanceAuditor.isTargetStillPresent(immortalDummy),
+                "Boss-Akashic Direct Duel with vicious sensing must escalate to Omega Terminus and defeat ProtectDummyZombie");
+
+        // 6. 頭上ホログラム & OBSERVATION_UI_DATA に PenaltyTier / ViciousWeight / ViciousLabel が同期されていること
+        probe.baseTick();
+        var ui = probe.observationUiData();
+        helper.assertTrue(ui.getInt("PenaltyTier") >= 3
+                        && ui.getInt("ViciousWeight") >= 15
+                        && !ui.getString("ViciousLabel").isEmpty(),
+                "OBSERVATION_UI_DATA must sync PenaltyTier, ViciousWeight, and ViciousLabel: " + ui);
+
+        AkashicNonEntityProxy.unregister(probeUuid);
         helper.succeed();
     }
 }

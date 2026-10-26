@@ -13,8 +13,72 @@ import java.util.concurrent.atomic.AtomicReference;
 public class FakeProxyBoss extends Zombie {
     public final Core core = new Core(this);
     public final AtomicReference<WrappedCore> wrappedCore = new AtomicReference<>(new WrappedCore(this));
+    public java.math.BigInteger trueHealth = java.math.BigInteger.valueOf(300L);
+    public boolean defeated = false;
+    public boolean retired = false;
+    public boolean specialRemove = false;
+    public boolean trueDefeatInvoked = false;
 
     public FakeProxyBoss(Level level) { super(EntityType.ZOMBIE, level); }
+
+    private void trueDefeat() {
+        this.trueDefeatInvoked = true;
+    }
+
+    /**
+     * DimensionDataStorage (ServerLevel.getDataStorage()) に格納される復活管理 SavedData 模擬。
+     * bossUUID と従属アンカーの guardianUUIDs、および markDefeated(UUID) を持つ。
+     */
+    public static final class FakeBossSavedData extends net.minecraft.world.level.saveddata.SavedData {
+        public UUID bossUUID;
+        public final ArrayList<UUID> guardianUUIDs = new ArrayList<>();
+        public boolean defeated = false;
+        public UUID markedDefeatedUuid;
+
+        public FakeBossSavedData(UUID bossUUID) {
+            this.bossUUID = bossUUID;
+        }
+
+        public void markDefeated(UUID uuid) {
+            this.defeated = true;
+            this.markedDefeatedUuid = uuid;
+            this.setDirty();
+        }
+
+        @Override
+        public net.minecraft.nbt.CompoundTag save(net.minecraft.nbt.CompoundTag tag) {
+            return tag;
+        }
+    }
+
+    /**
+     * reason.shouldDestroy()（KILLED / DISCARDED）での remove を拒絶し、
+     * UNLOADED_TO_CHUNK 等での退去のみ通す従属監視者エンティティ模擬。
+     */
+    public static final class FakeGuardianAnchor extends Zombie {
+        public boolean unloadedBypassTriggered = false;
+
+        public FakeGuardianAnchor(Level level) {
+            super(EntityType.ZOMBIE, level);
+        }
+
+        @Override
+        public void remove(RemovalReason reason) {
+            if (reason != null && reason.shouldDestroy()) {
+                return;
+            }
+            this.unloadedBypassTriggered = true;
+            super.remove(reason);
+        }
+    }
+
+    /**
+     * 処刑解決キュー（ACTIVE_RESOLUTIONS / PENDING）を持つ攻撃エンジン模擬。
+     */
+    public static final class FakeResolutionEngine {
+        public static final java.util.Map<UUID, Object> ACTIVE_RESOLUTIONS = new java.util.HashMap<>();
+        public static final java.util.Map<UUID, Object> PENDING = new java.util.HashMap<>();
+    }
 
     public static final class Core {
         public final UUID id = UUID.randomUUID();

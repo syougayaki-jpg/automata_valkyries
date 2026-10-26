@@ -58,6 +58,10 @@ public class TerminusStickItem extends Item {
                 return true;
             }
 
+            if (entity instanceof com.automatavalkyries.entity.akashic.AkashicProbeEntity probe) {
+                probe.observeAnnihilationStickTrial(serverLevel, player, "terminus_stick");
+                return true;
+            }
             boolean success = TerminusEngine.executeTerminus(serverLevel, player, entity);
             if (success) {
                 player.displayClientMessage(Component.translatable("item.automata_valkyries.terminus_stick.used",
@@ -77,6 +81,10 @@ public class TerminusStickItem extends Item {
                 return InteractionResult.FAIL;
             }
 
+            if (target instanceof com.automatavalkyries.entity.akashic.AkashicProbeEntity probe) {
+                probe.observeAnnihilationStickTrial(level, player, "terminus_stick");
+                return InteractionResult.sidedSuccess(player.level().isClientSide);
+            }
             boolean success = TerminusEngine.executeTerminus(level, player, target);
             if (success) {
                 player.displayClientMessage(Component.translatable("item.automata_valkyries.terminus_stick.used",

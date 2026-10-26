@@ -233,6 +233,7 @@ public final class AkashicShadowCanary {
 
     private static Field eprotectDamageField;
     private static Field limiterLastRawField;
+    private static Field limiterLastSanitizedField;
     private static boolean limiterFieldsSearched;
 
     /** Eprotect.damage.lastRaw（ModifyVariable でクランプされる前の生 float ビット）を取得する */
@@ -245,12 +246,19 @@ public final class AkashicShadowCanary {
                 eprotectDamageField = UnsafeHelper.findField(protect.getClass(), "damage");
                 if (eprotectDamageField != null) {
                     limiterLastRawField = UnsafeHelper.findField(eprotectDamageField.getType(), "lastRaw");
+                    limiterLastSanitizedField = UnsafeHelper.findField(eprotectDamageField.getType(), "lastSanitized");
                 }
             }
             if (eprotectDamageField != null && limiterLastRawField != null) {
                 Object limiter = eprotectDamageField.get(protect);
                 if (limiter != null) {
-                    return limiterLastRawField.getFloat(limiter);
+                    if (limiterLastSanitizedField != null && Float.isNaN(limiterLastSanitizedField.getFloat(limiter))) {
+                        // DamageLimiter の初期値（両方 Float.NaN）はまだ一度も sanitize() を通っていない未初期化状態なので 0.0F とみなす
+                        return 0.0F;
+                    }
+                    float raw = limiterLastRawField.getFloat(limiter);
+                    limiterLastRawField.setFloat(limiter, 0.0F);
+                    return raw;
                 }
             }
         } catch (Throwable ignored) {}
@@ -265,7 +273,9 @@ public final class AkashicShadowCanary {
         }
         captureUtilTimeSourceBaseline();
         initDecoyNbt(host);
-        AkashicAgentCanary.captureBaseline(host);
+        if (host.isAddedToWorld()) {
+            AkashicAgentCanary.captureBaseline(host);
+        }
         // スポーン直後（Tick 0）に setInvisible(true) / setNoAi(true) を受けた状態で Eprotect.restoreVanillaFlags() が
         // 最初の Tick を迎えると、汚染された値を正常基準（vanillaBaseline）として記憶してしまうのを防ぐ
         try {
@@ -560,6 +570,10 @@ public final class AkashicShadowCanary {
                 for (MobEffectInstance inst : new ArrayList<>(active.values())) {
                     if (inst == null) continue;
                     int amp = inst.getAmplifier();
+                    if (inst.getEffect() == MobEffects.MOVEMENT_SLOWDOWN
+                            && com.automatavalkyries.entity.chrono.CausalLock.locked(host)) {
+                        continue;
+                    }
                     if (inst.getEffect() == MobEffects.DAMAGE_RESISTANCE && (amp < 0 || amp > 127)) {
                         active.remove(inst.getEffect());
                         rec.observe(suspectMod, "damage_exploit:negative_resistance_amplifier", "REPAIRED",

@@ -56,6 +56,7 @@ public final class AkashicRecord {
     private final Map<String, CompletableFuture<AkashicSurvey.Report>> surveys = new LinkedHashMap<>();
     private final Deque<Component> notes = new ArrayDeque<>();
     private String lastForeignMod;
+    private String lastObservedMod;
     private long refusedCount;
     private long repairedCount;
     private long detectedCount;
@@ -98,43 +99,61 @@ public final class AkashicRecord {
     // ---- 観測 --------------------------------------------------------------
 
     /** 保護の攻撃の記録から: 受けた操作 */
-    public synchronized void observe(String mod, String op, String outcome, String frame, String via) {
-        String key = mod + "|" + op + "|" + outcome;
-        Row row = rows.get(key);
-        boolean first = row == null;
-        if (first) {
-            row = new Row(mod, op, outcome);
-            rows.put(key, row);
-        }
-        row.count++;
-        totalEvents++;
-        if (outcome != null) {
-            switch (outcome) {
-                case "REFUSED", "BLOCKED_BLACKLIST" -> refusedCount++;
-                case "REPAIRED", "NEUTRALIZED", "SHIELDED" -> repairedCount++;
-                case "DETECTED" -> detectedCount++;
-                case "received" -> damageReceivedCount++;
-                default -> {}
+    public void observe(String mod, String op, String outcome, String frame, String via) {
+        synchronized (this) {
+            String key = mod + "|" + op + "|" + outcome;
+            Row row = rows.get(key);
+            boolean first = row == null;
+            if (first) {
+                row = new Row(mod, op, outcome);
+                rows.put(key, row);
+            }
+            row.count++;
+            totalEvents++;
+            if (outcome != null) {
+                switch (outcome) {
+                    case "REFUSED", "BLOCKED_BLACKLIST" -> refusedCount++;
+                    case "REPAIRED", "NEUTRALIZED", "SHIELDED" -> repairedCount++;
+                    case "DETECTED" -> detectedCount++;
+                    case "received" -> damageReceivedCount++;
+                    default -> {}
+                }
+            }
+            if (frame != null && !"?".equals(frame)) row.frame = frame;
+            if (via != null) row.via = via;
+            recentKeys.remove(key);
+            recentKeys.addFirst(key);
+            while (recentKeys.size() > HOLOGRAM_LINES) recentKeys.removeLast();
+            if (CallerAttribution.isForeign(mod)) {
+                lastForeignMod = mod;
+                lastObservedMod = mod;
+            } else if (mod != null
+                    && !mod.equals(CallerAttribution.UNKNOWN)
+                    && !mod.equals(CallerAttribution.MINECRAFT)
+                    && !mod.equals(CallerAttribution.FORGE)
+                    && !mod.equals(CallerAttribution.PLATFORM)
+                    && (op == null || (!op.startsWith("mode:") && !op.startsWith("lexicon:")))) {
+                lastObservedMod = mod;
+            }
+            dirty = true;
+            if (first) {
+                write(String.format("observed %s %s [%s] at %s%s", mod, op, outcome, row.frame, via != null ? " via " + via : ""));
+                if (CallerAttribution.isForeign(mod) && !surveys.containsKey(mod)) surveys.put(mod, AkashicSurvey.request(mod));
             }
         }
-        if (frame != null && !"?".equals(frame)) row.frame = frame;
-        if (via != null) row.via = via;
-        recentKeys.remove(key);
-        recentKeys.addFirst(key);
-        while (recentKeys.size() > HOLOGRAM_LINES) recentKeys.removeLast();
-        if (CallerAttribution.isForeign(mod)) {
-            lastForeignMod = mod;
-        }
-        dirty = true;
-        if (first) {
-            write(String.format("observed %s %s [%s] at %s%s", mod, op, outcome, row.frame, via != null ? " via " + via : ""));
-            if (CallerAttribution.isForeign(mod) && !surveys.containsKey(mod)) surveys.put(mod, AkashicSurvey.request(mod));
-        }
+        // 記録のロックを外してから対決エンジンへ知らせる（2026-10-27。対決エンジンは自分のロックを持ったまま lastForeignMod() で記録のロックを取るので、
+        // ここで記録のロックを持ったまま呼ぶと取る順番が逆になり、Madness Entities が描画スレッドから殴ったときにサーバーと描画が互いを待って固まった）
+        AkashicDuelEngine.onRecordObserved(this.probe, mod, op, outcome, frame);
     }
 
     /** 直近に観測された他 MOD の ID（フレームから特定できない非同期/Unsafe 直書き時の推定用） */
     public synchronized String lastForeignMod() {
         return lastForeignMod;
+    }
+
+    /** 直近に観測された攻撃元 MOD（他 MOD が無ければ自 MOD のテスト用抹殺棒等も含む） */
+    public synchronized String lastObservedMod() {
+        return lastObservedMod;
     }
 
     /** 被弾: 種類ごとに数える（ログの最初の 1 行に、相手と量を書く） */
@@ -230,7 +249,8 @@ public final class AkashicRecord {
         tag.putLong("DetectedCount", detectedCount);
         tag.putLong("DamageReceivedCount", damageReceivedCount);
         tag.putLong("TotalEvents", totalEvents);
-        tag.putString("SuspectMod", lastForeignMod != null ? lastForeignMod : "none");
+        String suspect = lastForeignMod != null ? lastForeignMod : (lastObservedMod != null ? lastObservedMod : "none");
+        tag.putString("SuspectMod", suspect);
         tag.putInt("UniqueRowCount", rows.size());
     }
 

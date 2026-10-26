@@ -59,6 +59,7 @@ public final class DefenseStructureAnalyzer {
         DIRECT_CONTROLLER,
         WRAPPED_OR_NESTED_CONTROLLER,
         REVERSE_STATIC_CONTROLLER,
+        SAVED_DATA_CONTROLLER,
         OWNED_COMPONENT,
         BYTECODE_RELATED_CLASS,
         EVENT_BUS_SUBSCRIBER,
@@ -151,6 +152,11 @@ public final class DefenseStructureAnalyzer {
         // Phase 3: 把握（Reverse Static Lookup）— 関連クラスの static 領域から、
         // 対象から直接参照されていない「逆参照のみの独立本体（Detached Static Core）」を逆引き発見する
         discoverReverseStaticControllers(target, identities, registryClasses,
+                controllers, seenControllers, mechanisms);
+
+        // Phase 3.5: 把握（DimensionDataStorage SavedData Lookup）— ワールドの SavedData ストレージ内に格納された
+        // 他 MOD 製の復活管理・永続状態コントローラー（BossPersistentData 等）を逆引き発見する
+        discoverSavedDataControllers(target, modId, identities, registryClasses,
                 controllers, seenControllers, mechanisms);
 
         // Phase 4: 保護エフェクトの把握と診断記録
@@ -311,6 +317,90 @@ public final class DefenseStructureAnalyzer {
         }
     }
 
+    /**
+     * サーバーワールドの {@code DimensionDataStorage}（{@code ServerLevel.getDataStorage()}）の内部マップから、
+     * 抹殺対象（または同一 MOD のボス）を管理・監視している他 MOD 製の {@code SavedData} を逆引きで捕捉する。
+     */
+    private static void discoverSavedDataControllers(
+            Entity target,
+            String targetMod,
+            Set<UUID> targetIdentities,
+            Set<Class<?>> registryClasses,
+            List<Object> controllers,
+            Set<Object> seenControllers,
+            EnumSet<Mechanism> mechanisms
+    ) {
+        if (target == null || !(target.level() instanceof net.minecraft.server.level.ServerLevel serverLevel)) return;
+        List<Object> newlyFound = new ArrayList<>();
+        try {
+            Object dataStorage = serverLevel.getDataStorage();
+            if (dataStorage == null) return;
+            for (Class<?> sc = dataStorage.getClass(); sc != null && sc != Object.class; sc = sc.getSuperclass()) {
+                for (Field f : UnsafeHelper.getRealDeclaredFields(sc)) {
+                    if (Modifier.isStatic(f.getModifiers()) || !Map.class.isAssignableFrom(f.getType())) continue;
+                    Object rawMap = readFieldSafe(dataStorage, f);
+                    if (!(rawMap instanceof Map<?, ?> storageMap) || storageMap.isEmpty()) continue;
+                    int inspected = 0;
+                    for (Object val : new ArrayList<>(storageMap.values())) {
+                        if (++inspected > MAX_STATIC_INSPECT_ELEMENTS) break;
+                        Object unwrapped = unwrapSingle(val);
+                        if (unwrapped == null || !isCandidateControllerObject(unwrapped, target)
+                                || seenControllers.contains(unwrapped)) {
+                            continue;
+                        }
+                        boolean owned = GenericCheatMobNeutralizer.ownsController(unwrapped, target, targetIdentities, false);
+                        if (!owned && CallerAttribution.isForeign(targetMod)
+                                && targetMod.equals(CallerAttribution.modOf(unwrapped.getClass()))) {
+                            owned = savedDataOwnedBySameModTarget(unwrapped, target, targetIdentities, serverLevel);
+                        }
+                        if (owned) {
+                            seenControllers.add(unwrapped);
+                            controllers.add(unwrapped);
+                            newlyFound.add(unwrapped);
+                            mechanisms.add(Mechanism.SAVED_DATA_CONTROLLER);
+                        }
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+
+        for (Object controller : newlyFound) {
+            captureControllerMetadata(controller, targetIdentities, registryClasses, mechanisms);
+        }
+    }
+
+    private static boolean savedDataOwnedBySameModTarget(
+            Object savedData,
+            Entity target,
+            Set<UUID> targetIdentities,
+            net.minecraft.server.level.ServerLevel level
+    ) {
+        if (GenericCheatMobNeutralizer.containsOtherEntityObject(savedData, target)) return false;
+        boolean hasBossStateStructure = false;
+        for (Class<?> c = savedData.getClass(); c != null && isForeign(c); c = c.getSuperclass()) {
+            for (Field field : UnsafeHelper.getRealDeclaredFields(c)) {
+                if (Modifier.isStatic(field.getModifiers())) continue;
+                String name = field.getName();
+                Object val = unwrapSingle(readFieldSafe(savedData, field));
+                if (val instanceof UUID id && isIdentityFieldName(name)) {
+                    hasBossStateStructure = true;
+                    if (!targetIdentities.contains(id) && !id.equals(target.getUUID())) {
+                        return false;
+                    }
+                } else if (field.getType() == UUID.class && isIdentityFieldName(name)) {
+                    hasBossStateStructure = true;
+                } else if (val instanceof net.minecraft.core.BlockPos pos) {
+                    if (pos.distSqr(target.blockPosition()) <= 160.0D * 160.0D) {
+                        hasBossStateStructure = true;
+                    }
+                } else if (field.getType() == boolean.class && FlagKillPredicates.isDeathStateField(name)) {
+                    hasBossStateStructure = true;
+                }
+            }
+        }
+        return hasBossStateStructure;
+    }
+
     private static List<Object> extractStaticElementsSafe(Object container) {
         if (container == null) return List.of();
         List<Object> out = new ArrayList<>();
@@ -393,6 +483,25 @@ public final class DefenseStructureAnalyzer {
                 if (unwrapped instanceof UUID id && isIdentityFieldName(field.getName())) {
                     identities.add(id);
                     AnnihilationExecutionAgent.markAnnihilated(id);
+                } else if (unwrapped instanceof Collection<?> col && isSubordinateUuidFieldName(field.getName())) {
+                    int count = 0;
+                    for (Object elem : col) {
+                        if (++count > 32) break;
+                        Object item = unwrapSingle(elem);
+                        if (item instanceof UUID subId) {
+                            identities.add(subId);
+                            AnnihilationExecutionAgent.markAnnihilated(subId);
+                        }
+                    }
+                } else if (unwrapped instanceof UUID[] uuidArr && isSubordinateUuidFieldName(field.getName())) {
+                    int limit = Math.min(uuidArr.length, 32);
+                    for (int i = 0; i < limit; i++) {
+                        UUID subId = uuidArr[i];
+                        if (subId != null) {
+                            identities.add(subId);
+                            AnnihilationExecutionAgent.markAnnihilated(subId);
+                        }
+                    }
                 }
             }
         }
@@ -402,6 +511,19 @@ public final class DefenseStructureAnalyzer {
         String lower = fieldName.toLowerCase(Locale.ROOT);
         return lower.equals("id") || lower.equals("uuid") || lower.equals("uniqueid")
                 || lower.endsWith("uuid") || lower.endsWith("uniqueid");
+    }
+
+    private static boolean isSubordinateUuidFieldName(String fieldName) {
+        if (fieldName == null || fieldName.isEmpty()) return false;
+        String lower = fieldName.toLowerCase(Locale.ROOT);
+        if (lower.contains("other") || lower.contains("player") || lower.contains("target") || lower.contains("attacker")) {
+            return false;
+        }
+        return lower.contains("uuid") || lower.contains("guardian") || lower.contains("anchor")
+                || lower.contains("minion") || lower.contains("part") || lower.contains("servant")
+                || lower.contains("node") || lower.contains("watcher") || lower.contains("sub")
+                || lower.contains("totem") || lower.contains("shield") || lower.contains("crystal")
+                || lower.contains("pillar");
     }
 
     private static void expandRelatedClasses(

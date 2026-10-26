@@ -57,6 +57,22 @@ public class GeneralizationGameTests {
             FakeProxyBoss.Registry.BOSS_SLOTS[0] = boss;
             FakeProxyBoss.Registry.BOSS_SLOTS[1] = other;
 
+            var guardian = new FakeProxyBoss.FakeGuardianAnchor(helper.getLevel());
+            var guardianPos = helper.absolutePos(new BlockPos(3, 2, 2));
+            guardian.setPos(guardianPos.getX() + 0.5D, guardianPos.getY(), guardianPos.getZ() + 0.5D);
+            helper.getLevel().addFreshEntity(guardian);
+            var savedData = new FakeProxyBoss.FakeBossSavedData(boss.getUUID());
+            savedData.guardianUUIDs.add(guardian.getUUID());
+            helper.getLevel().getDataStorage().set("fake_boss_state", savedData);
+
+            FakeProxyBoss.FakeResolutionEngine.ACTIVE_RESOLUTIONS.put(other.getUUID(), new Object());
+            FakeProxyBoss.FakeResolutionEngine.PENDING.put(other.getUUID(), new Object());
+            KillLists.discoverFrom(FakeProxyBoss.FakeResolutionEngine.class);
+            KillLists.purge(other);
+            helper.assertFalse(FakeProxyBoss.FakeResolutionEngine.ACTIVE_RESOLUTIONS.containsKey(other.getUUID())
+                            || FakeProxyBoss.FakeResolutionEngine.PENDING.containsKey(other.getUUID()),
+                    "KillLists did not purge target from FakeResolutionEngine ACTIVE_RESOLUTIONS / PENDING maps");
+
             registry.add(boss.core);
             registry.add(boss.core.id);
             registry.add(other.core);
@@ -64,11 +80,21 @@ public class GeneralizationGameTests {
             boss.core.target = other; // 攻撃対象（target）に別個体を保持していても専用コントローラーとして解体されること
             var wrappedRef = boss.wrappedCore.get();
             var context = ModProtectionBreaker.breakProtection(helper.getLevel(), boss);
+            ModProtectionBreaker.finishWithModOwnDeath(boss);
             var mechanisms = context.report().mechanisms();
             helper.assertTrue(mechanisms.contains(com.automatavalkyries.annihilate.DefenseStructureAnalyzer.Mechanism.DIRECT_CONTROLLER)
                     && mechanisms.contains(com.automatavalkyries.annihilate.DefenseStructureAnalyzer.Mechanism.WRAPPED_OR_NESTED_CONTROLLER)
-                    && mechanisms.contains(com.automatavalkyries.annihilate.DefenseStructureAnalyzer.Mechanism.REVERSE_STATIC_CONTROLLER),
-                    "DefenseStructureAnalyzer missed direct, wrapped, or reverse-static controller");
+                    && mechanisms.contains(com.automatavalkyries.annihilate.DefenseStructureAnalyzer.Mechanism.REVERSE_STATIC_CONTROLLER)
+                    && mechanisms.contains(com.automatavalkyries.annihilate.DefenseStructureAnalyzer.Mechanism.SAVED_DATA_CONTROLLER),
+                    "DefenseStructureAnalyzer missed direct, wrapped, reverse-static, or SavedData controller");
+            helper.assertTrue(java.math.BigInteger.ZERO.equals(boss.trueHealth),
+                    "BigInteger trueHealth field was not zeroed by StateScanner / GenericCheatMobNeutralizer");
+            helper.assertTrue(boss.defeated && boss.retired && boss.specialRemove,
+                    "defeated / retired / specialRemove boolean flags were not enabled on target");
+            helper.assertTrue(boss.trueDefeatInvoked,
+                    "Foreign self-defeat method trueDefeat() was not invoked by finishWithModOwnDeath");
+            helper.assertTrue(savedData.defeated && boss.getUUID().equals(savedData.markedDefeatedUuid) && savedData.isDirty(),
+                    "DimensionDataStorage SavedData controller was not marked defeated / dirty");
             helper.assertTrue(boss.core.nativeSawProxy, "Native removal lost its proxy before being called");
             helper.assertTrue(boss.core.removed && boss.core.beamTimer == -9999 && boss.core.lives == 0
                     && boss.core.target == null,
@@ -100,6 +126,8 @@ public class GeneralizationGameTests {
             registry.add(boss.core.id); // Re-registration after all manager references were severed.
             ModProtectionBreaker.afterErase(boss, context);
             helper.assertTrue(registry.size() == 2, "Captured manager/identity was lost during final cleanup");
+            helper.assertTrue(guardian.unloadedBypassTriggered && helper.getLevel().getEntity(guardian.getUUID()) == null,
+                    "Subordinate guardian entity linked in SavedData was not evicted via UNLOADED_TO_CHUNK bypass");
             other.core.otherEntity = boss;
             ModProtectionBreaker.breakProtection(helper.getLevel(), other);
             helper.assertTrue(!other.core.removed && other.core.beamTimer == 12 && registry.size() == 2,

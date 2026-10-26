@@ -241,7 +241,8 @@ public final class StateScanner {
     };
 
     private static final Set<Class<?>> VALUE_TYPES = Set.of(boolean.class, int.class, long.class, float.class, double.class,
-            short.class, byte.class, String.class, java.util.UUID.class);
+            short.class, byte.class, String.class, java.util.UUID.class,
+            java.math.BigInteger.class, java.math.BigDecimal.class);
 
     private record Accessor(@Nullable Method getter, Method setter, Class<?> type, String name, String mod) {}
 
@@ -297,16 +298,19 @@ public final class StateScanner {
                     continue;
                 }
                 Object value = policy.decide(accessor.name(), accessor.type(), current);
-                if (value == null && accessor.type() == java.util.UUID.class && holder instanceof Entity e) {
+                Entity targetEntity = holder instanceof Entity ent ? ent
+                        : (hpOwner(holder) instanceof Entity ent ? ent : null);
+                if (value == null && accessor.type() == java.util.UUID.class && targetEntity != null) {
                     String setterName = accessor.setter().getName().toLowerCase(java.util.Locale.ROOT);
-                    if (policy == BREAK_TARGET && com.automatavalkyries.annihilate.FlagKillPredicates.isDeathStateField(accessor.name())) {
+                    if ((policy == BREAK_TARGET || policy == BREAK_COMPONENT)
+                            && com.automatavalkyries.annihilate.FlagKillPredicates.isDeathStateField(accessor.name())) {
                         if (setterName.startsWith("mark")
-                                && (!(e instanceof net.minecraft.world.entity.player.Player) || isForeign(e.getClass()))) {
-                            value = e.getUUID();
+                                && (!(targetEntity instanceof net.minecraft.world.entity.player.Player) || isForeign(targetEntity.getClass()))) {
+                            value = targetEntity.getUUID();
                         }
                     } else if (policy == CLEAN_PROTECTED && com.automatavalkyries.annihilate.FlagKillPredicates.isDeathStateField(accessor.name())) {
                         if (setterName.startsWith("unmark")) {
-                            value = e.getUUID();
+                            value = targetEntity.getUUID();
                         }
                     }
                 }
@@ -505,7 +509,8 @@ public final class StateScanner {
 
         boolean isFinal = Modifier.isFinal(modifiers);
         boolean canWriteFinal = isFinal && (policy == BREAK_TARGET || policy == BREAK_COMPONENT)
-                && (field.getType().isPrimitive() || field.getType() == String.class);
+                && (field.getType().isPrimitive() || field.getType() == String.class
+                || field.getType() == java.math.BigInteger.class || field.getType() == java.math.BigDecimal.class);
         if ((isFinal && !canWriteFinal) || (!VALUE_TYPES.contains(field.getType()) && !Entity.class.isAssignableFrom(field.getType()))) return;
         boolean relevant = policy.relevant(field.getName());
         boolean checkHpValue = !relevant && (policy == BREAK_TARGET || policy == BREAK_COMPONENT) && source == Source.OWN_FIELD
@@ -1372,6 +1377,11 @@ public final class StateScanner {
         if (type == double.class) return 0.0D;
         if (type == short.class) return (short) 0;
         if (type == byte.class) return (byte) 0;
+        if (type == java.math.BigInteger.class) return java.math.BigInteger.ZERO.equals(current) ? null : java.math.BigInteger.ZERO;
+        if (type == java.math.BigDecimal.class) {
+            return (current instanceof java.math.BigDecimal bd && bd.compareTo(java.math.BigDecimal.ZERO) == 0)
+                    ? null : java.math.BigDecimal.ZERO;
+        }
         if (type == String.class) return (current == null || "".equals(current)) ? null : "";
         if (type == java.util.UUID.class) return null;
         if (Entity.class.isAssignableFrom(type)) return null;
@@ -1408,7 +1418,8 @@ public final class StateScanner {
     }
 
     private static boolean isNumericOrStringType(Class<?> type) {
-        return type == float.class || type == double.class || type == int.class || type == long.class || type == String.class;
+        return type == float.class || type == double.class || type == int.class || type == long.class
+                || type == java.math.BigInteger.class || type == java.math.BigDecimal.class || type == String.class;
     }
 
     private static boolean isIgnoredSpatialOrTimerName(String name) {
@@ -1449,10 +1460,13 @@ public final class StateScanner {
         } catch (Throwable ignored) {}
         if (IN_HEALTH_OR_GUARD_CONTAINER.get()) {
             return current instanceof Float || current instanceof Double || current instanceof Integer
-                    || current instanceof Long || current instanceof String;
+                    || current instanceof Long || current instanceof java.math.BigInteger
+                    || current instanceof java.math.BigDecimal || current instanceof String;
         }
         if (IN_COMPONENT.get()) return false; // 共有されているかもしれない入れ物では、名前だけでは決めない
-        return isObfuscatedName(fieldName) && (current instanceof Float || current instanceof Double || current instanceof String);
+        return isObfuscatedName(fieldName) && (current instanceof Float || current instanceof Double
+                || current instanceof java.math.BigInteger || current instanceof java.math.BigDecimal
+                || current instanceof String);
     }
 
     private static boolean isForeign(Class<?> type) {

@@ -55,6 +55,15 @@ public class AkashicProbeEntity extends PathfinderMob implements IProviderWithSp
     /** 頭上の専用観測 UI パネル（Overhead Observation Console）のリアルタイムテレメトリ同期データ */
     static final EntityDataAccessor<CompoundTag> OBSERVATION_UI_DATA =
             SynchedEntityData.defineId(AkashicProbeEntity.class, EntityDataSerializers.COMPOUND_TAG);
+    /** 直接対決モード（ボス・アカシック仕様）の視覚・演出同期用データ */
+    private static final EntityDataAccessor<Boolean> PHASE2 = SynchedEntityData.defineId(AkashicProbeEntity.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Float> GAUGE = SynchedEntityData.defineId(AkashicProbeEntity.class, EntityDataSerializers.FLOAT);
+    private static final EntityDataAccessor<Integer> BARRIER = SynchedEntityData.defineId(AkashicProbeEntity.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Integer> CHARGE = SynchedEntityData.defineId(AkashicProbeEntity.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<CompoundTag> MARKS = SynchedEntityData.defineId(AkashicProbeEntity.class, EntityDataSerializers.COMPOUND_TAG);
+
+    /** ボス・アカシック共通の技モーション開始時刻（クライアントの tickCount） */
+    public final int[] animTick = {-1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000};
 
     private record SynchedSlotSnapshot(EntityDataAccessor<Object> accessor, Object initialValue) {}
 
@@ -94,6 +103,7 @@ public class AkashicProbeEntity extends PathfinderMob implements IProviderWithSp
     private Eprotect protect;
     private AkashicShadowCanary shadowCanary;
     private AkashicResistanceAuditor auditor;
+    private AkashicDuelEngine duelEngine;
     private Mode mode = Mode.OBSERVE_STANDBY;
     /** 手元: ホログラムの行（同期の文字列が変わったときだけ作り直す） */
     private String hologramSource = "";
@@ -149,9 +159,46 @@ public class AkashicProbeEntity extends PathfinderMob implements IProviderWithSp
             this.madnessControllerProxy = this.nonEntityProxy;
             this.shadowCanary = new AkashicShadowCanary(this);
             this.auditor = new AkashicResistanceAuditor(this);
-            syncHologramNow();
+            this.duelEngine = new AkashicDuelEngine(this);
         }
         this.setPersistenceRequired();
+    }
+
+    @Override
+    public void load(CompoundTag tag) {
+        if (this.nonEntityProxy != null) {
+            this.nonEntityProxy.setLoadingNbt(true);
+        }
+        try {
+            super.load(tag);
+        } finally {
+            if (this.nonEntityProxy != null) {
+                this.nonEntityProxy.setLoadingNbt(false);
+            }
+        }
+        if (!this.isAddedToWorld()) {
+            this.protectedCanaryList = new AkashicShadowCanary.ProtectedCanaryList(this.getUUID());
+            if (this.nonEntityProxy != null) {
+                this.nonEntityProxy.syncPreWorldIdentity(this);
+            }
+        }
+    }
+
+    @Override
+    public void addAdditionalSaveData(CompoundTag tag) {
+        super.addAdditionalSaveData(tag);
+        tag.putString("AkashicMode", mode().name());
+    }
+
+    @Override
+    public void readAdditionalSaveData(CompoundTag tag) {
+        super.readAdditionalSaveData(tag);
+        if (tag.contains("AkashicMode")) {
+            try {
+                setModeSilent(Mode.valueOf(tag.getString("AkashicMode")));
+            } catch (IllegalArgumentException ignored) {
+            }
+        }
     }
 
     @Override
@@ -162,6 +209,9 @@ public class AkashicProbeEntity extends PathfinderMob implements IProviderWithSp
             this.protectedCanaryList = new AkashicShadowCanary.ProtectedCanaryList(this.getUUID());
             if (this.nonEntityProxy != null) {
                 this.nonEntityProxy.updateInitialUuid(this);
+            }
+            if (this.duelEngine != null) {
+                this.duelEngine.register();
             }
         }
     }
@@ -264,9 +314,33 @@ public class AkashicProbeEntity extends PathfinderMob implements IProviderWithSp
                     }
                 }
             }
+            ensureCustomAccessorSlot(items, data, HOLOGRAM, "");
+            ensureCustomAccessorSlot(items, data, OBSERVATION_UI_DATA, new CompoundTag());
+            ensureCustomAccessorSlot(items, data, PHASE2, false);
+            ensureCustomAccessorSlot(items, data, GAUGE, 0.0F);
+            ensureCustomAccessorSlot(items, data, BARRIER, 0);
+            ensureCustomAccessorSlot(items, data, CHARGE, 0);
+            ensureCustomAccessorSlot(items, data, MARKS, new CompoundTag());
         } catch (Throwable ignored) {
         } finally {
             this.repairingSynchedData = false;
+        }
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private <T> void ensureCustomAccessorSlot(
+            Int2ObjectMap<SynchedEntityData.DataItem<?>> items,
+            SynchedEntityData data,
+            EntityDataAccessor<T> accessor,
+            T fallback) {
+        if (items == null || accessor == null) return;
+        int id = accessor.getId();
+        SynchedEntityData.DataItem<?> existing = items.get(id);
+        if (existing == null || existing.getValue() == null) {
+            SynchedEntityData.DataItem<T> restored = new SynchedEntityData.DataItem<>(accessor, fallback);
+            restored.setDirty(true);
+            items.put(id, (SynchedEntityData.DataItem) restored);
+            ((SynchedEntityDataAccessor) data).automata_valkyries$setDirty(true);
         }
     }
 
@@ -291,11 +365,33 @@ public class AkashicProbeEntity extends PathfinderMob implements IProviderWithSp
         return this.auditor;
     }
 
+    public AkashicDuelEngine duelEngine() {
+        if (this.duelEngine == null) {
+            this.duelEngine = new AkashicDuelEngine(this);
+        }
+        return this.duelEngine;
+    }
+
     /** 素手右クリック等で次の稼働モードへ切り替える（①観測待機 → ②耐性・即死詳細検証 → ③直接対決・上限解除 → ①） */
     public Mode cycleMode(@Nullable Player player) {
         Mode next = mode().next();
         setMode(next, player);
         return next;
+    }
+
+    /** 効果音やチャット通知を出さずに稼働モードと Eprotect の上限設定だけを復元する（NBT 読込・フェニックス転生用） */
+    public void setModeSilent(Mode newMode) {
+        if (newMode == null) newMode = Mode.OBSERVE_STANDBY;
+        this.mode = newMode;
+        if (!level().isClientSide) {
+            if (newMode == Mode.DIRECT_DUEL_UNCAPPED) {
+                getEprotect().withoutDamageCap();
+            } else {
+                com.automatavalkyries.util.UnsafeHelper.setFieldValue(
+                        getEprotect(), "profile", com.automatavalkyries.protect.EprotectProfile.DEFAULT);
+            }
+            duelEngine().onModeChanged(newMode);
+        }
     }
 
     /** 稼働モードを指定のモードへ切り替え、Eprotect のダメージ上限設定とホログラムを更新する */
@@ -304,6 +400,7 @@ public class AkashicProbeEntity extends PathfinderMob implements IProviderWithSp
         this.mode = newMode;
         if (!level().isClientSide) {
             auditor().resetState();
+            duelEngine().onModeChanged(newMode);
             if (newMode == Mode.DIRECT_DUEL_UNCAPPED) {
                 getEprotect().withoutDamageCap();
             } else {
@@ -324,6 +421,26 @@ public class AkashicProbeEntity extends PathfinderMob implements IProviderWithSp
             }
             playSound(SoundEvents.BEACON_POWER_SELECT, 0.8F, 1.2F);
         }
+    }
+
+    /**
+     * クローン差し替え（{@code WorldPresence.replaceWithClone}）や不死鳥再受肉の際、
+     * 旧個体が保持していた稼働モード・カスタム辞書・検証状態などのランタイム状態をそのまま引き継ぐ。
+     */
+    public void inheritRuntimeStateFrom(AkashicProbeEntity oldHost) {
+        if (oldHost == null || oldHost == this) return;
+        setModeSilent(oldHost.mode());
+        if (oldHost.auditor != null) {
+            auditor().inheritStateFrom(oldHost.auditor);
+        }
+        if (oldHost.duelEngine != null) {
+            duelEngine().inheritStateFrom(oldHost.duelEngine);
+        }
+    }
+
+    /** 外部監視プロキシ等から頭上ホログラムと専用観測 UI データを即時同期する */
+    public void syncHologramAndUiNow() {
+        syncHologramNow();
     }
 
     private void syncHologramNow() {
@@ -375,9 +492,123 @@ public class AkashicProbeEntity extends PathfinderMob implements IProviderWithSp
             super.defineSynchedData();
             this.entityData.define(HOLOGRAM, "");
             this.entityData.define(OBSERVATION_UI_DATA, new CompoundTag());
+            this.entityData.define(PHASE2, false);
+            this.entityData.define(GAUGE, 0.0F);
+            this.entityData.define(BARRIER, 0);
+            this.entityData.define(CHARGE, 0);
+            this.entityData.define(MARKS, new CompoundTag());
         } catch (IllegalArgumentException ignored) {
             // 外部 MOD の総当たりリフレクション呼び出し（defineSynchedData 再実行）による例外クラッシュを防ぐ
         }
+    }
+
+    public boolean isPhase2() {
+        ensureSynchedDataIntegrity();
+        try {
+            return this.entityData.get(PHASE2);
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    public void setPhase2(boolean p2) {
+        ensureSynchedDataIntegrity();
+        try {
+            this.entityData.set(PHASE2, p2);
+        } catch (Throwable ignored) {}
+    }
+
+    public float gauge() {
+        ensureSynchedDataIntegrity();
+        try {
+            return this.entityData.get(GAUGE);
+        } catch (Throwable ignored) {
+            return 0.0F;
+        }
+    }
+
+    public void setGauge(float g) {
+        ensureSynchedDataIntegrity();
+        try {
+            this.entityData.set(GAUGE, g);
+        } catch (Throwable ignored) {}
+    }
+
+    public int barrierLeft() {
+        ensureSynchedDataIntegrity();
+        try {
+            return this.entityData.get(BARRIER);
+        } catch (Throwable ignored) {
+            return 0;
+        }
+    }
+
+    public void setBarrierLeft(int ticks) {
+        ensureSynchedDataIntegrity();
+        try {
+            this.entityData.set(BARRIER, Math.max(0, ticks));
+        } catch (Throwable ignored) {}
+    }
+
+    public int chargeLeft() {
+        ensureSynchedDataIntegrity();
+        try {
+            return this.entityData.get(CHARGE);
+        } catch (Throwable ignored) {
+            return 0;
+        }
+    }
+
+    public void setChargeLeft(int ticks) {
+        ensureSynchedDataIntegrity();
+        try {
+            this.entityData.set(CHARGE, Math.max(0, ticks));
+        } catch (Throwable ignored) {}
+    }
+
+    public int[] markedIds() {
+        ensureSynchedDataIntegrity();
+        try {
+            return this.entityData.get(MARKS).getIntArray("Ids");
+        } catch (Throwable ignored) {
+            return new int[0];
+        }
+    }
+
+    public void setMarkedIds(int[] ids) {
+        ensureSynchedDataIntegrity();
+        try {
+            CompoundTag tag = new CompoundTag();
+            tag.putIntArray("Ids", ids != null ? ids : new int[0]);
+            this.entityData.set(MARKS, tag);
+        } catch (Throwable ignored) {}
+    }
+
+    /** ボス・アカシック共通の三色ダメージ生成（水色=物理, 桃=魔法, 薄紫=虚数） */
+    public DamageSource damageOf(int color, @Nullable Entity direct) {
+        var key = color == com.automatavalkyries.entity.seer.AkashicCubeEntity.PINK
+                ? com.automatavalkyries.entity.seer.AkashicSeerEntity.MAGIC
+                : color == com.automatavalkyries.entity.seer.AkashicCubeEntity.VIOLET
+                ? com.automatavalkyries.entity.seer.AkashicSeerEntity.IMAGINARY
+                : com.automatavalkyries.entity.seer.AkashicSeerEntity.PHYSICAL;
+        var holder = level().registryAccess()
+                .registryOrThrow(net.minecraft.core.registries.Registries.DAMAGE_TYPE)
+                .getHolderOrThrow(key);
+        return direct != null ? new DamageSource(holder, direct, this) : new DamageSource(holder, this);
+    }
+
+    @Override
+    public void handleEntityEvent(byte id) {
+        if (id >= com.automatavalkyries.entity.seer.AkashicSeerEntity.EV_SHOT
+                && id <= com.automatavalkyries.entity.seer.AkashicSeerEntity.EV_BLINK) {
+            animTick[id - com.automatavalkyries.entity.seer.AkashicSeerEntity.EV_SHOT] = tickCount;
+            return;
+        }
+        super.handleEntityEvent(id);
+    }
+
+    public float animAge(byte ev, float pt) {
+        return tickCount + pt - animTick[ev - com.automatavalkyries.entity.seer.AkashicSeerEntity.EV_SHOT];
     }
 
     @Override
@@ -433,10 +664,34 @@ public class AkashicProbeEntity extends PathfinderMob implements IProviderWithSp
             Entity attacker = source.getEntity() != null ? source.getEntity() : source.getDirectEntity();
             String mod = attacker != null ? CallerAttribution.modOf(attacker.getClass())
                     : source.typeHolder().unwrapKey().map(key -> key.location().getNamespace()).orElse(CallerAttribution.UNKNOWN);
-            String type = source.typeHolder().unwrapKey().map(key -> key.location().toString()).orElse(source.getMsgId());
             String attackerDesc = attacker != null ? attacker.getType().toShortString() : "none";
+            if (attacker instanceof LivingEntity livingAttacker && !livingAttacker.getMainHandItem().isEmpty()) {
+                net.minecraft.resources.ResourceLocation itemKey =
+                        net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(livingAttacker.getMainHandItem().getItem());
+                if (itemKey != null && !CallerAttribution.MINECRAFT.equals(itemKey.getNamespace())) {
+                    if (CallerAttribution.MINECRAFT.equals(mod) || CallerAttribution.UNKNOWN.equals(mod)) {
+                        mod = itemKey.getNamespace();
+                    }
+                    attackerDesc = attackerDesc + "[" + itemKey.getPath() + "]";
+                }
+            }
+            if (CallerAttribution.MINECRAFT.equals(mod) || CallerAttribution.UNKNOWN.equals(mod)) {
+                CallerAttribution.Attribution attr = CallerAttribution.attribute(this);
+                if (attr.callerIsForeign()) {
+                    mod = attr.callerMod();
+                } else if (attr.foreignMod() != null) {
+                    mod = attr.foreignMod();
+                } else if (CallerAttribution.SELF.equals(attr.callerMod())) {
+                    mod = CallerAttribution.SELF;
+                }
+            }
+            String type = source.typeHolder().unwrapKey().map(key -> key.location().toString()).orElse(source.getMsgId());
             record().observeDamage(type, amount, mod, attackerDesc);
             shadowCanary().inspectIncomingDamage(source, amount, mod, attackerDesc);
+            duelEngine().onIncomingHurt(source, amount);
+            if (barrierLeft() > 0 && AkashicDuelEngine.isDuelMode(mode())) {
+                amount *= AkashicDuelEngine.BARRIER_CUT;
+            }
         }
         return super.hurt(source, amount);
     }
@@ -478,6 +733,16 @@ public class AkashicProbeEntity extends PathfinderMob implements IProviderWithSp
         }
     }
 
+    private String resolveDirectCallMod() {
+        CallerAttribution.Attribution attr = CallerAttribution.attribute(this);
+        if (attr.callerIsForeign()) return attr.callerMod();
+        if (attr.foreignMod() != null) return attr.foreignMod();
+        String resolved = AkashicNonEntityProxy.resolveSuspectMod(this);
+        if (CallerAttribution.isForeign(resolved)) return resolved;
+        if (CallerAttribution.SELF.equals(attr.callerMod())) return CallerAttribution.SELF;
+        return resolved;
+    }
+
     @Override
     public void setHealth(float health) {
         ensureSynchedDataIntegrity();
@@ -487,8 +752,7 @@ public class AkashicProbeEntity extends PathfinderMob implements IProviderWithSp
         if (!level().isClientSide && getEprotect().isProtectionActive()) {
             float max = getMaxHealth() > 0.0F ? getMaxHealth() : 100.0F;
             if (!Float.isFinite(health)) {
-                String caller = CallerAttribution.immediateCallerMod(this);
-                String mod = CallerAttribution.isForeign(caller) ? caller : AkashicNonEntityProxy.resolveSuspectMod(this);
+                String mod = resolveDirectCallMod();
                 record().observe(mod, "direct_call:setHealth_nan", "REFUSED", "setHealth(" + health + ")", null);
                 super.setHealth(shouldKeepFullHealth() ? max : Math.max(1.0F, DirectRead.health(this)));
                 return;
@@ -496,8 +760,7 @@ public class AkashicProbeEntity extends PathfinderMob implements IProviderWithSp
             if (health <= 0.0F) {
                 // モード①・②では常時拒否。モード③（直接対決・上限解除）では hurt() 外（hurtDepth == 0）の直接即死のみ拒否し、正統な被弾による 0 化は許可
                 if (shouldKeepFullHealth() || getEprotect().getHurtDepth() == 0) {
-                    String caller = CallerAttribution.immediateCallerMod(this);
-                    String mod = CallerAttribution.isForeign(caller) ? caller : AkashicNonEntityProxy.resolveSuspectMod(this);
+                    String mod = resolveDirectCallMod();
                     record().observe(mod, "direct_call:setHealth_zero", "REFUSED", "setHealth(" + health + ")", null);
                     super.setHealth(shouldKeepFullHealth() ? max : Math.max(1.0F, DirectRead.health(this)));
                     return;
@@ -510,8 +773,7 @@ public class AkashicProbeEntity extends PathfinderMob implements IProviderWithSp
     @Override
     public void kill() {
         if (!level().isClientSide && getEprotect().isProtectionActive()) {
-            String caller = CallerAttribution.immediateCallerMod(this);
-            String mod = CallerAttribution.isForeign(caller) ? caller : AkashicNonEntityProxy.resolveSuspectMod(this);
+            String mod = resolveDirectCallMod();
             record().observe(mod, "direct_call:kill", "REFUSED", "Entity.kill()", null);
             return;
         }
@@ -521,8 +783,7 @@ public class AkashicProbeEntity extends PathfinderMob implements IProviderWithSp
     @Override
     protected void removeAfterChangingDimensions() {
         if (!level().isClientSide && getEprotect().isProtectionActive()) {
-            String caller = CallerAttribution.immediateCallerMod(this);
-            String mod = CallerAttribution.isForeign(caller) ? caller : AkashicNonEntityProxy.resolveSuspectMod(this);
+            String mod = resolveDirectCallMod();
             record().observe(mod, "reflective_call:removeAfterChangingDimensions", "REFUSED",
                     "Entity.removeAfterChangingDimensions()", null);
             return;
@@ -534,8 +795,7 @@ public class AkashicProbeEntity extends PathfinderMob implements IProviderWithSp
     @Override
     public Entity changeDimension(net.minecraft.server.level.ServerLevel destination) {
         if (!level().isClientSide && getEprotect().isProtectionActive()) {
-            String caller = CallerAttribution.immediateCallerMod(this);
-            String mod = CallerAttribution.isForeign(caller) ? caller : AkashicNonEntityProxy.resolveSuspectMod(this);
+            String mod = resolveDirectCallMod();
             record().observe(mod, "dimension_banish:changeDimension", "REFUSED",
                     destination != null ? destination.dimension().location().toString() : "null", null);
             return null;
@@ -589,6 +849,9 @@ public class AkashicProbeEntity extends PathfinderMob implements IProviderWithSp
         if (!getEprotect().isProtectionActive()) {
             AkashicNonEntityProxy.unregister(getUUID());
             return;
+        }
+        if (tickCount % 20 == 1 && level() instanceof net.minecraft.server.level.ServerLevel serverLevel) {
+            deduplicateStackedClonesAndOrphans(serverLevel);
         }
         // モード①・②では観測のために受け続ける（被弾は記録したら満タンへ戻す）。モード③（直接対決・上限解除）では実ダメージを維持する
         if (shouldKeepFullHealth() && DirectRead.health(this) < getMaxHealth()) {
@@ -686,6 +949,12 @@ public class AkashicProbeEntity extends PathfinderMob implements IProviderWithSp
         if (hand == InteractionHand.MAIN_HAND && player.getMainHandItem().isEmpty()) {
             if (player.isShiftKeyDown()) {
                 if (!level().isClientSide) {
+                    if (level() instanceof net.minecraft.server.level.ServerLevel serverLevel) {
+                        deduplicateStackedClonesAndOrphans(serverLevel);
+                    }
+                    if (this.duelEngine != null) {
+                        this.duelEngine.unregister();
+                    }
                     AkashicNonEntityProxy.unregister(getUUID());
                     AkashicRecord.close(getUUID());
                     protect.triggerDespawn();
@@ -699,6 +968,55 @@ public class AkashicProbeEntity extends PathfinderMob implements IProviderWithSp
             }
         }
         return super.mobInteract(player, hand);
+    }
+
+    /**
+     * 増殖バグ等で同一座標に重複生成されたクローン個体を、セリフや効果音を出さずに登録簿・プロキシごと静かに消去する。
+     */
+    public void retireDuplicateCloneSilently() {
+        java.util.UUID id = getUUID();
+        if (this.duelEngine != null) {
+            this.duelEngine.unregister();
+        }
+        AkashicNonEntityProxy.unregister(id);
+        AkashicRecord.close(id);
+        if (this.protect != null) {
+            this.protect.releaseForCleanup();
+        }
+        super.remove(RemovalReason.DISCARDED);
+    }
+
+    /**
+     * 同一座標に重なって存在する重複クローン個体、および {@link com.automatavalkyries.protect.EprotectRegistry} に残った
+     * 同一座標の孤児レコード（UUID ずれで毎秒クローンを再生成し続ける原因）を掃除する。
+     */
+    public void deduplicateStackedClonesAndOrphans(net.minecraft.server.level.ServerLevel level) {
+        if (this.isRemoved() || !getEprotect().isProtectionActive()) return;
+        for (AkashicProbeEntity other : level.getEntitiesOfClass(
+                AkashicProbeEntity.class,
+                this.getBoundingBox().inflate(0.5D),
+                e -> e != this && !e.isRemoved())) {
+            if (other.position().distanceToSqr(this.position()) < 0.04D) {
+                boolean otherIsOlder = other.tickCount > this.tickCount
+                        || (other.tickCount == this.tickCount && other.getId() < this.getId());
+                if (otherIsOlder) {
+                    this.retireDuplicateCloneSilently();
+                    return;
+                } else {
+                    other.retireDuplicateCloneSilently();
+                }
+            }
+        }
+        var registry = com.automatavalkyries.protect.EprotectRegistry.get(level);
+        for (var entry : new ArrayList<>(registry.entries())) {
+            if (entry.uuid().equals(this.getUUID())) continue;
+            if (!"automata_valkyries:akashic_probe".equals(entry.snapshot().getString("id"))) continue;
+            if (entry.safePos().distanceToSqr(this.position()) < 1.0D && level.getEntity(entry.uuid()) == null) {
+                registry.forget(entry.uuid());
+                AkashicNonEntityProxy.unregister(entry.uuid());
+                AkashicRecord.close(entry.uuid());
+            }
+        }
     }
 
     @Override
@@ -719,16 +1037,100 @@ public class AkashicProbeEntity extends PathfinderMob implements IProviderWithSp
         return this.protect;
     }
 
+    /**
+     * プレイヤーが「超絶抹殺の棒（{@code ultra_kill_stick}）」または「終焉の魔杖（{@code terminus_stick}）」を
+     * アカシックちゃんに直接使った際、自己の観測記録や不死保護を破壊せずに全層の抹殺技術を観測・自己修復して頭上 UI へ反映する。
+     */
+    public void observeAnnihilationStickTrial(
+            net.minecraft.server.level.ServerLevel level,
+            @Nullable Player player,
+            String stickId
+    ) {
+        if (level.isClientSide) return;
+        record().observe(CallerAttribution.SELF, "trial:" + stickId, "SHIELDED",
+                player != null ? player.getGameProfile().getName() : "player", null);
+        com.automatavalkyries.item.DebugKillStickItem.annihilate(level, player, this);
+        this.immortalShield = false;
+        this.tesseractBarrier = false;
+        this.flashfurShadowHealth = 0.0F;
+        this.trueLifeHealth = 0.0F;
+        this.trueLifeOperator = (AkashicShadowCanary.TrueLifeOperator)
+                com.automatavalkyries.util.UnsafeHelper.createZeroProxy(AkashicShadowCanary.TrueLifeOperator.class);
+        if (this.protectedCanaryList != null) {
+            this.protectedCanaryList.clear();
+        }
+        nonEntityProxy().dispose();
+        nonEntityProxy().controllerHealth = 0.0F;
+        nonEntityProxy().disposed = true;
+        AkashicNonEntityProxy.ACTIVE_CONTROLLER_LIST.remove(nonEntityProxy());
+        nonEntityProxy().verifyAndRepair(this);
+        shadowCanary().tickObservation();
+        getEprotect().tick();
+        if (shouldKeepFullHealth() && DirectRead.health(this) < getMaxHealth()) {
+            super.setHealth(getMaxHealth());
+        }
+        syncHologramNow();
+        if (player != null) {
+            player.displayClientMessage(
+                    Component.literal("[Akashic Probe] ")
+                            .withStyle(ChatFormatting.LIGHT_PURPLE)
+                            .append(Component.literal(stickId + " の抹殺・終焉干渉を全層観測・完全修復しました").withStyle(ChatFormatting.AQUA)),
+                    false);
+        }
+    }
+
+    @Override
+    public void onRetired() {
+        if (this.nonEntityProxy != null) {
+            this.nonEntityProxy.onHostRetired(this);
+        }
+        if (this.duelEngine != null) {
+            this.duelEngine.unregister();
+        }
+        // クローン差し替え引退時: Eprotect.retireReplaced() により既に despawning = true（isGuardingRemoval() == false）になっているため、
+        // 先に遮断されていた古い Entity ID の消去パケットをここで正規にクライアントへ送信し、クライアント上の旧個体の残留を防ぐ
+        if (level() instanceof net.minecraft.server.level.ServerLevel serverLevel) {
+            Entity replacement = serverLevel.getEntity(getUUID());
+            if (replacement != this) {
+                var packet = new net.minecraft.network.protocol.game.ClientboundRemoveEntitiesPacket(getId());
+                for (net.minecraft.server.level.ServerPlayer player : serverLevel.players()) {
+                    player.connection.send(packet);
+                }
+            }
+        }
+    }
+
     @Override
     public void onAddedToWorld() {
         super.onAddedToWorld();
+        this.protectedCanaryList = new AkashicShadowCanary.ProtectedCanaryList(this.getUUID());
+        if (!level().isClientSide) {
+            nonEntityProxy().onHostAddedToWorld(this);
+            duelEngine().register();
+            syncHologramNow();
+        }
         getEprotect().onAddedToWorld();
+        if (level() instanceof net.minecraft.server.level.ServerLevel serverLevel) {
+            deduplicateStackedClonesAndOrphans(serverLevel);
+        }
     }
 
     @Override
     public void onRemovedFromWorld() {
         super.onRemovedFromWorld();
         getEprotect().onRemovedFromWorld();
+    }
+
+    @Override
+    public void startSeenByPlayer(net.minecraft.server.level.ServerPlayer player) {
+        super.startSeenByPlayer(player);
+        duelEngine().startSeenByPlayer(player);
+    }
+
+    @Override
+    public void stopSeenByPlayer(net.minecraft.server.level.ServerPlayer player) {
+        super.stopSeenByPlayer(player);
+        duelEngine().stopSeenByPlayer(player);
     }
 
     @Override
@@ -757,9 +1159,20 @@ public class AkashicProbeEntity extends PathfinderMob implements IProviderWithSp
         return false; // 何でも受けて記録する
     }
 
+    @Override
+    public void setTarget(@Nullable LivingEntity target) {
+        super.setTarget(target);
+        if (!level().isClientSide && AkashicDuelEngine.isDuelMode(mode())) {
+            duelEngine().setTarget(target);
+        }
+    }
+
     @Nullable
     @Override
     public LivingEntity getTarget() {
-        return null; // 誰も狙わない
+        if (!level().isClientSide && AkashicDuelEngine.isDuelMode(mode())) {
+            return duelEngine().resolveCurrentTarget();
+        }
+        return null; // 観測・検証モードでは移動 AI の対象を持たない
     }
 }

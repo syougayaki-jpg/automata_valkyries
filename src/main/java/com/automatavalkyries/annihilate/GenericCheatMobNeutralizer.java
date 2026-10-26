@@ -286,16 +286,22 @@ public final class GenericCheatMobNeutralizer {
                     }
                 }
 
-                // HP デルタやシールド値（GUARD または HEALTH_TAMPER）のゼロ化
-                if ((f.getType() == float.class || f.getType() == Float.class || f.getType() == double.class || f.getType() == Double.class)
+                // HP デルタやシールド値・真HP（GUARD または HEALTH_TAMPER / isCustomHealthOrValueName）のゼロ化
+                if ((f.getType() == float.class || f.getType() == Float.class || f.getType() == double.class || f.getType() == Double.class
+                        || f.getType() == java.math.BigInteger.class || f.getType() == java.math.BigDecimal.class)
                         && (FlagDictionary.is(name, FlagDictionary.Category.HEALTH_TAMPER) || FlagDictionary.is(name, FlagDictionary.Category.GUARD)
+                        || StateScanner.isCustomHealthOrValueName(name)
                         || name.toLowerCase(Locale.ROOT).contains("delta") || name.toLowerCase(Locale.ROOT).contains("shield"))) {
                     try {
                         f.setAccessible(true);
                         if (f.getType() == float.class || f.getType() == Float.class) {
                             f.set(core, 0.0F);
-                        } else {
+                        } else if (f.getType() == double.class || f.getType() == Double.class) {
                             f.set(core, 0.0D);
+                        } else if (f.getType() == java.math.BigInteger.class) {
+                            f.set(core, java.math.BigInteger.ZERO);
+                        } else if (f.getType() == java.math.BigDecimal.class) {
+                            f.set(core, java.math.BigDecimal.ZERO);
                         }
                     } catch (Throwable ignored) {}
                 }
@@ -334,6 +340,13 @@ public final class GenericCheatMobNeutralizer {
             }
         }
 
+        // SavedData の場合はフィールド変更後に dirty を立てておく
+        if (core instanceof net.minecraft.world.level.saveddata.SavedData savedData) {
+            try {
+                savedData.setDirty();
+            } catch (Throwable ignored) {}
+        }
+
         // 終了メソッドの呼び出し（FlagKillPredicates.isTerminationMethod による動的判定。自爆トラップ付きクラスはスキップ）
         if (!terminate || com.automatavalkyries.protect.plus.EprotectPlusLink.hasHaltOrExitTrap(clazz)) return;
         boolean done = false;
@@ -352,18 +365,26 @@ public final class GenericCheatMobNeutralizer {
             }
         }
         if (done) return;
-        // 引数 1 個の終了メソッド（forceRemove(boolean) 等）: true を渡して呼ぶ
+        // 引数 1 個の終了メソッド（forceRemove(boolean) / markDefeated(UUID) 等）
         for (Method m : clazz.getMethods()) {
             if (Modifier.isStatic(m.getModifiers()) || m.getParameterCount() != 1
-                    || m.getParameterTypes()[0] != boolean.class
                     || ModProtectionBreaker.isTrapTerminationName(m.getName())
                     || !FlagKillPredicates.isTerminationMethod(m.getName())) continue;
+            Class<?> paramType = m.getParameterTypes()[0];
             try {
-                m.setAccessible(true);
-                m.invoke(core, true);
-                AutomataValkyries.LOGGER.info("[GenericNeutralizer] Invoked termination method {}.{}(true)",
-                        clazz.getSimpleName(), m.getName());
-                break;
+                if (paramType == boolean.class) {
+                    m.setAccessible(true);
+                    m.invoke(core, true);
+                    AutomataValkyries.LOGGER.info("[GenericNeutralizer] Invoked termination method {}.{}(true)",
+                            clazz.getSimpleName(), m.getName());
+                    break;
+                } else if (paramType == UUID.class && proxy != null) {
+                    m.setAccessible(true);
+                    m.invoke(core, proxy.getUUID());
+                    AutomataValkyries.LOGGER.info("[GenericNeutralizer] Invoked termination method {}.{}(uuid)",
+                            clazz.getSimpleName(), m.getName());
+                    break;
+                }
             } catch (Throwable ignored) {}
         }
     }
@@ -415,16 +436,22 @@ public final class GenericCheatMobNeutralizer {
                     }
                 }
 
-                // float / double HP デルタやシールド値のゼロ化
-                if ((f.getType() == float.class || f.getType() == Float.class || f.getType() == double.class || f.getType() == Double.class)
+                // float / double / BigInteger / BigDecimal HP デルタやシールド値・真HPのゼロ化
+                if ((f.getType() == float.class || f.getType() == Float.class || f.getType() == double.class || f.getType() == Double.class
+                        || f.getType() == java.math.BigInteger.class || f.getType() == java.math.BigDecimal.class)
                         && (FlagDictionary.is(name, FlagDictionary.Category.HEALTH_TAMPER) || FlagDictionary.is(name, FlagDictionary.Category.GUARD)
+                        || StateScanner.isCustomHealthOrValueName(name)
                         || name.toLowerCase(Locale.ROOT).contains("delta") || name.toLowerCase(Locale.ROOT).contains("shield"))) {
                     try {
                         f.setAccessible(true);
                         if (f.getType() == float.class || f.getType() == Float.class) {
                             f.set(target, 0.0F);
-                        } else {
+                        } else if (f.getType() == double.class || f.getType() == Double.class) {
                             f.set(target, 0.0D);
+                        } else if (f.getType() == java.math.BigInteger.class) {
+                            f.set(target, java.math.BigInteger.ZERO);
+                        } else if (f.getType() == java.math.BigDecimal.class) {
+                            f.set(target, java.math.BigDecimal.ZERO);
                         }
                     } catch (Throwable ignored) {}
                 }
@@ -868,6 +895,19 @@ public final class GenericCheatMobNeutralizer {
                             pointsBack = true;
                         } else if (lower.contains("other")) {
                             return false;
+                        }
+                    } else if (unwrapped instanceof Collection<?> col && !field.getName().toLowerCase(Locale.ROOT).contains("other")) {
+                        for (Object elem : col) {
+                            Object item = DefenseStructureAnalyzer.unwrapSingle(elem);
+                            if (item instanceof UUID id) {
+                                boolean matchesTarget = (rawTargetUuid != null && id.equals(rawTargetUuid))
+                                        || (reportedTargetUuid != null && id.equals(reportedTargetUuid))
+                                        || (targetIdentities != null && targetIdentities.contains(id));
+                                if (matchesTarget) {
+                                    pointsBack = true;
+                                    break;
+                                }
+                            }
                         }
                     }
                 } catch (Throwable ignored) {

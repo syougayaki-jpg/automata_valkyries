@@ -196,10 +196,16 @@ public final class KillLists {
                 && (Collection.class.isAssignableFrom(field.getType()) || Map.class.isAssignableFrom(field.getType()));
     }
 
-    /** 死亡・消去を表す名前か（守りを表すものは除く。クラス名にも使う） */
+    /** 死亡・消去・処刑解決予約を表す名前か（守りを表すものは除く。クラス名にも使う） */
     private static boolean isKillName(String name) {
+        if (name == null || name.isEmpty()) return false;
         Set<FlagDictionary.Category> c = FlagDictionary.classify(name);
-        return c.contains(FlagDictionary.Category.KILL) && !c.contains(FlagDictionary.Category.GUARD);
+        if (c.contains(FlagDictionary.Category.GUARD)) return false;
+        if (c.contains(FlagDictionary.Category.KILL)) return true;
+        String lower = name.toLowerCase(java.util.Locale.ROOT);
+        return lower.contains("resolution") || lower.contains("execution") || lower.contains("instakill")
+                || lower.contains("deletio") || lower.equals("pending") || lower.contains("pendingtarget")
+                || lower.contains("pendingkill") || lower.contains("deathqueue") || lower.contains("killqueue");
     }
 
     /**

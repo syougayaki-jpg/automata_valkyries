@@ -1,6 +1,9 @@
 package com.automatavalkyries.item;
 
 import com.automatavalkyries.entity.ProtectDummyZombieEntity;
+import com.automatavalkyries.entity.akashic.AkashicNonEntityProxy;
+import com.automatavalkyries.entity.akashic.AkashicProbeEntity;
+import com.automatavalkyries.entity.akashic.AkashicRecord;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
@@ -35,9 +38,15 @@ public class EvictionNoticeItem extends Item {
 
     @Override
     public InteractionResult interactLivingEntity(ItemStack stack, Player player, LivingEntity target, InteractionHand hand) {
-        if (!(target instanceof ProtectDummyZombieEntity dummy)) return InteractionResult.PASS;
-        if (!player.level().isClientSide) report(player, evict(dummy) ? 1 : 0);
-        return InteractionResult.sidedSuccess(player.level().isClientSide);
+        if (target instanceof ProtectDummyZombieEntity dummy) {
+            if (!player.level().isClientSide) report(player, evict(dummy) ? 1 : 0);
+            return InteractionResult.sidedSuccess(player.level().isClientSide);
+        }
+        if (target instanceof AkashicProbeEntity probe) {
+            if (!player.level().isClientSide) report(player, evictProbe(probe) ? 1 : 0);
+            return InteractionResult.sidedSuccess(player.level().isClientSide);
+        }
+        return InteractionResult.PASS;
     }
 
     @Override
@@ -47,6 +56,9 @@ public class EvictionNoticeItem extends Item {
             int n = 0;
             for (ProtectDummyZombieEntity dummy : level.getEntitiesOfClass(ProtectDummyZombieEntity.class, player.getBoundingBox().inflate(RADIUS))) {
                 if (evict(dummy)) n++;
+            }
+            for (AkashicProbeEntity probe : level.getEntitiesOfClass(AkashicProbeEntity.class, player.getBoundingBox().inflate(RADIUS))) {
+                if (evictProbe(probe)) n++;
             }
             report(player, n);
         }
@@ -60,6 +72,19 @@ public class EvictionNoticeItem extends Item {
             server.sendParticles(ParticleTypes.POOF, dummy.getX(), dummy.getY(0.5), dummy.getZ(), 12, 0.3, 0.5, 0.3, 0.02);
         }
         dummy.getEprotect().triggerDespawn();
+        return true;
+    }
+
+    /** アカシック・プローブにも正規の退場をしてもらう（重複クローンや孤児レコードも合わせて掃除する） */
+    public static boolean evictProbe(AkashicProbeEntity probe) {
+        if (probe.isRemoved() || probe.getEprotect() == null || probe.getEprotect().isDespawning()) return false;
+        if (probe.level() instanceof ServerLevel server) {
+            probe.deduplicateStackedClonesAndOrphans(server);
+            server.sendParticles(ParticleTypes.POOF, probe.getX(), probe.getY(0.5), probe.getZ(), 12, 0.3, 0.5, 0.3, 0.02);
+        }
+        AkashicNonEntityProxy.unregister(probe.getUUID());
+        AkashicRecord.close(probe.getUUID());
+        probe.getEprotect().triggerDespawn();
         return true;
     }
 

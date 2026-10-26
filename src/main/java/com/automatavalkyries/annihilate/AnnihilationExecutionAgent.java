@@ -296,6 +296,15 @@ public final class AnnihilationExecutionAgent {
                 evictFromEntitySections(sectionStorage, entity);
 
                 // (5) UUID 一覧・スコアボード・コールバックの無効化
+                // reason.shouldDestroy()（KILLED / DISCARDED）のみをブロックする LaunchPlugin / Mixin 盾（EntityRegistryShieldMixin 等）を
+                // 正面から素通りするため、コールバック無力化の直前に UNLOADED_TO_CHUNK で正規の退去を1回通してから KILLED で確定する
+                try {
+                    entity.remove(Entity.RemovalReason.UNLOADED_TO_CHUNK);
+                } catch (Throwable ignored) {}
+                try {
+                    entity.setRemoved(Entity.RemovalReason.UNLOADED_TO_CHUNK);
+                } catch (Throwable ignored) {}
+
                 manager.automata_valkyries$getKnownUuids().remove(entity.getUUID());
                 manager.automata_valkyries$getKnownUuids().remove(rawUuid);
                 level.getScoreboard().entityRemoved(entity);
@@ -1065,11 +1074,8 @@ public final class AnnihilationExecutionAgent {
             spoofAndDisconnectTracking(level, target);
 
             // (5) 破棄通知・Capability 無効化
-            com.automatavalkyries.protect.plus.EprotectPlusLink.runWithIsolatedTargetHooks(context.registryClasses(), () -> {
-                target.discard();
-                target.invalidateCaps();
-                target.onRemovedFromWorld();
-            });
+            com.automatavalkyries.protect.plus.EprotectPlusLink.runWithIsolatedTargetHooks(context.registryClasses(),
+                    () -> TrueAnnihilationEngine.notifyRemoval(target));
 
             // (6) 死亡処理の途中で静的な一覧へ戻されていれば、もう一度取り除く
             ModProtectionBreaker.afterErase(target, context);
@@ -1103,7 +1109,11 @@ public final class AnnihilationExecutionAgent {
                 ANNIHILATED_INSTANCES.add(other);
                 runWithEventSuppression(() -> {
                     spoofAndDisconnectTracking(level, other);
-                    other.discard();
+                    try {
+                        other.discard();
+                    } catch (Throwable failure) {   // 解体後の他 MOD の破棄の処理の例外でサーバーを落とさない（TrueAnnihilationEngine.notifyRemoval と同じ）
+                        ((EntityAccessor) other).automata_valkyries$setRemovalReason(Entity.RemovalReason.KILLED);
+                    }
                 });
             }
         }

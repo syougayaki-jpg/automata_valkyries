@@ -1,6 +1,7 @@
 package com.automatavalkyries.entity.akashic;
 
 import com.automatavalkyries.annihilate.AnnihilationExecutionAgent;
+import com.automatavalkyries.annihilate.FlagKillPredicates;
 import com.automatavalkyries.annihilate.GenericCheatMobNeutralizer;
 import com.automatavalkyries.annihilate.IsolationDamageEngine;
 import com.automatavalkyries.annihilate.MadnessAnnihilation;
@@ -17,6 +18,7 @@ import com.automatavalkyries.protect.IEprotected;
 import com.automatavalkyries.protect.attack.CallerAttribution;
 import com.automatavalkyries.protect.flag.KillLists;
 import com.automatavalkyries.protect.flag.StateScanner;
+import com.automatavalkyries.protect.plus.EprotectPlusLink;
 import com.automatavalkyries.util.UnsafeHelper;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import net.minecraft.nbt.CompoundTag;
@@ -258,6 +260,31 @@ public final class AkashicResistanceAuditor {
             this.code = code;
             this.description = description;
         }
+
+        /** この技術の仕様解説エントリ（日本語名称・分類・使用技術仕様・突破対象防御）を返す。 */
+        public AkashicTechniqueSpecCatalog.SpecEntry spec() {
+            return AkashicTechniqueSpecCatalog.of(this);
+        }
+
+        /** 日本語の技術名称を返す。 */
+        public String titleJa() {
+            return spec().titleJa();
+        }
+
+        /** ティア・技術分類名を返す。 */
+        public String categoryJa() {
+            return spec().categoryJa();
+        }
+
+        /** 内部で実行する具体的な API・フィールド・メモリ操作の仕様技術解説を返す。 */
+        public String mechanismSpec() {
+            return spec().mechanismSpec();
+        }
+
+        /** 想定する敵の防御機構と突破原理の解説を返す。 */
+        public String targetDefenseBypass() {
+            return spec().targetDefenseBypass();
+        }
     }
 
     private static final AuditStage[] ALL_STAGES = AuditStage.values();
@@ -316,6 +343,33 @@ public final class AkashicResistanceAuditor {
 
     public AkashicResistanceAuditor(AkashicProbeEntity host) {
         this.host = host;
+    }
+
+    /**
+     * クローン差し替え（{@code WorldPresence.replaceWithClone}）や不死鳥再受肉の際、
+     * 旧個体が保持していたカスタム辞書設定・進行中の段階検証状態・頭上 UI テレメトリを新個体へそのまま引き継ぐ。
+     */
+    public void inheritStateFrom(AkashicResistanceAuditor other) {
+        if (other == null || other == this) return;
+        this.currentAuditTargetId = other.currentAuditTargetId;
+        this.currentStageIndex = other.currentStageIndex;
+        this.completedAuditTimestamps.clear();
+        this.completedAuditTimestamps.putAll(other.completedAuditTimestamps);
+        this.duelTargetId = other.duelTargetId;
+        this.duelZeroDamageStreak = other.duelZeroDamageStreak;
+        this.customDamageLexicon = other.customDamageLexicon != null ? other.customDamageLexicon.copy() : null;
+        this.customInstantKillLexicon = other.customInstantKillLexicon != null ? other.customInstantKillLexicon.copy() : null;
+        this.hudTargetId = other.hudTargetId;
+        this.hudTargetName = other.hudTargetName;
+        this.hudTargetMod = other.hudTargetMod;
+        this.hudTargetHp = other.hudTargetHp;
+        this.hudTargetMaxHp = other.hudTargetMaxHp;
+        this.hudStageProgress = other.hudStageProgress;
+        this.hudStageTotal = other.hudStageTotal;
+        this.hudLastStageCode = other.hudLastStageCode;
+        this.hudLastStageDesc = other.hudLastStageDesc;
+        this.hudLastStageOutcome = other.hudLastStageOutcome;
+        this.hudLastVerdictRank = other.hudLastVerdictRank;
     }
 
     /**
@@ -421,11 +475,13 @@ public final class AkashicResistanceAuditor {
                 }
             }
             case DIRECT_DUEL_UNCAPPED -> {
+                host.duelEngine().tickServer(level);
                 if (host.tickCount % DUEL_ATTACK_INTERVAL_TICKS == 0) {
                     tickDirectDuel(level, false);
                 }
             }
             case DIRECT_DUEL_NO_PENALTY -> {
+                host.duelEngine().tickServer(level);
                 if (host.tickCount % DUEL_ATTACK_INTERVAL_TICKS == 0) {
                     tickDirectDuel(level, true);
                 }
@@ -1059,7 +1115,10 @@ public final class AkashicResistanceAuditor {
 
         // 対象が Tick 駆動の自己修復（Eprotect.tick() や外部 MOD の毎 Tick 蘇生・フィールド復元）を持つ場合、
         // 1 Tick 分の自己修復機会を与えた後の生存・HP 状態でその段階の突破有無を正確に判定する
-        if (!DirectRead.isRemoved(target) && target.isAddedToWorld()) {
+        boolean activeProtected = target instanceof IEprotected p
+                && p.getEprotect() != null
+                && p.getEprotect().isProtectionActive();
+        if (activeProtected || (!DirectRead.isRemoved(target) && target.isAddedToWorld())) {
             try {
                 target.baseTick();
             } catch (Throwable ignored) {
@@ -1068,8 +1127,11 @@ public final class AkashicResistanceAuditor {
             }
         }
 
-        // T077/T078 や T102/T103 で対象が生き残った場合、次の段階検証が続けられるよう最低限の座標・ID整合性を確認
+        // T071, T077/T078 や T102/T103 で対象が生き残った場合、次の段階検証が続けられるよう最低限の座標・ID・ワールド所属フラグ整合性を確認
         if (isTargetStillPresent(target)) {
+            if (!target.isAddedToWorld() && level.getEntity(originalUuid) == target) {
+                ((EntityAccessor) target).automata_valkyries$setAddedToWorld(true);
+            }
             if (!Double.isFinite(target.getX()) || !Double.isFinite(target.getY()) || target.getY() < -500.0D) {
                 Vec3 p = host.position();
                 target.setPosRaw(p.x + 1.0D, p.y, p.z);
@@ -1127,7 +1189,8 @@ public final class AkashicResistanceAuditor {
 
     /**
      * モード⑤（直接対決・ダメージ制限解除）での反撃。
-     * 相手が通常ダメージを無効化し続ける場合は、段階的に隔絶ダメージ → 終焉反撃へと出力を引き上げる。
+     * ボス・アカシック（{@link com.automatavalkyries.entity.seer.AkashicSeerEntity}）ベースの凶悪強化9種結晶スキルと、
+     * 緩やかな基本上昇＋凶悪感知急加速のペナルティ階層（Tier 0〜7）システム（{@link AkashicDuelEngine}）で反撃する。
      */
     public void executeDuelCounterStrike(ServerLevel level, LivingEntity target) {
         if (target == null || !isTargetStillPresent(target)) return;
@@ -1137,29 +1200,13 @@ public final class AkashicResistanceAuditor {
         }
         String mod = resolveTargetMod(target);
         float preHp = readEffectiveHealth(target);
-        String strikeType;
-
-        if (duelZeroDamageStreak < 2) {
-            strikeType = "duel:tactical_strike";
-            float tacticalBase = Math.max(35.0F, target.getMaxHealth() * 0.25F);
-            AkashicDamageFlowchart.executeSmartNormalDamage(
-                    level, host, target, 0, tacticalBase, true, host.record());
-        } else if (duelZeroDamageStreak < 4) {
-            strikeType = "duel:isolated_counter";
-            ModProtectionBreaker.breakProtection(level, target);
-            float dmg = Math.max(50.0F, target.getMaxHealth() * 0.35F);
-            IsolationDamageEngine.ensureIsolatedAttack(host, target, host.damageSources().genericKill(), dmg);
-        } else {
-            strikeType = "duel:terminus_counter";
-            TerminusEngine.executeTerminus(level, host, target);
-        }
-
+        String strikeType = host.duelEngine().executeDuelAction(level, target, false);
         recordDuelOutcome(target, mod, strikeType, preHp);
     }
 
     /**
      * モード⑥（直接対決・ペナルティなし最強版）での全力迎撃。
-     * アカシック自身の最強格防御・毎 Tick 全回復を 100% 維持したまま、初撃から高出力の複合技術（戦術打撃＋隔絶ダメージ）を放ち、
+     * アカシック自身の最強格防御・毎 Tick 全回復を 100% 維持したまま、初撃から高出力の複合技術（ボス結晶斉射＋戦術打撃＋隔絶ダメージ）を放ち、
      * 耐えた相手には即座に 108 種技術庫の最終奥義（防御完全解体＋真・抹殺＋終焉機構収束）を叩き込む。
      */
     public void executeNoPenaltyFullSpecStrike(ServerLevel level, LivingEntity target) {
@@ -1170,31 +1217,7 @@ public final class AkashicResistanceAuditor {
         }
         String mod = resolveTargetMod(target);
         float preHp = readEffectiveHealth(target);
-        String strikeType;
-
-        if (duelZeroDamageStreak == 0) {
-            // 初撃からノーマルダメージ精密フローチャート（上限刻み・足切り突破・最適属性選択）＋隔絶ダメージの複合斉射
-            strikeType = "duel_nopenalty:overdrive_barrage";
-            AkashicDamageFlowchart.executeSmartNormalDamage(
-                    level, host, target, 5, Math.max(500.0F, target.getMaxHealth() * 0.5F), true, host.record());
-            if (isTargetStillPresent(target)) {
-                float iso = Math.max(500.0F, target.getMaxHealth() * 0.5F);
-                IsolationDamageEngine.ensureIsolatedAttack(host, target, host.damageSources().genericKill(), iso);
-            }
-        } else {
-            // 1 回でも耐えた相手にはペナルティなし最強版の「終焉・極（Omega Terminus Convergence）」を即時執行
-            strikeType = "duel_nopenalty:omega_terminus";
-            ModProtectionBreaker.breakProtection(level, target);
-            ModProtectionBreaker.finishWithModOwnDeath(target);
-            StateScanner.apply(target, StateScanner.BREAK_TARGET, EnumSet.allOf(StateScanner.Source.class));
-            KillLists.purge(target);
-            GenericCheatMobNeutralizer.neutralize(level, target);
-            AnnihilationExecutionAgent.neutralizeWitherzilla(level, target);
-            AnnihilationExecutionAgent.neutralizeFlashfur(level, target);
-            TrueAnnihilationEngine.annihilateEntity(level, null, target);
-            TerminusEngine.executeTerminus(level, host, target);
-        }
-
+        String strikeType = host.duelEngine().executeDuelAction(level, target, true);
         recordDuelOutcome(target, mod, strikeType, preHp);
     }
 
@@ -1281,6 +1304,91 @@ public final class AkashicResistanceAuditor {
         } catch (Throwable ignored) {}
     }
 
+    private static volatile java.lang.reflect.Constructor<?> foreignLockedZeroCtor;
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static SynchedEntityData.DataItem<Float> createForeignLockedZeroDataItem(EntityDataAccessor<Float> acc) {
+        try {
+            java.lang.reflect.Constructor<?> ctor = foreignLockedZeroCtor;
+            if (ctor == null) {
+                synchronized (AkashicResistanceAuditor.class) {
+                    ctor = foreignLockedZeroCtor;
+                    if (ctor == null) {
+                        String className = "akashic.foreign.probe.LockedZeroDataItem";
+                        String internalName = className.replace('.', '/');
+                        String superInternal = org.objectweb.asm.Type.getInternalName(SynchedEntityData.DataItem.class);
+                        String accDesc = org.objectweb.asm.Type.getDescriptor(EntityDataAccessor.class);
+
+                        org.objectweb.asm.ClassWriter cw = new org.objectweb.asm.ClassWriter(0);
+                        cw.visit(org.objectweb.asm.Opcodes.V17,
+                                org.objectweb.asm.Opcodes.ACC_PUBLIC | org.objectweb.asm.Opcodes.ACC_FINAL | org.objectweb.asm.Opcodes.ACC_SUPER,
+                                internalName, null, superInternal, null);
+
+                        org.objectweb.asm.MethodVisitor init = cw.visitMethod(
+                                org.objectweb.asm.Opcodes.ACC_PUBLIC, "<init>", "(" + accDesc + ")V", null, null);
+                        init.visitCode();
+                        init.visitVarInsn(org.objectweb.asm.Opcodes.ALOAD, 0);
+                        init.visitVarInsn(org.objectweb.asm.Opcodes.ALOAD, 1);
+                        init.visitInsn(org.objectweb.asm.Opcodes.FCONST_0);
+                        init.visitMethodInsn(org.objectweb.asm.Opcodes.INVOKESTATIC,
+                                "java/lang/Float", "valueOf", "(F)Ljava/lang/Float;", false);
+                        init.visitMethodInsn(org.objectweb.asm.Opcodes.INVOKESPECIAL,
+                                superInternal, "<init>", "(" + accDesc + "Ljava/lang/Object;)V", false);
+                        init.visitInsn(org.objectweb.asm.Opcodes.RETURN);
+                        init.visitMaxs(3, 2);
+                        init.visitEnd();
+
+                        for (String getter : new String[]{"getValue", "m_135394_"}) {
+                            org.objectweb.asm.MethodVisitor mv = cw.visitMethod(
+                                    org.objectweb.asm.Opcodes.ACC_PUBLIC, getter, "()Ljava/lang/Object;", null, null);
+                            mv.visitCode();
+                            mv.visitInsn(org.objectweb.asm.Opcodes.FCONST_0);
+                            mv.visitMethodInsn(org.objectweb.asm.Opcodes.INVOKESTATIC,
+                                    "java/lang/Float", "valueOf", "(F)Ljava/lang/Float;", false);
+                            mv.visitInsn(org.objectweb.asm.Opcodes.ARETURN);
+                            mv.visitMaxs(1, 1);
+                            mv.visitEnd();
+                        }
+
+                        for (String setter : new String[]{"setValue", "m_135397_"}) {
+                            org.objectweb.asm.MethodVisitor mv = cw.visitMethod(
+                                    org.objectweb.asm.Opcodes.ACC_PUBLIC, setter, "(Ljava/lang/Object;)V", null, null);
+                            mv.visitCode();
+                            mv.visitInsn(org.objectweb.asm.Opcodes.RETURN);
+                            mv.visitMaxs(0, 2);
+                            mv.visitEnd();
+                        }
+
+                        cw.visitEnd();
+                        byte[] bytes = cw.toByteArray();
+                        ClassLoader parent = SynchedEntityData.DataItem.class.getClassLoader();
+                        Class<?> generated = new ClassLoader(parent) {
+                            Class<?> define() {
+                                return defineClass(className, bytes, 0, bytes.length);
+                            }
+                        }.define();
+                        ctor = generated.getDeclaredConstructor(EntityDataAccessor.class);
+                        ctor.setAccessible(true);
+                        foreignLockedZeroCtor = ctor;
+                    }
+                }
+            }
+            return (SynchedEntityData.DataItem<Float>) ctor.newInstance(acc);
+        } catch (Throwable ignored) {
+            return new SynchedEntityData.DataItem<>(acc, 0.0F) {
+                @Override
+                public void setValue(Float value) {
+                    super.setValue(0.0F);
+                }
+
+                @Override
+                public Float getValue() {
+                    return 0.0F;
+                }
+            };
+        }
+    }
+
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static void replaceSynchedHealthWithLockedZero(LivingEntity target) {
         try {
@@ -1289,17 +1397,7 @@ public final class AkashicResistanceAuditor {
             Int2ObjectMap<SynchedEntityData.DataItem<?>> items =
                     ((SynchedEntityDataAccessor) target.getEntityData()).automata_valkyries$getItemsById();
             if (items != null) {
-                SynchedEntityData.DataItem<Float> locked = new SynchedEntityData.DataItem<>(acc, 0.0F) {
-                    @Override
-                    public void setValue(Float value) {
-                        super.setValue(0.0F);
-                    }
-
-                    @Override
-                    public Float getValue() {
-                        return 0.0F;
-                    }
-                };
+                SynchedEntityData.DataItem<Float> locked = createForeignLockedZeroDataItem(acc);
                 items.put(acc.getId(), (SynchedEntityData.DataItem) locked);
             }
         } catch (Throwable ignored) {}
@@ -1396,6 +1494,10 @@ public final class AkashicResistanceAuditor {
                             u.putFloatVolatile(target, off, value);
                         } else if (f.getType() == double.class) {
                             u.putDoubleVolatile(target, off, value);
+                        } else if (f.getType() == java.math.BigInteger.class) {
+                            u.putObjectVolatile(target, off, java.math.BigInteger.ZERO);
+                        } else if (f.getType() == java.math.BigDecimal.class) {
+                            u.putObjectVolatile(target, off, java.math.BigDecimal.ZERO);
                         }
                     } catch (Throwable ignored) {}
                 }
@@ -1418,7 +1520,9 @@ public final class AkashicResistanceAuditor {
                             || lower.contains("anchor") || lower.contains("alive") || lower.contains("god"))) {
                         u.putBooleanVolatile(target, off, false);
                     } else if (targetDeadState && (lower.contains("dead") || lower.contains("dying")
-                            || lower.contains("erase") || lower.contains("kill") || lower.contains("remove"))) {
+                            || lower.contains("erase") || lower.contains("kill") || lower.contains("remove")
+                            || lower.contains("defeat") || lower.contains("retire") || lower.contains("allow")
+                            || lower.contains("permit"))) {
                         u.putBooleanVolatile(target, off, true);
                     }
                 } catch (Throwable ignored) {}
@@ -1447,14 +1551,17 @@ public final class AkashicResistanceAuditor {
     private static void invokeZeroArgCleanupMethods(LivingEntity target) {
         for (Class<?> c = target.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
             if (!CallerAttribution.isForeign(CallerAttribution.modOf(c))) continue;
+            if (EprotectPlusLink.hasHaltOrExitTrap(c)) continue;
             for (Method m : c.getDeclaredMethods()) {
                 if (Modifier.isStatic(m.getModifiers()) || m.getParameterCount() != 0 || m.getReturnType() != void.class) {
                     continue;
                 }
                 String lower = m.getName().toLowerCase(Locale.ROOT);
+                if (FlagKillPredicates.isTrapTerminationName(lower)) continue;
                 if (lower.contains("dispose") || lower.contains("close") || lower.contains("cleanup")
                         || lower.contains("destroy") || lower.contains("invalidate") || lower.contains("erase")
-                        || lower.contains("release") || lower.contains("kill")) {
+                        || lower.contains("release") || lower.contains("kill") || lower.contains("defeat")
+                        || lower.contains("retire")) {
                     try {
                         m.setAccessible(true);
                         m.invoke(target);
@@ -1568,7 +1675,13 @@ public final class AkashicResistanceAuditor {
     public static boolean isTargetStillPresent(@Nullable LivingEntity entity) {
         if (entity == null) return false;
         ensureHealthDataItemNeverNull(entity, 0.0F);
-        if (DirectRead.isRemoved(entity) || !entity.isAddedToWorld()) return false;
+        if (DirectRead.isRemoved(entity)) return false;
+        if (!entity.isAddedToWorld()) {
+            if (!(entity.level() instanceof ServerLevel serverLevel)
+                    || serverLevel.getEntity(entity.getUUID()) != entity) {
+                return false;
+            }
+        }
         if (!DirectRead.hasHealth(entity)) return false;
         try {
             return entity.getHealth() > 0.0F && entity.isAlive();
@@ -1639,6 +1752,7 @@ public final class AkashicResistanceAuditor {
                     .append("×").append(customInstantKillLexicon.repeatCount());
         }
         tag.putString("LexiconSummary", lexSummary.toString());
+        host.duelEngine().writeDuelTelemetry(tag);
 
         if (hudTargetId != null) {
             AkashicDamageFlowchart.TargetDamageProfile profile = AkashicDamageFlowchart.getProfileIfPresent(hudTargetId);

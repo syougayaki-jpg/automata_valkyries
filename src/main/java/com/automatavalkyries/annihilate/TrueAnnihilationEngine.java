@@ -224,11 +224,7 @@ public final class TrueAnnihilationEngine {
             evictFromLevel(level, target, targetId, targetUuid);
 
             // (7) 破棄通知・Capability 無効化
-            EprotectPlusLink.runWithIsolatedTargetHooks(context.registryClasses(), () -> {
-                target.discard();
-                target.invalidateCaps();
-                target.onRemovedFromWorld();
-            });
+            EprotectPlusLink.runWithIsolatedTargetHooks(context.registryClasses(), () -> notifyRemoval(target));
 
             ModProtectionBreaker.afterErase(target, context);
 
@@ -490,6 +486,28 @@ public final class TrueAnnihilationEngine {
                 long scrambled = mark ^ (0x5A5A5A5AL << 8);
                 u.putLongVolatile(target, 0L, scrambled);
             }
+        } catch (Throwable ignored) {}
+    }
+
+    /**
+     * 破棄通知（{@code discard} / {@code invalidateCaps} / {@code onRemovedFromWorld}）を 1 つずつ呼ぶ。
+     * 他 MOD の破棄の処理が、先に解体して空にした自分のフィールドを読んで例外を投げても、サーバーごと落とさずに次へ進む
+     * （2026-10-27、EEEAB's Mobs の {@code EEEABMobLibrary.remove} が null にされた cooldownManager を読んで落ちた）。
+     * 削除理由はこの前に書いてあるので、例外で途中までしか通らなくても消えたことになる
+     */
+    public static void notifyRemoval(Entity target) {
+        try {
+            target.discard();
+        } catch (Throwable failure) {
+            ((EntityAccessor) target).automata_valkyries$setRemovalReason(Entity.RemovalReason.KILLED);
+            AutomataValkyries.LOGGER.warn("[AnnihilationAgent] {}.remove threw {} after its defenses were dismantled; marked removed directly",
+                    target.getClass().getSimpleName(), failure.toString());
+        }
+        try {
+            target.invalidateCaps();
+        } catch (Throwable ignored) {}
+        try {
+            target.onRemovedFromWorld();
         } catch (Throwable ignored) {}
     }
 }

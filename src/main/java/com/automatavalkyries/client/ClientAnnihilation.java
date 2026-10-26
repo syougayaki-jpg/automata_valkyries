@@ -21,6 +21,7 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraftforge.entity.PartEntity;
 import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.event.entity.EntityJoinLevelEvent;
 import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -173,6 +174,82 @@ public final class ClientAnnihilation {
                 }
             }
         }
+    }
+
+    /**
+     * サーバー側で {@code WorldPresence.replaceWithClone}（超抹殺の棒などによる再登録拒否後の同 UUID クローン差し替え）が起きた際、
+     * 古い個体（{@code oldId}）の {@code ClientboundRemoveEntitiesPacket} は保護中だったため {@code EprotectRemovePacketMixin} に遮断されている。
+     * そのまま新しいクローン個体（{@code newId}, 同一 {@code UUID}）の {@code ClientboundAddEntityPacket} がクライアントへ届くと、
+     * バニラの {@code ClientLevel.addEntity} は {@code newId} しか消さないため {@code EntityLookup.add} が {@code "Duplicate entity UUID"} で
+     * 新個体の {@code byId}/{@code byUuid} 登録を拒否し、クライアント上に古い幽霊個体（{@code oldId}）が居座って
+     * 右クリック操作不能（サーバーに存在しない {@code oldId} へパケットを送る）や頭上観測 UI の同期停止を引き起こす。
+     * <p>
+     * そのため、クライアントワールドへ非プレイヤー個体が参加する直前に同一 UUID の古い個体が残っていれば即座に完全パージし、
+     * 新しいクローン個体が正規に {@code byId}/{@code byUuid} へ登録されるようにする。
+     * </p>
+     */
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
+    public static void onClientEntityJoinLevel(EntityJoinLevelEvent event) {
+        if (!(event.getLevel() instanceof ClientLevel clientLevel)) return;
+        Entity incoming = event.getEntity();
+        if (incoming == null || incoming instanceof net.minecraft.world.entity.player.Player) return;
+        UUID uuid = incoming.getUUID();
+        if (uuid == null) return;
+        try {
+            ClientLevelAccessor levelAcc = (ClientLevelAccessor) clientLevel;
+            @SuppressWarnings("unchecked")
+            TransientEntitySectionManagerAccessor<Entity> manager =
+                    (TransientEntitySectionManagerAccessor<Entity>) (Object) levelAcc.automata_valkyries$getEntityStorage();
+            @SuppressWarnings("unchecked")
+            EntityLookupAccessor<Entity> lookup = (EntityLookupAccessor<Entity>) manager.automata_valkyries$getEntityStorage();
+            Entity existing = lookup.automata_valkyries$getByUuid().get(uuid);
+            if (existing != null && existing != incoming) {
+                evictStaleClientDuplicate(clientLevel, existing);
+            }
+        } catch (Throwable ignored) {}
+    }
+
+    private static void evictStaleClientDuplicate(ClientLevel level, Entity stale) {
+        int rawId = MadnessAnnihilation.id(stale);
+        try {
+            ProtectedEntityKeeper.onRemoved(List.of(stale.getId(), rawId));
+        } catch (Throwable ignored) {}
+        try {
+            level.removeEntity(stale.getId(), Entity.RemovalReason.DISCARDED);
+        } catch (Throwable ignored) {}
+        try {
+            ClientLevelAccessor clientLevel = (ClientLevelAccessor) level;
+            @SuppressWarnings("unchecked")
+            TransientEntitySectionManagerAccessor<Entity> manager =
+                    (TransientEntitySectionManagerAccessor<Entity>) (Object) clientLevel.automata_valkyries$getEntityStorage();
+            @SuppressWarnings("unchecked")
+            EntityLookupAccessor<Entity> lookup = (EntityLookupAccessor<Entity>) manager.automata_valkyries$getEntityStorage();
+
+            EntityAccessor accessor = (EntityAccessor) stale;
+            accessor.automata_valkyries$setRemovalReason(Entity.RemovalReason.DISCARDED);
+
+            UUID rawUuid = MadnessAnnihilation.uuid(stale);
+            try {
+                manager.automata_valkyries$getEntityStorage().remove(stale);
+            } catch (Throwable ignored) {}
+
+            lookup.automata_valkyries$getById().remove(rawId, stale);
+            lookup.automata_valkyries$getByUuid().remove(rawUuid, stale);
+
+            EntitySectionStorage<Entity> sections = manager.automata_valkyries$getSectionStorage();
+            for (long chunk : sections.getAllChunksWithExistingSections().toLongArray()) {
+                for (EntitySection<Entity> section : sections.getExistingSectionsInChunk(chunk).toList()) {
+                    AnnihilationExecutionAgent.evictFromEntitySection(section, stale);
+                }
+            }
+            com.automatavalkyries.annihilate.TickListEviction.remove(clientLevel.automata_valkyries$getTickingEntities(), rawId);
+            if (stale.isMultipartEntity() && stale.getParts() != null) {
+                for (PartEntity<?> part : stale.getParts()) {
+                    if (part != null) clientLevel.automata_valkyries$getPartEntities().remove(part.getId());
+                }
+            }
+            accessor.automata_valkyries$setLevelCallback(EntityInLevelCallback.NULL);
+        } catch (Throwable ignored) {}
     }
 
     private static void forceRemove(ClientLevel level, Entity entity) {

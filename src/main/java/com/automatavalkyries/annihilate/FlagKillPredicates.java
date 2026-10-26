@@ -105,19 +105,30 @@ public final class FlagKillPredicates {
     }
 
     /**
-     * 死亡・削除済みを表すフラグ名か（例: isDead, dead, removed, erased, killed, isDeathCrazy, out, setOut）。
+     * 死亡・削除済み・撃破済み・退役済み・退去許可を表すフラグ名か
+     * （例: isDead, dead, removed, erased, killed, defeated, retired, specialRemove, allowRemove, isDeathCrazy, out, setOut）。
      * 終焉執行・解体時に true に設定すべきフラグ。
      */
     public static boolean isDeathStateField(String name) {
         if (name == null || name.isEmpty()) return false;
         String lower = name.toLowerCase(Locale.ROOT);
         if (lower.equals("isdeathcrazy") || lower.equals("deathcrazy") || lower.equals("out")
-                || lower.equals("isout") || lower.equals("setout")) {
+                || lower.equals("isout") || lower.equals("setout")
+                || lower.equals("defeated") || lower.equals("isdefeated") || lower.equals("setdefeated") || lower.equals("markdefeated")
+                || lower.equals("retired") || lower.equals("isretired") || lower.equals("setretired")
+                || lower.equals("specialremove") || lower.equals("allowremove") || lower.equals("permitremove")
+                || lower.equals("canremove") || lower.equals("forceremove") || lower.equals("allowexit")
+                || lower.equals("permitexit") || lower.equals("permitslifecycleexit") || lower.equals("bypassremove")) {
             return true;
+        }
+        List<String> words = FlagDictionary.words(name);
+        for (String w : words) {
+            if (w.equals("defeated") || w.equals("defeat") || w.equals("retired") || w.equals("retire")) {
+                return true;
+            }
         }
         Set<Category> c = FlagDictionary.classify(name);
         if (!c.contains(Category.KILL)) return false;
-        List<String> words = FlagDictionary.words(name);
         for (String w : words) {
             if (w.equals("dead") || w.equals("death") || w.equals("die") || w.equals("removed")
                     || w.equals("erased") || w.equals("killed") || w.equals("discarded") || w.equals("destroyed")
@@ -127,7 +138,8 @@ public final class FlagKillPredicates {
             }
         }
         return lower.contains("dead") || lower.contains("death") || lower.contains("removed")
-                || lower.contains("eras") || lower.contains("novelized");
+                || lower.contains("eras") || lower.contains("novelized") || lower.contains("defeat")
+                || lower.contains("retire");
     }
 
     /**
@@ -151,7 +163,11 @@ public final class FlagKillPredicates {
         if (lower.equals("remove") || lower.equals("kill") || lower.equals("discard")
                 || lower.equals("close") || lower.equals("stop") || lower.equals("cleanup")
                 || lower.equals("destroy") || lower.equals("dispose") || lower.equals("terminate")
-                || lower.equals("shutdown") || lower.equals("finish") || lower.equals("clear")) {
+                || lower.equals("shutdown") || lower.equals("finish") || lower.equals("clear")
+                || lower.equals("retire") || lower.equals("defeat") || lower.equals("truedefeat")
+                || lower.equals("ondefeat") || lower.equals("markdefeated") || lower.equals("instantkill")
+                || lower.equals("forcekill") || lower.equals("forceremove") || lower.equals("forcediscard")
+                || lower.equals("specialremove")) {
             return true;
         }
         // クエリ・Getter・トグル・生成系プレフィックスは終了メソッドではない
@@ -159,11 +175,11 @@ public final class FlagKillPredicates {
                 || lower.startsWith("can") || lower.startsWith("should") || lower.startsWith("check")
                 || lower.startsWith("toggle") || lower.startsWith("find") || lower.startsWith("read")
                 || lower.startsWith("count") || lower.startsWith("add") || lower.startsWith("create")
-                || lower.startsWith("spawn")) {
+                || lower.startsWith("spawn") || lower.startsWith("permit")) {
             return false;
         }
-        // set* メソッドは死亡・削除フラグを直接立てるもの（setDead, setErased, setOut, setRemoved 等）のみ許可
-        if (lower.startsWith("set")) {
+        // set* / mark* メソッドは死亡・削除・撃破フラグを直接立てるもの（setDead, setErased, markDefeated 等）のみ許可
+        if (lower.startsWith("set") || lower.startsWith("mark")) {
             return isDeathStateField(methodName) && !protectiveOnTarget(methodName);
         }
         Set<Category> c = FlagDictionary.classify(methodName);
@@ -171,6 +187,19 @@ public final class FlagKillPredicates {
             return false;
         }
         return c.contains(Category.KILL);
+    }
+
+    /**
+     * 他 MOD の Entity サブクラス自身が宣言している「自己撃破・退役・強制即時死」用の引数なしメソッド名か。
+     * バニラ標準の {@code kill()} / {@code discard()} とは別に、MOD 固有の撃破後始末（{@code trueDefeat()}, {@code retire()}, {@code instantKill()} 等）を呼ぶために使う。
+     */
+    public static boolean isSelfDefeatOrRetireMethod(String methodName) {
+        if (methodName == null || methodName.isEmpty() || isTrapTerminationName(methodName)) return false;
+        String lower = methodName.toLowerCase(Locale.ROOT);
+        return lower.equals("truedefeat") || lower.equals("defeat") || lower.equals("ondefeat")
+                || lower.equals("retire") || lower.equals("instantkill") || lower.equals("forcekill")
+                || lower.equals("forceremove") || lower.equals("forcediscard") || lower.equals("specialremove")
+                || lower.equals("destroyself");
     }
 
     /**
