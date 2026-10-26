@@ -472,7 +472,9 @@ dependencies {
         if (!project.hasProperty('withoutOmniMobs')) runtimeOnly fg.deobf("maven.modrinth:omni-mobs:0.3.5.3")
         runtimeOnly fg.deobf("maven.modrinth:imds-reborn:1.4.0")
         runtimeOnly fg.deobf("maven.modrinth:re-avaritia:1.20.1-1.4.2-release")
-        runtimeOnly fg.deobf("maven.modrinth:more_avaritia:2.4")
+        // -PwithoutMoreAvaritia: MoreAvaritia だけ外す（2026-10-27、ECA の AllReturn が MoreAvaritia を無効にした後、MoreAvaritia の毎 Tick の処理が
+        // 読み込まれていない設定を読んで開発環境のクライアントが落ちた）
+        if (!project.hasProperty('withoutMoreAvaritia')) runtimeOnly fg.deobf("maven.modrinth:more_avaritia:2.4")
         runtimeOnly fg.deobf("maven.modrinth:witherzilla:1.7")
         runtimeOnly fg.deobf("maven.modrinth:slashblade-resharped:1.9.65")
         runtimeOnly fg.deobf("maven.modrinth:annihilationblade:1.4.1")
@@ -542,6 +544,30 @@ dependencies {
         runtimeOnly fg.deobf("maven.modrinth:playeranimator:xe2EVE6q")                 // playerAnimator 1.0.2-rc1（Iron's Spells の前提）
         runtimeOnly fg.deobf("maven.modrinth:caelus:mRry0DgY")                         // Caelus API 3.2.0（Iron's Spells の前提。-PwithBossMods と同じ版）
         runtimeOnly fg.deobf("maven.modrinth:curios:5.14.1+1.20.1")                    // Curios API（Goety・Iron's Spells の前提。-PwithBossMods と同じ版）
+    }
+    // 有名どころのボス MOD（-PwithFamousBossMods、2026-10-27 ユーザー指定「黄昏の森やエピックファイトやアドオンのナイトフォールなどの有名どころも」）。
+    // -PwithBossMods / -PwithMoreBossMods と一緒にも使える
+    //   ./gradlew runClient -PwithFamousBossMods
+    if (project.hasProperty('withFamousBossMods')) {
+        runtimeOnly fg.deobf("curse.maven:the-twilight-forest-227639:5468648")         // The Twilight Forest 4.3.2508（ナーガ、リッチ、ミノシェイデン、ヒドラ、ウル・ガスト、雪の女王など）
+        runtimeOnly fg.deobf("maven.modrinth:ice-and-fire-dragons:EzN8KQYF")          // Ice and Fire 2.1.13-beta-5（ドラゴン、ゴルゴン、海の大蛇、サイクロプスなど）
+        runtimeOnly fg.deobf("maven.modrinth:alexs-caves:lC8HHXOF")                   // Alex's Caves 2.0.2（洞窟のバイオームとそのボス級の生き物）
+        runtimeOnly fg.deobf("maven.modrinth:citadel:lTAAe4sZ")                       // Citadel 2.6.3（Ice and Fire・Alex's Caves の前提）
+        runtimeOnly fg.deobf("maven.modrinth:aether:2411kUqF")                        // The Aether 1.5.2（スライダー、ヴァルキリーの女王、太陽の精霊）
+        runtimeOnly fg.deobf("maven.modrinth:blue-skies:YGq4rvX4")                    // Blue Skies 1.3.31（空の次元のダンジョンのボス）
+        runtimeOnly fg.deobf("maven.modrinth:structure-gel-api:xavY0MZc")             // Structure Gel API 2.16.2（Blue Skies の前提）
+        runtimeOnly fg.deobf("maven.modrinth:deeperdarker:e2oirgc2")                  // Deeper and Darker 1.3.3（オトサイドの次元）
+        runtimeOnly fg.deobf("maven.modrinth:the-undergarden:pXfmvzA9")               // The Undergarden 0.8.14（地下の次元）
+        runtimeOnly fg.deobf("maven.modrinth:eeeab-s-mobs:XzW8W75E")                  // EEEAB's Mobs 0.98.1（ボス級のモブを集めた MOD）
+        runtimeOnly fg.deobf("maven.modrinth:bossesrise:jwkdmnrh")                    // Bosses'Rise 2.1.2（GeckoLib 前提。GeckoLib は MOD 本体と共通）
+    }
+    // Epic Fight とアドオンの Nightfall（-PwithEpicFight、2026-10-27）。プレイヤーの戦い方そのものを変えるので、ボス MOD と分けて読む
+    //   ./gradlew runClient -PwithEpicFight
+    if (project.hasProperty('withEpicFight')) {
+        runtimeOnly fg.deobf("curse.maven:epic-fight-mod-405076:8049910")             // Epic Fight 20.14.17
+        runtimeOnly fg.deobf("curse.maven:epicfight-nightfall-1307848:9015395")       // EpicFight Nightfall 3.4.2（手描きの動きの武器と戦闘の仕組み）
+        runtimeOnly fg.deobf("curse.maven:epic-fight-avalon-1268823:8849430")         // Epic Fight - Avalon 20.12.6.5（Nightfall の前提）
+        runtimeOnly fg.deobf("curse.maven:epic-fight-invincible-1184379:7679941")     // Epic Fight - Invincible Lib 20.14.8.2（Nightfall の前提）
     }
     // DOOM The Titans 5.0.0（中身は MOD ID transfinity_improved。1.7.10 の The Titans Mod の作り直しで、より強いタイタンと OP 装備）。
     // 自分で付く Java エージェント（runtime-agent: GodHelper・HealthGuard・EventBusFixer・HardenedThread など）を同梱し、実行中にクラスを書き換えるので、

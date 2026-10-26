@@ -366,14 +366,46 @@ public final class FxParticles {
     }
 
     /** ダメージの数字: 大きな文字が跳ね上がって薄れる（いつも手前に見える） */
+    /** 7 セグの数字 0〜9（画面の上が -y の向き。x・y は文字の左上、w・h は大きさ、t は線の太さ、grow は縁取りの太り） */
+    static final class Segments {
+        private Segments() {}
+
+        /** 数字ごとに点く線（bit 0 上・1 右上・2 右下・3 下・4 左下・5 左上・6 真ん中） */
+        private static final int[] MASKS = {0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F};
+
+        static void digit(com.mojang.blaze3d.vertex.VertexConsumer vc, org.joml.Matrix4f m, float x, float y, float w, float h, float t, int n, int argb, float grow) {
+            if (n < 0 || n > 9) return;
+            int k = MASKS[n];
+            float mid = y + h / 2.0F;
+            if ((k & 1) != 0) bar(vc, m, x, y, x + w, y + t, argb, grow);                                   // 上
+            if ((k & 2) != 0) bar(vc, m, x + w - t, y, x + w, mid - 0.3F, argb, grow);                      // 右上
+            if ((k & 4) != 0) bar(vc, m, x + w - t, mid + 0.3F, x + w, y + h, argb, grow);                  // 右下
+            if ((k & 8) != 0) bar(vc, m, x, y + h - t, x + w, y + h, argb, grow);                           // 下
+            if ((k & 16) != 0) bar(vc, m, x, mid + 0.3F, x + t, y + h, argb, grow);                         // 左下
+            if ((k & 32) != 0) bar(vc, m, x, y, x + t, mid - 0.3F, argb, grow);                             // 左上
+            if ((k & 64) != 0) bar(vc, m, x, mid - t / 2, x + w, mid + t / 2, argb, grow);                  // 真ん中
+        }
+
+        static void bar(com.mojang.blaze3d.vertex.VertexConsumer vc, org.joml.Matrix4f m, float x0, float y0, float x1, float y1, int argb, float grow) {
+            int a = argb >>> 24, r = argb >> 16 & 255, g = argb >> 8 & 255, b = argb & 255;
+            float z = grow > 0 ? 0.01F : 0.0F;                                              // 縁取りは少し奥に
+            vc.vertex(m, x0 - grow, y0 - grow, z).color(r, g, b, a).uv2(0xF000F0).endVertex();
+            vc.vertex(m, x0 - grow, y1 + grow, z).color(r, g, b, a).uv2(0xF000F0).endVertex();
+            vc.vertex(m, x1 + grow, y1 + grow, z).color(r, g, b, a).uv2(0xF000F0).endVertex();
+            vc.vertex(m, x1 + grow, y0 - grow, z).color(r, g, b, a).uv2(0xF000F0).endVertex();
+        }
+    }
+
     static class DamageNumber extends Particle {
         private final String text;
         private final int color;
+        private final boolean segments;
 
         DamageNumber(ClientLevel level, double x, double y, double z, DamageNumberOptions o) {
             super(level, x, y, z);
-            this.text = NumberFormat.getIntegerInstance().format(o.value());
-            this.color = o.color();
+            this.segments = o.segments();
+            this.text = segments ? Long.toString(Math.max(0L, o.value())) : NumberFormat.getIntegerInstance().format(o.value());
+            this.color = o.color() & 0xFFFFFF;
             this.lifetime = 40;
             this.hasPhysics = false;
             this.gravity = 0;
@@ -403,6 +435,15 @@ public final class FxParticles {
             float s = 0.045F * pop;
             pose.scale(-s, -s, s);
             MultiBufferSource.BufferSource buffers = mc.renderBuffers().bufferSource();
+            if (segments) {                                                                 // 7 セグの数字（黒い縁取りの上に色）
+                com.mojang.blaze3d.vertex.VertexConsumer vc = buffers.getBuffer(net.minecraft.client.renderer.RenderType.textBackgroundSeeThrough());
+                org.joml.Matrix4f m = pose.last().pose();
+                float pitch = 8.0F, x0 = -text.length() * pitch / 2.0F + 1.0F;
+                for (int i = 0; i < text.length(); i++) Segments.digit(vc, m, x0 + i * pitch, -1.0F, 6.0F, 10.0F, 1.6F, text.charAt(i) - '0', alpha << 24, 1.0F);
+                for (int i = 0; i < text.length(); i++) Segments.digit(vc, m, x0 + i * pitch, -1.0F, 6.0F, 10.0F, 1.6F, text.charAt(i) - '0', (alpha << 24) | color, 0.0F);
+                buffers.endBatch();
+                return;
+            }
             float w = font.width(text) / 2F;
             int argb = (alpha << 24) | (color & 0xFFFFFF);
             int outline = (alpha << 24);

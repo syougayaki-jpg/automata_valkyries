@@ -3,6 +3,7 @@
   "values": [
     "automata_valkyries:armor_piercing",
     "automata_valkyries:frost_missile",
-    "automata_valkyries:energy"
+    "automata_valkyries:energy",
+    "automata_valkyries:akashic_physical"
   ]
 }

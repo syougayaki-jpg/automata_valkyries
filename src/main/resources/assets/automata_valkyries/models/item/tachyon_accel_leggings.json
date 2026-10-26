@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "automata_valkyries:item/tachyon_accel_leggings"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "type": "automata_valkyries:pocket_upgrade",
+  "category": "equipment",
+  "pattern": [
+    " S ",
+    "IPI",
+    " S "
+  ],
+  "key": {
+    "S": {
+      "item": "automata_valkyries:star_luminal"
+    },
+    "I": {
+      "item": "automata_valkyries:ingot_stellachronodyme"
+    },
+    "P": {
+      "item": "automata_valkyries:item_pocket_t2"
+    }
+  },
+  "result": {
+    "item": "automata_valkyries:item_pocket_t3",
+    "count": 1
+  }
+}

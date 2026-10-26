@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "I I",
+    "III",
+    "III"
+  ],
+  "key": {
+    "I": {
+      "item": "automata_valkyries:alloy_luminal_sterling"
+    }
+  },
+  "result": {
+    "item": "automata_valkyries:luminal_sterling_chestplate"
+  }
+}

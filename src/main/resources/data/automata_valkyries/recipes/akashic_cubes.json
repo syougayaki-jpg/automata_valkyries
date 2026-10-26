@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    " K ",
+    "KCK",
+    " K "
+  ],
+  "key": {
+    "K": {
+      "item": "automata_valkyries:boss_drop_akashic_core"
+    },
+    "C": {
+      "item": "automata_valkyries:crystal_luminal"
+    }
+  },
+  "result": {
+    "item": "automata_valkyries:akashic_cubes",
+    "count": 1
+  }
+}

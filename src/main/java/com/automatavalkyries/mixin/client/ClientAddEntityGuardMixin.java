@@ -26,6 +26,9 @@ public abstract class ClientAddEntityGuardMixin {
 
     @Inject(method = "handleRemoveEntities", at = @At("HEAD"))
     private void automata_valkyries$serverRemoved(net.minecraft.network.protocol.game.ClientboundRemoveEntitiesPacket packet, CallbackInfo ci) {
+        // vanilla はまず通信のスレッドで呼ばれ、先頭で描くスレッドへ回し直す。先頭のここは通信のスレッドでも通るので、描くスレッドの時だけ記録を消す
+        // （2026-10-26: 通信のスレッドから記録を書き換え、描くスレッドの写しと重なって ConcurrentModificationException で落ちた。零号機の撃破で多くの演出のエンティティが消えた時）
+        if (!net.minecraft.client.Minecraft.getInstance().isSameThread()) return;
         com.automatavalkyries.client.ProtectedEntityKeeper.onRemoved(packet.getEntityIds());
     }
 

@@ -1,0 +1,27 @@
+{
+  "type": "automata_valkyries:pocket_upgrade",
+  "category": "equipment",
+  "pattern": [
+    "SQS",
+    "OPO",
+    "SQS"
+  ],
+  "key": {
+    "S": {
+      "item": "automata_valkyries:alloy_luminal_sterling"
+    },
+    "Q": {
+      "item": "automata_valkyries:circuit_quantum_tac"
+    },
+    "O": {
+      "item": "automata_valkyries:orb_luminal"
+    },
+    "P": {
+      "item": "automata_valkyries:item_pocket_t1"
+    }
+  },
+  "result": {
+    "item": "automata_valkyries:item_pocket_t2",
+    "count": 1
+  }
+}

@@ -36,6 +36,8 @@ public class ZeroValkyrieGameTests {
         for (ValkyrieBody b : ValkyrieBody.values()) {
             if (b != ValkyrieBody.Z) helper.assertTrue(ValkyrieBody.Z.maxHealth > b.maxHealth, "Zero is not the strongest (" + b + ")");
         }
+        helper.assertTrue(v.getMaxHealth() >= 200.0F, "Zero max health was not raised: " + v.getMaxHealth());   // 2026-10-26 の強化
+        helper.assertTrue(v.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.KNOCKBACK_RESISTANCE) >= 1.0, "Zero still takes knockback");
         CompoundTag saved = new CompoundTag();
         v.saveWithoutId(saved);
         saved.putFloat("Sync", 12.0F); // 書き換えられた保存でも 100% に戻る

@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "III",
+    "I I",
+    "I I"
+  ],
+  "key": {
+    "I": {
+      "item": "automata_valkyries:ingot_stellachronodyme"
+    }
+  },
+  "result": {
+    "item": "automata_valkyries:stellachronodyme_leggings"
+  }
+}

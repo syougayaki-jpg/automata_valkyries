@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "I I",
+    "III",
+    "III"
+  ],
+  "key": {
+    "I": {
+      "item": "automata_valkyries:alloy_eclipse_biometal"
+    }
+  },
+  "result": {
+    "item": "automata_valkyries:eclipse_biometal_chestplate"
+  }
+}

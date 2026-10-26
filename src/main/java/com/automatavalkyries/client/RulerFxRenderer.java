@@ -36,6 +36,10 @@ public class RulerFxRenderer extends EntityRenderer<RulerFxEntity> {
         float grow = Mth.clamp(age / 6.0F, 0.0F, 1.0F);
         float fade = Mth.clamp((life - age) / 8.0F, 0.0F, 1.0F);
         Vec3 cam = entityRenderDispatcher.camera.getPosition().subtract(fx.getPosition(pt));
+        if (fx.kind() >= RulerFxEntity.Z_BOLT) {                                            // 零号機の天災の技（黒い面と光を別の描き方で）
+            ZeroFxRenderer.render(fx, age, life, pose, buffers, cam);
+            return;
+        }
         VertexConsumer vc = buffers.getBuffer(RenderType.lightning());
         Matrix4f m = pose.last().pose();
         int col = fx.color();
@@ -1001,7 +1005,8 @@ public class RulerFxRenderer extends EntityRenderer<RulerFxEntity> {
     /** 時空疾走の道（yaw の向きへ長さ size、mode = 予告の Tick）: 予告の間は赤く明滅する帯と先へ流れる山形、駆け抜けた後は金の光の筋と白い芯が薄れる */
     private static void lane(VertexConsumer vc, Matrix4f m, RulerFxEntity fx, Vec3 cam, float age, int life) {
         float L = fx.size(), W = 1.6F;
-        int warn = fx.mode();
+        int warn = fx.mode() & (RulerFxEntity.LANE_SEGMENTS - 1);
+        boolean segments = (fx.mode() & RulerFxEntity.LANE_SEGMENTS) != 0;
         double yaw = fx.yaw();
         Vec3 d = new Vec3(Math.cos(yaw), 0, Math.sin(yaw)), side = new Vec3(-Math.sin(yaw), 0, Math.cos(yaw)), up = new Vec3(0, 1, 0);
         Vec3 f = new Vec3(0, 0.04, 0);
@@ -1021,12 +1026,31 @@ public class RulerFxRenderer extends EntityRenderer<RulerFxEntity> {
         Vec3 h = new Vec3(0, 1.6, 0);
         ribbon(vc, m, h, h.add(d.scale(L)), cam, 3.0F * k, 255, 196, 90, (int) (120 * k));
         ribbon(vc, m, h, h.add(d.scale(L)), cam, 0.3F, 255, 255, 255, (int) (255 * k));
-        for (int i = 1; i < 6; i++) {                                                           // 駆け抜けた所に立つローマ数字
+        for (int i = 1; i < 6; i++) {                                                           // 駆け抜けた所に立つローマ数字（結晶槍は 7 セグの 0 と 1）
             Vec3 at = h.add(d.scale(L * i / 6.0F)).add(0, 1.2 + (1 - k) * 1.5, 0);
-            numeral(vc, m, HOURS[(i * 2) % 12], at, up, toCam(at, cam), 0.8F, 255, 240, 200, (int) (255 * k));
+            if (segments) {
+                boolean one = ((fx.getId() * 31 + i * 7) & 4) != 0;
+                segmentDigit(vc, m, at, up, toCam(at, cam), 0.9F, one, one ? 79 : 255, one ? 227 : 90, one ? 255 : 216, (int) (255 * k));
+            } else {
+                numeral(vc, m, HOURS[(i * 2) % 12], at, up, toCam(at, cam), 0.8F, 255, 240, 200, (int) (255 * k));
+            }
         }
     }
 
+
+    /** 7 セグの 0 か 1（at は真ん中、up は上、n は面の向き、h は高さ） */
+    static void segmentDigit(VertexConsumer vc, Matrix4f m, Vec3 at, Vec3 up, Vec3 n, float h, boolean one, int r, int g, int b, int a) {
+        Vec3 right = up.cross(n).normalize();
+        float w = h * 0.55F, t = h * 0.13F;
+        float[][] bars = one ? new float[][]{{w - t, h / 2 + 0.02F, w, h}, {w - t, 0, w, h / 2 - 0.02F}}
+                : new float[][]{{0, h - t, w, h}, {0, 0, w, t}, {0, h / 2, t, h}, {0, 0, t, h / 2}, {w - t, h / 2, w, h}, {w - t, 0, w, h / 2}};
+        Vec3 origin = at.subtract(right.scale(w / 2)).subtract(up.scale(h / 2));
+        for (float[] bar : bars) {
+            Vec3 p0 = origin.add(right.scale(bar[0])).add(up.scale(bar[1])), p1 = origin.add(right.scale(bar[2])).add(up.scale(bar[1]));
+            Vec3 p2 = origin.add(right.scale(bar[2])).add(up.scale(bar[3])), p3 = origin.add(right.scale(bar[0])).add(up.scale(bar[3]));
+            quad(vc, m, p0, p1, p2, p3, r, g, b, a);
+        }
+    }
 
     // ------------------------------------------------------------------ 描く道具
 

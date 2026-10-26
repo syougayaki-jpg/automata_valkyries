@@ -27,20 +27,24 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * 事象観測体アカシック・プローブの描画（2026-10-25 / 2026-10-26 頭上専用観測 UI コンソール追加）。モデルは Tripo で作られた三角形のメッシュ（{@code meshes/akashic_probe.obj}）を
- * そのまま描く（{@link ObjMesh}。骨が無いので、体全体を浮かせて揺らし、向きだけ変える）。周りに 3 つの多面体の結晶（正二十面体）を回し、
- * 頭上に専用の「事象観測 UI コンソール（モード・HP/不死ロック・防御/検死カウンタ・108種検証プログレス・Universal DPS 解析・リアルタイム観測ログ）」をホログラム表示する
+ * 事象観測体アカシック・プローブの描画（2026-10-25 / 2026-10-26 頭上専用観測 UI コンソール追加）。
+ * 体は 2026-10-26 ユーザー指定「アカシックちゃんのモデルをマイクラ風に（見本の画像）これにして」「完全にイラストの通りにして」で、Tripo のメッシュからマイクラのプレイヤーの形（太い腕）に変えた:
+ * スキンは {@code textures/entity/akashic_probe_mc.png}（{@code tools/gen_akashic_mc.py}。見本の絵の正面から色を拾う。白いフードに桃と水色の髪・黒いヘッドホン・白衣・袖口の表示・ブーツ）、
+ * 目・ヘッドホンの灯り・袖口の表示・胸の印は光る（{@code _glow}）。歩く・首を振る・腕を振るはプレイヤーと同じ。
+ * 周りに桃と水色の光る立方体を回し、頭上に専用の「事象観測 UI コンソール（モード・HP/不死ロック・防御/検死カウンタ・108種検証プログレス・Universal DPS 解析・リアルタイム観測ログ）」をホログラム表示する
  */
 public class AkashicProbeRenderer extends EntityRenderer<AkashicProbeEntity> {
 
-    public static final ResourceLocation MESH = ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "meshes/akashic_probe.obj");
-    private static final ResourceLocation TEXTURE = ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "textures/entity/akashic_probe.png");
-    private static final ResourceLocation CRYSTAL = ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "textures/entity/akashic_crystal.png");
-    /** メッシュの高さ（OBJ の単位で 0〜0.9775）を当たり判定の高さ（1.75 ブロック）に合わせる倍率 */
-    private static final float SCALE = 1.75F / 0.9775F;
-    /** 結晶の色（立ち絵の桃・薄紫・水色）と、回る半径・高さ・大きさ */
-    private static final int[] CRYSTAL_COLORS = {0xFF4FD8, 0xB07CFF, 0x4FE3FF};
-    private static final float[][] CRYSTAL_ORBITS = {{0.78F, 1.55F, 0.17F}, {0.92F, 1.85F, 0.21F}, {0.70F, 1.30F, 0.13F}};
+    static final ResourceLocation TEXTURE = ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "textures/entity/akashic_probe_mc.png");
+    static final ResourceLocation GLOW = ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "textures/entity/akashic_probe_mc_glow.png");
+    static final ResourceLocation CRYSTAL = ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "textures/entity/akashic_crystal.png");
+    /** プレイヤーと同じ縮尺（高さ約 1.8 ブロック） */
+    static final float SCALE = 0.9375F;
+    /** 光る立方体の色（見本の桃・水色）と、回る半径・高さ・大きさ（半分の辺） */
+    private static final int[] CRYSTAL_COLORS = {0xFF5AD8, 0xFF8CE8, 0x4FE3FF, 0x8EF0FF, 0x4FE3FF};
+    private static final float[][] CRYSTAL_ORBITS = {{0.85F, 1.45F, 0.16F}, {0.75F, 1.05F, 0.08F}, {0.90F, 1.30F, 0.17F}, {0.70F, 0.95F, 0.07F}, {0.80F, 1.85F, 0.09F}};
+
+    private final net.minecraft.client.model.PlayerModel<AkashicProbeEntity> model;
     /** 頭上の専用観測 UI を出す距離 */
     private static final double HOLOGRAM_RANGE = 36.0;
     private static final int LIGHT = LightTexture.FULL_BRIGHT;
@@ -48,6 +52,28 @@ public class AkashicProbeRenderer extends EntityRenderer<AkashicProbeEntity> {
     public AkashicProbeRenderer(EntityRendererProvider.Context context) {
         super(context);
         this.shadowRadius = 0.35F;
+        this.model = new net.minecraft.client.model.PlayerModel<>(createBody().bakeRoot(), false);
+    }
+
+    /**
+     * プレイヤーの太い腕の形に、見本の絵の通りの箱を足す（スキンの右半分。UV は 128x64、絵は 2 倍の細かさ）:
+     * 頭の左右のヘッドホンの耳当て・胴から下がる白衣の裾・袖口の表示（腕より一回り太い）・ブーツ（脚より少し太い）
+     */
+    static net.minecraft.client.model.geom.builders.LayerDefinition createBody() {
+        var mesh = net.minecraft.client.model.PlayerModel.createMesh(net.minecraft.client.model.geom.builders.CubeDeformation.NONE, false);
+        var root = mesh.getRoot();
+        var none = net.minecraft.client.model.geom.PartPose.ZERO;
+        var head = root.getChild("head");
+        head.addOrReplaceChild("phone_r", net.minecraft.client.model.geom.builders.CubeListBuilder.create().texOffs(64, 0).addBox(-6.0F, -6.0F, -2.0F, 2, 4, 4), none);
+        head.addOrReplaceChild("phone_l", net.minecraft.client.model.geom.builders.CubeListBuilder.create().texOffs(64, 8).addBox(4.0F, -6.0F, -2.0F, 2, 4, 4), none);
+        root.getChild("body").addOrReplaceChild("skirt", net.minecraft.client.model.geom.builders.CubeListBuilder.create().texOffs(64, 16).addBox(-4.5F, 12.0F, -2.5F, 9.0F, 6.0F, 5.0F), none);
+        var cuff = new net.minecraft.client.model.geom.builders.CubeDeformation(0.5F);
+        var boot = new net.minecraft.client.model.geom.builders.CubeDeformation(0.3F);
+        root.getChild("right_arm").addOrReplaceChild("cuff", net.minecraft.client.model.geom.builders.CubeListBuilder.create().texOffs(64, 28).addBox(-3.0F, 5.0F, -2.0F, 4.0F, 4.0F, 4.0F, cuff), none);
+        root.getChild("left_arm").addOrReplaceChild("cuff", net.minecraft.client.model.geom.builders.CubeListBuilder.create().texOffs(80, 28).addBox(-1.0F, 5.0F, -2.0F, 4.0F, 4.0F, 4.0F, cuff), none);
+        root.getChild("right_leg").addOrReplaceChild("boot", net.minecraft.client.model.geom.builders.CubeListBuilder.create().texOffs(64, 36).addBox(-2.0F, 8.0F, -2.0F, 4.0F, 4.0F, 4.0F, boot), none);
+        root.getChild("left_leg").addOrReplaceChild("boot", net.minecraft.client.model.geom.builders.CubeListBuilder.create().texOffs(80, 36).addBox(-2.0F, 8.0F, -2.0F, 4.0F, 4.0F, 4.0F, boot), none);
+        return net.minecraft.client.model.geom.builders.LayerDefinition.create(mesh, 128, 64);
     }
 
     @Override
@@ -58,22 +84,56 @@ public class AkashicProbeRenderer extends EntityRenderer<AkashicProbeEntity> {
     @Override
     public void render(AkashicProbeEntity entity, float entityYaw, float partialTick, PoseStack poseStack, MultiBufferSource buffers, int light) {
         float time = entity.tickCount + partialTick;
-        float bob = 0.12F + Mth.sin(time * 0.08F) * 0.06F; // 少し浮いて、ゆっくり上下する
+        float bob = Mth.sin(time * 0.08F) * 0.06F;                                           // 立方体と頭上の表示だけゆっくり上下する
         float yaw = Mth.rotLerp(partialTick, entity.yBodyRotO, entity.yBodyRot);
+        float headYaw = Mth.rotLerp(partialTick, entity.yHeadRotO, entity.yHeadRot);
+
+        poseStack.pushPose();                                                                // 体（LivingEntityRenderer と同じ置き方＋ボスモーション）
+        float spin = 0.0F, lean = 0.0F, lift = 0.0F;
+        float barrierAge = entity.animAge(com.automatavalkyries.entity.seer.AkashicSeerEntity.EV_BARRIER, partialTick);
+        if (barrierAge < 18.0F) spin = 360.0F * AkashicSeerRenderer.ease(barrierAge / 18.0F);
+        float burstAge = entity.animAge(com.automatavalkyries.entity.seer.AkashicSeerEntity.EV_BURST, partialTick);
+        if (burstAge < com.automatavalkyries.entity.seer.AkashicSeerEntity.BURST_TICKS) {
+            lean = -14.0F * AkashicSeerRenderer.window(burstAge, 0.0F, 3.0F, 8.0F, 20.0F);
+            lift += 0.5F * AkashicSeerRenderer.window(burstAge, 0.0F, 8.0F,
+                    com.automatavalkyries.entity.seer.AkashicSeerEntity.BURST_TICKS - 12.0F,
+                    com.automatavalkyries.entity.seer.AkashicSeerEntity.BURST_TICKS);
+            spin += 360.0F * AkashicSeerRenderer.ease(burstAge / com.automatavalkyries.entity.seer.AkashicSeerEntity.BURST_TICKS);
+        }
+        float phaseAge = entity.animAge(com.automatavalkyries.entity.seer.AkashicSeerEntity.EV_PHASE2, partialTick);
+        if (phaseAge < 36.0F) lift += 0.35F * AkashicSeerRenderer.window(phaseAge, 0.0F, 8.0F, 24.0F, 36.0F);
+        if (entity.chargeLeft() > 0) lift += 0.15F + Mth.sin(time * 0.3F) * 0.03F;
+        float lanceAge = entity.animAge(com.automatavalkyries.entity.seer.AkashicSeerEntity.EV_LANCE, partialTick);
+        if (lanceAge < 20.0F) lean += 12.0F * AkashicSeerRenderer.window(lanceAge, 6.0F, 9.0F, 14.0F, 20.0F);
+        float blinkAge = entity.animAge(com.automatavalkyries.entity.seer.AkashicSeerEntity.EV_BLINK, partialTick);
+        if (blinkAge < 10.0F) spin -= 360.0F * AkashicSeerRenderer.ease(blinkAge / 10.0F);
+        if (entity.hurtTime > 0) lean += 6.0F * entity.hurtTime / 10.0F;
+
+        poseStack.translate(0.0F, lift, 0.0F);
+        poseStack.mulPose(Axis.YP.rotationDegrees(180.0F - yaw + spin));
+        poseStack.mulPose(Axis.XP.rotationDegrees(lean));
+        poseStack.scale(-1.0F, -1.0F, 1.0F);
+        poseStack.scale(SCALE, SCALE, SCALE);
+        poseStack.translate(0.0F, -1.501F, 0.0F);
+        model.attackTime = entity.getAttackAnim(partialTick);
+        model.riding = false;
+        model.young = false;
+        model.crouching = false;
+        model.setupAnim(entity, entity.walkAnimation.position(partialTick), Math.min(1.0F, entity.walkAnimation.speed(partialTick)), time,
+                Mth.clamp(Mth.wrapDegrees(headYaw - yaw), -60.0F, 60.0F), Mth.clamp(Mth.lerp(partialTick, entity.xRotO, entity.getXRot()), -35.0F, 35.0F));   // 首は左右 60 度・上下 35 度まで（2026-10-26「首が回転しすぎ」）
+        animateProbe(entity, time, partialTick);
+        model.hat.copyFrom(model.head);
+        model.jacket.copyFrom(model.body);
+        model.rightSleeve.copyFrom(model.rightArm);
+        model.leftSleeve.copyFrom(model.leftArm);
+        model.renderToBuffer(poseStack, buffers.getBuffer(RenderType.entityTranslucent(TEXTURE)), light, LivingEntityRenderer.getOverlayCoords(entity, 0.0F), 1.0F, 1.0F, 1.0F, 1.0F);
+        model.renderToBuffer(poseStack, buffers.getBuffer(RenderType.eyes(GLOW)), LIGHT, OverlayTexture.NO_OVERLAY, 1.0F, 1.0F, 1.0F, 1.0F);
+        poseStack.popPose();
 
         poseStack.pushPose();
         poseStack.translate(0.0, bob, 0.0);
         poseStack.mulPose(Axis.YP.rotationDegrees(-yaw));
-        poseStack.mulPose(Axis.ZP.rotationDegrees(Mth.sin(time * 0.05F) * 1.5F)); // わずかに揺れる
-        ObjMesh mesh = ObjMesh.get(MESH);
-        if (mesh != null) {
-            poseStack.pushPose();
-            poseStack.scale(SCALE, SCALE, SCALE);
-            mesh.render(poseStack, buffers.getBuffer(RenderType.entityCutoutNoCull(TEXTURE)), light,
-                    LivingEntityRenderer.getOverlayCoords(entity, 0.0F), 0xFFFFFFFF);
-            poseStack.popPose();
-        }
-        renderCrystals(time, poseStack, buffers);
+        renderCrystals(entity, time, poseStack, buffers);
         poseStack.popPose();
 
         if (this.entityRenderDispatcher.distanceToSqr(entity) <= HOLOGRAM_RANGE * HOLOGRAM_RANGE) {
@@ -82,48 +142,155 @@ public class AkashicProbeRenderer extends EntityRenderer<AkashicProbeEntity> {
         super.render(entity, entityYaw, partialTick, poseStack, buffers, light);
     }
 
-    // ---- 結晶 ----------------------------------------------------------------
+    private void animateProbe(AkashicProbeEntity e, float time, float pt) {
+        var ra = model.rightArm;
+        var la = model.leftArm;
+        ra.zRot += 0.06F + Mth.sin(time * 0.06F) * 0.03F;
+        la.zRot -= 0.06F + Mth.sin(time * 0.06F) * 0.03F;
+        model.head.zRot = Mth.sin(time * 0.05F) * 0.05F;
 
-    private static final float PHI = (1.0F + Mth.sqrt(5.0F)) / 2.0F;
-    private static final float[][] ICO_VERTS = {
-            {-1, PHI, 0}, {1, PHI, 0}, {-1, -PHI, 0}, {1, -PHI, 0}, {0, -1, PHI}, {0, 1, PHI},
-            {0, -1, -PHI}, {0, 1, -PHI}, {PHI, 0, -1}, {PHI, 0, 1}, {-PHI, 0, -1}, {-PHI, 0, 1}};
-    private static final int[][] ICO_FACES = {
-            {0, 11, 5}, {0, 5, 1}, {0, 1, 7}, {0, 7, 10}, {0, 10, 11}, {1, 5, 9}, {5, 11, 4}, {11, 10, 2}, {10, 7, 6}, {7, 1, 8},
-            {3, 9, 4}, {3, 4, 2}, {3, 2, 6}, {3, 6, 8}, {3, 8, 9}, {4, 9, 5}, {2, 4, 11}, {6, 2, 10}, {8, 6, 7}, {9, 8, 1}};
+        if (e.chargeLeft() > 0) {
+            float k = Math.min(1.0F, (com.automatavalkyries.entity.akashic.AkashicDuelEngine.CHARGE_TICKS - e.chargeLeft() + pt) / 8.0F);
+            ra.xRot = Mth.lerp(k, ra.xRot, -0.3F);
+            la.xRot = Mth.lerp(k, la.xRot, -0.3F);
+            ra.zRot = Mth.lerp(k, ra.zRot, 2.3F + Mth.sin(time * 0.4F) * 0.08F);
+            la.zRot = Mth.lerp(k, la.zRot, -2.3F - Mth.sin(time * 0.4F) * 0.08F);
+            model.head.xRot = Mth.lerp(k, model.head.xRot, -0.45F);
+            return;
+        }
+        float shot = e.animAge(com.automatavalkyries.entity.seer.AkashicSeerEntity.EV_SHOT, pt);
+        if (shot < 14.0F) {
+            float w = AkashicSeerRenderer.window(shot, 0.0F, 2.0F, 9.0F, 14.0F);
+            float recoil = shot < 3.0F ? (1.0F - shot / 3.0F) * 0.3F : 0.0F;
+            ra.xRot = Mth.lerp(w, ra.xRot, -1.55F + model.head.xRot + recoil);
+            ra.yRot = Mth.lerp(w, ra.yRot, model.head.yRot - 0.1F);
+            ra.zRot = Mth.lerp(w, ra.zRot, 0.0F);
+            la.zRot = Mth.lerp(w, la.zRot, -0.35F);
+            la.xRot = Mth.lerp(w, la.xRot, 0.25F);
+        }
+        float rain = e.animAge(com.automatavalkyries.entity.seer.AkashicSeerEntity.EV_RAIN, pt);
+        if (rain < 30.0F) {
+            float w = AkashicSeerRenderer.window(rain, 0.0F, 4.0F, 22.0F, 30.0F);
+            float swing = AkashicSeerRenderer.ease(Mth.clamp((rain - 10.0F) / 5.0F, 0.0F, 1.0F));
+            float x = Mth.lerp(swing, -2.9F, -0.9F);
+            ra.xRot = Mth.lerp(w, ra.xRot, x);
+            la.xRot = Mth.lerp(w, la.xRot, x);
+            ra.zRot = Mth.lerp(w, ra.zRot, 0.25F);
+            la.zRot = Mth.lerp(w, la.zRot, -0.25F);
+        }
+        float barrier = e.animAge(com.automatavalkyries.entity.seer.AkashicSeerEntity.EV_BARRIER, pt);
+        if (barrier < 24.0F) {
+            float w = AkashicSeerRenderer.window(barrier, 0.0F, 3.0F, 18.0F, 24.0F);
+            ra.zRot = Mth.lerp(w, ra.zRot, 1.5F);
+            la.zRot = Mth.lerp(w, la.zRot, -1.5F);
+            ra.xRot = Mth.lerp(w, ra.xRot, 0.0F);
+            la.xRot = Mth.lerp(w, la.xRot, 0.0F);
+        }
+        float homing = e.animAge(com.automatavalkyries.entity.seer.AkashicSeerEntity.EV_HOMING, pt);
+        if (homing < 18.0F) {
+            float w = AkashicSeerRenderer.window(homing, 0.0F, 2.0F, 12.0F, 18.0F);
+            float sweep = AkashicSeerRenderer.ease(Mth.clamp(homing / 8.0F, 0.0F, 1.0F));
+            la.xRot = Mth.lerp(w, la.xRot, -1.4F);
+            la.yRot = Mth.lerp(w, la.yRot, Mth.lerp(sweep, 1.1F, -0.3F));
+            la.zRot = Mth.lerp(w, la.zRot, 0.0F);
+        }
+        float lance = e.animAge(com.automatavalkyries.entity.seer.AkashicSeerEntity.EV_LANCE, pt);
+        if (lance < 20.0F) {
+            float w = AkashicSeerRenderer.window(lance, 0.0F, 3.0F, 14.0F, 20.0F);
+            float down = AkashicSeerRenderer.ease(Mth.clamp((lance - 6.0F) / 3.0F, 0.0F, 1.0F));
+            ra.xRot = Mth.lerp(w, ra.xRot, Mth.lerp(down, -2.8F, -0.5F));
+            ra.zRot = Mth.lerp(w, ra.zRot, 0.1F);
+        }
+        float refract = e.animAge(com.automatavalkyries.entity.seer.AkashicSeerEntity.EV_REFRACT, pt);
+        if (refract < 28.0F) {
+            float w = AkashicSeerRenderer.window(refract, 0.0F, 4.0F, 22.0F, 28.0F);
+            la.xRot = Mth.lerp(w, la.xRot, -2.4F);
+            ra.xRot = Mth.lerp(w, ra.xRot, -1.0F);
+            ra.yRot = Mth.lerp(w, ra.yRot, -0.7F);
+        }
+        float cage = e.animAge(com.automatavalkyries.entity.seer.AkashicSeerEntity.EV_CAGE, pt);
+        if (cage < 30.0F) {
+            float w = AkashicSeerRenderer.window(cage, 0.0F, 4.0F, 26.0F, 30.0F);
+            float close = AkashicSeerRenderer.ease(Mth.clamp((cage - 20.0F) / 4.0F, 0.0F, 1.0F));
+            ra.zRot = Mth.lerp(w, ra.zRot, Mth.lerp(close, 1.6F, 0.0F));
+            la.zRot = Mth.lerp(w, la.zRot, Mth.lerp(close, -1.6F, 0.0F));
+            ra.xRot = Mth.lerp(w, ra.xRot, Mth.lerp(close, 0.0F, -1.5F));
+            la.xRot = Mth.lerp(w, la.xRot, Mth.lerp(close, 0.0F, -1.5F));
+        }
+        model.rightPants.copyFrom(model.rightLeg);
+        model.leftPants.copyFrom(model.leftLeg);
+    }
 
-    private static void renderCrystals(float time, PoseStack poseStack, MultiBufferSource buffers) {
+    // ---- 光る立方体・正二十面体結晶 ---------------------------------------------
+
+    /** 立方体の 6 面（各面の 4 つの角と向き） */
+    private static final float[][][] CUBE = {
+            {{-1, -1, -1}, {1, -1, -1}, {1, -1, 1}, {-1, -1, 1}, {0, -1, 0}}, {{-1, 1, 1}, {1, 1, 1}, {1, 1, -1}, {-1, 1, -1}, {0, 1, 0}},
+            {{-1, -1, -1}, {-1, 1, -1}, {1, 1, -1}, {1, -1, -1}, {0, 0, -1}}, {{1, -1, 1}, {1, 1, 1}, {-1, 1, 1}, {-1, -1, 1}, {0, 0, 1}},
+            {{-1, -1, 1}, {-1, 1, 1}, {-1, 1, -1}, {-1, -1, -1}, {-1, 0, 0}}, {{1, -1, -1}, {1, 1, -1}, {1, 1, 1}, {1, -1, 1}, {1, 0, 0}}};
+
+    private static void renderCrystals(AkashicProbeEntity entity, float time, PoseStack poseStack, MultiBufferSource buffers) {
         VertexConsumer consumer = buffers.getBuffer(RenderType.entityTranslucentEmissive(CRYSTAL));
+        int modeOrd = entity.observationUiData().getInt("ModeOrdinal");
+        boolean duelVisuals = modeOrd == 4 || modeOrd == 5 || entity.isPhase2() || entity.barrierLeft() > 0 || entity.chargeLeft() > 0;
+        if (duelVisuals) {
+            int[] colors = {
+                    com.automatavalkyries.entity.seer.AkashicCubeEntity.PINK,
+                    com.automatavalkyries.entity.seer.AkashicCubeEntity.VIOLET,
+                    com.automatavalkyries.entity.seer.AkashicCubeEntity.CYAN
+            };
+            boolean p2 = entity.isPhase2() || modeOrd == 5;
+            int n = p2 ? 8 : 5;
+            float speed = p2 ? 0.055F : 0.032F;
+            int charge = entity.chargeLeft();
+            for (int i = 0; i < n; i++) {
+                float k = charge > 0 ? charge / (float) com.automatavalkyries.entity.akashic.AkashicDuelEngine.CHARGE_TICKS : 1.0F;
+                float a = time * (charge > 0 ? 0.25F : speed + (i % 3) * 0.008F) + i * Mth.TWO_PI / n;
+                float r = (0.80F + (i % 3) * 0.12F) * k + 0.15F;
+                float y = 1.3F + (i % 3) * 0.25F + Mth.sin(time * 0.06F + i) * 0.08F;
+                AkashicSeerRenderer.crystal(poseStack, consumer, Mth.cos(a) * r, y, Mth.sin(a) * r,
+                        0.14F + (i % 3) * 0.04F, colors[i % 3], time, i);
+            }
+            if (entity.barrierLeft() > 0) {
+                float r = (float) com.automatavalkyries.entity.akashic.AkashicDuelEngine.ORBIT_R;
+                for (int i = 0; i < 8; i++) {
+                    float a = time * 0.14F + i * Mth.TWO_PI / 8;
+                    AkashicSeerRenderer.crystal(poseStack, consumer,
+                            Mth.cos(a) * r, 0.9F + Mth.sin(time * 0.1F + i) * 0.3F, Mth.sin(a) * r,
+                            0.28F, colors[i % 3], time, i);
+                }
+            }
+            return;
+        }
         for (int i = 0; i < CRYSTAL_COLORS.length; i++) {
             float[] orbit = CRYSTAL_ORBITS[i];
-            float angle = time * (0.025F + i * 0.008F) + i * Mth.TWO_PI / 3.0F;
+            float angle = time * (0.022F + i * 0.006F) + i * Mth.TWO_PI / CRYSTAL_COLORS.length;
             poseStack.pushPose();
             poseStack.translate(Mth.cos(angle) * orbit[0], orbit[1] + Mth.sin(time * 0.06F + i) * 0.08F, Mth.sin(angle) * orbit[0]);
-            poseStack.mulPose(Axis.YP.rotationDegrees(time * (2.0F + i)));
-            poseStack.mulPose(Axis.XP.rotationDegrees(time * (1.3F + i * 0.4F)));
-            float s = orbit[2] / Mth.sqrt(1.0F + PHI * PHI);
+            poseStack.mulPose(Axis.YP.rotationDegrees(time * (1.6F + i * 0.5F)));
+            poseStack.mulPose(Axis.XP.rotationDegrees(35.0F + Mth.sin(time * 0.03F + i) * 20.0F));
+            poseStack.mulPose(Axis.ZP.rotationDegrees(45.0F));
+            float s = orbit[2] * (1.0F + Mth.sin(time * 0.15F + i * 1.7F) * 0.06F);           // 脈打つ
+            poseStack.pushPose();
             poseStack.scale(s, s, s);
-            icosahedron(poseStack, consumer, CRYSTAL_COLORS[i], 0xB0);
+            cube(poseStack, consumer, CRYSTAL_COLORS[i], 0xC8, true);
+            poseStack.popPose();
+            poseStack.scale(s * 1.25F, s * 1.25F, s * 1.25F);                                  // まわりの薄い光の殻
+            cube(poseStack, consumer, CRYSTAL_COLORS[i], 0x40, false);
             poseStack.popPose();
         }
     }
 
-    private static void icosahedron(PoseStack poseStack, VertexConsumer consumer, int rgb, int alpha) {
+    static void cube(PoseStack poseStack, VertexConsumer consumer, int rgb, int alpha, boolean shade) {
         Matrix4f pose = poseStack.last().pose();
         Matrix3f normal = poseStack.last().normal();
         int r = rgb >> 16 & 0xFF, g = rgb >> 8 & 0xFF, b = rgb & 0xFF;
-        for (int f = 0; f < ICO_FACES.length; f++) {
-            float[] a = ICO_VERTS[ICO_FACES[f][0]], c = ICO_VERTS[ICO_FACES[f][1]], d = ICO_VERTS[ICO_FACES[f][2]];
-            float nx = a[0] + c[0] + d[0], ny = a[1] + c[1] + d[1], nz = a[2] + c[2] + d[2];
-            float len = Mth.sqrt(nx * nx + ny * ny + nz * nz);
-            nx /= len;
-            ny /= len;
-            nz /= len;
-            int shade = f % 2 == 0 ? 0 : 28; // 面ごとに少し明暗を付けて、結晶の切子に見せる
-            float[][] quad = {a, c, d, d};
-            for (float[] v : quad) {
-                consumer.vertex(pose, v[0], v[1], v[2]).color(Math.max(0, r - shade), Math.max(0, g - shade), Math.max(0, b - shade), alpha)
-                        .uv(0.5F, 0.5F).overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(normal, nx, ny, nz).endVertex();
+        for (int f = 0; f < CUBE.length; f++) {
+            float[][] q = CUBE[f];
+            int dim = shade ? (f == 1 ? 0 : f == 0 ? 60 : f % 2 == 0 ? 25 : 40) : 0;           // 上が明るく、横・下は少し暗い（マイクラの箱の陰）
+            for (int k = 0; k < 4; k++) {
+                consumer.vertex(pose, q[k][0], q[k][1], q[k][2]).color(Math.max(0, r - dim), Math.max(0, g - dim), Math.max(0, b - dim), alpha)
+                        .uv(0.5F, 0.5F).overlayCoords(OverlayTexture.NO_OVERLAY).uv2(LightTexture.FULL_BRIGHT).normal(normal, q[4][0], q[4][1], q[4][2]).endVertex();
             }
         }
     }
@@ -193,8 +360,20 @@ public class AkashicProbeRenderer extends EntityRenderer<AkashicProbeEntity> {
                 .append(Component.literal(suspectMod).withStyle(ChatFormatting.LIGHT_PURPLE));
 
         boolean showTargetSection = !targetName.isEmpty() || modeOrdinal > 0 || !lastVerdictRank.isEmpty();
+        int penaltyTier = ui.getInt("PenaltyTier");
+        int maxPenaltyTier = Math.max(1, ui.contains("MaxPenaltyTier") ? ui.getInt("MaxPenaltyTier") : 7);
+        String penaltyTierLabel = ui.getString("PenaltyTierLabel");
+        int penaltyFails = ui.getInt("PenaltyFails");
+        int penaltyFailThreshold = Math.max(1, ui.contains("PenaltyFailThreshold") ? ui.getInt("PenaltyFailThreshold") : 8);
+        String viciousLabel = ui.getString("ViciousLabel");
+        int viciousWeight = ui.getInt("ViciousWeight");
+        float breakthroughGauge = ui.getFloat("BreakthroughGauge");
+        float adaptAttackMult = ui.contains("AdaptAttackMult") ? ui.getFloat("AdaptAttackMult") : 1.0F;
+        float adaptArmorBonus = ui.getFloat("AdaptArmorBonus");
+
         String targetLine = "";
         String auditLine = "";
+        String penaltyLine = "";
         String verdictLine = "";
         String dpsLine = "";
         if (showTargetSection) {
@@ -208,6 +387,14 @@ public class AkashicProbeRenderer extends EntityRenderer<AkashicProbeEntity> {
                 auditLine = String.format(Locale.ROOT, "段階検証: [%d / %d] %s",
                         stageProgress, stageTotal,
                         lastStageCode.isEmpty() ? "待機中" : (lastStageCode + " -> " + lastStageOutcome));
+            }
+            if (modeOrdinal == 4 || modeOrdinal == 5 || penaltyTier > 0 || viciousWeight > 0) {
+                String tierStr = penaltyTierLabel.isEmpty() ? ("Tier " + penaltyTier) : penaltyTierLabel;
+                String vicStr = viciousLabel.isEmpty() ? "Lv0" : viciousLabel;
+                penaltyLine = String.format(Locale.ROOT,
+                        "対決ペナルティ: %s [耐性%d/%d] | 凶悪感知:%s(w=%d) | 突破率:%.0f%%(攻×%.2f 防+%.1f)",
+                        tierStr, penaltyFails, penaltyFailThreshold, vicStr, viciousWeight,
+                        breakthroughGauge, adaptAttackMult, adaptArmorBonus);
             }
             if (!lastVerdictRank.isEmpty()) {
                 verdictLine = "★ 耐性判定ランク: 【" + lastVerdictRank + "】";
@@ -236,6 +423,7 @@ public class AkashicProbeRenderer extends EntityRenderer<AkashicProbeEntity> {
         contentWidth = Math.max(contentWidth, font.width(countersComp));
         if (!targetLine.isEmpty()) contentWidth = Math.max(contentWidth, font.width(targetLine));
         if (!auditLine.isEmpty()) contentWidth = Math.max(contentWidth, font.width(auditLine));
+        if (!penaltyLine.isEmpty()) contentWidth = Math.max(contentWidth, font.width(penaltyLine) + 4);
         if (!verdictLine.isEmpty()) contentWidth = Math.max(contentWidth, font.width(verdictLine));
         if (!dpsLine.isEmpty()) contentWidth = Math.max(contentWidth, font.width(dpsLine));
         for (Component c : displayFeed) {
@@ -255,6 +443,7 @@ public class AkashicProbeRenderer extends EntityRenderer<AkashicProbeEntity> {
                 + 11.0F          // 防御・検死カウンタ行
                 + (!targetLine.isEmpty() ? 12.0F : 0.0F)
                 + (!auditLine.isEmpty() ? 12.0F : 0.0F)
+                + (!penaltyLine.isEmpty() ? 12.0F : 0.0F)
                 + (!verdictLine.isEmpty() ? 11.0F : 0.0F)
                 + (!dpsLine.isEmpty() ? 11.0F : 0.0F)
                 + 12.0F          // ログ見出し行
@@ -296,7 +485,7 @@ public class AkashicProbeRenderer extends EntityRenderer<AkashicProbeEntity> {
         drawLeftText(font, countersComp.getVisualOrderText(), leftX, curY, 0xFFFFFFFF, m, buffers);
         curY += 11.0F;
 
-        // 6. 対峙ターゲット・段階検証プログレス・判定ランク・Universal DPS 解析セクション
+        // 6. 対峙ターゲット・段階検証プログレス・ペナルティ＆凶悪感知・判定ランク・Universal DPS 解析セクション
         if (showTargetSection) {
             quad(m, buffers, -halfW + 3.0F, curY - 1.5F, halfW - 3.0F, curY - 1.0F, 0.012F, (accentColor & 0x00FFFFFF) | 0x60000000);
             if (!targetLine.isEmpty()) {
@@ -309,6 +498,13 @@ public class AkashicProbeRenderer extends EntityRenderer<AkashicProbeEntity> {
                 float sRatio = stageTotal > 0 ? Mth.clamp((float) stageProgress / (float) stageTotal, 0.0F, 1.0F) : 0.0F;
                 drawBar(m, buffers, leftX, curY, barWidth, 9.5F, sRatio, 0xAA142030, 0x77D488FF);
                 drawLeftText(font, Component.literal(auditLine).getVisualOrderText(), leftX + 2.0F, curY + 1.0F, 0xFFF2E6FF, m, buffers);
+                curY += 12.0F;
+            }
+            if (!penaltyLine.isEmpty()) {
+                float pRatio = Mth.clamp((float) penaltyTier / (float) maxPenaltyTier, 0.0F, 1.0F);
+                int pColor = penaltyTier >= 5 ? 0x88FF3870 : (viciousWeight > 0 ? 0x88FF9E3D : 0x774FC3FF);
+                drawBar(m, buffers, leftX, curY, barWidth, 9.5F, pRatio, 0xAA1C1228, pColor);
+                drawLeftText(font, Component.literal(penaltyLine).getVisualOrderText(), leftX + 2.0F, curY + 1.0F, 0xFFFFE0FA, m, buffers);
                 curY += 12.0F;
             }
             if (!verdictLine.isEmpty()) {

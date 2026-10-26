@@ -1,0 +1,27 @@
+{
+  "type": "automata_valkyries:pocket_upgrade",
+  "category": "equipment",
+  "pattern": [
+    " R ",
+    "GPG",
+    " Z "
+  ],
+  "key": {
+    "R": {
+      "item": "automata_valkyries:boss_drop_ruler_heart"
+    },
+    "G": {
+      "item": "automata_valkyries:core_genesis_luminal"
+    },
+    "Z": {
+      "item": "automata_valkyries:boss_drop_purified_zero"
+    },
+    "P": {
+      "item": "automata_valkyries:item_pocket_t3"
+    }
+  },
+  "result": {
+    "item": "automata_valkyries:item_pocket_t4",
+    "count": 1
+  }
+}

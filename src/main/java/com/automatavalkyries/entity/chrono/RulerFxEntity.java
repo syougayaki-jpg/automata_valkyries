@@ -32,6 +32,20 @@ import net.minecraft.world.phys.Vec3;
 public class RulerFxEntity extends Entity {
 
     public static final int CLOCK = 0, SWEEP = 1, PILLAR = 2, CUBE = 3, SLASH = 4, BLADE = 5, GEAR = 6, CAUSAL = 7, PENDULUM = 8, HOURGLASS = 9, SECTOR = 10, LANE = 11;
+    /**
+     * 零号機の赤黒い天災の技の専用エフェクト（2026-10-26。描くのは client/ZeroFxRenderer）:
+     * 落雷（size = 高さ）・終の大波（size = 半分の幅、yaw = 向き、spin = 切れ目、mode = 盛り上がる Tick）・竜巻（size = 高さ、mode = 育つ Tick。サーバーが動かす）・
+     * 焔の扇（size = 半径、yaw = 向き、spin = 開き、mode = 噴き上がる Tick）・黒雷の十字架（size = 腕の長さ、yaw = 初めの角度、spin = 1 Tick に回る角度、mode = 予告の Tick）・
+     * 焔の輪の波（size = 届く半径、yaw = 初めの半径、spin = 1 Tick に広がる m、mode = 広がり始める Tick）・黙示の大嵐（size = 初めの半径、yaw = 初めの角度、mode = 始まる Tick）・
+     * 赫焉天墜（size = 半径、mode = 墜ちる Tick）
+     */
+    public static final int Z_BOLT = 20, Z_TIDE = 21, Z_TWISTER = 22, Z_FLAME = 23, Z_CROSS = 24, Z_RING = 25, Z_TEMPEST = 26, Z_HEAVEN = 27;
+    /** 地面から突き出す光る 7 セグの数字（事象観測姫アカシックの結晶槍。2026-10-26。mode = 0 か 1、size = 高さ。描くのは client/ZeroFxRenderer） */
+    public static final int Z_DIGIT = 28;
+    /** 地面から突き出す結晶の房（結晶槍の棘。2026-10-26 ユーザー指定「結晶槍自体も結晶らしくして」。size = 高さ、color = 結晶の色） */
+    public static final int Z_SPIKE = 29;
+    /** {@link #LANE} の mode に重ねる印: 駆け抜けた後に立つ数字を、ローマ数字でなく 7 セグの 0 と 1 にする（事象観測姫アカシックの結晶槍。2026-10-26 ユーザー指定「結晶槍のローマ数字をセグに変えてほしかった」） */
+    public static final int LANE_SEGMENTS = 1 << 12;
     public static final int FLAT = 0, FACING = 1, HANDS_REVERSE = 2, HANDS_TO_TWELVE = 4, HANDS_FINALE = 8, HANDS_FAST = 16, HANDS_SLOW = 32, FILL = 64;
     /** 因果停止（{@link #CAUSAL}）が明けてから消えるまでの Tick（因果断絶の演出） */
     public static final int SEVER_TICKS = 34;

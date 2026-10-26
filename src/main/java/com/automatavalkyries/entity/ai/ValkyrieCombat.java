@@ -160,6 +160,12 @@ public final class ValkyrieCombat {
         if (attacker instanceof ValkyrieEntity v && event.getEntity() != v && v.syncMultiplier() > 1.0F) {   // 同調率で与えるダメージが上がる（20% ごとに +4%）
             event.setAmount(event.getAmount() * v.syncMultiplier());
         }
+        if (attacker instanceof ValkyrieEntity v && event.getEntity() != v && v.getBody() == com.automatavalkyries.entity.ValkyrieBody.Z) {   // 零号機は与えるダメージ 1.5 倍（2026-10-26）
+            event.setAmount(event.getAmount() * ValkyrieTypeTraits.Z_DAMAGE);
+        }
+        if (event.getEntity() instanceof ValkyrieEntity v && v.getBody() == com.automatavalkyries.entity.ValkyrieBody.Z && attacker != v) {      // 受けるダメージ 0.75 倍
+            event.setAmount(event.getAmount() * ValkyrieTypeTraits.Z_GUARD);
+        }
         // 近接のステップの封印を解く: 狙っている相手を一度殴った / 狙っている相手以外のモブか、飛び道具に撃たれた
         if (attacker instanceof ValkyrieEntity v && event.getEntity() == v.getTarget()) v.combat().stepLocked = false;
         if (event.getEntity() instanceof ValkyrieEntity v) {

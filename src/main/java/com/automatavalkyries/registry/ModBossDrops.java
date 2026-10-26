@@ -24,6 +24,8 @@ public final class ModBossDrops {
     public static final RegistryObject<Item> MEMENTO_WINGS = drop("boss_drop_memento_wings", 16, ModEffects.ECLIPSE_BIOMETAL, 6, "memento_mori");
     public static final RegistryObject<Item> TIME_NEEDLE = drop("boss_drop_time_needle", 16, ModEffects.CHRONO, 6, "time_ruler");
     public static final RegistryObject<Item> ELENOR_RIBBON = drop("boss_drop_elenor_ribbon", 16, ModEffects.LUMINAL, 10, "elenor");
+    /** 観測の核（事象観測姫アカシックの素材。2026-10-26） */
+    public static final RegistryObject<Item> AKASHIC_CORE = drop("boss_drop_akashic_core", 16, ModEffects.LUMINAL, 10, "akashic_seer");
     /** ちっぽけな勇気（ホットバーにあれば終焉が効かない。ボスのタグのあるモブの超低確率ドロップ。docs/SPEC_ELENOR.md §3.4） */
     public static final RegistryObject<Item> TINY_COURAGE = ModItems.ITEMS.register("tiny_courage", () -> new com.automatavalkyries.item.TinyCourageItem(new Item.Properties()));
     /** 試練の砂時計（エレノアに使うと攻撃ティアが上がる。docs/SPEC_ELENOR.md §2.3.3） */

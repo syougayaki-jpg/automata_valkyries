@@ -16,7 +16,7 @@ public enum ValkyrieBody {
     S(30.0F, 15.0F, 0.35F, 35.0F, 4, "cheerful"),
     H(60.0F, 40.0F, 0.20F, 85.0F, 8, "quiet"),
     C(35.0F, 30.0F, 0.26F, 45.0F, 6, "intellectual"),
-    Z(80.0F, 50.0F, 0.32F, 90.0F, 8, "zero");
+    Z(200.0F, 150.0F, 0.36F, 130.0F, 8, "zero");   // 2026-10-26 ユーザー指定「味方の零号機のステータスを強化してほしかった」: HP 80 → 200・障壁 50 → 150・速度 0.32 → 0.36・積載 90 → 130
 
     public final float maxHealth, maxShield, speed, payload;
     public final int ammoSlots;

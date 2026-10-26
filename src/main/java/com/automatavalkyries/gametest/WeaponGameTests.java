@@ -149,6 +149,31 @@ public class WeaponGameTests {
         }, zombie);
     }
 
+    /** リペアインジェクターを遠くで使う（2026-10-26）: 照準の先 8 m の傷ついた飼い狼に右クリックで撃ち込んで 20 回復、満タンの味方には撃たず溶液を詰める */
+    @GameTest(template = TEMPLATE, timeoutTicks = 400)
+    public static void injectorHealsAimedFriendFar(GameTestHelper helper) {
+        net.minecraft.world.entity.animal.Wolf wolf = helper.spawn(EntityType.WOLF, new Vec3(9.5, 2, 1.5));
+        wolf.setNoAi(true);
+        whenLoaded(helper, () -> {
+            FakePlayer player = player(helper, new Vec3(1.5, 2, 1.5));
+            wolf.tame(player);
+            wolf.getAttribute(Attributes.MAX_HEALTH).setBaseValue(40.0);
+            wolf.setHealth(5.0F);
+            player.setXRot((float) Math.toDegrees(Math.atan2(player.getEyeY() - wolf.getY(0.5), wolf.getX() - player.getX())));
+            ItemStack injector = ((TacticalWeaponItem) ModWeapons.REPAIR_INJECTOR.get()).charged();
+            player.setItemInHand(InteractionHand.MAIN_HAND, injector);
+            helper.assertTrue(RepairInjectorItem.aimedFriend(player, RepairInjectorItem.RANGE) == wolf, "the wolf under the crosshair was not found");
+            injector.use(helper.getLevel(), player, InteractionHand.MAIN_HAND);
+            helper.assertTrue(wolf.getHealth() >= 25.0F, "the far wolf was not healed: " + wolf.getHealth());
+            helper.assertTrue(RepairInjectorItem.solution(injector) == RepairInjectorItem.TANK - 1, "solution not used");
+            wolf.setHealth(wolf.getMaxHealth());
+            injector.use(helper.getLevel(), player, InteractionHand.MAIN_HAND);
+            helper.assertTrue(RepairInjectorItem.solution(injector) == RepairInjectorItem.TANK - 1, "shot a friend at full health");
+            wolf.discard();
+            helper.succeed();
+        }, wolf);
+    }
+
     /** 黒死侵食: mob の最大 HP を 1% ずつ削り（30% まで）、プレイヤーには既定で掛けない */
     @GameTest(template = TEMPLATE, timeoutTicks = 400)
     public static void necrosisErodesMaxHealth(GameTestHelper helper) {

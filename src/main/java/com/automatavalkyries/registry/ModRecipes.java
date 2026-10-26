@@ -36,6 +36,10 @@ public final class ModRecipes {
     public static final RegistryObject<RecipeSerializer<com.automatavalkyries.weapon.OverloadRecipe>> OVERLOAD_SERIALIZER = SERIALIZERS.register("overload_weapon",
             () -> new net.minecraft.world.item.crafting.SimpleCraftingRecipeSerializer<>(com.automatavalkyries.weapon.OverloadRecipe::new));
 
+    /** アイテムポケットの強化（作業台の形のあるレシピ。中身を次のティアへ引き継ぐ。2026-10-26） */
+    public static final RegistryObject<RecipeSerializer<com.automatavalkyries.item.PocketUpgradeRecipe>> POCKET_UPGRADE = SERIALIZERS.register("pocket_upgrade",
+            com.automatavalkyries.item.PocketUpgradeRecipe.Serializer::new);
+
     private ModRecipes() {}
 
     private static RegistryObject<RecipeType<MachineRecipe>> type(String name) {

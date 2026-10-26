@@ -23,7 +23,9 @@ import net.minecraft.world.phys.Vec3;
  *   <li>Type-S（近接高機動）: ステップが遠く（×{@value #S_STEP_POWER}）、クールタイムが短い（×{@value #S_STEP_COOLDOWN}）＝瞬動距離特化</li>
  *   <li>Type-H（重装甲防衛）: ノックバック無効。持ち主を狙う近くの敵の注意を自分へ引きつける（前に立つ）。高い所から着地すると地面が揺れる</li>
  *   <li>Type-C（電子戦）: 索敵 {@value #C_RANGE} m。戦闘中は味方を狙う敵を光らせて位置を知らせる（マーキング）。落ちるときは滑空する</li>
- *   <li>零号機（Z）: V に近い万能型。ノックバックを半分受け流し（{@value #Z_KNOCKBACK}）、索敵は C と同じ {@value #C_RANGE} m、ステップは少し遠い（×{@value #Z_STEP_POWER}）</li>
+ *   <li>零号機（Z）: V に近い万能型。索敵は C と同じ {@value #C_RANGE} m。2026-10-26 ユーザー指定「味方の零号機のステータスを強化してほしかった」で強化:
+ *       ノックバック無効・ステップが遠く（×{@value #Z_STEP_POWER}）間が短い（×{@value #Z_STEP_COOLDOWN}）・与えるダメージ ×{@value #Z_DAMAGE}・受けるダメージ ×{@value #Z_GUARD}・
+ *       動ける間は {@value #Z_REGEN_INTERVAL} Tick ごとに HP {@value #Z_REGEN} 回復（前はノックバック半分・ステップ ×1.15 だけ）</li>
  * </ul>
  */
 public final class ValkyrieTypeTraits {
@@ -32,7 +34,10 @@ public final class ValkyrieTypeTraits {
     public static final double S_STEP_POWER = 1.35, S_STEP_COOLDOWN = 0.6;
     public static final double H_STEP_POWER = 0.85, H_STEP_COOLDOWN = 1.25;
     public static final double BASE_RANGE = 32.0, C_RANGE = 40.0;
-    public static final double Z_KNOCKBACK = 0.5, Z_STEP_POWER = 1.15;
+    public static final double Z_KNOCKBACK = 1.0, Z_STEP_POWER = 1.35, Z_STEP_COOLDOWN = 0.7;
+    /** 零号機の与えるダメージ・受けるダメージの倍率と、HP の自然回復 */
+    public static final float Z_DAMAGE = 1.5F, Z_GUARD = 0.75F, Z_REGEN = 2.0F;
+    public static final int Z_REGEN_INTERVAL = 40;
     /** H が注意を引く範囲（m）と間隔（Tick） */
     public static final double H_TAUNT_RANGE = 10.0;
     public static final int H_TAUNT_INTERVAL = 40;
@@ -62,6 +67,7 @@ public final class ValkyrieTypeTraits {
         return switch (v.getBody()) {
             case S -> S_STEP_COOLDOWN;
             case H -> H_STEP_COOLDOWN;
+            case Z -> Z_STEP_COOLDOWN;
             default -> 1.0;
         };
     }
@@ -79,6 +85,9 @@ public final class ValkyrieTypeTraits {
             case C -> {
                 glide(v);
                 if (v.tickCount % C_MARK_INTERVAL == 0) mark(v, level);
+            }
+            case Z -> {
+                if (v.tickCount % Z_REGEN_INTERVAL == 0 && v.getHealth() < v.getMaxHealth()) v.heal(Z_REGEN);   // 零号機は戦いながらも少しずつ直る
             }
             default -> { }
         }

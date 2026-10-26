@@ -11,8 +11,18 @@ import net.minecraft.network.FriendlyByteBuf;
 
 import java.util.Locale;
 
-/** 浮かび上がるダメージの数字（カタストロフ・バスターのカンストダメージなど）。value をそのまま大きく出す */
+/**
+ * 浮かび上がるダメージの数字（カタストロフ・バスターのカンストダメージなど）。value をそのまま大きく出す。
+ * color の上の 8 bit が {@link #SEGMENTS} なら、7 セグの文字で描く（2026-10-26）
+ */
 public record DamageNumberOptions(long value, int color) implements ParticleOptions {
+
+    /** color に重ねる印: 7 セグの文字で描く */
+    public static final int SEGMENTS = 0x01000000;
+
+    public boolean segments() {
+        return (color & 0xFF000000) == SEGMENTS;
+    }
 
     public static final Codec<DamageNumberOptions> CODEC = RecordCodecBuilder.create(i -> i.group(
             Codec.LONG.fieldOf("value").forGetter(DamageNumberOptions::value),

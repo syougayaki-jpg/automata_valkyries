@@ -28,6 +28,8 @@ import software.bernie.geckolib.model.DefaultedEntityGeoModel;
  * 近くのプレイヤーを目で追う（頭だけ ±55 度・上下 ±30 度まで、なめらかに）
  * 技ごとの構え（{@link LostCatastropheEntity#animTick}）、詠唱の間は両腕を広げて天を仰ぎ、
  * 動けない間はうなだれて震え、出現は体を丸めた所から開き、撃破は膝をついてうなだれる。
+ * 2026-10-26 演出の改良: 出現は 70 まで丸まり 100 で腕と翼を広げて構え、光輪は 70〜80 で灯る。形態変化は一瞬丸まってから広げ、撤退は自分を抱いて丸まる。
+ * 撃破では光輪が 36〜40 で膨らみ、40 で砕けて消える。
  * 腕・翼の Z の回転は右が正で外へ（メメントモリと同じ）
  */
 public class LostCatastropheModel extends DefaultedEntityGeoModel<LostCatastropheEntity> {
@@ -62,10 +64,19 @@ public class LostCatastropheModel extends DefaultedEntityGeoModel<LostCatastroph
         float slash = pose(age - e.animTick[0], 4, 10, 10), beam = pose(age - e.animTick[1], 8, 24, 10), spiral = pose(age - e.animTick[2], 5, 25, 10);
         float blade = pose(age - e.animTick[3], 10, 60, 14), rain = pose(age - e.animTick[4], 6, 50, 12), hole = pose(age - e.animTick[5], 6, 80, 14);
         float hack = pose(age - e.animTick[6], 4, 16, 10), stop = pose(age - e.animTick[7], 6, 26, 10);
-        float chant = e.chantLeft() > 0 ? 1.0F : 0.0F;
+        float chant = e.chantLeft() > 0 || e.finaleTicks() > 0 ? 1.0F : 0.0F;              // 終幕も詠唱と同じく両腕を広げて天を仰ぐ（2026-10-26）
         float stun = e.stunLeft() > 0 ? 1.0F : 0.0F;
-        float intro = 1.0F - smooth((age - e.introTick - 20) / 60.0F);
-        if (age - e.introTick > 100) intro = 0.0F;
+        // 出現（2026-10-26 演出の改良）: 組み上がる間（〜70）は丸まり、70〜100 でほどけ、100 で腕を広げて構える（flare）
+        float sinceIntro = age - e.introTick;
+        float intro = sinceIntro > LostCatastropheEntity.INTRO_TICKS ? 0.0F : 1.0F - smooth((sinceIntro - 70) / 30.0F);
+        float flare = pose(sinceIntro - 100, 3, 14, 16);
+        // 形態変化: 一瞬丸まってから、怨嗟を噴き出すように広げる
+        float sincePhase = age - e.phaseChangedTick;
+        float curl = pose(sincePhase, 4, 8, 6);
+        flare = Math.max(flare, pose(sincePhase - 12, 3, 16, 14));
+        // 撤退: 腕で自分を抱いて丸まり、崩れていく
+        float retreat = pose(age - e.animTick[LostCatastropheEntity.EV_RETREAT - 90], 20, 80, 1);
+        intro = Math.max(intro, Math.max(curl, retreat));
         float defeat = e.deathTime > 0 ? smooth((e.deathTime + pt - 40) / 60.0F) : 0.0F;
         float calm = 1.0F - Math.max(stun, defeat);
 
@@ -75,7 +86,7 @@ public class LostCatastropheModel extends DefaultedEntityGeoModel<LostCatastroph
         if (body != null) {
             body.setPosY(Mth.sin(age * 0.06F) * 0.6F * calm - 2.0F * defeat);
             body.setPosX(shift * 0.35F);
-            body.setRotX(-0.12F * move - 0.25F * slash + 0.35F * intro + 0.3F * defeat + 0.15F * stun - 0.12F * chant);
+            body.setRotX(-0.12F * move - 0.25F * slash + 0.35F * intro + 0.3F * defeat + 0.15F * stun - 0.12F * chant - 0.15F * flare);
             body.setRotZ(shift * 0.045F + (stun > 0 ? Mth.sin(age * 3.1F) * 0.03F : 0.0F));
         }
         CoreGeoBone chest = bone("chest");
@@ -95,7 +106,7 @@ public class LostCatastropheModel extends DefaultedEntityGeoModel<LostCatastroph
             look(e, pt);
             float tilt = tiltPose(e, age) * calm;                                // 時々の首かしげ
             // 上下はおさえる（OBJ の頭は首の付け根で回るので、大きく下を向くとあごが襟に入る。2026-10-21 ユーザー指定「あごのあたりが貫通している」）
-            head.setRotX((e.lookPitch * Mth.DEG_TO_RAD) * 0.5F * calm + 0.3F * defeat + 0.2F * stun - 0.3F * chant + 0.2F * intro);
+            head.setRotX((e.lookPitch * Mth.DEG_TO_RAD) * 0.5F * calm + 0.3F * defeat + 0.2F * stun - 0.3F * chant + 0.2F * intro - 0.25F * flare);
             head.setRotY((e.lookYaw * Mth.DEG_TO_RAD + Mth.sin(age * 0.03F) * 0.05F) * calm);
             head.setRotZ(0.15F * stun * Mth.sin(age * 0.4F) + 0.12F * defeat + tilt);
         }
@@ -189,6 +200,8 @@ public class LostCatastropheModel extends DefaultedEntityGeoModel<LostCatastroph
             rz = rz * (1.0F - Math.max(stun, defeat)) + Math.max(stun, defeat) * 0.12F;
             rx = rx * (1.0F - intro) + intro * 1.2F;                         // 出現: 胸の前で抱えた所から
             rz = rz * (1.0F - intro) - intro * 0.4F;
+            rx = rx * (1.0F - flare) + flare * 0.5F;                         // 広げて構える（出現の終わり・形態変化）
+            rz += 1.1F * flare;
             CoreGeoBone arm = bone("arm_" + side);
             if (arm != null) {
                 arm.setRotX(rx);
@@ -200,7 +213,7 @@ public class LostCatastropheModel extends DefaultedEntityGeoModel<LostCatastroph
         }
 
         // 翼: 右の刃の翼と左の瓦礫の翼をはばたかせる。詠唱・特異点・時間停止では少し広げ、撃破ではたたむ（向きがはっきりしないので動きは小さく）
-        float spread = 0.06F + 0.2F * chant + 0.15F * hole + 0.12F * stop + 0.1F * slash - 0.2F * intro - 0.2F * defeat;
+        float spread = 0.06F + 0.2F * chant + 0.15F * hole + 0.12F * stop + 0.1F * slash - 0.2F * intro - 0.2F * defeat + 0.25F * flare;
         for (String side : new String[]{"r", "l"}) {
             boolean right = side.equals("r");
             float s = right ? 1.0F : -1.0F;
@@ -214,14 +227,26 @@ public class LostCatastropheModel extends DefaultedEntityGeoModel<LostCatastroph
         }
 
         // 光輪: それぞれの向きに回る（詠唱の間は速く、動けない間は止まる）。撃破では崩れて傾く
-        float spin = (1.0F - stun) * (1.0F - defeat) * (1.0F + 3.0F * chant + 1.5F * stop);
+        float spin = (1.0F - stun) * (1.0F - defeat) * (1.0F + 3.0F * chant + 1.5F * stop + 4.0F * flare);
+        // 光輪の大きさ（2026-10-26 演出の改良）: 出現の 70〜80 で灯って広がり、撃破の 36〜40 で膨らんで 40 で砕ける（破片はサーバーの粒子）
+        float haloSize = sinceIntro >= 0 && sinceIntro < 80 ? smooth((sinceIntro - 70) / 10.0F) : 1.0F;
+        if (e.deathTime > 0) haloSize = e.deathTime + pt < 40 ? 1.0F + 0.3F * smooth((e.deathTime + pt - 36) / 4.0F) : 0.0F;
+        haloSize *= 1.0F + 0.15F * flare;
         CoreGeoBone top = bone("halo_top"), topSpin = bone("halo_spin");          // 頭上の光輪: 傾きは halo_top、回すのは子の halo_spin（傾いたまま自分の軸で回る）
         if (top != null) {
             top.setRotX(HALO_TILT_X + 0.4F * defeat);
             top.setRotZ(HALO_TILT_Z);
             top.setPosY(Mth.sin(age * 0.09F) * 0.3F - 3.0F * defeat);
+            top.setHidden(haloSize <= 0.01F);
+            float hs = Math.max(0.01F, haloSize);
+            top.setScaleX(hs);
+            top.setScaleY(hs);
+            top.setScaleZ(hs);
         }
         if (topSpin != null) topSpin.setRotY(age * 0.03F * spin);
+        hide(topSpin, haloSize <= 0.01F);                                          // 光輪の面は子の halo_spin にある（親を隠しても子は描かれる）
+        hide(bone("halo_r"), haloSize <= 0.01F);
+        hide(bone("halo_l"), haloSize <= 0.01F);
         CoreGeoBone hr = bone("halo_r");
         if (hr != null) {
             hr.setRotZ(Mth.sin(age * 0.03F) * 0.12F * spin);                     // 傾いた輪なので回さず揺らす

@@ -58,6 +58,15 @@ public class ModEntities {
                             .sized(0.6F, 1.75F)
                             .clientTrackingRange(10)
                             .build("akashic_probe"));
+    /** 事象観測姫アカシック（一般ボス。2026-10-26 ユーザー指定「アカシックちゃんを一般ボスとしておまけとして実装する」）と、その弾のデータの立方体 */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.seer.AkashicSeerEntity>> AKASHIC_SEER =
+            ENTITY_TYPES.register("akashic_seer", () ->
+                    EntityType.Builder.of(com.automatavalkyries.entity.seer.AkashicSeerEntity::new, MobCategory.MONSTER)
+                            .sized(0.6F, 1.8F).clientTrackingRange(12).fireImmune().build("akashic_seer"));
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.seer.AkashicCubeEntity>> AKASHIC_CUBE =
+            ENTITY_TYPES.register("akashic_cube", () ->
+                    EntityType.Builder.<com.automatavalkyries.entity.seer.AkashicCubeEntity>of(com.automatavalkyries.entity.seer.AkashicCubeEntity::new, MobCategory.MISC)
+                            .sized(0.35F, 0.35F).clientTrackingRange(8).updateInterval(2).build("akashic_cube"));
 
     /** テスト用: 30 ブロック上に浮く HP 1 万のボススケルトン（スラスター・回避の確認用。2026-10-06） */
     public static final RegistryObject<EntityType<com.automatavalkyries.entity.SkyBossSkeleton>> SKY_BOSS_SKELETON =
@@ -302,6 +311,7 @@ public class ModEntities {
         event.put(FARTHEST_ELENOR.get(), ElenorEntity.createAttributes().build());
         event.put(PROTECT_DUMMY_ZOMBIE.get(), com.automatavalkyries.entity.ProtectDummyZombieEntity.createAttributes().build());
         event.put(AKASHIC_PROBE.get(), com.automatavalkyries.entity.akashic.AkashicProbeEntity.createAttributes().build());
+        event.put(AKASHIC_SEER.get(), com.automatavalkyries.entity.seer.AkashicSeerEntity.createAttributes().build());
         event.put(PULSE_PHALANX.get(), com.automatavalkyries.entity.chrono.PulsePhalanxEntity.createAttributes().build());
         event.put(SIEGE_CANNON.get(), com.automatavalkyries.entity.chrono.SiegeCannonEntity.createAttributes().build());
         event.put(SIREN_EYE.get(), com.automatavalkyries.entity.chrono.SirenEyeEntity.createAttributes().build());

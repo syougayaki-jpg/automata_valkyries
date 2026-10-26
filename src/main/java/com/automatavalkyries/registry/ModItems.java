@@ -188,6 +188,14 @@ public class ModItems {
             new ForgeSpawnEggItem(ModEntities.PROTECT_DUMMY_ZOMBIE, 0x00aa00, 0xffd700, new Item.Properties()));
     public static final RegistryObject<Item> AKASHIC_PROBE_SPAWN_EGG = ITEMS.register("akashic_probe_spawn_egg", () ->
             new ForgeSpawnEggItem(ModEntities.AKASHIC_PROBE, 0xe8ecf4, 0xff4fd8, new Item.Properties()));
+    /** 事象観測姫アカシック（2026-10-26）: スポーンエッグと、地面に使って呼ぶ事象観測端末・倒して手に入る観測の立方体 */
+    public static final RegistryObject<Item> AKASHIC_SEER_SPAWN_EGG = ITEMS.register("akashic_seer_spawn_egg", () ->
+            new ForgeSpawnEggItem(ModEntities.AKASHIC_SEER, 0xf4f6fa, 0x4fe3ff, new Item.Properties()));
+    public static final RegistryObject<Item> SIGNAL_AKASHIC_SEER = ITEMS.register("signal_akashic_seer", () ->
+            new com.automatavalkyries.item.HeroSignalItem(new Item.Properties().stacksTo(16).rarity(Rarity.RARE), ModEntities.AKASHIC_SEER, "akashic_seer",
+                    new org.joml.Vector3f(1.0F, 0.35F, 0.85F)));
+    public static final RegistryObject<Item> AKASHIC_CUBES = ITEMS.register("akashic_cubes", () ->
+            new com.automatavalkyries.item.AkashicCubesItem(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC)));
 
     // ---- テスト用 ----
     public static final RegistryObject<Item> DEBUG_KILL_STICK = ITEMS.register("debug_kill_stick", () ->
@@ -263,6 +271,18 @@ public class ModItems {
             new com.automatavalkyries.item.ValkyrieGiftItem(new Item.Properties().food(com.automatavalkyries.item.ValkyrieGiftItem.candyFood())));
     public static final RegistryObject<Item> COOLING_ICE = ITEMS.register("cooling_ice", () ->
             new com.automatavalkyries.item.ValkyrieGiftItem(new Item.Properties().food(com.automatavalkyries.item.ValkyrieGiftItem.iceFood())));
+
+    // ---- アイテムポケット（2026-10-26 ユーザー指定「持ち物を大量にしまえて中にあるアイテムを自動で使ってくれるアイテムポケット」。ティアごとに 27/54/108/216 枠） ----
+    public static final RegistryObject<Item> ITEM_POCKET_T1 = ITEMS.register("item_pocket_t1", () ->
+            new com.automatavalkyries.item.ItemPocketItem(1, 27, new Item.Properties().rarity(Rarity.UNCOMMON)));
+    public static final RegistryObject<Item> ITEM_POCKET_T2 = ITEMS.register("item_pocket_t2", () ->
+            new com.automatavalkyries.item.ItemPocketItem(2, 54, new Item.Properties().rarity(Rarity.RARE)));
+    public static final RegistryObject<Item> ITEM_POCKET_T3 = ITEMS.register("item_pocket_t3", () ->
+            new com.automatavalkyries.item.ItemPocketItem(3, 108, new Item.Properties().rarity(Rarity.EPIC)));
+    public static final RegistryObject<Item> ITEM_POCKET_T4 = ITEMS.register("item_pocket_t4", () ->
+            new com.automatavalkyries.item.ItemPocketItem(4, 216, new Item.Properties().rarity(Rarity.EPIC).fireResistant()));
+    public static final RegistryObject<net.minecraft.world.inventory.MenuType<com.automatavalkyries.menu.ItemPocketMenu>> POCKET_MENU =
+            ModMachines.MENUS.register("item_pocket", () -> net.minecraftforge.common.extensions.IForgeMenuType.create(com.automatavalkyries.menu.ItemPocketMenu::new));
 
     private static RegistryObject<Item> effect(String name, Rarity rarity, java.util.List<net.minecraft.core.particles.ParticleOptions> particles,
                                                int interval, boolean foil) {

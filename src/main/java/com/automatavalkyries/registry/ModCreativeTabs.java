@@ -54,7 +54,8 @@ public class ModCreativeTabs {
         if (item instanceof TacticalWeaponItem || item instanceof com.automatavalkyries.item.FlightWingItem || item instanceof LuminalCoreItem || id.startsWith("ammo_") || id.equals("nano_solution")
                 || item instanceof com.automatavalkyries.item.unit.ValkyrieUnits.FrameItem || item instanceof com.automatavalkyries.item.unit.ValkyrieUnits.BackpackItem
                 || item instanceof com.automatavalkyries.item.unit.ValkyrieUnits.ChipItem
-                || id.equals("backpack_steam_thruster") || id.equals("upgrade_station") || item instanceof com.automatavalkyries.item.armor.MetalArmorItem) {
+                || id.equals("backpack_steam_thruster") || id.equals("upgrade_station") || item instanceof com.automatavalkyries.item.armor.MetalArmorItem
+                || item instanceof com.automatavalkyries.item.ItemPocketItem || item instanceof com.automatavalkyries.item.AkashicCubesItem) {
             return Group.WEAPONS;
         }
         if (item instanceof ChronoMachineItem || (item instanceof BlockItem block && block.getBlock() instanceof EntityBlock)) return Group.MACHINES;

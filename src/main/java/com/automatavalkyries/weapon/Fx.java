@@ -114,6 +114,11 @@ public final class Fx {
         send(level, new DamageNumberOptions(value, color), at.x, at.y, at.z, 1, 0, 0, 0, 0);
     }
 
+    /** ダメージの数字を 7 セグの文字（ふつうの 10 進数）で出す（事象観測姫アカシックの結晶槍。2026-10-26 ユーザー指定「ダメージは普通のセグ数字で」） */
+    public static void segmentNumber(ServerLevel level, Vec3 at, long value, int color) {
+        send(level, new DamageNumberOptions(value, (color & 0xFFFFFF) | DamageNumberOptions.SEGMENTS), at.x, at.y, at.z, 1, 0, 0, 0, 0);
+    }
+
     // よく使う色
     public static final int WHITE = 0xFFFFFF, CYAN = 0x7FE4FF, ICE = 0xB8F4FF, GOLD = 0xFFD166, PALE_GOLD = 0xFFF0B0,
             VIOLET = 0xB070FF, LAVENDER = 0xC8B8FF, GREEN = 0x6FD1A0, ORANGE = 0xFF8C1A, EMBER = 0xFFB050, PINK = 0xFF8AD8;

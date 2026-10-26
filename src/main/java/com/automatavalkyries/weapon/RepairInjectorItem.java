@@ -52,9 +52,27 @@ public class RepairInjectorItem extends TacticalWeaponItem implements ValkyrieAr
         return stack;
     }
 
+    /** 遠くの味方へ撃ち込める距離（2026-10-26 ユーザー指定「リペアインジェクターを遠距離で使えるようにして」） */
+    public static final double RANGE = 32.0;
+
+    /**
+     * 右クリック: 照準の先 {@value #RANGE} m 以内の味方（ほかのプレイヤー・兵姫・飼っている動物・同じチーム）へナノマシンを撃ち込んで癒やす
+     * （溶液 1 つ・間隔は自動噴霧と同じ。機能停止中の兵姫は起きる）。照準に味方がいなければ溶液を詰める
+     */
     @Override
     public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
         ItemStack injector = player.getItemInHand(hand);
+        LivingEntity aimed = aimedFriend(player, RANGE);
+        boolean needsCare = aimed != null && (aimed.getHealth() < aimed.getMaxHealth()
+                || aimed instanceof com.automatavalkyries.entity.ValkyrieEntity v && v.isShutdown());   // 満タンの味方には撃たず、溶液を詰める
+        if (needsCare) {
+            if (level instanceof ServerLevel server && !inject(server, player, injector, aimed)) {
+                player.displayClientMessage(Component.translatable(solution(injector) <= 0 ? "gui.automata_valkyries.no_solution" : "gui.automata_valkyries.injector_cooldown")
+                        .withStyle(ChatFormatting.RED), true);
+                return InteractionResultHolder.fail(injector);
+            }
+            return InteractionResultHolder.sidedSuccess(injector, level.isClientSide());
+        }
         int need = TANK - solution(injector);
         if (need <= 0) return InteractionResultHolder.pass(injector);
         int loaded = 0;
@@ -88,8 +106,30 @@ public class RepairInjectorItem extends TacticalWeaponItem implements ValkyrieAr
         return inject(level, holder, stack, holder);
     }
 
-    /** 兵姫が見る範囲（味方へ届く距離） */
-    public static final double VALKYRIE_RANGE = 8.0;
+    /** 照準の先 range 以内の、壁に遮られていない味方 */
+    @org.jetbrains.annotations.Nullable
+    public static LivingEntity aimedFriend(Player player, double range) {
+        net.minecraft.world.phys.Vec3 eye = player.getEyePosition(), look = player.getViewVector(1.0F);
+        net.minecraft.world.phys.Vec3 end = eye.add(look.scale(range));
+        net.minecraft.world.phys.BlockHitResult wall = player.level().clip(new net.minecraft.world.level.ClipContext(eye, end,
+                net.minecraft.world.level.ClipContext.Block.COLLIDER, net.minecraft.world.level.ClipContext.Fluid.NONE, player));
+        if (wall.getType() != net.minecraft.world.phys.HitResult.Type.MISS) end = wall.getLocation();
+        net.minecraft.world.phys.EntityHitResult hit = net.minecraft.world.entity.projectile.ProjectileUtil.getEntityHitResult(player, eye, end,
+                player.getBoundingBox().expandTowards(end.subtract(eye)).inflate(1.0),
+                e -> e instanceof LivingEntity l && l.isAlive() && !l.isSpectator() && friendOf(player, l), eye.distanceToSqr(end));
+        return hit != null ? (LivingEntity) hit.getEntity() : null;
+    }
+
+    /** プレイヤーから見た味方（ほかのプレイヤー・兵姫・飼っている動物・同じチーム） */
+    static boolean friendOf(Player player, LivingEntity e) {
+        if (e == player) return false;
+        if (e instanceof Player || e instanceof com.automatavalkyries.entity.ValkyrieEntity) return true;
+        if (e instanceof net.minecraft.world.entity.TamableAnimal pet && player.getUUID().equals(pet.getOwnerUUID())) return true;
+        return player.isAlliedTo(e);
+    }
+
+    /** 兵姫が見る範囲（味方へ届く距離。2026-10-26 から遠くの味方にも撃ち込む） */
+    public static final double VALKYRIE_RANGE = 24.0;
     /** 兵姫が噴霧する HP の割合（これ未満の自分・持ち主・味方へ） */
     public static final float VALKYRIE_THRESHOLD = 0.5F;
 
@@ -121,11 +161,17 @@ public class RepairInjectorItem extends TacticalWeaponItem implements ValkyrieAr
         if (!patient.isAlive() || !ready(level, stack)) return false;
         setSolution(stack, solution(stack) - 1);
         stack.getOrCreateTag().putLong("Ready", level.getGameTime() + COOLDOWN);
-        patient.heal(HEAL);
+        if (patient instanceof com.automatavalkyries.entity.ValkyrieEntity v) v.repair(HEAL);       // 機能停止中なら起こす
+        else patient.heal(HEAL);
         net.minecraft.world.phys.Vec3 at = new net.minecraft.world.phys.Vec3(patient.getX(), patient.getY(0.5), patient.getZ());
-        if (patient != holder) {
-            Fx.line(level, Fx.opt(com.automatavalkyries.registry.ModParticles.GLOW.get(), NANO, 0.2F, 12),
-                    new net.minecraft.world.phys.Vec3(holder.getX(), holder.getY(0.6), holder.getZ()), at, 0.5);
+        if (patient != holder) {                                                                // 撃ち込んだナノマシンの筋（遠くなら輪を挟む）
+            net.minecraft.world.phys.Vec3 from = new net.minecraft.world.phys.Vec3(holder.getX(), holder.getY(0.6), holder.getZ());
+            Fx.line(level, Fx.opt(com.automatavalkyries.registry.ModParticles.GLOW.get(), NANO, 0.2F, 12), from, at, 0.5);
+            Fx.line(level, Fx.opt(com.automatavalkyries.registry.ModParticles.SPARK.get(), 0xFFFFFF, 0.12F, 8), from, at, 1.2);
+            double dist = from.distanceTo(at);
+            net.minecraft.world.phys.Vec3 axis = at.subtract(from).normalize();
+            for (double d = 4.0; d < dist - 1.0; d += 4.0) Fx.beamRing(level, from.add(axis.scale(d)), axis, NANO, 0.5F, 10);
+            level.playSound(null, holder.blockPosition(), SoundEvents.CROSSBOW_SHOOT, SoundSource.PLAYERS, 0.6F, 1.8F);
         }
         Fx.spray(level, Fx.opt(com.automatavalkyries.registry.ModParticles.GLOW.get(), 0xB0FFD0, 0.35F, 20), at, 18, 0.45, 0.6, 0.45, 0.02);
         Fx.spray(level, Fx.opt(com.automatavalkyries.registry.ModParticles.SPARK.get(), Fx.GREEN, 0.25F, 14), at, 10, 0.5, 0.8, 0.5, 0.03);
