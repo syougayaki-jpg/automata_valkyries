@@ -397,6 +397,13 @@ public final class FxParticles {
     }
 
     static class DamageNumber extends Particle {
+        /**
+         * 色の字を縁取りより手前（カメラ側）へ出す量（字の座標で）。字の描き方は半透明の面を距離で並べ替えるので、
+         * 同じ深さだと黒い縁取りが色の字の前に来ることがあった（2026-10-29 ユーザー指摘「黒い表記が前にでて見にくい」）。
+         * 縦横を (-s, -s, s) で裏返しているので、カメラ側は字の座標の -z（+z にしたら色の字が縁取りの奥に隠れた）
+         */
+        private static final float FRONT = -0.5F;
+        private static final int[][] OUTLINE = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}, {-1, -1}, {1, -1}, {-1, 1}, {1, 1}};
         private final String text;
         private final int color;
         private final boolean segments;
@@ -406,12 +413,12 @@ public final class FxParticles {
             this.segments = o.segments();
             this.text = segments ? Long.toString(Math.max(0L, o.value())) : NumberFormat.getIntegerInstance().format(o.value());
             this.color = o.color() & 0xFFFFFF;
-            this.lifetime = 40;
+            this.lifetime = 50;
             this.hasPhysics = false;
             this.gravity = 0;
             this.yd = 0.12;
-            this.xd = (random.nextDouble() - 0.5) * 0.04;
-            this.zd = (random.nextDouble() - 0.5) * 0.04;
+            this.xd = (random.nextDouble() - 0.5) * 0.08; // 続けて当たっても数字が重なりにくいよう、少し散らす
+            this.zd = (random.nextDouble() - 0.5) * 0.08;
         }
 
         @Override
@@ -426,32 +433,35 @@ public final class FxParticles {
             Font font = mc.font;
             float t = (age + partialTick) / lifetime;
             float pop = t < 0.12F ? 0.6F + t / 0.12F * 0.8F : t < 0.2F ? 1.4F - (t - 0.12F) / 0.08F * 0.4F : 1F;
-            int alpha = (int) (255 * (t < 0.7F ? 1F : 1F - (t - 0.7F) / 0.3F));
+            int alpha = (int) (255 * (t < 0.75F ? 1F : 1F - (t - 0.75F) / 0.25F));
             if (alpha < 8) return;
             Vec3 cam = camera.getPosition();
+            double px = Mth.lerp(partialTick, xo, x) - cam.x, py = Mth.lerp(partialTick, yo, y) - cam.y, pz = Mth.lerp(partialTick, zo, z) - cam.z;
             PoseStack pose = new PoseStack();
-            pose.translate(Mth.lerp(partialTick, xo, x) - cam.x, Mth.lerp(partialTick, yo, y) - cam.y, Mth.lerp(partialTick, zo, z) - cam.z);
+            pose.translate(px, py, pz);
             pose.mulPose(camera.rotation());
-            float s = 0.045F * pop;
+            // 遠くても読めるよう、8 ブロックより遠いと距離に合わせて大きく（最大 3 倍。2026-10-29 ユーザー指定「ダメージ表記を少し見やすく」）
+            float far = (float) Mth.clamp(Math.sqrt(px * px + py * py + pz * pz) / 8.0, 1.0, 3.0);
+            float s = 0.05F * pop * far;
             pose.scale(-s, -s, s);
             MultiBufferSource.BufferSource buffers = mc.renderBuffers().bufferSource();
             if (segments) {                                                                 // 7 セグの数字（黒い縁取りの上に色）
                 com.mojang.blaze3d.vertex.VertexConsumer vc = buffers.getBuffer(net.minecraft.client.renderer.RenderType.textBackgroundSeeThrough());
-                org.joml.Matrix4f m = pose.last().pose();
+                org.joml.Matrix4f m = pose.last().pose(), front = new org.joml.Matrix4f(m).translate(0, 0, FRONT);
                 float pitch = 8.0F, x0 = -text.length() * pitch / 2.0F + 1.0F;
                 for (int i = 0; i < text.length(); i++) Segments.digit(vc, m, x0 + i * pitch, -1.0F, 6.0F, 10.0F, 1.6F, text.charAt(i) - '0', alpha << 24, 1.0F);
-                for (int i = 0; i < text.length(); i++) Segments.digit(vc, m, x0 + i * pitch, -1.0F, 6.0F, 10.0F, 1.6F, text.charAt(i) - '0', (alpha << 24) | color, 0.0F);
+                for (int i = 0; i < text.length(); i++) Segments.digit(vc, front, x0 + i * pitch, -1.0F, 6.0F, 10.0F, 1.6F, text.charAt(i) - '0', (alpha << 24) | color, 0.0F);
                 buffers.endBatch();
                 return;
             }
             float w = font.width(text) / 2F;
             int argb = (alpha << 24) | (color & 0xFFFFFF);
             int outline = (alpha << 24);
-            // 縁取り（黒）を 4 方向にずらして描いてから、本体
-            for (int[] d : new int[][]{{-1, 0}, {1, 0}, {0, -1}, {0, 1}}) {
+            // 縁取り（黒）を斜めも含めた 8 方向にずらして描いてから、本体（明るい背景でも字が埋もれないように）
+            for (int[] d : OUTLINE) {
                 font.drawInBatch(text, -w + d[0], d[1], outline, false, pose.last().pose(), buffers, Font.DisplayMode.SEE_THROUGH, 0, 0xF000F0);
             }
-            font.drawInBatch(text, -w, 0, argb, false, pose.last().pose(), buffers, Font.DisplayMode.SEE_THROUGH, 0, 0xF000F0);
+            font.drawInBatch(text, -w, 0, argb, false, new org.joml.Matrix4f(pose.last().pose()).translate(0, 0, FRONT), buffers, Font.DisplayMode.SEE_THROUGH, 0, 0xF000F0);
             buffers.endBatch();
         }
 

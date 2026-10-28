@@ -16,7 +16,8 @@ import org.joml.Vector3f;
 
 /**
  * ボスの居場所の目印（2026-10-26 ユーザー指定「空中でぼすを見失う」）: このMOD のボス（{@link RetreatableBoss}）が {@value #RANGE} m 以内にいる間、
- * 画面の外（上・後ろなど）なら画面の縁に赤い矢印と距離、画面の中でも離れていれば体のまわりに赤い括弧と距離を出す
+ * 画面の外（上・後ろなど）なら画面の縁に赤い矢印と距離、画面の中でも離れていれば体のまわりに赤い括弧と距離を出す。
+ * クライアントの設定 {@code combat.bossLocator} で切れる（2026-10-29）
  */
 public final class BossLocatorHud {
 
@@ -32,7 +33,7 @@ public final class BossLocatorHud {
 
     static void render(ForgeGui gui, GuiGraphics g, float pt, int w, int h) {
         Minecraft mc = Minecraft.getInstance();
-        if (mc.level == null || mc.player == null || mc.options.hideGui) return;
+        if (mc.level == null || mc.player == null || mc.options.hideGui || !com.automatavalkyries.config.ValkyrieClientConfig.bossLocator()) return;
         Camera cam = mc.gameRenderer.getMainCamera();
         Vec3 eye = cam.getPosition();
         for (Entity e : mc.level.entitiesForRendering()) {

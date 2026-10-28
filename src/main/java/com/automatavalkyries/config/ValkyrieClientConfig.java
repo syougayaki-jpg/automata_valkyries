@@ -5,6 +5,7 @@ import net.minecraftforge.common.ForgeConfigSpec;
 /**
  * 戦術兵姫の表示の設定（クライアント。automata_valkyries-client.toml。SPEC_VALKYRIE_GUI_AI §2.5）。
  * HUD（追従中の兵姫を最大 4 体）の表示・位置と、頭上の名前・バーを出す距離。
+ * 2026-10-29 ユーザー指定「ボスの追跡マーカーをオンオフ」「ダメージ表記をどんなダメージでも出すかをオンオフ」で表示の項目を足した（ゲーム中にファイルを書き換えても効く）。
  */
 public final class ValkyrieClientConfig {
 
@@ -19,6 +20,8 @@ public final class ValkyrieClientConfig {
     public static final ForgeConfigSpec.DoubleValue HUD_SCALE;
     public static final ForgeConfigSpec.BooleanValue OVERHEAD_ENABLED;
     public static final ForgeConfigSpec.DoubleValue OVERHEAD_DISTANCE;
+    public static final ForgeConfigSpec.BooleanValue BOSS_LOCATOR;
+    public static final ForgeConfigSpec.BooleanValue ALL_DAMAGE_NUMBERS;
 
     static {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
@@ -32,6 +35,11 @@ public final class ValkyrieClientConfig {
         builder.comment("頭上の名前・HP/シールドのバー・感情アイコン・吹き出し").push("overhead");
         OVERHEAD_ENABLED = builder.comment("頭上の表示を出すか（false でも吹き出しと感情アイコンは出す）").define("enabled", true);
         OVERHEAD_DISTANCE = builder.comment("名前とバーを出す距離（ブロック）").defineInRange("distance", 8.0, 1.0, 64.0);
+        builder.pop();
+        builder.comment("戦いの表示").push("combat");
+        BOSS_LOCATOR = builder.comment("ボスの追跡マーカー（このMOD のボスが 128 m 以内にいる間、画面の縁の矢印・体のまわりの括弧と距離）を出すか").define("bossLocator", true);
+        ALL_DAMAGE_NUMBERS = builder.comment("どんなダメージでも頭上に数字を出すか（近く 32 m の生き物の HP が減ったら、減った量を出す）。",
+                "false でも兵装の大技・訓練用ダミーゾンビの数字はいつもどおり出す").define("allDamageNumbers", false);
         builder.pop();
         SPEC = builder.build();
     }
@@ -78,6 +86,14 @@ public final class ValkyrieClientConfig {
 
     public static double overheadDistance() {
         return get(OVERHEAD_DISTANCE, 8.0);
+    }
+
+    public static boolean bossLocator() {
+        return get(BOSS_LOCATOR, true);
+    }
+
+    public static boolean allDamageNumbers() {
+        return get(ALL_DAMAGE_NUMBERS, false);
     }
 
     private static <T> T get(ForgeConfigSpec.ConfigValue<T> value, T fallback) {
