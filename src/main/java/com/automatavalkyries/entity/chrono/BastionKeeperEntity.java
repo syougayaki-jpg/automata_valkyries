@@ -82,7 +82,7 @@ public class BastionKeeperEntity extends ChronoMidBoss {
     }
 
     @Override
-    protected ResourceLocation rewardLoot() {
+    public ResourceLocation rewardLoot() {
         return loot("chests/chrono_bastion_reward");
     }
 

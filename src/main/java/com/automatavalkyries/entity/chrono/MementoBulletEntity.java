@@ -277,7 +277,7 @@ public class MementoBulletEntity extends Entity {
     /** 当てる: 防御無視のダメージと、入れば死蝶の呪い 1 つ。入ったか */
     public boolean strike(LivingEntity e) {
         boolean landed = owner instanceof MementoMoriEntity m ? e.hurt(m.bulletDamage(this, finale), m.damageFor(e, damage)) : e.hurt(damageSources().indirectMagic(this, owner), damage);
-        if (landed) MementoCurse.add(e, MementoCurse.BULLET);
+        if (landed) MementoCurse.add(e, MementoCurse.BULLET, owner);
         return landed;
     }
 

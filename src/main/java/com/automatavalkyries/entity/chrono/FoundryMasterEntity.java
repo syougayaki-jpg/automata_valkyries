@@ -83,7 +83,7 @@ public class FoundryMasterEntity extends ChronoMidBoss {
     }
 
     @Override
-    protected ResourceLocation rewardLoot() {
+    public ResourceLocation rewardLoot() {
         return loot("chests/dimension_foundry_reward");
     }
 

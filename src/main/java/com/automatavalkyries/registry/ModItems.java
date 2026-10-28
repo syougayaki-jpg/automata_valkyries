@@ -146,6 +146,8 @@ public class ModItems {
             new ForgeSpawnEggItem(ModEntities.VALKYRIE_DUMMY, 0xb8bcc4, 0x3be8ff, new Item.Properties()));
     public static final RegistryObject<Item> LUXION_SPAWN_EGG = ITEMS.register("luxion_spawn_egg", () ->
             new ForgeSpawnEggItem(ModEntities.LUXION, 0xf4f0e4, 0xff2a4a, new Item.Properties()));
+    public static final RegistryObject<Item> LUXION_EX_SPAWN_EGG = ITEMS.register("luxion_ex_spawn_egg", () ->
+            new ForgeSpawnEggItem(ModEntities.LUXION_EX, 0x1a1418, 0xe8c060, new Item.Properties()));
     /** 英雄機の呼び声『ルクシオン』（AEC 級ボスの召喚。2026-10-07） */
     public static final RegistryObject<Item> SIGNAL_LUXION = ITEMS.register("signal_luxion", () ->
             new com.automatavalkyries.item.HeroSignalItem(new Item.Properties().stacksTo(16).rarity(Rarity.EPIC), ModEntities.LUXION, "luxion",
@@ -159,6 +161,10 @@ public class ModItems {
                     new org.joml.Vector3f(0.6F, 0.29F, 1.0F)));
     public static final RegistryObject<Item> GALLIAFORT_SPAWN_EGG = ITEMS.register("galliafort_spawn_egg", () ->
             new ForgeSpawnEggItem(ModEntities.GALLIAFORT, 0x30343e, 0x3a6bff, new Item.Properties()));
+    public static final RegistryObject<Item> GALLIAFORT_EX_SPAWN_EGG = ITEMS.register("galliafort_ex_spawn_egg", () ->
+            new ForgeSpawnEggItem(ModEntities.GALLIAFORT_EX, 0x141416, 0xff5a1e, new Item.Properties()));
+    public static final RegistryObject<Item> MEMENTO_MORI_EX_SPAWN_EGG = ITEMS.register("memento_mori_ex_spawn_egg", () ->
+            new ForgeSpawnEggItem(ModEntities.MEMENTO_MORI_EX, 0xf4f0e8, 0xe8c060, new Item.Properties()));
     public static final RegistryObject<Item> SIGNAL_GALLIAFORT = ITEMS.register("signal_galliafort", () ->
             new com.automatavalkyries.item.HeroSignalItem(new Item.Properties().stacksTo(16).rarity(Rarity.EPIC), ModEntities.GALLIAFORT, "galliafort",
                     new org.joml.Vector3f(0.29F, 0.48F, 1.0F)));

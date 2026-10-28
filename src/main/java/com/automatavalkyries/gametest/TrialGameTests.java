@@ -355,7 +355,7 @@ public class TrialGameTests {
         FakePlayer player = player(helper, new Vec3(1, 2, 1));
         player.setGameMode(net.minecraft.world.level.GameType.CREATIVE);
         ServerLevel home = helper.getLevel();
-        helper.assertTrue(TrialManager.start(player, Trial.ALL.get(0)), "trial did not start");
+        helper.assertTrue(TrialManager.start(player, Trial.get(Trial.indexOf("luxion"))), "trial did not start");
         helper.assertTrue(player.level().dimension() == ModTrials.RECOLLECTION, "player was not moved to the recollection");
         long fightCheck = TrialManager.COUNTDOWN + 260; // ボスが出てから 13 秒（エレノアの自分での退場より後）
         helper.runAfterDelay(fightCheck, () -> {

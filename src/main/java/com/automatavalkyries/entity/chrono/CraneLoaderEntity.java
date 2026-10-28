@@ -70,7 +70,7 @@ public class CraneLoaderEntity extends ChronoMidBoss {
     }
 
     @Override
-    protected ResourceLocation rewardLoot() {
+    public ResourceLocation rewardLoot() {
         return loot("chests/supply_depot_reward");
     }
 

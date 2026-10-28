@@ -69,6 +69,7 @@ public class LuxionRenderer extends ChronoGazerRenderer<LuxionEntity> {
         super.render(lux, entityYaw, partialTick, pose, buffers, light);
         if (portrait || lux.isInvisible() || lux.isDefeatedSynced()) return;
         afterimages(lux, partialTick, pose, buffers);
+        shadows(lux, partialTick, pose, buffers);
         float age = lux.tickCount + partialTick;
         float yaw = Mth.rotLerp(partialTick, lux.yBodyRotO, lux.yBodyRot);
         Vec3 v = lux.getDeltaMovement();
@@ -118,6 +119,35 @@ public class LuxionRenderer extends ChronoGazerRenderer<LuxionEntity> {
                 VertexConsumer vc = buffers.getBuffer(type);
                 actuallyRender(pose, lux, model, type, buffers, vc, true, partialTick, 0xF000F0,
                         net.minecraft.client.renderer.texture.OverlayTexture.NO_OVERLAY, 1.0F, p2 ? 0.75F : 0.95F, p2 ? 0.6F : 0.8F, alpha);
+                pose.popPose();
+            }
+        } finally {
+            lux.yBodyRotO = bodyO;
+            lux.yBodyRot = body;
+        }
+    }
+
+    /**
+     * 分身（ルクシオン EX の分け身・3 連撃のアクセラレータ。2026-10-27）: 自分の姿を、紅く光る半透明（残光より濃く）で、分身の場所と向きに描く。
+     * 当たり判定は無い（見た目だけ）
+     */
+    private void shadows(LuxionEntity lux, float partialTick, PoseStack pose, MultiBufferSource buffers) {
+        java.util.List<LuxionEntity.Afterimage> list = lux.shadows();
+        if (list.isEmpty()) return;
+        var model = getGeoModel().getBakedModel(getGeoModel().getModelResource(lux));
+        RenderType type = RenderType.entityTranslucentEmissive(getTextureLocation(lux));
+        Vec3 at = lux.getPosition(partialTick);
+        float bodyO = lux.yBodyRotO, body = lux.yBodyRot;
+        float pulse = 0.55F + 0.1F * Mth.sin((lux.tickCount + partialTick) * 0.4F);
+        try {
+            for (LuxionEntity.Afterimage a : list) {
+                if (a.y() - at.y > 100) continue; // 消えた分身（遠くへ退けてある）
+                lux.yBodyRotO = lux.yBodyRot = a.yaw();
+                pose.pushPose();
+                float k = 1.0F / LuxionEntity.SIZE;
+                pose.translate((a.x() - at.x) * k, (a.y() - at.y) * k, (a.z() - at.z) * k);
+                actuallyRender(pose, lux, model, type, buffers, buffers.getBuffer(type), true, partialTick, 0xF000F0,
+                        net.minecraft.client.renderer.texture.OverlayTexture.NO_OVERLAY, 1.0F, 0.45F, 0.5F, pulse);
                 pose.popPose();
             }
         } finally {

@@ -71,7 +71,7 @@ public class OutpostWatcherEntity extends ChronoMidBoss {
     }
 
     @Override
-    protected ResourceLocation rewardLoot() {
+    public ResourceLocation rewardLoot() {
         return loot("chests/chrono_outpost_reward");
     }
 

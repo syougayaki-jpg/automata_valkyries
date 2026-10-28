@@ -57,6 +57,9 @@ public abstract class ChronoMidBoss extends Monster implements GeoEntity, Chrono
     @Nullable
     private BlockPos rewardChest;
     private boolean rewardPlaced;
+    /** 回想のトライアルのボス（{@code trial/TrialManager}）: 宝箱を置かず、保存もしない。与えるダメージは {@link #trialAttack} 倍（トライアルの側が掛ける） */
+    private boolean trialBoss;
+    private float trialAttack = 1.0F;
 
     protected ChronoMidBoss(EntityType<? extends Monster> type, Level level) {
         super(type, level);
@@ -67,8 +70,24 @@ public abstract class ChronoMidBoss extends Monster implements GeoEntity, Chrono
     /** ボスバーの色 */
     protected abstract BossEvent.BossBarColor barColor();
 
-    /** 撃破で置く宝箱の中身 */
-    protected abstract ResourceLocation rewardLoot();
+    /** 撃破で置く宝箱の中身（回想のトライアルでは、宝箱の代わりにこの中身を手渡す） */
+    public abstract ResourceLocation rewardLoot();
+
+    /** 回想のトライアルのボスにする（宝箱を置かず、保存もしない。与えるダメージは attack 倍） */
+    public void setTrialBoss(float attack) {
+        this.trialBoss = true;
+        this.trialAttack = attack;
+    }
+
+    /** 回想のトライアルでの与えるダメージの倍率（トライアルのボスでなければ 1） */
+    public float trialAttack() {
+        return trialBoss ? trialAttack : 1.0F;
+    }
+
+    @Override
+    public boolean shouldBeSaved() {
+        return !trialBoss && super.shouldBeSaved();
+    }
 
     /** 第 2 形態に入った時（サーバー。HP 50%） */
     protected void onPhase2() {
@@ -201,7 +220,7 @@ public abstract class ChronoMidBoss extends Monster implements GeoEntity, Chrono
 
     /** 宝箱を置く（置いてよい所が無ければ上へずらす） */
     void placeReward(ServerLevel server) {
-        if (rewardPlaced) return;
+        if (rewardPlaced || trialBoss) return;
         rewardPlaced = true;
         BlockPos pos = rewardChest != null ? rewardChest : blockPosition();
         for (int i = 0; i < 4 && !server.getBlockState(pos).canBeReplaced(); i++) pos = pos.above();

@@ -46,6 +46,57 @@ public final class MementoFinale {
         if (s < STAGE2) waltz(t, s);
         else if (s < STAGE3) clock(t, s - STAGE2);
         else if (s < END) thousand(t, s - STAGE3);
+        else if (mori.fourthMovement() && s < END4) {
+            if (s == END) movement("spell_stage4");
+            eclipse(t, s - END);
+        }
+    }
+
+    // ---- 第四楽章「黄泉の月蝕」（メメントモリ EX の『死蝶終葬・真』だけ。2026-10-27 ユーザー指定。数値は【仮】） ----
+
+    /** 月 1 つの長さ（数え {@link MementoMoriEntity#MOON_COUNTDOWN} ＋納めの後の間）と、月の数 */
+    static final int ECLIPSE_CYCLE = 140, ECLIPSES = 3, END4 = END + ECLIPSE_CYCLE * ECLIPSES;
+    private Vec3 eclipseCenter = Vec3.ZERO;
+    private final java.util.List<Vec3> eclipseSafe = new java.util.ArrayList<>();
+    private double eclipseAngle, eclipseRadius;
+    private MementoMoonEntity eclipseMoon;
+
+    /**
+     * 黒死の月を 3 つ続けて。安全地帯 4 つは中心のまわりを回りながら近づいたり離れたりして動き（月ごとに速く）、数える間は安全地帯の外に光の雨。
+     * 月の数えが終わると、その時の安全地帯の外を納める
+     */
+    private void eclipse(LivingEntity t, int s) {
+        int cycle = s / ECLIPSE_CYCLE, at = s % ECLIPSE_CYCLE;
+        ServerLevel server = server();
+        if (at == 0) {
+            eclipseCenter = new Vec3(t.getX(), mori.groundY(t.position().add(0, 2, 0)), t.getZ());
+            eclipseAngle = mori.getRandom().nextDouble() * Math.PI * 2;
+            eclipseRadius = 8.0;
+            eclipseSafe.clear();
+            placeSafe(cycle, 0);
+            eclipseMoon = MementoMoonEntity.spawn(server, eclipseCenter, MementoMoriEntity.MOON_RADIUS, eclipseSafe, MementoMoriEntity.MOON_COUNTDOWN);
+            Fx.mandala(server, eclipseCenter.add(0, 20.0, 0), MementoMoriEntity.C_PINK, 12.0F, MementoMoriEntity.MOON_COUNTDOWN, false, cycle % 2 == 0);
+            mori.playSound(MementoMoriEntity.sfx("cast"), 4.0F, 0.7F + cycle * 0.1F);
+        }
+        if (at > 0 && at < MementoMoriEntity.MOON_COUNTDOWN) {
+            placeSafe(cycle, at);
+            if (eclipseMoon != null && eclipseMoon.isAlive()) eclipseMoon.moveSafe(eclipseCenter, eclipseSafe);
+            if (at % 20 == 0) mori.playSound(MementoMoriEntity.sfx("moon_bell"), 5.0F, 0.8F + at * 0.004F);
+            if (at % 2 == 0) mori.rain(eclipseCenter, MementoMoriEntity.MOON_RADIUS, 3 + cycle, null, eclipseSafe, MementoMoriEntity.MOON_SAFE_RADIUS + 1.2);
+        }
+        if (at == MementoMoriEntity.MOON_COUNTDOWN) mori.moonFall(eclipseCenter, eclipseSafe);
+    }
+
+    /** 安全地帯を動かす: 4 つが中心のまわりを回り（月ごとに速く、向きを変えて）、半径 5〜14 を行き来する */
+    private void placeSafe(int cycle, int at) {
+        double speed = (0.012 + cycle * 0.008) * (cycle % 2 == 0 ? 1 : -1);
+        double r = 9.5 + 4.5 * Math.sin(at * (0.05 + cycle * 0.015));
+        eclipseSafe.clear();
+        for (int i = 0; i < MementoMoriEntity.MOON_SAFE; i++) {
+            double a = eclipseAngle + i * Math.PI * 2 / MementoMoriEntity.MOON_SAFE + at * speed;
+            Vec3 p = eclipseCenter.add(Math.cos(a) * r, 0, Math.sin(a) * r);
+            eclipseSafe.add(new Vec3(p.x, mori.groundY(p.add(0, 4, 0)), p.z));
+        }
     }
 
     private ServerLevel server() {

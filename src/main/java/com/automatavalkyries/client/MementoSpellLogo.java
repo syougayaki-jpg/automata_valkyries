@@ -43,13 +43,13 @@ public final class MementoSpellLogo {
         Minecraft mc = Minecraft.getInstance();
         if (mori == null || mc.level == null || mori.level() != mc.level || mc.options.hideGui) return;
         float t = mori.tickCount - mori.spellTick + partialTick;
-        if (t < 0 || t > MementoMoriEntity.SPELL_TICKS) return;
+        if (t < 0 || t > mori.spellTicks()) return;
         if (shownSpell != mori.spellTick) {
             shownSpell = mori.spellTick;
             goneAt = -1;
         }
         if (goneAt < 0 && (mori.isRemoved() || mori.isDefeatedSynced())) goneAt = t;
-        float fade = goneAt >= 0 ? 1.0F - (t - goneAt) / 10.0F : Math.min(1.0F, (MementoMoriEntity.SPELL_TICKS - t) / 10.0F);
+        float fade = goneAt >= 0 ? 1.0F - (t - goneAt) / 10.0F : Math.min(1.0F, (mori.spellTicks() - t) / 10.0F);
         if (fade <= 0) return;
         if (!filtered) { // 縮めて描くので、なめらかに
             mc.getTextureManager().getTexture(TEX).setFilter(true, false);
@@ -90,7 +90,7 @@ public final class MementoSpellLogo {
             text(g, Component.translatable("message.automata_valkyries.memento_mori.spell_sub"), (int) bigX, (int) (bigY + h / 2 + 4), 0xF4E8FF, a);
         }
         if (t >= HOLD + MOVE) { // 残りの秒数
-            float left = Math.max(0.0F, (MementoMoriEntity.SPELL_TICKS - t) / 20.0F);
+            float left = Math.max(0.0F, (mori.spellTicks() - t) / 20.0F);
             text(g, Component.translatable("message.automata_valkyries.memento_mori.spell_time", String.format("%.1f", left)),
                     (int) smallX, (int) (smallY + h / 2 + 2), left < 5 ? 0xFF8CEB : 0xE8D0FF, fade);
         }

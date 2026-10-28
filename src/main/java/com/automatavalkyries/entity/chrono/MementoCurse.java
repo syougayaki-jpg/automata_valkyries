@@ -32,6 +32,10 @@ public final class MementoCurse {
     public static final int BIT = 5, BULLET = 1;
     public static final int MAX_STACKS = (int) Math.round((1.0 - FLOOR) / STEP);
     private static final UUID ID = UUID.fromString("6b1f3c52-9e4d-4a7a-8c21-d0f5e7a9b3c4");
+    /** 深まった呪い（メメントモリ EX の第 3 形態。2026-10-27 ユーザー指定「呪いの深化」）: 最大 HP は {@link #DEEP_FLOOR} まで、移動速度も 1 つにつき {@link #SLOW_STEP} ずつ（{@link #SLOW_MAX} まで） */
+    public static final double DEEP_FLOOR = 0.25, SLOW_STEP = 0.005, SLOW_MAX = 0.30;
+    public static final int DEEP_MAX_STACKS = (int) Math.round((1.0 - DEEP_FLOOR) / STEP);
+    private static final UUID SLOW_ID = UUID.fromString("0d7c2e94-3f61-4b8a-9e15-a6c4d2f8b371");
     /** 呪いを受けている生き物（UUID → いた世界）。毎秒、近くにメメントモリがいるか確かめる */
     private static final Map<UUID, ServerLevel> CURSED = new HashMap<>();
 
@@ -47,10 +51,26 @@ public final class MementoCurse {
 
     /** n だけ重ねる（上限まで）。今の HP が新しい最大より多ければ切り詰める */
     public static void add(LivingEntity e, int n) {
+        add(e, n, false);
+    }
+
+    /** source（弾・蝶の持ち主）のメメントモリの呪いを n だけ重ねる。EX の第 3 形態なら深まった呪い */
+    public static void add(LivingEntity e, int n, @org.jetbrains.annotations.Nullable Entity source) {
+        add(e, n, source instanceof MementoMoriEntity m && m.deepCurse());
+    }
+
+    private static void add(LivingEntity e, int n, boolean deep) {
         if (!(e.level() instanceof ServerLevel level) || n <= 0) return;
         AttributeInstance a = e.getAttribute(Attributes.MAX_HEALTH);
         if (a == null) return;
-        int next = Math.min(MAX_STACKS, stacks(e) + n);
+        int next = Math.min(deep ? DEEP_MAX_STACKS : Math.max(MAX_STACKS, stacks(e)), stacks(e) + n); // 深まった呪いで重ねた分は、ふつうの呪いでは減らさない
+        if (deep) {
+            AttributeInstance speed = e.getAttribute(Attributes.MOVEMENT_SPEED);
+            if (speed != null) {
+                speed.removeModifier(SLOW_ID);
+                speed.addTransientModifier(new AttributeModifier(SLOW_ID, "memento_mori_deep_curse", -Math.min(SLOW_MAX, SLOW_STEP * next), AttributeModifier.Operation.MULTIPLY_TOTAL));
+            }
+        }
         a.removeModifier(ID);
         a.addTransientModifier(new AttributeModifier(ID, "memento_mori_curse", -STEP * next, AttributeModifier.Operation.MULTIPLY_TOTAL));
         if (e.getHealth() > e.getMaxHealth()) e.setHealth(e.getMaxHealth());
@@ -61,6 +81,7 @@ public final class MementoCurse {
     public static void clear(LivingEntity e) {
         AttributeInstance a = e.getAttribute(Attributes.MAX_HEALTH);
         if (a != null && a.getModifier(ID) != null) a.removeModifier(ID);
+        removeSlow(e);
         CURSED.remove(e.getUUID());
     }
 
@@ -73,6 +94,7 @@ public final class MementoCurse {
             if (e instanceof LivingEntity living && living.position().distanceTo(at) <= RELEASE_RANGE * 1.5) {
                 AttributeInstance a = living.getAttribute(Attributes.MAX_HEALTH);
                 if (a != null) a.removeModifier(ID);
+                removeSlow(living);
                 it.remove();
             }
         }
@@ -94,9 +116,15 @@ public final class MementoCurse {
             if (!near) {
                 AttributeInstance a = living.getAttribute(Attributes.MAX_HEALTH);
                 if (a != null) a.removeModifier(ID);
+                removeSlow(living);
                 it.remove();
             }
         }
+    }
+
+    private static void removeSlow(LivingEntity e) {
+        AttributeInstance speed = e.getAttribute(Attributes.MOVEMENT_SPEED);
+        if (speed != null && speed.getModifier(SLOW_ID) != null) speed.removeModifier(SLOW_ID);
     }
 
     @SubscribeEvent

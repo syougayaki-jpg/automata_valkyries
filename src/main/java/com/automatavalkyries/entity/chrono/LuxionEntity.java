@@ -140,8 +140,10 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
     /** 退く時が来た（降臨・変身の演出が終わったら退く） */
     private boolean retreatPending;
     private float trialAttack = 1.0F;
-    private final ServerBossEvent bossEvent = new ServerBossEvent(Component.translatable("entity.automata_valkyries.luxion"),
+    private final ServerBossEvent bossEvent = new ServerBossEvent(Component.translatable(getType().getDescriptionId()), // ルクシオン EX は自分の名前（2026-10-27）
             BossEvent.BossBarColor.YELLOW, BossEvent.BossBarOverlay.NOTCHED_10);
+    /** 技の組み立て（ルクシオン EX の第 3 形態の技は、これが技の途中でない時に割り込む） */
+    LuxionAttackGoal attackGoal;
     private final AnimatableInstanceCache geoCache = GeckoLibUtil.createInstanceCache(this);
     /** クライアント: 最後に斬った・突進を構えた Tick（描画用） */
     public int slashTick = -100, windupTick = -100;
@@ -281,7 +283,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
         return entityData.get(STAGE);
     }
 
-    private void startStage(byte stage) {
+    void startStage(byte stage) {
         entityData.set(STAGE, stage);
         stageTicks = 0;
     }
@@ -337,7 +339,8 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
     @Override
     protected void registerGoals() {
         goalSelector.addGoal(1, new FloatGoal(this));
-        goalSelector.addGoal(2, new LuxionAttackGoal(this));
+        attackGoal = new LuxionAttackGoal(this);
+        goalSelector.addGoal(2, attackGoal);
         goalSelector.addGoal(5, new WaterAvoidingRandomStrollGoal(this, 0.8));
         goalSelector.addGoal(6, new LookAtPlayerGoal(this, Player.class, 16.0F));
         goalSelector.addGoal(7, new RandomLookAroundGoal(this));
@@ -549,7 +552,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
             xxa = zza = 0.0F;
             setYHeadRot(yBodyRot);
         }
-        if (!isPhase2() && ratio <= 0.5F && isAlive()) {
+        if (!isPhase2() && ratio <= phaseTwoAt() && isAlive()) {
             entityData.set(PHASE2, true);
             startStage(STAGE_TRANSFORM); // 剣を天へ掲げて浮かび、翼と光輪を開く（1.5 秒、攻撃を受けない）
             bossEvent.setColor(BossEvent.BossBarColor.RED);
@@ -714,7 +717,38 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
 
     /** 技のダメージ: プレイヤーには最大 HP に応じて上げ（{@link #scaledFor}）、回想のトライアルではさらに倍率を掛ける */
     float damageFor(LivingEntity target, float damage) {
-        return scaledFor(target, damage * trialAttack);
+        return scaledFor(target, damage * trialAttack * exScale());
+    }
+
+    // ---- ルクシオン EX（{@link LuxionExEntity}。2026-10-27）が変える所 ----
+
+    /** 技のダメージの倍率（EX は 1.5） */
+    protected float exScale() {
+        return 1.0F;
+    }
+
+    /** 第 2 形態に入る HP の割合（EX は 66%） */
+    protected float phaseTwoAt() {
+        return 0.5F;
+    }
+
+    /** 技の間隔の倍率（第 2 形態は 3/5。EX は第 3 形態・刻の加速でさらに縮める） */
+    protected float cooldownScale() {
+        return isPhase2() ? 0.6F : 1.0F;
+    }
+
+    /** いつもの大技ルクシオンアクセラレータを使うか（EX の第 3 形態は分身の 3 連撃に置き換える） */
+    protected boolean usesBaseAccelerator() {
+        return true;
+    }
+
+    /** 自分の分身（見た目だけ。描画は残光と同じく自分の姿を置く。EX の分け身・3 連撃のアクセラレータ） */
+    public java.util.List<Afterimage> shadows() {
+        return java.util.List.of();
+    }
+
+    ServerBossEvent bossEvent() {
+        return bossEvent;
     }
 
     /** 光の剣で斬る（型は順番に回す） */
@@ -933,7 +967,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
     }
 
     /** 防御貫通のダメージ（ルクシオンが与えた扱い） */
-    private DamageSource accelDamage() {
+    DamageSource accelDamage() {
         return new DamageSource(level().registryAccess().registryOrThrow(net.minecraft.core.registries.Registries.DAMAGE_TYPE).getHolderOrThrow(ACCEL_DAMAGE), this, this);
     }
 
@@ -1215,7 +1249,17 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
         }
 
         private int cd(int ticks) {
-            return lux.isPhase2() ? ticks * 3 / 5 : ticks;
+            return Math.max(1, Math.round(ticks * lux.cooldownScale()));
+        }
+
+        /** 技の途中か（構え・三連閃・溜め・大技の最中） */
+        boolean busy() {
+            return windup > 0 || flurryLeft > 0 || finalRaise > 0 || blinkPrep > 0 || waveCharge > 0 || accelStage > 0;
+        }
+
+        /** 相手の動き（1 Tick の移動。瞬間移動は 0） */
+        Vec3 targetVelocity() {
+            return targetVel;
         }
 
         @Override
@@ -1361,7 +1405,7 @@ public class LuxionEntity extends Monster implements GeoEntity, ChronoGazer, IPr
             // 大技ルクシオンアクセラレータ（第 2 形態）。近くにいても出し（2026-10-09 ユーザー指定）、HP が減るほど出やすい:
             // 間隔は HP 50% で 18 秒 → 0% で 6 秒、出せる間は毎 Tick 5% → 50% の見込みで出す
             float low = Mth.clamp(1.0F - DirectRead.health(lux) / lux.getMaxHealth() / 0.5F, 0.0F, 1.0F);
-            if (lux.isPhase2() && accel <= 0 && dist < 28 && sees && lux.onGround() && lux.random.nextFloat() < 0.05F + 0.45F * low) {
+            if (lux.isPhase2() && lux.usesBaseAccelerator() && accel <= 0 && dist < 28 && sees && lux.onGround() && lux.random.nextFloat() < 0.05F + 0.45F * low) {
                 accel = (int) Mth.lerp(low, 360.0F, 120.0F);
                 accelStage = 1;
                 accelT = 0;

@@ -120,12 +120,14 @@ public class MementoMoriEntity extends Monster implements GeoEntity, ChronoGazer
 
     private final Eprotect protect = new Eprotect(this, com.automatavalkyries.protect.EprotectProfile.UNCAPPED);
     private final com.automatavalkyries.entity.BossRetreatWatch retreatWatch = new com.automatavalkyries.entity.BossRetreatWatch(64.0, 200);
-    private final ServerBossEvent bossEvent = new ServerBossEvent(Component.translatable("entity.automata_valkyries.memento_mori"),
+    private final ServerBossEvent bossEvent = new ServerBossEvent(Component.translatable(getType().getDescriptionId()), // EX は自分の名前（2026-10-27）
             BossEvent.BossBarColor.PURPLE, BossEvent.BossBarOverlay.NOTCHED_10);
     private final AnimatableInstanceCache geoCache = GeckoLibUtil.createInstanceCache(this);
     private boolean trialBoss, retreatPending, introDone, lootDropped;
     /** 終葬を使ったか（1 度だけ）・今その最中か */
     private boolean spellDone, spellActive;
+    /** 技の組み立て（メメントモリ EX の第 3 形態の技は、これが技の途中でない時に割り込む） */
+    MementoAttackGoal attackGoal;
     private int lastShotSound = -100;
     private float trialAttack = 1.0F;
     private int stageTicks;
@@ -185,7 +187,7 @@ public class MementoMoriEntity extends Monster implements GeoEntity, ChronoGazer
         return entityData.get(STAGE);
     }
 
-    private void startStage(byte stage) {
+    void startStage(byte stage) {
         entityData.set(STAGE, stage);
         stageTicks = 0;
     }
@@ -261,7 +263,8 @@ public class MementoMoriEntity extends Monster implements GeoEntity, ChronoGazer
 
     @Override
     protected void registerGoals() {
-        goalSelector.addGoal(2, new MementoAttackGoal(this));
+        attackGoal = new MementoAttackGoal(this);
+        goalSelector.addGoal(2, attackGoal);
         ChronoGazer.addTargets(this, 40.0);
     }
 
@@ -404,7 +407,7 @@ public class MementoMoriEntity extends Monster implements GeoEntity, ChronoGazer
             protect.clientTick();
             haloSpinO = haloSpin;
             boolean busy = tickCount - swarmTick < 40 || tickCount - barrageTick < 50 || tickCount - cageTick < 75;
-            boolean big = tickCount - moonTick < 140 || tickCount - spellTick < SPELL_TICKS || stage() == STAGE_AWAKEN;
+            boolean big = tickCount - moonTick < 140 || tickCount - spellTick < spellTicks() || stage() == STAGE_AWAKEN;
             haloSpin += isDefeatedSynced() ? 0.3F : big ? 4.0F : busy ? 2.5F : 1.0F;
             if (!isDefeatedSynced() && tickCount % 3 == 0) { // 翼から舞う光の鱗粉（2026-10-14 ユーザー指定の演出「光の軌跡・粒を濃く」。黒い鱗粉は「黒いもやを全部幻想的な光にして」で無くした）
                 level().addParticle(glow(C_PALE, 0.2F, 24), getRandomX(2.0), getY() + 1.0 + random.nextDouble() * 5.5, getRandomZ(2.0), 0, -0.03, 0);
@@ -424,7 +427,7 @@ public class MementoMoriEntity extends Monster implements GeoEntity, ChronoGazer
             if (isAlive()) startStage(STAGE_INTRO);
         }
         tickStage();
-        if (!isPhase2() && ratio <= 0.5F && isAlive() && !defeatedNow()) {
+        if (!isPhase2() && ratio <= phaseTwoAt() && isAlive() && !defeatedNow()) {
             entityData.set(PHASE2, true);
             startStage(STAGE_AWAKEN); // 出力を上げ、翅が大きく開いて全身が光体になる（2 秒、攻撃を受けない）
             bossEvent.setColor(BossEvent.BossBarColor.PINK);
@@ -630,7 +633,52 @@ public class MementoMoriEntity extends Monster implements GeoEntity, ChronoGazer
 
     /** 技のダメージ: プレイヤーには最大 HP に応じて上げ（ルクシオンと同じ）、回想のトライアルではさらに倍率を掛ける */
     float damageFor(LivingEntity target, float damage) {
-        return LuxionEntity.scaledFor(target, damage * trialAttack);
+        return LuxionEntity.scaledFor(target, damage * trialAttack * exScale());
+    }
+
+    // ---- メメントモリ EX（{@link MementoMoriExEntity}。2026-10-27）が変える所 ----
+
+    /** 技のダメージの倍率（EX は 1.5） */
+    protected float exScale() {
+        return 1.0F;
+    }
+
+    /** 第 2 形態に入る HP の割合（EX は 66%） */
+    protected float phaseTwoAt() {
+        return 0.5F;
+    }
+
+    /** 技の間隔の倍率（第 2 形態は 7 割） */
+    protected float cooldownScale() {
+        return isPhase2() ? 0.7F : 1.0F;
+    }
+
+    /** 終葬の長さ（EX は第四楽章のぶん長い） */
+    public int spellTicks() {
+        return SPELL_TICKS;
+    }
+
+    /** 死蝶の呪いが深まっているか（EX の第 3 形態: 移動速度も削り、最大 HP は 25% まで） */
+    public boolean deepCurse() {
+        return false;
+    }
+
+    /** 終葬に第四楽章「黄泉の月蝕」を足すか（EX） */
+    boolean fourthMovement() {
+        return false;
+    }
+
+    /** 自分の分身（見た目だけ。EX の鏡像の死蝶。描画は体と同じ姿を置く） */
+    public java.util.List<LuxionEntity.Afterimage> shadows() {
+        return java.util.List.of();
+    }
+
+    boolean spellActive() {
+        return spellActive;
+    }
+
+    ServerBossEvent bossEvent() {
+        return bossEvent;
     }
 
     /** 体の向きでの位置: 上へ up、前へ fwd、左へ left（ブロック） */
@@ -837,7 +885,7 @@ public class MementoMoriEntity extends Monster implements GeoEntity, ChronoGazer
             for (Vec3 s : safe) if (p.subtract(s).multiply(1, 0, 1).length() <= MOON_SAFE_RADIUS + e.getBbWidth() * 0.5) sheltered = true;
             if (sheltered) continue;
             e.hurt(damageSources().indirectMagic(this, this), damageFor(e, MOON));
-            MementoCurse.add(e, MementoCurse.BIT * 2);
+            MementoCurse.add(e, MementoCurse.BIT * 2, this);
         }
         for (int c : new int[]{C_VIOLET, C_PINK, C_CYAN}) {                          // 範囲いっぱいに舞う光の鱗粉（2026-10-14 ユーザー指定「黒いもやを全部幻想的な光にして」）
             Fx.spray(server, glow(c, 0.5F, 30), center.add(0, 1.0, 0), 100, MOON_RADIUS * 0.6, 1.5, MOON_RADIUS * 0.6, 0.05);
@@ -934,7 +982,12 @@ public class MementoMoriEntity extends Monster implements GeoEntity, ChronoGazer
         }
 
         private int cd(int ticks) {
-            return mori.isPhase2() ? ticks * 7 / 10 : ticks;
+            return Math.max(1, Math.round(ticks * mori.cooldownScale()));
+        }
+
+        /** 技の途中でない（ふだんの舞いと連射だけ）か */
+        boolean idle() {
+            return action == 0 && !mori.spellActive;
         }
 
         private void announce(String key, ChatFormatting... style) {
@@ -971,9 +1024,9 @@ public class MementoMoriEntity extends Monster implements GeoEntity, ChronoGazer
                 mori.playSound(sfx("cast"), 5.0F, 0.6F);
                 mori.playSound(SoundEvents.WITHER_SPAWN, 1.5F, 1.6F);
                 Vec3 c = mori.chest();
-                Fx.mandala(server, c, C_PINK, 6.0F, SPELL_TICKS, true, false);
-                Fx.mandala(server, c, C_CYAN, 4.0F, SPELL_TICKS, true, true);
-                Fx.mandala(server, new Vec3(t.getX(), t.getY() + RAIN_HEIGHT, t.getZ()), C_PALE, 16.0F, SPELL_TICKS, false, false);
+                Fx.mandala(server, c, C_PINK, 6.0F, mori.spellTicks(), true, false);
+                Fx.mandala(server, c, C_CYAN, 4.0F, mori.spellTicks(), true, true);
+                Fx.mandala(server, new Vec3(t.getX(), t.getY() + RAIN_HEIGHT, t.getZ()), C_PALE, 16.0F, mori.spellTicks(), false, false);
                 Fx.shockwave(server, c, C_PINK, 16.0F, 30);
                 server.sendParticles(ParticleTypes.FLASH, c.x, c.y, c.z, 2, 0, 0, 0, 0);
                 return;
@@ -1200,7 +1253,7 @@ public class MementoMoriEntity extends Monster implements GeoEntity, ChronoGazer
                     }
                     int s = at - 20;
                     if (finale != null) finale.tick(t, s);
-                    if (s >= SPELL_TICKS - 20) { // 終わり: 白い閃光
+                    if (s >= mori.spellTicks() - 20) { // 終わり: 白い閃光
                         Vec3 c = mori.chest();
                         Fx.burst(server, glow(C_WHITE, 0.8F, 26), c, 50, 0.4);
                         Fx.shockwave(server, c, C_CYAN, 18.0F, 30);

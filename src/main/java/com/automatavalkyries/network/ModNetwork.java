@@ -119,5 +119,16 @@ public final class ModNetwork {
                 .decoder(TimeStopPacket::decode)
                 .consumerMainThread(TimeStopPacket::handle)
                 .add();
+        // 回想を選ぶ画面（一覧と挑む。2026-10-27）
+        CHANNEL.messageBuilder(TrialListPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(TrialListPacket::encode)
+                .decoder(TrialListPacket::decode)
+                .consumerMainThread(TrialListPacket::handle)
+                .add();
+        CHANNEL.messageBuilder(TrialStartPacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(TrialStartPacket::encode)
+                .decoder(TrialStartPacket::decode)
+                .consumerMainThread(TrialStartPacket::handle)
+                .add();
     }
 }

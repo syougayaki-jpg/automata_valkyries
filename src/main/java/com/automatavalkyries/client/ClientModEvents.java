@@ -65,9 +65,12 @@ public class ClientModEvents {
         event.registerEntityRenderer(ModEntities.CHRONO_MASK_DRONE.get(), MaskDroneRenderer::new);
         event.registerEntityRenderer(ModEntities.CHRONO_TROOPER.get(), c -> new ChronoGazerRenderer<>(c, "chrono_trooper", 0.5F));
         event.registerEntityRenderer(ModEntities.LUXION.get(), LuxionRenderer::new);
+        event.registerEntityRenderer(ModEntities.LUXION_EX.get(), LuxionExRenderer::new);
         event.registerEntityRenderer(ModEntities.LUXION_FX.get(), LuxionFxRenderer::new);
         event.registerEntityRenderer(ModEntities.GALLIAFORT.get(), GalliaFortRenderer::new);
         event.registerEntityRenderer(ModEntities.MEMENTO_MORI.get(), MementoMoriRenderer::new);
+        event.registerEntityRenderer(ModEntities.GALLIAFORT_EX.get(), ctx -> new GalliaFortRenderer(ctx, "textures/entity/galliafort_ex.png"));
+        event.registerEntityRenderer(ModEntities.MEMENTO_MORI_EX.get(), ctx -> new MementoMoriRenderer(ctx, "textures/entity/memento_mori_ex.png"));
         event.registerEntityRenderer(ModEntities.MEMENTO_BIT.get(), MementoBitRenderer::new);
         event.registerEntityRenderer(ModEntities.MEMENTO_BULLET.get(), MementoBulletRenderer::new);
         event.registerEntityRenderer(ModEntities.MEMENTO_MOON.get(), MementoMoonRenderer::new);

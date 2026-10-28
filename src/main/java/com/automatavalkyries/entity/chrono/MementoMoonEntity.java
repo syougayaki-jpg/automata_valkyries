@@ -36,13 +36,19 @@ public class MementoMoonEntity extends Entity {
         noPhysics = true;
     }
 
-    public static void spawn(ServerLevel level, Vec3 center, float radius, List<Vec3> safe, int life) {
+    public static MementoMoonEntity spawn(ServerLevel level, Vec3 center, float radius, List<Vec3> safe, int life) {
         MementoMoonEntity m = new MementoMoonEntity(ModEntities.MEMENTO_MOON.get(), level);
         m.setPos(center.x, center.y, center.z);
         m.entityData.set(RADIUS, radius);
         m.entityData.set(LIFE, life);
-        for (int i = 0; i < SAFE.length && i < safe.size(); i++) m.entityData.set(SAFE[i], safe.get(i).subtract(center).toVector3f());
+        m.moveSafe(center, safe);
         level.addFreshEntity(m);
+        return m;
+    }
+
+    /** 安全地帯を動かす（メメントモリ EX の第四楽章「黄泉の月蝕」。2026-10-27） */
+    public void moveSafe(Vec3 center, List<Vec3> safe) {
+        for (int i = 0; i < SAFE.length && i < safe.size(); i++) entityData.set(SAFE[i], safe.get(i).subtract(center).toVector3f());
     }
 
     public float radius() {

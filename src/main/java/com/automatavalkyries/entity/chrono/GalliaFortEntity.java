@@ -168,7 +168,9 @@ public class GalliaFortEntity extends Monster implements GeoEntity, ChronoGazer,
     private final com.automatavalkyries.entity.BossRetreatWatch retreatWatch = new com.automatavalkyries.entity.BossRetreatWatch(64.0, 200);
     private boolean trialBoss, retreatPending, introDone;
     private float trialAttack = 1.0F;
-    private final ServerBossEvent bossEvent = new ServerBossEvent(Component.translatable("entity.automata_valkyries.galliafort"),
+    /** 技の組み立て（ガリアフォート EX の第 3 形態の技は、これが技の途中でない時に割り込む） */
+    GalliaAttackGoal attackGoal;
+    private final ServerBossEvent bossEvent = new ServerBossEvent(Component.translatable(getType().getDescriptionId()), // EX は自分の名前（2026-10-27）
             BossEvent.BossBarColor.PURPLE, BossEvent.BossBarOverlay.NOTCHED_10);
     /** 障壁のゲージ（2 本目のボスバー） */
     private final ServerBossEvent barrierEvent = new ServerBossEvent(Component.translatable("bossbar.automata_valkyries.galliafort.barrier"),
@@ -555,7 +557,8 @@ public class GalliaFortEntity extends Monster implements GeoEntity, ChronoGazer,
     @Override
     protected void registerGoals() {
         goalSelector.addGoal(1, new FloatGoal(this));
-        goalSelector.addGoal(2, new GalliaAttackGoal(this));
+        attackGoal = new GalliaAttackGoal(this);
+        goalSelector.addGoal(2, attackGoal);
         goalSelector.addGoal(5, new WaterAvoidingRandomStrollGoal(this, 0.6));
         goalSelector.addGoal(6, new LookAtPlayerGoal(this, Player.class, 24.0F));
         goalSelector.addGoal(7, new RandomLookAroundGoal(this));
@@ -747,7 +750,7 @@ public class GalliaFortEntity extends Monster implements GeoEntity, ChronoGazer,
             xxa = zza = 0.0F;
             barrierEvent.setProgress(0.0F);
         }
-        if (!isPhase2() && ratio <= 0.5F && isAlive()) {
+        if (!isPhase2() && ratio <= phaseTwoAt() && isAlive()) {
             entityData.set(PHASE2, true);
             startStage(STAGE_TRANSFORM); // 人型へ変形し、障壁を張り直す（4 秒、攻撃を受けない）
             bossEvent.setColor(BossEvent.BossBarColor.RED);
@@ -940,7 +943,33 @@ public class GalliaFortEntity extends Monster implements GeoEntity, ChronoGazer,
 
     /** 技のダメージ: プレイヤーには最大 HP に応じて上げ（ルクシオンと同じ）、回想のトライアルではさらに倍率を掛ける */
     float damageFor(LivingEntity target, float damage) {
-        return LuxionEntity.scaledFor(target, damage * trialAttack);
+        return LuxionEntity.scaledFor(target, damage * trialAttack * exScale());
+    }
+
+    // ---- ガリアフォート EX（{@link GalliaFortExEntity}。2026-10-27）が変える所 ----
+
+    /** 技のダメージの倍率（EX は 1.5） */
+    protected float exScale() {
+        return 1.0F;
+    }
+
+    /** 第 2 形態に入る HP の割合（EX は 66%） */
+    protected float phaseTwoAt() {
+        return 0.5F;
+    }
+
+    /** 技の間隔の倍率（第 2 形態は 7 割） */
+    protected float cooldownScale() {
+        return isPhase2() ? 0.7F : 1.0F;
+    }
+
+    ServerBossEvent bossEvent() {
+        return bossEvent;
+    }
+
+    /** 砲の狙う所（EX は相手の動きを読んで先回りする） */
+    Vec3 aimFor(LivingEntity t) {
+        return t.position().add(0, t.getBbHeight() * 0.5, 0);
     }
 
     /** 体の向き（水平）の前 */
@@ -1029,7 +1058,7 @@ public class GalliaFortEntity extends Monster implements GeoEntity, ChronoGazer,
         level().broadcastEntityEvent(this, EVENT_CANNON_FIRE);
     }
 
-    private DamageSource siegeDamage() {
+    DamageSource siegeDamage() {
         return new DamageSource(level().registryAccess().registryOrThrow(Registries.DAMAGE_TYPE).getHolderOrThrow(SIEGE_DAMAGE), this, this);
     }
 
@@ -1084,7 +1113,7 @@ public class GalliaFortEntity extends Monster implements GeoEntity, ChronoGazer,
         Vec3 from = position().add(0, hullY(39.5), 0).add(f.scale(hullPx(-9.0))).add(side.scale(hullPx(right ? -13.5 : 13.5)))
                 .lerp(local(5.85, -3.3, right ? -1.55 : 1.55), form(0.0F)); // 車体を縮めずに背負う（2026-10-10） // 背負った車体の甲板の箱 // 人型では細い胴の背の箱
         if (airborne(target)) { // 空の相手へは弱めに追尾する（2026-10-10「対空には…弱めに追尾するミサイルで」）
-            GalliaMissileEntity.launchHoming(server, this, from, target, MISSILE * trialAttack, (float) MISSILE_RADIUS);
+            GalliaMissileEntity.launchHoming(server, this, from, target, MISSILE * trialAttack * exScale(), (float) MISSILE_RADIUS);
             Fx.burst(server, glow(C_ORANGE, 0.4F, 10), from, 6, 0.1);
             playSound(SoundEvents.FIREWORK_ROCKET_LAUNCH, 1.5F, 0.6F);
             level().broadcastEntityEvent(this, right ? EVENT_MISSILE_RIGHT : EVENT_MISSILE_LEFT);
@@ -1096,7 +1125,7 @@ public class GalliaFortEntity extends Monster implements GeoEntity, ChronoGazer,
             double a = random.nextDouble() * Math.PI * 2, r = 2.0 + random.nextDouble() * 4.0;
             aim = aim.add(Math.cos(a) * r, 0, Math.sin(a) * r);
         }
-        GalliaMissileEntity.launch(server, this, from, aim, MISSILE * trialAttack, (float) MISSILE_RADIUS);
+        GalliaMissileEntity.launch(server, this, from, aim, MISSILE * trialAttack * exScale(), (float) MISSILE_RADIUS);
         Fx.burst(server, glow(C_ORANGE, 0.4F, 10), from, 6, 0.1);
         playSound(SoundEvents.FIREWORK_ROCKET_LAUNCH, 1.5F, 0.6F);
         level().broadcastEntityEvent(this, right ? EVENT_MISSILE_RIGHT : EVENT_MISSILE_LEFT);
@@ -1389,7 +1418,12 @@ public class GalliaFortEntity extends Monster implements GeoEntity, ChronoGazer,
         }
 
         private int cd(int ticks) {
-            return fort.isPhase2() ? ticks * 7 / 10 : ticks;
+            return Math.max(1, Math.round(ticks * fort.cooldownScale()));
+        }
+
+        /** 技の途中か */
+        boolean busy() {
+            return action != 0;
         }
 
         /** 体は 1 Tick に maxDeg 度までしか向き直れない（砲塔＝頭はすぐ向く） */
@@ -1404,7 +1438,7 @@ public class GalliaFortEntity extends Monster implements GeoEntity, ChronoGazer,
         }
 
         private Vec3 aimAt(LivingEntity t) {
-            return t.position().add(0, t.getBbHeight() * 0.5, 0);
+            return fort.aimFor(t);
         }
 
         private void announce(String key, ChatFormatting... style) {

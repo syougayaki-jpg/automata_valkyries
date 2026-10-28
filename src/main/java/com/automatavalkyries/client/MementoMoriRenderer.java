@@ -27,9 +27,24 @@ import software.bernie.geckolib.renderer.layer.GeoRenderLayer;
  */
 public class MementoMoriRenderer extends ChronoGazerRenderer<MementoMoriEntity> {
 
+    /** 色違いの絵（メメントモリ EX。null なら元の絵） */
+    @org.jetbrains.annotations.Nullable
+    private final ResourceLocation texture;
+
     public MementoMoriRenderer(EntityRendererProvider.Context context) {
+        this(context, null);
+    }
+
+    /** 色違いの絵で描く（メメントモリ EX: 白と金の光体。2026-10-27） */
+    public MementoMoriRenderer(EntityRendererProvider.Context context, @org.jetbrains.annotations.Nullable String texture) {
         super(context, "memento_mori", 0.0F);
+        this.texture = texture == null ? null : ResourceLocation.fromNamespaceAndPath(com.automatavalkyries.AutomataValkyries.MODID, texture);
         addRenderLayer(new LumenLayer(this));
+    }
+
+    @Override
+    public ResourceLocation getTextureLocation(MementoMoriEntity mori) {
+        return texture != null ? texture : super.getTextureLocation(mori);
     }
 
     @Override
@@ -71,9 +86,35 @@ public class MementoMoriRenderer extends ChronoGazerRenderer<MementoMoriEntity> 
         pose.pushPose();
         pose.scale(MementoMoriEntity.SIZE, MementoMoriEntity.SIZE, MementoMoriEntity.SIZE);
         super.render(mori, entityYaw, partialTick, pose, buffers, light);
+        mirror(mori, partialTick, pose, buffers);
         pose.popPose();
         MementoSwarm.render(mori, partialTick, pose, buffers);
         renderAscension(mori, partialTick, pose, buffers);
+    }
+
+    /** 鏡像（メメントモリ EX の鏡像の死蝶。見た目だけ）: 自分の姿を、白く光る半透明で鏡像の場所と向きに置く */
+    private void mirror(MementoMoriEntity mori, float partialTick, PoseStack pose, MultiBufferSource buffers) {
+        java.util.List<com.automatavalkyries.entity.chrono.LuxionEntity.Afterimage> list = mori.shadows();
+        if (list.isEmpty()) return;
+        var model = getGeoModel().getBakedModel(getGeoModel().getModelResource(mori));
+        RenderType type = RenderType.entityTranslucentEmissive(getTextureLocation(mori));
+        Vec3 at = mori.getPosition(partialTick);
+        float bodyO = mori.yBodyRotO, body = mori.yBodyRot;
+        float pulse = 0.5F + 0.1F * Mth.sin((mori.tickCount + partialTick) * 0.3F);
+        try {
+            for (var a : list) {
+                mori.yBodyRotO = mori.yBodyRot = a.yaw();
+                pose.pushPose();
+                float k = 1.0F / MementoMoriEntity.SIZE;
+                pose.translate((a.x() - at.x) * k, (a.y() - at.y) * k, (a.z() - at.z) * k);
+                actuallyRender(pose, mori, model, type, buffers, buffers.getBuffer(type), true, partialTick, 0xF000F0,
+                        OverlayTexture.NO_OVERLAY, 0.85F, 0.95F, 1.0F, pulse);
+                pose.popPose();
+            }
+        } finally {
+            mori.yBodyRotO = bodyO;
+            mori.yBodyRot = body;
+        }
     }
 
     /**

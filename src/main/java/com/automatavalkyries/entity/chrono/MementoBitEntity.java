@@ -156,7 +156,7 @@ public class MementoBitEntity extends Entity {
     public void strike(LivingEntity e) {
         DamageSource src = damageSources().indirectMagic(this, owner);
         e.hurt(src, owner instanceof MementoMoriEntity m ? m.damageFor(e, damage) : damage);
-        MementoCurse.add(e, MementoCurse.BIT);
+        MementoCurse.add(e, MementoCurse.BIT, owner);
         if (level() instanceof ServerLevel server) {
             Fx.burst(server, MementoMoriEntity.glow(MementoMoriEntity.C_VIOLET, 0.5F, 12), position(), 10, 0.15);
             server.playSound(null, getX(), getY(), getZ(), SoundEvents.PHANTOM_BITE, SoundSource.HOSTILE, 0.8F, 1.4F);

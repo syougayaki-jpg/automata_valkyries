@@ -34,8 +34,18 @@ public class GalliaFortRenderer extends ChronoGazerRenderer<GalliaFortEntity> {
     private static final float FRAME_ALPHA = 0.32F, PULSE_LEN = 0.13F, PULSE_SPEED = 0.025F;
     private static final int[][] PRIMARY = {{255, 50, 50}, {50, 255, 80}, {60, 110, 255}};
 
+    /** 色違いの絵（ガリアフォート EX。null なら元の絵） */
+    @org.jetbrains.annotations.Nullable
+    private final net.minecraft.resources.ResourceLocation texture;
+
     public GalliaFortRenderer(EntityRendererProvider.Context context) {
+        this(context, null);
+    }
+
+    /** 色違いの絵で描く（ガリアフォート EX: 黒鉄と赤熱。2026-10-27） */
+    public GalliaFortRenderer(EntityRendererProvider.Context context, @org.jetbrains.annotations.Nullable String texture) {
         super(context, "galliafort", 2.0F);
+        this.texture = texture == null ? null : net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(com.automatavalkyries.AutomataValkyries.MODID, texture);
     }
 
     /** 撃破では横に倒れず、脚が崩れて沈む（ChronoGazerModel のモーション） */
@@ -449,5 +459,10 @@ public class GalliaFortRenderer extends ChronoGazerRenderer<GalliaFortEntity> {
         for (int[] order : new int[][]{{0, 1, 2, 3}, {3, 2, 1, 0}}) {
             for (int i : order) vc.vertex(m, v[i][0], v[i][1], v[i][2]).color(r, g, bl, al).endVertex();
         }
+    }
+
+    @Override
+    public net.minecraft.resources.ResourceLocation getTextureLocation(GalliaFortEntity fort) {
+        return texture != null ? texture : super.getTextureLocation(fort);
     }
 }

@@ -110,6 +110,11 @@ public class ModEntities {
             ENTITY_TYPES.register("luxion", () ->
                     EntityType.Builder.of(com.automatavalkyries.entity.chrono.LuxionEntity::new, MobCategory.MONSTER)
                             .sized(1.4F, 4.8F).clientTrackingRange(12).fireImmune().build("luxion")); // 身長 5 ブロック（2026-10-08 ユーザー指定）
+    /** ルクシオン EX（回想のトライアル「極光の残響」のボス。2026-10-27） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.LuxionExEntity>> LUXION_EX =
+            ENTITY_TYPES.register("luxion_ex", () ->
+                    EntityType.Builder.of(com.automatavalkyries.entity.chrono.LuxionExEntity::new, MobCategory.MONSTER)
+                            .sized(1.4F, 4.8F).clientTrackingRange(12).fireImmune().build("luxion_ex"));
     /** ルクシオンの技の自作エフェクト（見た目だけ。光刃の波・光速突進。2026-10-08） */
     public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.LuxionFxEntity>> LUXION_FX =
             ENTITY_TYPES.register("luxion_fx", () ->
@@ -125,6 +130,15 @@ public class ModEntities {
             ENTITY_TYPES.register("memento_mori", () ->
                     EntityType.Builder.of(com.automatavalkyries.entity.chrono.MementoMoriEntity::new, MobCategory.MONSTER)
                             .sized(1.6F, 5.4F).clientTrackingRange(12).fireImmune().build("memento_mori"));
+    /** ガリアフォート EX・メメントモリ EX（回想のトライアル「鋼鉄の残響」「死蝶の残響」のボス。2026-10-27） */
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.GalliaFortExEntity>> GALLIAFORT_EX =
+            ENTITY_TYPES.register("galliafort_ex", () ->
+                    EntityType.Builder.of(com.automatavalkyries.entity.chrono.GalliaFortExEntity::new, MobCategory.MONSTER)
+                            .sized(3.6F, 3.6F).clientTrackingRange(12).fireImmune().build("galliafort_ex"));
+    public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.MementoMoriExEntity>> MEMENTO_MORI_EX =
+            ENTITY_TYPES.register("memento_mori_ex", () ->
+                    EntityType.Builder.of(com.automatavalkyries.entity.chrono.MementoMoriExEntity::new, MobCategory.MONSTER)
+                            .sized(1.6F, 5.4F).clientTrackingRange(12).fireImmune().build("memento_mori_ex"));
     /** メメントモリの黒死蝶ビット（壊せる。当たると最大 HP を削る） */
     public static final RegistryObject<EntityType<com.automatavalkyries.entity.chrono.MementoBitEntity>> MEMENTO_BIT =
             ENTITY_TYPES.register("memento_bit", () ->
@@ -302,8 +316,11 @@ public class ModEntities {
         event.put(CHRONO_MASK_DRONE.get(), com.automatavalkyries.entity.chrono.MaskDroneEntity.createAttributes().build());
         event.put(CHRONO_TROOPER.get(), com.automatavalkyries.entity.chrono.TrooperEntity.createAttributes().build());
         event.put(LUXION.get(), com.automatavalkyries.entity.chrono.LuxionEntity.createAttributes().build());
+        event.put(LUXION_EX.get(), com.automatavalkyries.entity.chrono.LuxionExEntity.createAttributes().build());
         event.put(GALLIAFORT.get(), com.automatavalkyries.entity.chrono.GalliaFortEntity.createAttributes().build());
         event.put(MEMENTO_MORI.get(), com.automatavalkyries.entity.chrono.MementoMoriEntity.createAttributes().build());
+        event.put(GALLIAFORT_EX.get(), com.automatavalkyries.entity.chrono.GalliaFortExEntity.createAttributes().build());
+        event.put(MEMENTO_MORI_EX.get(), com.automatavalkyries.entity.chrono.MementoMoriExEntity.createAttributes().build());
         event.put(VALKYRIE_DUMMY.get(), com.automatavalkyries.entity.ValkyrieDummyEntity.createAttributes().build());
         event.put(SKY_BOSS_SKELETON.get(), com.automatavalkyries.entity.SkyBossSkeleton.createAttributes().build());
         event.put(VALKYRIE.get(), com.automatavalkyries.entity.ValkyrieEntity.createAttributes().build());

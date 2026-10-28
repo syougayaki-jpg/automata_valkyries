@@ -27,6 +27,8 @@ public class GalliaSiegeBeamEntity extends Entity {
     private static final EntityDataAccessor<Vector3f> DIR = SynchedEntityData.defineId(GalliaSiegeBeamEntity.class, EntityDataSerializers.VECTOR3);
     private static final EntityDataAccessor<Float> LENGTH = SynchedEntityData.defineId(GalliaSiegeBeamEntity.class, EntityDataSerializers.FLOAT);
     private static final EntityDataAccessor<Float> WIDTH = SynchedEntityData.defineId(GalliaSiegeBeamEntity.class, EntityDataSerializers.FLOAT);
+    /** この Tick（自分の tickCount）までは伸び切ったまま残る（ガリアフォート EX のリミットオーバー歪曲破界砲の照射。2026-10-27）。0 = すぐ消えていく */
+    private static final EntityDataAccessor<Integer> HOLD = SynchedEntityData.defineId(GalliaSiegeBeamEntity.class, EntityDataSerializers.INT);
 
     public GalliaSiegeBeamEntity(EntityType<? extends GalliaSiegeBeamEntity> type, Level level) {
         super(type, level);
@@ -40,13 +42,39 @@ public class GalliaSiegeBeamEntity extends Entity {
 
     /** mode = MODE_SIEGE（穿孔破城砲）・MODE_RIFT（歪曲破界砲: 太く長く残り、らせん 2 重・回る立方体の枠・流れる輪を足す） */
     public static void spawn(ServerLevel level, Vec3 from, Vec3 dir, float length, float width, int mode) {
+        spawnHeld(level, from, dir, length, width, mode, 0);
+    }
+
+    /** 照射し続ける光の束: hold Tick の間は伸び切ったまま残る（{@link #aim} で向きを変えられる）。その後いつもどおり消えていく */
+    public static GalliaSiegeBeamEntity spawnHeld(ServerLevel level, Vec3 from, Vec3 dir, float length, float width, int mode, int hold) {
         GalliaSiegeBeamEntity beam = new GalliaSiegeBeamEntity(ModEntities.GALLIA_SIEGE_BEAM.get(), level);
+        beam.entityData.set(HOLD, hold);
         beam.entityData.set(MODE, mode);
         beam.setPos(from.x, from.y, from.z);
         beam.entityData.set(DIR, dir.toVector3f());
         beam.entityData.set(LENGTH, length);
         beam.entityData.set(WIDTH, width);
         level.addFreshEntity(beam);
+        return beam;
+    }
+
+    /** 照射中に付け根と向きを変える */
+    public void aim(Vec3 from, Vec3 dir) {
+        setPos(from.x, from.y, from.z);
+        entityData.set(DIR, dir.toVector3f());
+    }
+
+    /** 伸び切ったまま残る Tick（自分の tickCount） */
+    public int hold() {
+        return entityData.get(HOLD);
+    }
+
+    /** 描く時の経過（照射し続ける間は伸び切った所で止め、終わってから消えていく） */
+    public float visualAge(float partialTick) {
+        float t = tickCount + partialTick;
+        int hold = hold();
+        if (hold <= 0) return t;
+        return t < hold ? Math.min(t, extendTicks()) : extendTicks() + (t - hold);
     }
 
     public Vec3 dir() {
@@ -79,12 +107,13 @@ public class GalliaSiegeBeamEntity extends Entity {
         entityData.define(LENGTH, 1.0F);
         entityData.define(WIDTH, 1.0F);
         entityData.define(MODE, MODE_SIEGE);
+        entityData.define(HOLD, 0);
     }
 
     @Override
     public void tick() {
         super.tick();
-        if (!level().isClientSide && tickCount > life()) discard();
+        if (!level().isClientSide && tickCount > life() + hold()) discard();
     }
 
     @Override

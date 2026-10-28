@@ -45,7 +45,7 @@ public class GalliaSiegeBeamRenderer extends EntityRenderer<GalliaSiegeBeamEntit
 
     @Override
     public void render(GalliaSiegeBeamEntity beam, float yaw, float partialTick, PoseStack pose, MultiBufferSource buffers, int light) {
-        float t = beam.tickCount + partialTick;
+        float t = beam.visualAge(partialTick);
         float life = beam.life(), extTicks = beam.extendTicks();
         if (t > life) return;
         boolean rift = beam.rift();
