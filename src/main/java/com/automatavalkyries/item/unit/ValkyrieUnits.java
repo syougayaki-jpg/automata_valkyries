@@ -148,7 +148,13 @@ public final class ValkyrieUnits {
         ASTRAL_HALO("astral_halo", 4, 10.0F, 3_000, null),
         RESURRECTION_CORE("resurrection_core", 4, 8.0F, 50_000, null),
         ACCELERATOR("accelerator", 4, 7.0F, 4_000, null),
-        COMMAND_LINK("command_link", 4, 6.0F, 0, null);
+        COMMAND_LINK("command_link", 4, 6.0F, 0, null),
+        // 非戦闘の背部ユニット（2026-10-29 ユーザー指定。付けていると戦わない。entity/ai/ValkyrieWork。数は【仮】）: fe は 1 回の仕事の消費
+        HARVESTER("harvester", 1, 5.0F, 200, null),
+        MINING_ARM("mining_arm", 2, 9.0F, 1_000, null),
+        LUMBER_SAW("lumber_saw", 1, 7.0F, 800, null),
+        FISHING_RIG("fishing_rig", 1, 4.0F, 300, null),
+        FIELD_KITCHEN("field_kitchen", 2, 8.0F, 500, null);
 
         public final String id;
         public final int tier;
@@ -180,6 +186,7 @@ public final class ValkyrieUnits {
             tooltip.add(Component.translatable("gui.automata_valkyries.unit.valkyrie_only").withStyle(ChatFormatting.DARK_AQUA));
             tooltip.add(Component.translatable("gui.automata_valkyries.unit.backpack.stats", fmt(kind.weight), String.format(Locale.ROOT, "%,d", kind.fe)).withStyle(ChatFormatting.GRAY));
             tooltip.add(Component.translatable("gui.automata_valkyries.unit.backpack." + kind.id).withStyle(ChatFormatting.GOLD));
+            if (com.automatavalkyries.entity.ai.ValkyrieWork.WORK_BACKPACKS.contains(kind)) tooltip.add(Component.translatable("gui.automata_valkyries.unit.non_combat").withStyle(ChatFormatting.RED));
         }
     }
 
@@ -206,7 +213,18 @@ public final class ValkyrieUnits {
         /** ノータッチ: 落ちている物を拾わない（2026-10-07 ユーザー指定「物を拾わない設定のチップ」。預かっている物の片付け・チェスト間の運搬はする） */
         NO_PICKUP("no_pickup", 1, false),
         /** スカベンジャー: 落ちている物を探して拾う（お掃除の範囲 2 倍・追従中も持ち主のまわりの物を拾う。2026-10-07 ユーザー指定「ノータッチの逆」）。ノータッチとは同時に挿せない */
-        SCAVENGER("scavenger", 1, false);
+        SCAVENGER("scavenger", 1, false),
+        // 非戦闘のチップ（2026-10-29 ユーザー指定。付けていると戦わない。entity/ai/ValkyrieWork）
+        /** ランチャー: 近くのチェストのえさで動物を増やし、羊の毛を刈る */
+        RANCHER("rancher", 1, false),
+        /** ランプライター: 暗い所に松明を置く */
+        LAMPLIGHTER("lamplighter", 1, false),
+        /** メンテナンス: 近くの持ち主の道具・防具を少しずつ直す */
+        MAINTENANCE("maintenance", 2, false),
+        /** ブレッシング: 近くの持ち主に採掘速度上昇・幸運 */
+        BLESSING("blessing", 2, false),
+        /** プロスペクター: 持ち主のまわりの鉱脈を知らせる */
+        PROSPECTOR("prospector", 3, false);
 
         public final String id;
         public final int tier;
@@ -239,6 +257,7 @@ public final class ValkyrieUnits {
             tooltip.add(Component.translatable("gui.automata_valkyries.unit.chip.stats", fmt(CHIP_WEIGHT)).withStyle(ChatFormatting.GRAY));
             tooltip.add(Component.translatable("gui.automata_valkyries.unit.chip." + kind.id).withStyle(ChatFormatting.GOLD));
             if (kind.role) tooltip.add(Component.translatable("gui.automata_valkyries.unit.chip.role_exclusive").withStyle(ChatFormatting.DARK_GRAY));
+            if (com.automatavalkyries.entity.ai.ValkyrieWork.WORK_CHIPS.contains(kind)) tooltip.add(Component.translatable("gui.automata_valkyries.unit.non_combat").withStyle(ChatFormatting.RED));
             if (kind == ChipKind.ATTACK_MODE) {
                 tooltip.add(Component.translatable("gui.automata_valkyries.unit.chip.attack_mode." + (chargeOnly(stack) ? "charge" : "normal")).withStyle(ChatFormatting.AQUA));
             }

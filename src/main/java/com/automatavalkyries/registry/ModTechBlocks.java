@@ -46,7 +46,7 @@ public final class ModTechBlocks {
     public static final RegistryObject<Block> TECH_PHASE_PANEL = register("tech_phase_panel", () -> new Block(metal(MapColor.COLOR_PURPLE).lightLevel(s -> 8)));
     public static final RegistryObject<Block> TECH_SKY_PANEL = register("tech_sky_panel", () -> new Block(metal(MapColor.COLOR_LIGHT_BLUE).lightLevel(s -> 15)));
 
-    /** クロノ転送ゲート（侵食基地の専用のスポナー。作れない。壊すと素材を落とす） */
+    /** クロノ転送ゲート（侵食基地の専用のスポナー。壊すと素材を落とす。2026-10-29 から作業台で作れる: recipes/chrono_gate.json） */
     public static final RegistryObject<Block> CHRONO_GATE = register("chrono_gate", () -> new ChronoGateBlock(BlockBehaviour.Properties.of()
             .mapColor(MapColor.COLOR_PURPLE).requiresCorrectToolForDrops().strength(25.0F, 1200.0F).sound(SoundType.NETHERITE_BLOCK)
             .lightLevel(s -> 10).pushReaction(PushReaction.BLOCK)));

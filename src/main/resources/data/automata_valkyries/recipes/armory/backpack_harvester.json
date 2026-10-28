@@ -1,0 +1,32 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 1,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:composite_plate"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_advanced"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:coil_chrono"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "minecraft:iron_hoe"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:backpack_harvester"
+  },
+  "energy": 120000,
+  "time": 400
+}

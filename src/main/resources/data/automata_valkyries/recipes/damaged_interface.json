@@ -1,0 +1,23 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "redstone",
+  "pattern": [
+    "HGH",
+    "HCH",
+    "HHH"
+  ],
+  "key": {
+    "H": {
+      "item": "automata_valkyries:crashed_pod_hull"
+    },
+    "G": {
+      "item": "automata_valkyries:tech_glass"
+    },
+    "C": {
+      "item": "automata_valkyries:circuit_basic"
+    }
+  },
+  "result": {
+    "item": "automata_valkyries:damaged_interface"
+  }
+}

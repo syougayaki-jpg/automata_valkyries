@@ -285,6 +285,7 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         combat = new ValkyrieCombat.Brain(this);
         goalSelector.addGoal(0, new FloatGoal(this));
         // 戦闘（段階 3）: かばう・後退・戦うが追従より先
+        goalSelector.addGoal(1, new com.automatavalkyries.entity.ai.ValkyrieWork.Flee(this)); // 非戦闘のユニット: 襲われたら持ち主の元へ逃げる（先に入れて、同じ順位の守り・後退より先に選ばれるように）
         goalSelector.addGoal(1, new ValkyrieCombat.Guard(this));
         goalSelector.addGoal(1, new ValkyrieCombat.Retreat(this));
         goalSelector.addGoal(1, new ValkyrieCombat.Medic(this)); // ロジック: メディック（戦うより先に手当て）
@@ -293,6 +294,11 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
         goalSelector.addGoal(2, new com.automatavalkyries.entity.ai.ValkyrieDaily.WatchWork(this));
         goalSelector.addGoal(2, new com.automatavalkyries.entity.ai.ValkyriePorter(this)); // ロジック: ポーター（運搬）
         goalSelector.addGoal(4, new com.automatavalkyries.entity.ai.ValkyrieDaily.Clean(this));
+        // 非戦闘の背部ユニットの仕事（2026-10-29）: 順位 2。逃げる・充電（順位 1）のほかは、追従・拠点へ戻る・お掃除・腰掛けより先にする（同日ユーザー指定）
+        goalSelector.addGoal(2, new com.automatavalkyries.entity.ai.ValkyrieWork.Harvest(this));
+        goalSelector.addGoal(2, new com.automatavalkyries.entity.ai.ValkyrieWork.Mine(this));
+        goalSelector.addGoal(2, new com.automatavalkyries.entity.ai.ValkyrieWork.Fell(this));
+        goalSelector.addGoal(2, new com.automatavalkyries.entity.ai.ValkyrieWork.Fish(this));
         goalSelector.addGoal(5, new com.automatavalkyries.entity.ai.ValkyrieDaily.Sit(this));
         goalSelector.addGoal(2, new ValkyrieCombat.Fight(this));
         goalSelector.addGoal(3, new ValkyrieGoals.FollowOwner(this));

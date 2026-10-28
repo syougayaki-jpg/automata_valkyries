@@ -1,0 +1,31 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 1,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:composite_plate"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_advanced"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:coil_chrono"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "minecraft:fishing_rod"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:backpack_fishing_rig"
+  },
+  "energy": 120000,
+  "time": 400
+}

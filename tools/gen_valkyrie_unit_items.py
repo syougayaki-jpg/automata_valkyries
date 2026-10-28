@@ -620,6 +620,101 @@ PAL_COMMAND = {'o': 0x0A0E1E, 'h': 0x3A4A7A, 'b': 0x26325A, 's': 0x161E3A, 'a': 
                'g': 0xFFD25A, 'n': 0x3BE8FF, 'N': 0xC8FFFF}
 
 
+# 非戦闘の背部ユニット（2026-10-29）: 地は紺・ガンメタル、仕事ごとの差し色
+PAL_WORK = dict(PAL_UNIT, **{'n': 0x6CFF7A, 'N': 0xD0FFD6, 'l': 0x6A7C66, 'L': 0x4A5A48, 'y': 0xFFE040, 'Y': 0xFFF6B0,
+                             'r': 0xFF3B4E, 'w': 0xF2F5FA, 'e': 0xE28424, 'E': 0xFAB45A, 'u': 0x3A64B8, 'U': 0x6A90E0,
+                             'c': 0x8C96A4, 'C': 0xC8CED8, 'f': 0xFFA040, 'F': 0xFFF0C8})
+HARVESTER = [
+    '...N...N....N...',
+    '..NnN.NnN..NnN..',
+    '...l...l....l...',
+    '.oooooooooooooo.',
+    '.ohnnnnnnnnnnbo.',
+    '.ollLlllLlllLLo.',
+    '.olLLlLLLlLLLLo.',
+    '.ollLlllLlllLLo.',
+    '.olLLlLLLlLLLLo.',
+    '.ollLlllLlllLLo.',
+    '.olLLlLLLlLLLLo.',
+    '..oLLLLLLLLLLo..',
+    '...oooooooooo...',
+    '................',
+    '................',
+    '................',
+]
+MINING_ARM = [
+    '................',
+    '..........C.....',
+    '.........cCc....',
+    '........cCcc....',
+    '.......cCcco....',
+    '......occco.....',
+    '.....oEEeo......',
+    '....oEEeeo......',
+    '...oEEeeo.......',
+    '..ohhbbo........',
+    '.ohhbffbo.......',
+    '.ohbbbbso.......',
+    '.oybybyso.......',
+    '.obybybso.......',
+    '..ooooooo.......',
+    '................',
+]
+LUMBER_SAW = [
+    '.............oo.',
+    '............oCco',
+    '...........oCcyo',
+    '..........oCcyo.',
+    '.........oCcyo..',
+    '........oCcyo...',
+    '.......oCcyo....',
+    '......oCcyo.....',
+    '.....oCcyo......',
+    '...ooooyo.......',
+    '..oEEEEeo.......',
+    '.oEEffEeeo......',
+    '.oEEEEeeeo......',
+    '.oeeeeeeeo......',
+    '..ooooooo.......',
+    '................',
+]
+FISHING_RIG = [
+    '..............o.',
+    '.............ow.',
+    '............o.w.',
+    '...........o..w.',
+    '..........o...w.',
+    '.........o....w.',
+    '........o.....rr',
+    '.......o......rw',
+    '..oooooo........',
+    '.ouUUUUuo.......',
+    '.oUUccUuo.......',
+    '.oUcCCcuo.......',
+    '.oUUccUuo.......',
+    '.ouuuuuuo.......',
+    '..oooooo........',
+    '................',
+]
+FIELD_KITCHEN = [
+    '..........w.....',
+    '.........w.w....',
+    '..........w.....',
+    '....oooo..oo....',
+    '...occCco.oo....',
+    '..occCCCcooFo...',
+    '..oooooooooFo...',
+    '.ohhhhhhhhhhbo..',
+    '.ohbbbbbbbbbso..',
+    '.ohbffFfbbbbso..',
+    '.ohbfFFfbbbbso..',
+    '.ohbbbbbbbbbso..',
+    '.osssssssssssso.',
+    '..oooooooooooo..',
+    '................',
+    '................',
+]
+
 def _put(img, x, y, c):
     if 0 <= x < 16 and 0 <= y < 16:
         img.putpixel((x, y), c + (255,) if len(c) == 3 else c)
@@ -836,6 +931,62 @@ CHIP_GLYPHS = {
         'rRrRRrRr',
         'rrrrrrrr',
     ]),
+    # 2026-10-29 非戦闘のチップ
+    # ランチャー（牧場）: 小麦の穂と羊の毛（若草・白）
+    'rancher': ({'g': 0x9CD84A, 'G': 0xE0F8A0, 'w': 0xF4F4F0, 'k': 0x2A2E3A}, [
+        '.G......',
+        'GgG.....',
+        '.g......',
+        'GgGwwww.',
+        '.g.wwwwk',
+        '.g.wwwwk',
+        '.g..k.k.',
+        '........',
+    ]),
+    # ランプライター（照明）: 松明の炎
+    'lamplighter': ({'f': 0xFFA040, 'F': 0xFFF0C8, 'y': 0xFFE040, 'b': 0x8A5A2A}, [
+        '...F....',
+        '..FyF...',
+        '..fyf...',
+        '..ffF...',
+        '...b....',
+        '...b....',
+        '...b....',
+        '...b....',
+    ]),
+    # メンテナンス（整備）: スパナ（銀＋シアン）
+    'maintenance': ({'c': 0xC8CED8, 'C': 0xFFFFFF, 'g': CYAN}, [
+        'cc...cc.',
+        'cC...Cc.',
+        '.cCcCc..',
+        '..cgc...',
+        '...cc...',
+        '....cc..',
+        '.....cc.',
+        '......cc',
+    ]),
+    # ブレッシング（加護）: 四つ葉と光（金・緑）
+    'blessing': ({'g': 0x3BE070, 'G': 0x9CFFB8, 'y': 0xFFD66E}, [
+        '..y.....',
+        '.gg.gg..',
+        'gGGgGGg.',
+        '.gGggGg.',
+        'gGGgGGg.',
+        '.gg.gg..',
+        '....g..y',
+        '....g...',
+    ]),
+    # プロスペクター（鉱脈探査）: 石の中の鉱石と探査の波（水色・ダイヤ色）
+    'prospector': ({'s': 0x6A7282, 'S': 0x8C96A4, 'd': 0x5AE8E0, 'D': 0xD0FFFA, 'w': 0x3BE8FF}, [
+        '.w....w.',
+        'w.w..w.w',
+        '........',
+        '.SSssSS.',
+        '.SdDsSS.',
+        '.SsddsS.',
+        '.SSsdDS.',
+        '.SSssSS.',
+    ]),
 }
 
 
@@ -906,6 +1057,11 @@ def build():
     items['backpack_resurrection_core'] = heart_icon()
     items['backpack_accelerator'] = accel_icon()
     items['backpack_command_link'] = paint(COMMAND, PAL_COMMAND)
+    items['backpack_harvester'] = paint(HARVESTER, PAL_WORK)
+    items['backpack_mining_arm'] = paint(MINING_ARM, PAL_WORK)
+    items['backpack_lumber_saw'] = paint(LUMBER_SAW, PAL_WORK)
+    items['backpack_fishing_rig'] = paint(FISHING_RIG, PAL_WORK)
+    items['backpack_field_kitchen'] = paint(FIELD_KITCHEN, PAL_WORK)
     for k in CHIP_GLYPHS:
         items[f'chip_{k}'] = chip(k)
     return items

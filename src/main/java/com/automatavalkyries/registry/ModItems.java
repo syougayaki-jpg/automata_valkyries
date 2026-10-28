@@ -188,6 +188,10 @@ public class ModItems {
     }
     public static final RegistryObject<Item> SKY_BOSS_SKELETON_SPAWN_EGG = ITEMS.register("sky_boss_skeleton_spawn_egg", () ->
             new ForgeSpawnEggItem(ModEntities.SKY_BOSS_SKELETON, 0xc1c1c1, 0x7b2cbf, new Item.Properties()));
+    /** 紫紺の招待状『エレノア』（エレノアの召喚。2026-10-29 ユーザー指定「エレノアの召喚アイテムも作って」。英雄機の呼び声と同じ仕組み・作業台の材料は【仮】） */
+    public static final RegistryObject<Item> SIGNAL_ELENOR = ITEMS.register("signal_elenor", () ->
+            new com.automatavalkyries.item.HeroSignalItem(new Item.Properties().stacksTo(16).rarity(Rarity.EPIC), ModEntities.ELENOR, "elenor",
+                    new org.joml.Vector3f(0.88F, 0.25F, 0.98F)));
     public static final RegistryObject<Item> FARTHEST_ELENOR_SPAWN_EGG = ITEMS.register("farthest_elenor_spawn_egg", () ->
             new ForgeSpawnEggItem(ModEntities.FARTHEST_ELENOR, 0x120018, 0xb00020, new Item.Properties()));
     public static final RegistryObject<Item> PROTECT_DUMMY_ZOMBIE_SPAWN_EGG = ITEMS.register("protect_dummy_zombie_spawn_egg", () ->

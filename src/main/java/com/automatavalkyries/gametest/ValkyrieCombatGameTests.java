@@ -237,6 +237,49 @@ public class ValkyrieCombatGameTests {
         });
     }
 
+    /** 非戦闘のユニット（2026-10-29）: 付けていると、狙ってくるゾンビがいても相手を持たない */
+    @GameTest(template = TEMPLATE, batch = "valkyrie_daily_porter", timeoutTicks = 120)
+    public static void valkyrieNonCombatUnitDoesNotFight(GameTestHelper helper) {
+        clearAround(helper);
+        ValkyrieEntity v = helper.spawn(ModEntities.VALKYRIE.get(), 1, 2, 1);
+        v.setMode(ValkyrieEntity.Mode.WAIT);
+        v.setEnergy(ValkyrieEntity.MAX_ENERGY);
+        v.getInventory().setItem(com.automatavalkyries.entity.ValkyrieInventory.CHIP,
+                new ItemStack(com.automatavalkyries.registry.ModValkyrieUnits.CHIPS.get(com.automatavalkyries.item.unit.ValkyrieUnits.ChipKind.RANCHER).get()));
+        var zombie = helper.spawn(net.minecraft.world.entity.EntityType.ZOMBIE, 5, 2, 5);
+        zombie.setTarget(v);
+        WeaponGameTests.forceChunks(helper, v, zombie);
+        helper.runAfterDelay(80, () -> {
+            helper.assertTrue(com.automatavalkyries.entity.ai.ValkyrieWork.nonCombat(v), "the rancher chip is not a non-combat unit");
+            helper.assertTrue(v.getTarget() == null, "a non-combat valkyrie picked a target: " + v.getTarget());
+            zombie.discard();
+            v.releaseAndDiscard();
+            helper.succeed();
+        });
+    }
+
+    /** 農作ユニット（2026-10-29）: 実った小麦を穫って、同じ所に植え直す */
+    @GameTest(template = TEMPLATE, batch = "valkyrie_daily_porter", timeoutTicks = 400)
+    public static void valkyrieHarvesterReplantsWheat(GameTestHelper helper) {
+        clearAround(helper);
+        net.minecraft.core.BlockPos soil = new net.minecraft.core.BlockPos(3, 0, 3), crop = soil.above();
+        helper.setBlock(soil, net.minecraft.world.level.block.Blocks.FARMLAND);
+        helper.setBlock(crop, ((net.minecraft.world.level.block.CropBlock) net.minecraft.world.level.block.Blocks.WHEAT).getStateForAge(7));
+        ValkyrieEntity v = helper.spawn(ModEntities.VALKYRIE.get(), 1, 2, 1);
+        v.setMode(ValkyrieEntity.Mode.WAIT);
+        v.setEnergy(ValkyrieEntity.MAX_ENERGY);
+        v.getInventory().setItem(com.automatavalkyries.entity.ValkyrieInventory.BACKPACK,
+                new ItemStack(com.automatavalkyries.registry.ModValkyrieUnits.BACKPACKS.get(com.automatavalkyries.item.unit.ValkyrieUnits.BackpackKind.HARVESTER).get()));
+        WeaponGameTests.forceChunks(helper, v);
+        helper.succeedWhen(() -> {
+            var state = helper.getBlockState(crop);
+            helper.assertTrue(state.is(net.minecraft.world.level.block.Blocks.WHEAT)
+                    && ((net.minecraft.world.level.block.CropBlock) net.minecraft.world.level.block.Blocks.WHEAT).getAge(state) == 0,
+                    "the wheat was not harvested and replanted: " + state + " pos=" + helper.relativeVec(v.position()) + " goals=" + v.goalSelectorRunning());
+            v.releaseAndDiscard();
+        });
+    }
+
     /** 戦術級コード: 近くの自分の兵姫（同調率・コアの電力が足りる）が承認してコアから払い、クールタイム中はもう一度は通らない。同調率が足りなければ通らない */
     @GameTest(template = TEMPLATE, batch = "valkyrie_tactical", timeoutTicks = 100)
     public static void tacticalProtocolApproval(GameTestHelper helper) {

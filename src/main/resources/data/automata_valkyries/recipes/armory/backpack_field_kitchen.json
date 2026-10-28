@@ -1,0 +1,32 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 2,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:alloy_luminal_sterling"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_quantum_tac"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:crystal_luminal"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "minecraft:smoker"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:backpack_field_kitchen"
+  },
+  "energy": 1200000,
+  "time": 600
+}

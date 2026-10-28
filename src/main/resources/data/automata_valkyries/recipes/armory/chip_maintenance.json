@@ -1,0 +1,26 @@
+{
+  "type": "automata_valkyries:armory_assembling",
+  "tier": 2,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_quantum_tac"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:processor_synapse"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "minecraft:anvil"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:chip_maintenance"
+  },
+  "energy": 800000,
+  "time": 600
+}

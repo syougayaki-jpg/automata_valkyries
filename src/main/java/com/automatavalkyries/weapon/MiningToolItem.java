@@ -453,11 +453,67 @@ public class MiningToolItem extends TacticalWeaponItem {
         }
     }
 
-    /** 1 ブロック掘る（ドロップ・イベント・保護はふつうに掘ったときと同じ）。掘れたら true */
+    /** 1 ブロック掘る（ドロップ・イベント・保護はふつうに掘ったときと同じ）。掘れたら true。ネバーラスト・ドリルは硬さ -1 の物も（{@link #breakBedrock}） */
     private boolean tryBreak(ServerLevel level, ServerPlayer player, ItemStack stack, BlockPos pos) {
         BlockState state = level.getBlockState(pos);
+        if (unbreakable(level, pos, state) && breaksBedrock(stack)) return breakBedrock(level, player, stack, pos);
         if (state.isAir() || !suits(state) || state.getDestroySpeed(level, pos) < 0 || !powered(stack)) return false;
         return player.gameMode.destroyBlock(pos);
+    }
+
+    // ---- 岩盤と硬さ -1 のブロック（2026-10-29 ユーザー指定「ネバーラストドリルは岩盤も掘れるようにして」→ 同日「他の硬さ -1 でも掘れるように」） ----
+
+    /** ふつうには壊せない（硬さ -1 の）ブロックか。岩盤・バリア・エンドポータルの枠・コマンドブロック・ストラクチャーブロック・光ブロック・他 MOD の壊せないブロックなど */
+    static boolean unbreakable(Level level, BlockPos pos, BlockState state) {
+        return !state.isAir() && state.getDestroySpeed(level, pos) < 0;
+    }
+
+    /** 硬さ -1 のブロックを掘れる道具か（ネバーラスト・ドリル = T4 のドリル） */
+    public static boolean breaksBedrock(ItemStack stack) {
+        return stack.getItem() instanceof MiningToolItem m && m.kind == Kind.DRILL && m.tier >= 4;
+    }
+
+    /**
+     * 硬さ -1 のブロックを 1 つ掘る（ふつうの掘り方では進まないので、叩いた瞬間に掘る）。1 ブロックぶんの電力を使い、そのブロックのアイテムを落とす
+     * （アイテムの無い物・クリエイティブは落とさない）。保護（スポーン保護・他 MOD の BreakEvent）が止めたら掘らない。掘れたら true
+     */
+    private boolean breakBedrock(ServerLevel level, ServerPlayer player, ItemStack stack, BlockPos pos) {
+        if (!level.mayInteract(player, pos) || !powered(stack)) return false;
+        if (net.minecraftforge.common.ForgeHooks.onBlockBreakEvent(level, player.gameMode.getGameModeForPlayer(), player, pos) == -1) return false;
+        if (!WeaponPower.use(player, stack, perBlock)) return false;
+        BlockState state = level.getBlockState(pos);
+        level.destroyBlock(pos, false, player);
+        ItemStack drop = new ItemStack(state.getBlock().asItem());
+        if (!player.getAbilities().instabuild && !drop.isEmpty()) Block.popResource(level, pos, drop);
+        Vec3 at = Vec3.atCenterOf(pos);
+        level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, state), at.x, at.y, at.z, 16, 0.35, 0.35, 0.35, 0.2);
+        Fx.burst(level, Fx.opt(ModParticles.SPARK.get(), colorOf(tier, level.random.nextInt(6)), 0.25F, 8), at, 6, 0.3);
+        return true;
+    }
+
+    /** 硬さ -1 のブロックを叩いたら（ネバーラスト・ドリルを持っていれば）掘る。しゃがんでいなければ範囲も（範囲の中の硬さ -1 の物も掘る） */
+    @net.minecraftforge.fml.common.Mod.EventBusSubscriber(modid = AutomataValkyries.MODID)
+    public static final class BedrockBreaking {
+        private BedrockBreaking() {}
+
+        @net.minecraftforge.eventbus.api.SubscribeEvent
+        public static void onLeftClick(net.minecraftforge.event.entity.player.PlayerInteractEvent.LeftClickBlock event) {
+            if (event.getAction() != net.minecraftforge.event.entity.player.PlayerInteractEvent.LeftClickBlock.Action.START) return;
+            if (!(event.getEntity() instanceof ServerPlayer player) || !(player.level() instanceof ServerLevel level)) return;
+            ItemStack stack = player.getMainHandItem();
+            if (!breaksBedrock(stack) || !unbreakable(level, event.getPos(), level.getBlockState(event.getPos()))) return;
+            MiningToolItem drill = (MiningToolItem) stack.getItem();
+            if (!drill.breakBedrock(level, player, stack, event.getPos())) return;
+            event.setCanceled(true);
+            if (player.isShiftKeyDown() || drill.areaRadius(stack) <= 0 || expanding) return;
+            expanding = true;
+            try {
+                drill.mineArea(level, player, stack, event.getPos());
+            } finally {
+                expanding = false;
+            }
+            drill.playUse(player, stack);
+        }
     }
 
     @Override

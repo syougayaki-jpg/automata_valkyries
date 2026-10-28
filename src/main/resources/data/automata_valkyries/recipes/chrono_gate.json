@@ -1,0 +1,23 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "SPS",
+    "PEP",
+    "SPS"
+  ],
+  "key": {
+    "S": {
+      "item": "automata_valkyries:drop_chrono_scrap"
+    },
+    "P": {
+      "item": "automata_valkyries:tech_phase_panel"
+    },
+    "E": {
+      "item": "minecraft:ender_eye"
+    }
+  },
+  "result": {
+    "item": "automata_valkyries:chrono_gate"
+  }
+}

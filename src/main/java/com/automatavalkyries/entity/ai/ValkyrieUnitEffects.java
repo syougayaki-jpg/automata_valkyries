@@ -170,6 +170,7 @@ public final class ValkyrieUnitEffects {
         if (v.tickCount % 10 == 0) applyAttributes(v);
         frameTick(level, v); // 特殊なフレームの一式の効果
         ValkyrieSupportUnits.tick(level, v, b); // 追加の背部ユニット
+        ValkyrieWork.tick(level, v, b); // 非戦闘のユニット（調理・牧場・松明・整備・加護・探査）
         if (back == BackpackKind.TACHYON_DRIVE && v.tickCount % 20 == 0 && tachyonOn(v)) b.spend(BackpackKind.TACHYON_DRIVE.fe);
         if (back == BackpackKind.TACHYON_DRIVE && tachyonOn(v) && v.getDeltaMovement().horizontalDistanceSqr() > 0.01 && v.tickCount % 2 == 0) {
             Fx.spray(level, Fx.opt(ModParticles.GLOW.get(), 0x7FE8FF, 0.6F, 8), v.position().add(0, 0.9, 0), 2, 0.2, 0.4, 0.2, 0.0); // 残像

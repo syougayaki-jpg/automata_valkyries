@@ -3,5 +3,5 @@
   "textures": {
     "all": "automata_valkyries:block/tech_glass"
   },
-  "render_type": "minecraft:cutout"
+  "render_type": "minecraft:translucent"
 }

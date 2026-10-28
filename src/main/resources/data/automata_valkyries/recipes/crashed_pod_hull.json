@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "PPP",
+    "PIP",
+    "PPP"
+  ],
+  "key": {
+    "P": {
+      "item": "automata_valkyries:tech_panel_dark"
+    },
+    "I": {
+      "tag": "forge:ingots/aluminum"
+    }
+  },
+  "result": {
+    "item": "automata_valkyries:crashed_pod_hull",
+    "count": 8
+  }
+}

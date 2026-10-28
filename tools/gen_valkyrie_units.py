@@ -8,7 +8,8 @@
   geo/entity/unit/frame_<型>_<部位>.geo.json    … valkyrie（＋ valkyrie_mk2〜mk4）/ fortress / mirage /
                                                  scout / maintenance / seraph / striker / aegis / tempest / helios / nemesis / luminous の head・chest・legs
   geo/entity/unit/backpack_<種類>.geo.json      …  thruster（＋ _mk2 / _mk3 / _mk4）/ folding_cannon / ecm_pod / tachyon_drive / memento_familiar / gallia_fortress /
-                                                 sub_arm / recon_drone / spare_battery / repair_drone / micro_missile / grapple_anchor / prism_reflector / astral_halo / resurrection_core / accelerator / command_link
+                                                 sub_arm / recon_drone / spare_battery / repair_drone / micro_missile / grapple_anchor / prism_reflector / astral_halo / resurrection_core / accelerator / command_link /
+                                                 harvester / mining_arm / lumber_saw / fishing_rig / field_kitchen（非戦闘）
   textures/entity/unit/valkyrie_units.png（＋ _glowmask.png）  … 全ユニット共通の素材の見本帳（8x8 の板の絵を面ごとに貼る）
   textures/entity/unit/memento_butterfly.png    … メメント・ファミリアの蝶（描画側で羽ばたかせる）
 
@@ -1321,6 +1322,78 @@ frame_nemesis()
 frame_luminous()
 frame_fortress()
 frame_mirage()
+
+# ------------------------------------------------------------------ 非戦闘の背部ユニット（2026-10-29 ユーザー指定「非戦闘用の背部ユニットやロジックチップを 10 種類ほど」）
+
+def backpack_harvester():
+    """農作ユニット（T1）: 背中のオリーブの収穫かご（上に緑の光の縁）と、右肩から前へ出る小さな鎌の腕"""
+    m = _bp('backpack_harvester')
+    strut(m)
+    m.box('body', (-3.2, 13.6, 1.42), (3.2, 19.4, 4.4), 's_olive', back='s_olive_line', top='b_dark')        # かご
+    m.box('body', (-3.4, 19.4, 1.3), (3.4, 19.9, 4.6), 'b_dark', top='glow_green')                            # 縁
+    m.box('body', (-2.6, 19.9, 2.2), (-1.4, 21.0, 3.4), 's_olive')                                            # 穂の束
+    m.box('body', (1.4, 19.9, 2.0), (2.6, 21.4, 3.2), 's_olive')
+    a = m.bone('sickle_arm', 'body', (-3.6, 19.0, 2.4), (20, 0, 18))
+    m.box(a, (-3.9, 18.7, 2.2), (-6.4, 19.3, 2.8), 'b_grey')
+    m.box(a, (-6.4, 18.4, 2.0), (-7.0, 19.6, 3.0), 'b_dark', out='glow_green')
+    m.box(a, (-7.0, 18.9, 2.3), (-8.9, 19.2, 2.5), 'f_steel')                                                 # 刃
+    m.box(a, (-8.9, 18.0, 2.3), (-9.2, 19.2, 2.5), 'f_steel')
+
+
+def backpack_mining_arm():
+    """採掘アーム（T2）: 右肩の上から前へ伸びる腕の先に、回るドリル（橙と黄黒の縞の土台）"""
+    m = _bp('backpack_mining_arm')
+    strut(m)
+    m.box('body', (-4.6, 15.0, 1.4), (-1.6, 20.4, 3.6), 'f_dark', back='f_hazard', top='b_dark')            # 動力箱
+    m.box('body', (-4.2, 20.4, 1.9), (-2.0, 21.2, 3.1), 'b_dark', top='glow_orange')
+    a = m.bone('arm', 'body', (-3.1, 21.0, 2.5), (-30, 0, 0))
+    m.box(a, (-3.5, 20.7, 2.5), (-2.7, 21.4, -2.5), 'f_orange')
+    m.box(a, (-3.8, 20.4, -2.5), (-2.4, 21.7, -3.3), 'f_dark', front='glow_orange')
+    d = m.bone('spin_z_drill', a, (-3.1, 21.05, -3.3))
+    m.box(d, (-3.7, 20.45, -3.3), (-2.5, 21.65, -4.3), 'f_steel')                                            # ドリルの先（だんだん細く）
+    m.box(d, (-3.5, 20.65, -4.3), (-2.7, 21.45, -5.2), 'f_steel')
+    m.box(d, (-3.3, 20.85, -5.2), (-2.9, 21.25, -6.0), 'b_grey')
+
+
+def backpack_lumber_saw():
+    """伐採ソー（T1）: 背中を斜めに渡る大きなチェーンソー（橙の胴・黄黒の刃）"""
+    m = _bp('backpack_lumber_saw')
+    strut(m)
+    sw = m.bone('saw', 'body', (0, 17.5, 2.6), (0, 0, -35))
+    m.box(sw, (-2.2, 13.6, 1.5), (2.2, 17.6, 3.7), 'f_orange', back='f_dark', top='b_dark')                 # 動力の胴
+    m.box(sw, (-1.6, 17.6, 2.2), (1.6, 18.2, 3.0), 'b_dark', top='glow_orange')
+    m.box(sw, (-1.0, 18.2, 2.3), (1.0, 26.6, 2.9), 'f_steel', north='f_hazard', south='f_hazard')            # 刃
+    m.box(sw, (-0.7, 26.6, 2.3), (0.7, 27.2, 2.9), 'f_steel')
+
+
+def backpack_fishing_rig():
+    """釣りユニット（T1）: 背中のリールの箱から、左肩の上へ長い竿が伸び、先で青い浮きが揺れる"""
+    m = _bp('backpack_fishing_rig')
+    strut(m)
+    m.box('body', (0.6, 14.4, 1.42), (4.0, 18.8, 3.6), 'a_blue', back='b_dark_line', top='b_dark')          # リールの箱
+    m.box('body', (1.6, 15.6, 3.6), (3.0, 17.0, 4.2), 'b_grey', back='glow_blue')                             # リール
+    r = m.bone('rod', 'body', (2.6, 18.6, 2.5), (0, 0, -22))
+    m.box(r, (2.35, 18.6, 2.25), (2.85, 33.0, 2.75), 'b_dark')
+    m.box(r, (2.2, 22.0, 2.1), (3.0, 22.6, 2.9), 'b_grey')                                                    # 糸の輪
+    m.box(r, (2.2, 27.0, 2.1), (3.0, 27.6, 2.9), 'b_grey')
+    m.box(r, (2.35, 31.0, 2.25), (2.85, 32.0, 2.75), 'glow_blue')
+    b = m.bone('bobber', r, (2.6, 33.0, 2.5))
+    m.box(b, (2.55, 29.5, 2.45), (2.65, 33.0, 2.55), 'b_white')                                               # 糸
+    m.box(b, (2.2, 28.7, 2.1), (3.0, 29.5, 2.9), 'r_red', top='b_white')  # 浮き
+
+
+def backpack_field_kitchen():
+    """野外調理キット（T2）: 背中の調理箱の上に鍋と、湯気を出す短い煙突（中が橙に光る）"""
+    m = _bp('backpack_field_kitchen')
+    strut(m)
+    m.box('body', (-3.4, 13.8, 1.42), (3.4, 18.8, 4.2), 'f_steel', back='f_vent', top='b_dark')             # 調理箱
+    m.box('body', (-2.8, 14.6, 4.2), (-0.6, 15.6, 4.35), 'glow_orange')                                       # 火の窓
+    m.box('body', (-2.6, 18.8, 1.8), (1.0, 20.6, 3.9), 'b_grey', top='b_dark')                               # 鍋
+    m.box('body', (-3.0, 20.6, 1.6), (1.4, 21.0, 4.1), 'b_dark')                                              # 蓋
+    m.box('body', (-1.0, 21.0, 2.5), (-0.4, 21.5, 3.1), 'b_grey')
+    m.box('body', (1.8, 18.8, 2.3), (2.9, 23.2, 3.4), 'f_dark', top='glow_orange')                           # 煙突
+
+
 backpack_thruster()
 backpack_folding_cannon()
 backpack_ecm_pod()
@@ -1341,6 +1414,11 @@ backpack_astral_halo()
 backpack_resurrection_core()
 backpack_accelerator()
 backpack_command_link()
+backpack_harvester()
+backpack_mining_arm()
+backpack_lumber_saw()
+backpack_fishing_rig()
+backpack_field_kitchen()
 
 
 # ------------------------------------------------------------------ 書き出し
@@ -1509,6 +1587,11 @@ def main():
             'bp_resurrection_core': ['backpack_resurrection_core'],
             'bp_accelerator': ['backpack_accelerator'],
             'bp_command_link': ['backpack_command_link'],
+            'bp_harvester': ['backpack_harvester'],
+            'bp_mining_arm': ['backpack_mining_arm'],
+            'bp_lumber_saw': ['backpack_lumber_saw'],
+            'bp_fishing_rig': ['backpack_fishing_rig'],
+            'bp_field_kitchen': ['backpack_field_kitchen'],
             'memento': ['backpack_memento_familiar'],
             'valkyrie_mk2': ['frame_valkyrie_mk2_head', 'frame_valkyrie_mk2_chest', 'frame_valkyrie_mk2_legs'],
             'valkyrie_mk3': ['frame_valkyrie_mk3_head', 'frame_valkyrie_mk3_chest', 'frame_valkyrie_mk3_legs'],

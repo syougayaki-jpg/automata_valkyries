@@ -881,7 +881,7 @@ public final class ValkyrieCombat {
 
         @Override
         public boolean canUse() {
-            if (!active(v)) {
+            if (!active(v) || ValkyrieWork.nonCombat(v)) { // 非戦闘のユニットを付けていると戦わない（2026-10-29）
                 if (v.getTarget() != null) v.setTarget(null);
                 return false;
             }
@@ -1549,7 +1549,7 @@ public final class ValkyrieCombat {
 
         @Override
         public boolean canUse() {
-            if (!active(v) || !shieldBearer()) return false;
+            if (!active(v) || !shieldBearer() || ValkyrieWork.nonCombat(v)) return false; // 非戦闘のユニットを付けていると、盾で守ることもしない
             Player owner = v.getOwner();
             if (owner == null || !owner.isAlive() || healthRatio(owner) > OWNER_CRITICAL || v.distanceToSqr(owner) > 24 * 24) return false;
             threat = findThreat(owner);
