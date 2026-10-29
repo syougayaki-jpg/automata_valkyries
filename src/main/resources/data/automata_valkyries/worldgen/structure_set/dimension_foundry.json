@@ -6,9 +6,10 @@
     }
   ],
   "placement": {
-    "type": "minecraft:random_spread",
+    "type": "automata_valkyries:distance_spread",
     "spacing": 72,
     "separation": 24,
-    "salt": 620151017
+    "salt": 620151017,
+    "distance_factor": 1.0
   }
 }

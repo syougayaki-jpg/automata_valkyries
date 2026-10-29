@@ -84,6 +84,7 @@ public class ModCreativeTabs {
     public static Section section(Item item) {
         String id = path(item);
         if (item instanceof RequiemBackdropItem) return Section.HIDDEN;
+        if (id.equals("guide_book")) return Section.MATERIALS;                                // 手引きは素材・部品のタブの先頭
         if (CREATIVE.contains(id) || id.contains("kill_stick") || id.contains("terminus") || id.startsWith("debug_")
                 || item instanceof com.automatavalkyries.item.BaseGeneratorItem || item instanceof com.automatavalkyries.item.BlinkItem) {
             return Section.CREATIVE;
@@ -96,7 +97,7 @@ public class ModCreativeTabs {
         }
         if (item instanceof BossDropItem || item instanceof SpawnEggItem || id.startsWith("signal_") || id.equals("overload_memory")
                 || id.equals("photon_blade_shard") || id.equals("distortion_core_shard") || id.equals("black_death_cocoon")
-                || id.equals("fate_thread") || id.equals("chrono_key")
+                || id.equals("fate_thread") || id.equals("chrono_key") || id.equals("base_radar")
                 || item instanceof com.automatavalkyries.item.TinyCourageItem || item instanceof com.automatavalkyries.item.TrialHourglassItem) {
             return Section.BOSSES;
         }
@@ -198,7 +199,7 @@ public class ModCreativeTabs {
         String id = path(item);
         if (id.startsWith("signal_")) return 0;
         if (id.equals("photon_blade_shard") || id.equals("distortion_core_shard") || id.equals("black_death_cocoon")) return 10;
-        if (id.equals("fate_thread") || id.equals("chrono_key")) return 20;
+        if (id.equals("fate_thread") || id.equals("chrono_key") || id.equals("base_radar")) return 20;
         if (item instanceof BossDropItem && !(item instanceof com.automatavalkyries.item.TinyCourageItem || item instanceof com.automatavalkyries.item.TrialHourglassItem)) return 100;
         if (item instanceof com.automatavalkyries.item.TinyCourageItem || item instanceof com.automatavalkyries.item.TrialHourglassItem || id.equals("overload_memory")) return 200;
         if (item instanceof SpawnEggItem) {

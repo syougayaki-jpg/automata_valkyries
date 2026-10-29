@@ -33,6 +33,7 @@ public class AutomataValkyries {
         com.automatavalkyries.registry.ModBlocks.BLOCKS.register(modEventBus);
         com.automatavalkyries.registry.ModWorldgen.FEATURES.register(modEventBus); // 墜落ポッド
         com.automatavalkyries.registry.ModStructures.STRUCTURE_TYPES.register(modEventBus); // 侵食基地のダンジョン（2026-10-15）
+        com.automatavalkyries.registry.ModStructures.PLACEMENTS.register(modEventBus); // 侵食基地の置き方（遠いほど出やすい。2026-10-30）
         com.automatavalkyries.registry.ModStructures.PIECES.register(modEventBus);
         com.automatavalkyries.registry.IndustrialMetals.init(); // 工業 MOD 連携の金属（アイテム・ブロックを ITEMS / BLOCKS に足す）
         com.automatavalkyries.world.ConfigurableOresBiomeModifier.SERIALIZERS.register(modEventBus);

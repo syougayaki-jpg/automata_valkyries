@@ -144,6 +144,9 @@ backpack_steam_thruster:
 
 ## 10. 侵食基地ダンジョンと防衛兵器 (Corrupted Base Dungeons & Siege Units)
 
+* 出やすさ（2026-10-30 ユーザー指定「浸食基地は初期リスポーンから遠くにいけばいくほど湧きやすくして」。`world/DistanceSpreadPlacement`、置き方の型 `automata_valkyries:distance_spread`）: バニラのばらまきと同じ候補のうち、初めのリスポーン地点からの距離に比例して本当に置く割合を上げる。すぐそばは `corruptedBases.minChance`（既定 0.1）、`corruptedBases.fullChanceDistance`（既定 3,000）× ティアの倍率（倉庫 0.5・前哨基地 0.75・工場 1.0・空中庭園要塞 1.5。structure_set の `distance_factor`）で今までどおりの数。`corruptedBases.distanceScaling` を false で距離を見ない。世界の種と場所の乱数なので、同じ世界なら何度でも・/locate でも同じ。/place structure と基地の生成機はどこでも置ける
+* 侵食基地レーダー（2026-10-30 ユーザー指定「浸食基地のレーダーも作って」。`base_radar`・`item/BaseRadarItem`）: 右クリックでいちばん近い侵食基地の方角（8 方位）と距離をアクションバーに出し、その方へ赤い光の筋。スニーク＋右クリックで探す物を 全部 → 物資倉庫 → クロノ・アウトリポスト → ディメンション・ファウンドリ → 空中庭園要塞 と切り替え。バニラの /locate と同じ探し方（構造物のタグ `radar/<種類>`、まだ生成していない所も）。クールタイム 5 秒。組み立て機でコンパス・基本回路 2・銅線 4・クロノスクラップ 4・ルミナルクリスタル。見た目は兵姫探知レーダーを赤く塗り替えた物
+
 プレイヤー拠点を守るタワーディフェンスではなく、敵の防衛網へ兵姫と共に乗り込む「攻城レイド型」システム。
 
 ### 10.1 基地ストラクチャ階層

@@ -463,4 +463,26 @@ public class CorruptedBaseGameTests {
         }
         helper.succeed();
     }
+
+    /** 侵食基地は初めのリスポーン地点から遠いほど出やすい（2026-10-30）: 割合の曲線と、4 種の置き方が distance_spread で読めること */
+    @GameTest(template = "empty")
+    public static void basesGetMoreCommonFarFromSpawn(GameTestHelper helper) {
+        double near = com.automatavalkyries.config.ValkyrieConfig.baseChance(0, 1.0), half = com.automatavalkyries.config.ValkyrieConfig.baseChance(1500, 1.0),
+                far = com.automatavalkyries.config.ValkyrieConfig.baseChance(3000, 1.0), depotFar = com.automatavalkyries.config.ValkyrieConfig.baseChance(1500, 0.5);
+        helper.assertTrue(Math.abs(near - 0.1) < 1e-6 && Math.abs(half - 0.55) < 1e-6 && far == 1.0 && depotFar == 1.0,
+                "chance curve: near " + near + ", half " + half + ", far " + far + ", depot at 1500 " + depotFar);
+        var sets = helper.getLevel().registryAccess().registryOrThrow(net.minecraft.core.registries.Registries.STRUCTURE_SET);
+        for (String id : new String[]{"supply_depot", "chrono_outpost", "dimension_foundry", "chrono_bastion"}) {
+            var set = sets.get(net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, id));
+            helper.assertTrue(set != null && set.placement() instanceof com.automatavalkyries.world.DistanceSpreadPlacement, id + " does not use distance_spread");
+        }
+        // 侵食基地レーダーが探すタグ（全部と種類ごと）
+        var structures = helper.getLevel().registryAccess().registryOrThrow(net.minecraft.core.registries.Registries.STRUCTURE);
+        for (String mode : com.automatavalkyries.item.BaseRadarItem.MODES) {
+            var tag = net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.STRUCTURE, net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "radar/" + mode));
+            int n = structures.getTag(tag).map(h -> h.size()).orElse(0);
+            helper.assertTrue(n == (mode.equals("corrupted_bases") ? 4 : 1), "radar tag " + mode + " has " + n + " structures");
+        }
+        helper.succeed();
+    }
 }

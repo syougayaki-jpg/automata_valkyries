@@ -18,6 +18,12 @@ public final class ModStructures {
 
     public static final DeferredRegister<StructureType<?>> STRUCTURE_TYPES = DeferredRegister.create(Registries.STRUCTURE_TYPE, AutomataValkyries.MODID);
     public static final DeferredRegister<StructurePieceType> PIECES = DeferredRegister.create(Registries.STRUCTURE_PIECE, AutomataValkyries.MODID);
+    public static final DeferredRegister<net.minecraft.world.level.levelgen.structure.placement.StructurePlacementType<?>> PLACEMENTS =
+            DeferredRegister.create(Registries.STRUCTURE_PLACEMENT, AutomataValkyries.MODID);
+
+    /** 侵食基地の置き方: 初めのリスポーン地点から遠いほど出やすいばらまき（2026-10-30） */
+    public static final RegistryObject<net.minecraft.world.level.levelgen.structure.placement.StructurePlacementType<com.automatavalkyries.world.DistanceSpreadPlacement>> DISTANCE_SPREAD =
+            PLACEMENTS.register("distance_spread", () -> () -> com.automatavalkyries.world.DistanceSpreadPlacement.CODEC);
 
     /** 侵食基地（物資倉庫・クロノ・アウトリポスト・ディメンション・ファウンドリ。種類は json の "kind"） */
     public static final RegistryObject<StructureType<CorruptedBases.BaseStructure>> CORRUPTED_BASE =

@@ -1,0 +1,38 @@
+{
+  "type": "automata_valkyries:assembling",
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "minecraft:compass"
+      }
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_basic"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:wire_copper"
+      },
+      "count": 4
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:drop_chrono_scrap"
+      },
+      "count": 4
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:crystal_luminal"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:base_radar"
+  },
+  "energy": 6000,
+  "time": 100
+}

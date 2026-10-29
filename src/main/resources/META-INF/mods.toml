@@ -48,7 +48,28 @@ authors="${mod_authors}" #optional
 #accessTransformers = []
 
 # The description text for the mod (multi line!) (#mandatory)
-description='''${mod_description}'''
+description='''
+【戦術兵姫MOD — Automata Valkyries】
+未来から墜ちてきた機械仕掛けの少女「戦術兵姫（オートマタ・ヴァルキリー）」と出会い、絆を深め、時空を超える超科学工業と極限の戦場を共に駆け抜ける大型SF・工業・戦術戦闘MODです。
+
+◆ 戦術兵姫（オートマタ・ヴァルキリー）との邂逅と育成
+・世界各地の「墜落ポッド」で眠る兵姫をプロトコアで目覚めさせ、マスターとして契約
+・兵装（T1〜T4）・外装フレーム・背部ユニット・ルミナルコア・ロジックチップを自在に換装し、自分だけの戦術編成を構築
+・前衛・後衛・拠点防衛・随伴医療・アイテム回収＆運搬などの多彩なAI行動と、時間帯や好感度（同調率）で変化する豊かな日常会話＆モーション
+・「戦術支援コード（COMET / CARPET / GUNGNIR / ABYSS / IRIS）」を発令し、仮想彗星・絨毯爆撃・軌道レーザー・特異点崩壊・広域ナノ防壁を要請
+
+◆ クロノリンク工業体系（T1 ハイエンド 〜 T4 ネバーラスト）
+・発電と回路のティアを進め、ルミナル反応炉・原子相転移炉・クロノ・ファブリケータ・ヴォイド・リポジトリ・時間加速器など、時間と次元を操る超科学マシン群を構築
+
+◆ 強敵・次元ボスとの決戦
+・機械兵が巣食う「侵食基地」の制圧から、英雄機、クロノゲイザー、総司令機タイムルーラー、事象観測姫アカシック、そして紫紺の招待状が導く「エレノア」まで、歯ごたえのあるボスバトル
+
+※ 初回ワールド参加時にガイドブック「戦術兵姫の手引き」が配布されます。レシピ確認には JEI の導入がおすすめです。
+
+----------------------------------------------------------------
+[Automata Valkyries - Tactical Mechanical Girl & Chronolink Tech Mod]
+Meet the "Tactical Valkyries" — mechanical weapon girls who fell from the future. Awaken them from crashed pods, customize their T1-T4 armaments, frames, back units, and logic chips, and call in orbital tactical support. Build 4 tiers of time-bending Chronolink machinery and challenge corrupted bases and dimensional bosses together.
+'''
 # A dependency - use the . to indicate dependency for a specific modid. Dependencies are optional.
 [[dependencies.${mod_id}]] #optional
     # the modid of the dependency

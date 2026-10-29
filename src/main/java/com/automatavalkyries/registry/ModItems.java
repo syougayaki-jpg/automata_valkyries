@@ -206,6 +206,9 @@ public class ModItems {
                     new org.joml.Vector3f(1.0F, 0.35F, 0.85F)));
     public static final RegistryObject<Item> AKASHIC_CUBES = ITEMS.register("akashic_cubes", () ->
             new com.automatavalkyries.item.AkashicCubesItem(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC)));
+    /** ゲーム内の説明書「戦術兵姫の手引き」（2026-10-30） */
+    public static final RegistryObject<Item> GUIDE_BOOK = ITEMS.register("guide_book", () ->
+            new com.automatavalkyries.item.GuideBookItem(new Item.Properties().rarity(Rarity.UNCOMMON)));
     /** 観測の立方体マキシマイザー（クリエイティブ用。2026-10-29） */
     public static final RegistryObject<Item> CUBE_MAXIMIZER = ITEMS.register("cube_maximizer", () ->
             new com.automatavalkyries.item.CubeMaximizerItem(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC)));
@@ -255,6 +258,9 @@ public class ModItems {
     /** 兵姫探知レーダー（2026-10-07 ユーザー指定）: 墜落ポッドの未起動の兵姫を探す。組み立て機で作る */
     public static final RegistryObject<Item> VALKYRIE_RADAR = ITEMS.register("valkyrie_radar", () ->
             new com.automatavalkyries.item.ValkyrieRadarItem(new Item.Properties().stacksTo(1)));
+    /** 侵食基地レーダー（2026-10-30） */
+    public static final RegistryObject<Item> BASE_RADAR = ITEMS.register("base_radar", () ->
+            new com.automatavalkyries.item.BaseRadarItem(new Item.Properties().stacksTo(1)));
     /** 素体ユニット（2026-10-07 ユーザー指定「組み立て機で素体を作る」）: 地面に使うとその型の兵姫が目覚める */
     public static final RegistryObject<Item> VALKYRIE_BODY_V = valkyrieBody(com.automatavalkyries.entity.ValkyrieBody.V);
     public static final RegistryObject<Item> VALKYRIE_BODY_S = valkyrieBody(com.automatavalkyries.entity.ValkyrieBody.S);

@@ -17,6 +17,9 @@ public final class ValkyrieConfig {
     public static final ForgeConfigSpec.BooleanValue TACTICAL_GRIEFING;
     /** 戦術級コードがボスに効くか（2026-10-29 ユーザー指定「ボスに通用するかを設定出来るように、デフォルトはオフ」） */
     public static final ForgeConfigSpec.BooleanValue TACTICAL_VS_BOSSES;
+    public static final ForgeConfigSpec.BooleanValue BASE_DISTANCE_SCALING;
+    public static final ForgeConfigSpec.IntValue BASE_FULL_DISTANCE;
+    public static final ForgeConfigSpec.DoubleValue BASE_MIN_CHANCE;
 
     static {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
@@ -34,6 +37,14 @@ public final class ValkyrieConfig {
                         "ボス = forge:bosses のタグのあるモブ（ウィザー・エンダードラゴン・他 MOD のボス）と、このMOD のボス")
                 .define("tacticalAffectsBosses", false);
         builder.pop();
+        builder.comment("侵食基地の出やすさ（2026-10-30 ユーザー指定「浸食基地は初期リスポーンから遠くにいけばいくほど湧きやすくして」）").push("corruptedBases");
+        BASE_DISTANCE_SCALING = builder.comment("true にすると、侵食基地は初めのリスポーン地点から遠いほど出やすくなる（近くでは minChance、fullChanceDistance で今までどおりの数）。false なら距離に関係なく出る")
+                .define("distanceScaling", true);
+        BASE_FULL_DISTANCE = builder.comment("今までどおりの数で出るようになる距離（ブロック）。T2 の工場の値で、倉庫は 0.5 倍・前哨基地は 0.75 倍・空中庭園要塞は 1.5 倍（structure_set の distance_factor）")
+                .defineInRange("fullChanceDistance", 3_000, 0, 1_000_000);
+        BASE_MIN_CHANCE = builder.comment("初めのリスポーン地点のすぐそばで出る割合（0〜1。距離に比例して 1 まで上がる）")
+                .defineInRange("minChance", 0.1, 0.0, 1.0);
+        builder.pop();
         SPEC = builder.build();
     }
 
@@ -44,6 +55,18 @@ public final class ValkyrieConfig {
             return EASY_POD_WAKE.get();
         } catch (IllegalStateException notLoaded) {
             return false;
+        }
+    }
+
+    /** 侵食基地の出る割合（初めのリスポーン地点からの距離 distance、ティアの倍率 factor）。設定を読めない間は今までどおり（1） */
+    public static double baseChance(double distance, double factor) {
+        try {
+            if (!BASE_DISTANCE_SCALING.get()) return 1.0;
+            double full = BASE_FULL_DISTANCE.get() * factor, min = BASE_MIN_CHANCE.get();
+            if (full <= 0) return 1.0;
+            return min + (1.0 - min) * Math.min(1.0, distance / full);
+        } catch (IllegalStateException notLoaded) {
+            return 1.0;
         }
     }
 
