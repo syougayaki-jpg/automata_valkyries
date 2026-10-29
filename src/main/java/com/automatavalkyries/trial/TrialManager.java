@@ -631,6 +631,7 @@ public final class TrialManager {
         AutomataValkyries.LOGGER.info("Trial {} cleared by {} in {} ticks with {} hits (rank {})", s.trial.id(), player.getGameProfile().getName(), s.fightTick, s.hits, rank);
         s.state = State.CLEARED;
         s.endTick = s.tick + AFTER_CLEAR;
+        com.automatavalkyries.registry.ModAdvancements.award(player, com.automatavalkyries.registry.ModAdvancements.TRIAL); // 進捗「強くてニューゲーム」
         title(player, Component.translatable("trial.automata_valkyries.cleared").withStyle(s2 -> s2.withColor(0xFFE8A0)),
                 Component.translatable("trial.automata_valkyries.cleared.rank", s.trial.title(), Trial.clock(s.fightTick), s.hits,
                         Component.literal(rank.letter()).withStyle(s2 -> s2.withColor(rank.color()).withBold(true))), 10, 70, 20);

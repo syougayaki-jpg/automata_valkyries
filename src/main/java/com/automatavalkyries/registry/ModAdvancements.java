@@ -17,6 +17,8 @@ public final class ModAdvancements {
     public static final String TACHYON_DRIVE = "story/tachyon_drive";
     /** 兵姫を追従させず一人で戦術兵姫零号機を倒した（隠し。同日ユーザー指定「戦術兵姫を追従させず一人でマリスライズロストカタストロフィーを倒す誰が為の闘争を作って」） */
     public static final String SOLO_ZERO = "battle/solo_zero";
+    /** 回想のトライアルを 1 つ越えた（同日ユーザー指定「追憶メモリのクエストをクリアするに変更して」。前は試練の砂時計を手に入れる＝サバイバルで取れなかった） */
+    public static final String TRIAL = "battle/trial";
     /** 「一人で」の範囲: 零号機が倒れた時、この範囲にいるプレイヤーがちょうど 1 人 */
     public static final double SOLO_RANGE = 96.0;
 

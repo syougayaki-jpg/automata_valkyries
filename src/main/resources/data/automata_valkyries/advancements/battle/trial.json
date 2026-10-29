@@ -2,7 +2,7 @@
   "parent": "automata_valkyries:battle/luxion",
   "display": {
     "icon": {
-      "item": "automata_valkyries:trial_hourglass"
+      "item": "automata_valkyries:overload_memory"
     },
     "title": {
       "translate": "advancements.automata_valkyries.battle.trial.title"
@@ -10,23 +10,14 @@
     "description": {
       "translate": "advancements.automata_valkyries.battle.trial.description"
     },
-    "frame": "task",
+    "frame": "goal",
     "show_toast": true,
     "announce_to_chat": true,
     "hidden": false
   },
   "criteria": {
     "c": {
-      "trigger": "minecraft:inventory_changed",
-      "conditions": {
-        "items": [
-          {
-            "items": [
-              "automata_valkyries:trial_hourglass"
-            ]
-          }
-        ]
-      }
+      "trigger": "minecraft:impossible"
     }
   },
   "requirements": [
