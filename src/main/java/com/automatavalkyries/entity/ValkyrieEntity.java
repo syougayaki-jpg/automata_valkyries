@@ -149,8 +149,10 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
     private static final EntityDataAccessor<Integer> MOOD_TICKS = SynchedEntityData.defineId(ValkyrieEntity.class, EntityDataSerializers.INT);
     /** 仕草の種類: 喜ぶ（跳ねて両手を上げる）・しょんぼり・手を振る・うなずく・覗き込む */
     public static final int GESTURE_JOY = 1, GESTURE_DEJECTED = 2, GESTURE_WAVE = 3, GESTURE_NOD = 4, GESTURE_PEEK = 5;
+    /** 待機中の仕草（2026-10-29 ユーザー指定「戦闘以外のモーションやセリフを充実させる」）: 伸び・あくび・きょろきょろ・髪を直す・鼻歌 */
+    public static final int GESTURE_STRETCH = 6, GESTURE_YAWN = 7, GESTURE_LOOK_AROUND = 8, GESTURE_FIX_HAIR = 9, GESTURE_HUM = 10;
     /** 仕草の長さ（Tick、種類の順。添字 0 は使わない） */
-    public static final int[] GESTURE_TICKS = {0, 24, 50, 30, 16, 40};
+    public static final int[] GESTURE_TICKS = {0, 24, 50, 30, 16, 40, 44, 40, 64, 36, 70};
     /** 近接の攻撃の動きの種類: 斬る・突く・叩く・薙ぎ払う（2026-10-06 ユーザー指定） */
     public static final int ATTACK_SLASH = 1, ATTACK_THRUST = 2, ATTACK_SMASH = 3, ATTACK_SWEEP = 4;
     /** 素手・拳の殴り（右・左。2026-10-06 ユーザー指定「素のときは殴りモーション」） */
@@ -508,7 +510,7 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
 
     /** 仕草を始める（{@link #GESTURE_JOY} など） */
     public void gesture(int kind) {
-        entityData.set(GESTURE_ANIM, ((++gestureSeq & 0xFFFFF) << 3) | (kind & 7));
+        entityData.set(GESTURE_ANIM, ((++gestureSeq & 0xFFFFF) << 4) | (kind & 15));
     }
 
     /** 気分の表情を少しの間出す（index は {@link #EXPRESSIONS} の番号） */
@@ -548,7 +550,7 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
     public void onSyncedDataUpdated(EntityDataAccessor<?> key) {
         super.onSyncedDataUpdated(key);
         if (GESTURE_ANIM.equals(key) && level().isClientSide) {
-            gestureKind = entityData.get(GESTURE_ANIM) & 7;
+            gestureKind = entityData.get(GESTURE_ANIM) & 15;
             gestureStart = tickCount;
         }
         if (ATTACK_ANIM.equals(key) && level().isClientSide) {

@@ -45,9 +45,11 @@ public abstract class ChronoMachineBlockEntity extends BlockEntity implements Me
     /** クライアントで読み込まれているマシン（チューナーを持っている間のリンクの表示。client/ChronoLinkOverlay） */
     public static final Set<ChronoMachineBlockEntity> CLIENT_LOADED = ConcurrentHashMap.newKeySet();
 
-    /** 画面へ送る数値の数（共通 9 + 種類ごと） */
-    public static final int DATA_COUNT = 48;
+    /** 画面へ送る数値の数（共通 9 + 種類ごと 39 + 兵姫のオペレーター 2） */
+    public static final int DATA_COUNT = 50;
     protected static final int EXTRA = 9;
+    /** 兵姫のオペレーターの強化（速さの上乗せ %・電力の節約 %）を送る所 */
+    public static final int DATA_OPERATOR_SPEED = 48, DATA_OPERATOR_ENERGY = 49;
 
     protected final ChronoMachineType type;
     protected final ItemStackHandler items;
@@ -60,6 +62,8 @@ public abstract class ChronoMachineBlockEntity extends BlockEntity implements Me
     /** リンクの状態（届くリンクのビット）。20 Tick ごとに見直す */
     private int linkOkMask;
     protected int ticks;
+    /** 兵姫のオペレーターの強化（{@link MachineOperator}。20 Tick ごとに見直す） */
+    private MachineOperator.Boost operator = MachineOperator.Boost.NONE;
 
     private final ContainerData data = new ContainerData() {
         @Override
@@ -74,6 +78,8 @@ public abstract class ChronoMachineBlockEntity extends BlockEntity implements Me
                 case 6 -> linkOkMask & 0xFFFF;
                 case 7 -> modeBits(0);
                 case 8 -> modeBits(8);
+                case DATA_OPERATOR_SPEED -> Math.round((operator.speed() - 1.0F) * 100.0F);
+                case DATA_OPERATOR_ENERGY -> Math.round((1.0F - operator.energy()) * 100.0F);
                 default -> extraData(index - EXTRA) & 0xFFFF;
             };
         }
@@ -127,6 +133,19 @@ public abstract class ChronoMachineBlockEntity extends BlockEntity implements Me
     /** 画面へ送る種類ごとの数値（16 ビットまで） */
     protected int extraData(int index) { return 0; }
 
+    /** 兵姫のオペレーター込みの加工時間（ティアで速めた後、オペレーターの倍率で割る） */
+    protected int scaledTime(ChronoTier tier, int base) {
+        return Math.max(1, Math.round(tier.scaleTime(base) / operator.speed()));
+    }
+
+    /** 兵姫のオペレーター込みの電力（ティアで割り引いた後、オペレーターの倍率を掛ける） */
+    protected int scaledEnergy(ChronoTier tier, int base) {
+        return (int) Math.max(0L, Math.round((double) tier.scaleEnergy(base) * operator.energy()));
+    }
+
+    /** 今のオペレーターの強化 */
+    public MachineOperator.Boost operator() { return operator; }
+
     /** ティアが変わったとき（電力の上限は共通で合わせる） */
     protected void onTierChanged(ChronoTier tier) {}
 
@@ -142,6 +161,12 @@ public abstract class ChronoMachineBlockEntity extends BlockEntity implements Me
             machine.setChanged();
         }
         if (machine.ticks % 20 == 1) machine.refreshLinks(tier);
+        if (machine.ticks % 20 == 3) {
+            MachineOperator.Boost before = machine.operator;
+            machine.operator = MachineOperator.find(machine);
+            boolean started = machine.operator.valkyrie() != null && machine.operator.valkyrie() != before.valkyrie();
+            MachineOperator.animate(machine, machine.operator, state.hasProperty(ChronoMachineBlock.LIT) && state.getValue(ChronoMachineBlock.LIT), started);
+        }
         boolean active = machine.work(tier);
         if (state.hasProperty(ChronoMachineBlock.LIT) && state.getValue(ChronoMachineBlock.LIT) != active) {
             level.setBlock(pos, state.setValue(ChronoMachineBlock.LIT, active), 3);

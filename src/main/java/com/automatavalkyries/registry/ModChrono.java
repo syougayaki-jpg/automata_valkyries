@@ -53,6 +53,11 @@ public final class ModChrono {
             () -> com.automatavalkyries.chrono.TacticalArmoryBlockEntity::new);
     public static final RegistryObject<Block> CHARGING_DOCK = machine(ChronoMachineType.CHARGING_DOCK,
             () -> com.automatavalkyries.chrono.ChargingDockBlockEntity::new);
+    /** 時間を扱う機械（2026-10-29 ユーザー指定「時間を扱う機械を直接追加して」） */
+    public static final RegistryObject<Block> CHRONO_ACCELERATOR = machine(ChronoMachineType.CHRONO_ACCELERATOR,
+            () -> com.automatavalkyries.chrono.ChronoAcceleratorBlockEntity::new);
+    public static final RegistryObject<Block> CHRONO_REWINDER = machine(ChronoMachineType.CHRONO_REWINDER,
+            () -> com.automatavalkyries.chrono.ChronoRewinderBlockEntity::new);
 
     @SuppressWarnings("DataFlowIssue")
     public static final RegistryObject<BlockEntityType<LuminalReactorBlockEntity>> REACTOR_ENTITY = ModMachines.BLOCK_ENTITIES.register("luminal_reactor",
@@ -79,6 +84,13 @@ public final class ModChrono {
     @SuppressWarnings("DataFlowIssue")
     public static final RegistryObject<BlockEntityType<com.automatavalkyries.chrono.ChargingDockBlockEntity>> DOCK_ENTITY = ModMachines.BLOCK_ENTITIES.register("charging_dock",
             () -> BlockEntityType.Builder.of(com.automatavalkyries.chrono.ChargingDockBlockEntity::new, CHARGING_DOCK.get()).build(null));
+
+    @SuppressWarnings("DataFlowIssue")
+    public static final RegistryObject<BlockEntityType<com.automatavalkyries.chrono.ChronoAcceleratorBlockEntity>> ACCELERATOR_ENTITY = ModMachines.BLOCK_ENTITIES.register("chrono_accelerator",
+            () -> BlockEntityType.Builder.of(com.automatavalkyries.chrono.ChronoAcceleratorBlockEntity::new, CHRONO_ACCELERATOR.get()).build(null));
+    @SuppressWarnings("DataFlowIssue")
+    public static final RegistryObject<BlockEntityType<com.automatavalkyries.chrono.ChronoRewinderBlockEntity>> REWINDER_ENTITY = ModMachines.BLOCK_ENTITIES.register("chrono_rewinder",
+            () -> BlockEntityType.Builder.of(com.automatavalkyries.chrono.ChronoRewinderBlockEntity::new, CHRONO_REWINDER.get()).build(null));
 
     public static final RegistryObject<MenuType<ChronoMenu>> MENU = ModMachines.MENUS.register("chrono_machine", () -> IForgeMenuType.create(ChronoMenu::new));
 

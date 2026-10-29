@@ -1,0 +1,124 @@
+{
+  "variants": {
+    "facing=north,lit=false,tier=1": {
+      "model": "automata_valkyries:block/chrono_accelerator_t1"
+    },
+    "facing=east,lit=false,tier=1": {
+      "model": "automata_valkyries:block/chrono_accelerator_t1",
+      "y": 90
+    },
+    "facing=south,lit=false,tier=1": {
+      "model": "automata_valkyries:block/chrono_accelerator_t1",
+      "y": 180
+    },
+    "facing=west,lit=false,tier=1": {
+      "model": "automata_valkyries:block/chrono_accelerator_t1",
+      "y": 270
+    },
+    "facing=north,lit=true,tier=1": {
+      "model": "automata_valkyries:block/chrono_accelerator_t1_on"
+    },
+    "facing=east,lit=true,tier=1": {
+      "model": "automata_valkyries:block/chrono_accelerator_t1_on",
+      "y": 90
+    },
+    "facing=south,lit=true,tier=1": {
+      "model": "automata_valkyries:block/chrono_accelerator_t1_on",
+      "y": 180
+    },
+    "facing=west,lit=true,tier=1": {
+      "model": "automata_valkyries:block/chrono_accelerator_t1_on",
+      "y": 270
+    },
+    "facing=north,lit=false,tier=2": {
+      "model": "automata_valkyries:block/chrono_accelerator_t2"
+    },
+    "facing=east,lit=false,tier=2": {
+      "model": "automata_valkyries:block/chrono_accelerator_t2",
+      "y": 90
+    },
+    "facing=south,lit=false,tier=2": {
+      "model": "automata_valkyries:block/chrono_accelerator_t2",
+      "y": 180
+    },
+    "facing=west,lit=false,tier=2": {
+      "model": "automata_valkyries:block/chrono_accelerator_t2",
+      "y": 270
+    },
+    "facing=north,lit=true,tier=2": {
+      "model": "automata_valkyries:block/chrono_accelerator_t2_on"
+    },
+    "facing=east,lit=true,tier=2": {
+      "model": "automata_valkyries:block/chrono_accelerator_t2_on",
+      "y": 90
+    },
+    "facing=south,lit=true,tier=2": {
+      "model": "automata_valkyries:block/chrono_accelerator_t2_on",
+      "y": 180
+    },
+    "facing=west,lit=true,tier=2": {
+      "model": "automata_valkyries:block/chrono_accelerator_t2_on",
+      "y": 270
+    },
+    "facing=north,lit=false,tier=3": {
+      "model": "automata_valkyries:block/chrono_accelerator_t3"
+    },
+    "facing=east,lit=false,tier=3": {
+      "model": "automata_valkyries:block/chrono_accelerator_t3",
+      "y": 90
+    },
+    "facing=south,lit=false,tier=3": {
+      "model": "automata_valkyries:block/chrono_accelerator_t3",
+      "y": 180
+    },
+    "facing=west,lit=false,tier=3": {
+      "model": "automata_valkyries:block/chrono_accelerator_t3",
+      "y": 270
+    },
+    "facing=north,lit=true,tier=3": {
+      "model": "automata_valkyries:block/chrono_accelerator_t3_on"
+    },
+    "facing=east,lit=true,tier=3": {
+      "model": "automata_valkyries:block/chrono_accelerator_t3_on",
+      "y": 90
+    },
+    "facing=south,lit=true,tier=3": {
+      "model": "automata_valkyries:block/chrono_accelerator_t3_on",
+      "y": 180
+    },
+    "facing=west,lit=true,tier=3": {
+      "model": "automata_valkyries:block/chrono_accelerator_t3_on",
+      "y": 270
+    },
+    "facing=north,lit=false,tier=4": {
+      "model": "automata_valkyries:block/chrono_accelerator_t4"
+    },
+    "facing=east,lit=false,tier=4": {
+      "model": "automata_valkyries:block/chrono_accelerator_t4",
+      "y": 90
+    },
+    "facing=south,lit=false,tier=4": {
+      "model": "automata_valkyries:block/chrono_accelerator_t4",
+      "y": 180
+    },
+    "facing=west,lit=false,tier=4": {
+      "model": "automata_valkyries:block/chrono_accelerator_t4",
+      "y": 270
+    },
+    "facing=north,lit=true,tier=4": {
+      "model": "automata_valkyries:block/chrono_accelerator_t4_on"
+    },
+    "facing=east,lit=true,tier=4": {
+      "model": "automata_valkyries:block/chrono_accelerator_t4_on",
+      "y": 90
+    },
+    "facing=south,lit=true,tier=4": {
+      "model": "automata_valkyries:block/chrono_accelerator_t4_on",
+      "y": 180
+    },
+    "facing=west,lit=true,tier=4": {
+      "model": "automata_valkyries:block/chrono_accelerator_t4_on",
+      "y": 270
+    }
+  }
+}

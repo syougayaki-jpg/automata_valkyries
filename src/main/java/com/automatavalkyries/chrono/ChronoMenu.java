@@ -105,6 +105,8 @@ public class ChronoMenu extends AbstractContainerMenu {
         return ChronoLink.Mode.values()[Math.min(2, (bits >> ((i % 8) * 2)) & 3)];
     }
     public int extra(int i) { return data.get(ChronoMachineBlockEntity.EXTRA + i) & 0xFFFF; }
+    /** 共通の数値をそのまま（兵姫のオペレーターの強化など） */
+    public int data(int index) { return data.get(index); }
 
     @Override
     public boolean clickMenuButton(Player player, int id) {

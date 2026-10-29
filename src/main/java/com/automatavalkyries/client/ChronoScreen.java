@@ -1,6 +1,7 @@
 package com.automatavalkyries.client;
 
 import com.automatavalkyries.chrono.ChronoLink;
+import com.automatavalkyries.chrono.ChronoMachineBlockEntity;
 import com.automatavalkyries.chrono.ChronoMachineType;
 import com.automatavalkyries.chrono.ChronoMenu;
 import com.automatavalkyries.chrono.ChronoSmelterBlockEntity;
@@ -398,6 +399,28 @@ public class ChronoScreen extends AbstractContainerScreen<ChronoMenu> {
                 g.drawString(font, Component.translatable("gui.automata_valkyries.chrono.sending", f.format(sent), f.format(tier.powerRate)), x + 28, y + 84, text, false);
             }
             case VOID_REPOSITORY -> repositoryGrid(g, x, y);
+            case CHRONO_ACCELERATOR -> { // 回る時計の針（速さで速く回る）と、速さ・範囲・動かしている数
+                int cx = x + 103, cy = y + 52, speed = menu.extra(0), size = menu.extra(1), count = menu.extra(2);
+                boolean on = count > 0;
+                for (int r = 24; r > 18; r -= 2) ring(g, cx, cy, r, argb(on ? 150 : 50, accent()));
+                for (int i = 0; i < 12; i++) {
+                    float a = i * Mth.PI / 6;
+                    g.fill(cx + (int) (Mth.cos(a) * 16) - 1, cy + (int) (Mth.sin(a) * 16) - 1, cx + (int) (Mth.cos(a) * 16) + 1, cy + (int) (Mth.sin(a) * 16) + 1, argb(200, 0xC8D4E0));
+                }
+                float spin = on ? t * (1.0F + speed * 0.4F) : 0.0F;
+                for (int k = 0; k < 14; k++) {
+                    g.fill(cx + (int) (Mth.cos(spin) * k) - 1, cy + (int) (Mth.sin(spin) * k) - 1, cx + (int) (Mth.cos(spin) * k) + 1, cy + (int) (Mth.sin(spin) * k) + 1, argb(255, accent()));
+                    if (k < 9) g.fill(cx + (int) (Mth.cos(spin / 12) * k), cy + (int) (Mth.sin(spin / 12) * k), cx + (int) (Mth.cos(spin / 12) * k) + 1, cy + (int) (Mth.sin(spin / 12) * k) + 1, argb(255, 0xE6F0FF));
+                }
+                g.drawString(font, Component.translatable("gui.automata_valkyries.chrono.accel_speed", speed), x + 22, y + 24, text, false);
+                g.drawString(font, Component.translatable("gui.automata_valkyries.chrono.accel_range", size, size, size), x + 22, y + 84, text, false);
+                g.drawString(font, Component.translatable("gui.automata_valkyries.chrono.accel_count", count), x + 120, y + 84, on ? 0xFF6CFF9A : 0xFFB8C4D8, false);
+            }
+            case CHRONO_REWINDER -> {
+                arrow(g, x + 102, y + 49, menu.extra(0) / 1000F);
+                int mode = menu.extra(1);
+                if (mode > 0) g.drawCenteredString(font, Component.translatable("gui.automata_valkyries.chrono.rewind_mode." + mode), x + 112, y + 72, argb(255, accent()));
+            }
         }
     }
 
@@ -500,6 +523,11 @@ public class ChronoScreen extends AbstractContainerScreen<ChronoMenu> {
         Component tierName = Component.translatable("tier.automata_valkyries." + tier.id);
         g.drawString(font, tierName, imageWidth - 10 - font.width(tierName), titleLabelY, argb(255, accent()), true);
         g.drawString(font, playerInventoryTitle, inventoryLabelX, inventoryLabelY, argb(220, 0xC8D4E8), false);
+        int opSpeed = menu.data(ChronoMachineBlockEntity.DATA_OPERATOR_SPEED), opEnergy = menu.data(ChronoMachineBlockEntity.DATA_OPERATOR_ENERGY);
+        if (opSpeed > 0 || opEnergy > 0) { // 兵姫のオペレーター（2026-10-29）
+            Component op = Component.translatable("gui.automata_valkyries.chrono.operator", opSpeed, opEnergy);
+            g.drawString(font, op, imageWidth - 10 - font.width(op), inventoryLabelY, argb(255, 0x6CFF9A), false);
+        }
     }
 
     @Override

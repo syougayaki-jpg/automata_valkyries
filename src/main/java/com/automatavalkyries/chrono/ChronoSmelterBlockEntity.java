@@ -56,8 +56,8 @@ public class ChronoSmelterBlockEntity extends ChronoMachineBlockEntity {
     protected boolean work(ChronoTier tier) {
         int lanes = tier.parallel;
         if (ticks % 2 == 0) pullFromLinks(tier, 0, lanes, s -> !resultFor(s, tier).isEmpty());
-        int time = tier.scaleTime(BASE_TIME);
-        int perTick = Math.max(1, tier.scaleEnergy(BASE_ENERGY) / time);
+        int time = scaledTime(tier, BASE_TIME);
+        int perTick = Math.max(1, scaledEnergy(tier, BASE_ENERGY) / time);
         boolean active = false;
         for (int lane = 0; lane < lanes; lane++) {
             ItemStack input = items.getStackInSlot(lane);
@@ -89,7 +89,7 @@ public class ChronoSmelterBlockEntity extends ChronoMachineBlockEntity {
     @Override
     protected int extraData(int index) {
         if (index < 16) {
-            int time = tier().scaleTime(BASE_TIME);
+            int time = scaledTime(tier(), BASE_TIME);
             return 1000 * progress[index] / Math.max(1, time);
         }
         return 0;

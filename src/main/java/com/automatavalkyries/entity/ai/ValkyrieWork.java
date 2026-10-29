@@ -392,6 +392,7 @@ public final class ValkyrieWork {
             level.setBlock(pos, planted ? replant : Blocks.AIR.defaultBlockState(), 3);
             for (ItemStack d : drops) if (!d.isEmpty()) Block.popResource(level, pos, d);
             level.playSound(null, pos, SoundEvents.CROP_BREAK, SoundSource.BLOCKS, 1.0F, 1.0F);
+            v.talk("work_harvest");
         }
     }
 
@@ -427,6 +428,7 @@ public final class ValkyrieWork {
         void act(ServerLevel level, BlockPos pos, BlockState s) {
             level.destroyBlock(pos, true, v);
             level.playSound(null, pos, SoundEvents.STONE_BREAK, SoundSource.BLOCKS, 1.0F, 0.8F);
+            v.talk("work_mine");
         }
     }
 
@@ -488,6 +490,7 @@ public final class ValkyrieWork {
             if (sapling != null && level.getBlockState(pos).isAir() && sapling.defaultBlockState().canSurvive(level, pos)) {
                 level.setBlock(pos, sapling.defaultBlockState(), 3);
             }
+            v.talk("work_fell");
         }
 
         /** 丸太の種類の苗（oak_log → oak_sapling、マングローブは芽。無ければ null） */
@@ -603,7 +606,7 @@ public final class ValkyrieWork {
             level.sendParticles(ParticleTypes.SPLASH, bob.x, bob.y, bob.z, 12, 0.3, 0.1, 0.3, 0.0);
             level.playSound(null, water, SoundEvents.FISHING_BOBBER_SPLASH, SoundSource.NEUTRAL, 0.6F, 1.0F);
             v.playSound(SoundEvents.FISHING_BOBBER_RETRIEVE, 0.8F, 1.0F);
-            if (v.getRandom().nextInt(6) == 0) v.talk("work_fish");
+            v.talk("work_fish"); // 釣れたら一言（間隔は Life の決まり、15 秒）
         }
     }
 

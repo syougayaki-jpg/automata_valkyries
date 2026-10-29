@@ -98,6 +98,8 @@
     "automata_valkyries:tech_phase_panel",
     "automata_valkyries:tech_sky_panel",
     "automata_valkyries:chrono_gate",
-    "automata_valkyries:slime_ward"
+    "automata_valkyries:slime_ward",
+    "automata_valkyries:chrono_accelerator",
+    "automata_valkyries:chrono_rewinder"
   ]
 }

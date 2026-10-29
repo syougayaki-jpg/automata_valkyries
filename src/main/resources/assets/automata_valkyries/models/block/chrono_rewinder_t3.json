@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/orientable",
+  "textures": {
+    "front": "automata_valkyries:block/chrono_rewinder_front_t3",
+    "side": "automata_valkyries:block/chrono_side_t3",
+    "top": "automata_valkyries:block/chrono_top_t3"
+  }
+}

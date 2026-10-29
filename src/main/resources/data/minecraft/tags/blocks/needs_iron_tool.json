@@ -35,6 +35,8 @@
     "automata_valkyries:upgrade_station",
     "automata_valkyries:crashed_pod_hull",
     "automata_valkyries:charging_dock",
-    "automata_valkyries:chrono_gate"
+    "automata_valkyries:chrono_gate",
+    "automata_valkyries:chrono_accelerator",
+    "automata_valkyries:chrono_rewinder"
   ]
 }

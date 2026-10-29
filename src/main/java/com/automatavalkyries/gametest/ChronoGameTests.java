@@ -393,4 +393,58 @@ public class ChronoGameTests {
         helper.assertTrue(problems.isEmpty(), "Tier recipe problems: " + problems);
         helper.succeed();
     }
+
+    /** 兵姫のオペレーター（2026-10-29）: 同調率 100 の素直な兵姫で、T1 は速さ +25%・電力 -10%、T4 は速さ +200%・電力 -40%。同調率 0 なら何も変わらない */
+    @GameTest(template = TEMPLATE)
+    public static void operatorBoostFollowsSyncAndTier(GameTestHelper helper) {
+        var v = helper.spawn(com.automatavalkyries.registry.ModEntities.VALKYRIE.get(), 1, 2, 1);
+        var zero = com.automatavalkyries.chrono.MachineOperator.boost(v, ChronoTier.HIGH_END);
+        helper.assertTrue(v.getSyncRate() > 0.0F || (zero.speed() == 1.0F && zero.energy() == 1.0F), "sync 0 still boosted: " + zero);
+        v.addSync(100.0F, "test");
+        var t1 = com.automatavalkyries.chrono.MachineOperator.boost(v, ChronoTier.HIGH_END);
+        var t4 = com.automatavalkyries.chrono.MachineOperator.boost(v, ChronoTier.NEVERLAST);
+        helper.assertTrue(Math.abs(t1.speed() - 1.25F) < 0.01F && Math.abs(t1.energy() - 0.90F) < 0.01F, "T1 boost is off: " + t1 + " body=" + v.getBody());
+        helper.assertTrue(Math.abs(t4.speed() - 3.0F) < 0.01F && Math.abs(t4.energy() - 0.60F) < 0.01F, "T4 boost is off: " + t4 + " body=" + v.getBody());
+        v.releaseAndDiscard();
+        helper.succeed();
+    }
+
+    /** 時間加速器の設定（2026-10-29）: 既定のブラックリストのスポナー・加速器そのものは速めず、かまど・作物は速める */
+    @GameTest(template = TEMPLATE)
+    public static void acceleratorRulesSkipBlacklisted(GameTestHelper helper) {
+        var allows = (java.util.function.Predicate<net.minecraft.world.level.block.Block>) b ->
+                com.automatavalkyries.chrono.ChronoAcceleratorBlockEntity.allows(b.defaultBlockState());
+        helper.assertTrue(!allows.test(net.minecraft.world.level.block.Blocks.SPAWNER), "the spawner is accelerated");
+        helper.assertTrue(!allows.test(ModChrono.CHRONO_ACCELERATOR.get()), "an accelerator accelerates another accelerator");
+        helper.assertTrue(allows.test(net.minecraft.world.level.block.Blocks.FURNACE), "the furnace is not accelerated");
+        helper.assertTrue(allows.test(net.minecraft.world.level.block.Blocks.WHEAT), "wheat is not accelerated");
+        helper.succeed();
+    }
+
+    /** 時間巻き戻し機（2026-10-29）: 傷んだ鉄のツルハシの耐久を戻して結果の枠へ出す。焼き石は丸石へ戻せ、鉄のインゴットは原石へ戻さない */
+    @GameTest(template = TEMPLATE, timeoutTicks = 400)
+    public static void rewinderRepairsAndReverses(GameTestHelper helper) {
+        BlockPos pos = new BlockPos(1, 1, 1);
+        com.automatavalkyries.chrono.ChronoRewinderBlockEntity rewinder = place(helper, pos, ChronoMachineType.CHRONO_REWINDER);
+        powered(rewinder);
+        helper.assertTrue(rewinder.reverseOf(new ItemStack(net.minecraft.world.item.Items.STONE)).is(net.minecraft.world.item.Items.COBBLESTONE), "stone does not rewind to cobblestone");
+        var oreTag = net.minecraft.tags.ItemTags.create(net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("forge", "ores"));
+        var rawTag = net.minecraft.tags.ItemTags.create(net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("forge", "raw_materials"));
+        ItemStack back = rewinder.reverseOf(new ItemStack(net.minecraft.world.item.Items.IRON_INGOT)); // 粉からも焼けるので、粉に戻るのはよい
+        helper.assertTrue(back.isEmpty() || (!back.is(oreTag) && !back.is(rawTag)), "iron ingot rewinds into an ore or raw ore: " + back);
+        com.automatavalkyries.config.MachineConfig.TEST_OVERRIDES.put(com.automatavalkyries.config.MachineConfig.REWIND_ORES_KEY, true);
+        try {
+            ItemStack ore = rewinder.reverseOf(new ItemStack(net.minecraft.world.item.Items.IRON_INGOT));
+            helper.assertTrue(!ore.isEmpty(), "with the setting on, iron ingot does not rewind at all");
+        } finally {
+            com.automatavalkyries.config.MachineConfig.TEST_OVERRIDES.remove(com.automatavalkyries.config.MachineConfig.REWIND_ORES_KEY);
+        }
+        ItemStack pick = new ItemStack(net.minecraft.world.item.Items.IRON_PICKAXE);
+        pick.setDamageValue(120);
+        rewinder.items().setStackInSlot(0, pick);
+        helper.succeedWhen(() -> {
+            ItemStack out = rewinder.items().getStackInSlot(1);
+            helper.assertTrue(out.is(net.minecraft.world.item.Items.IRON_PICKAXE) && !out.isDamaged(), "the pickaxe was not repaired: in=" + rewinder.items().getStackInSlot(0) + " out=" + out);
+        });
+    }
 }

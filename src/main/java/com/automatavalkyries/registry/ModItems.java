@@ -230,6 +230,9 @@ public class ModItems {
     /** 指示リモコン（2026-10-06 ユーザー指定）: 自分の戦術兵姫にステップを指示する */
     public static final RegistryObject<Item> TACTICAL_REMOTE = ITEMS.register("tactical_remote", () ->
             new com.automatavalkyries.item.TacticalRemoteItem(new Item.Properties().stacksTo(1)));
+    /** モーションリモコン（2026-10-29 ユーザー指定）: 自分の戦術兵姫に戦闘以外の仕草をさせる */
+    public static final RegistryObject<Item> MOTION_REMOTE = ITEMS.register("motion_remote", () ->
+            new com.automatavalkyries.item.MotionRemoteItem(new Item.Properties().stacksTo(1)));
     public static final RegistryObject<Item> RESCUE_COMMUNICATOR = ITEMS.register("rescue_communicator", () ->
             new com.automatavalkyries.item.RescueCommunicatorItem(new Item.Properties().stacksTo(1)));
     /** 戦術兵姫用担架・緊急招集装置（2026-10-07 ユーザー指定） */

@@ -68,8 +68,8 @@ public class TacticalArmoryBlockEntity extends ChronoMachineBlockEntity {
             return false;
         }
         int[] slots = recipe.match(new RecipeWrapper(items), INPUTS);
-        maxProgress = tier == ChronoTier.NEVERLAST ? 1 : tier.scaleTime(recipe.time());
-        int perTick = (int) Math.max(1, (long) tier.scaleEnergy(recipe.energy()) / maxProgress);
+        maxProgress = tier == ChronoTier.NEVERLAST ? 1 : scaledTime(tier, recipe.time());
+        int perTick = (int) Math.max(1, (long) scaledEnergy(tier, recipe.energy()) / maxProgress);
         if (!energy.consume(perTick)) return false;
         if (++progress >= maxProgress) {
             progress = 0;

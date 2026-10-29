@@ -56,7 +56,7 @@ public class ChronoFabricatorBlockEntity extends ChronoMachineBlockEntity {
     @Override
     protected boolean work(ChronoTier tier) {
         if (ticks % 4 == 0) pushToLinks(tier, 27, 9);
-        int time = tier.scaleTime(BASE_TIME);
+        int time = scaledTime(tier, BASE_TIME);
         if (++progress < time) return craftedLast > 0;
         progress = 0;
         craftedLast = 0;
@@ -67,7 +67,7 @@ public class ChronoFabricatorBlockEntity extends ChronoMachineBlockEntity {
             if (source != null) sources.add(source);
         }
         int perCard = ChronoMachineType.craftsPerOp(tier);
-        int perCraft = tier.scaleEnergy(ENERGY_PER_CRAFT);
+        int perCraft = scaledEnergy(tier, ENERGY_PER_CRAFT);
         int why = NO_CARD;
         for (int c = 0; c < ChronoMachineType.cardSlots(tier); c++) {
             ResourceLocation id = BlueprintCardItem.recipeId(items.getStackInSlot(c));
@@ -160,7 +160,7 @@ public class ChronoFabricatorBlockEntity extends ChronoMachineBlockEntity {
     @Override
     protected int extraData(int index) {
         return switch (index) {
-            case 0 -> 1000 * progress / Math.max(1, tier().scaleTime(BASE_TIME));
+            case 0 -> 1000 * progress / Math.max(1, scaledTime(tier(), BASE_TIME));
             case 1 -> craftedLast;
             case 2 -> status;
             default -> 0;

@@ -23,7 +23,11 @@ public enum ChronoMachineType {
     /** タクティカル・アーモリー: 兵装・ルミナルコアの組み立て（材料 9 + 結果 1。docs/SPEC_WEAPON_UNITS.md） */
     TACTICAL_ARMORY("tactical_armory", 10),
     /** 給電ドック: 兵姫の給電・修復（オーブ 1 + ナノマシン溶液 1 + コア 1。§4.7） */
-    CHARGING_DOCK("charging_dock", 3);
+    CHARGING_DOCK("charging_dock", 3),
+    /** 時間加速器: まわりのブロックの時間を速める（スロット無し。2026-10-29） */
+    CHRONO_ACCELERATOR("chrono_accelerator", 0),
+    /** 時間巻き戻し機: 耐久を戻す・焼いた物を焼く前に戻す（材料 1 + 結果 1。2026-10-29） */
+    CHRONO_REWINDER("chrono_rewinder", 2);
 
     public final String id;
     /** 内部の入れ物の大きさ（いちばん上のティアの分） */
@@ -73,6 +77,11 @@ public enum ChronoMachineType {
             case TACTICAL_ARMORY -> {
                 for (int i = 0; i < 9; i++) out.add(new SlotSpec(i, 34 + (i % 3) * 18, 31 + (i / 3) * 18, Role.INPUT));
                 out.add(new SlotSpec(9, 150, 49, Role.OUTPUT));
+            }
+            case CHRONO_ACCELERATOR -> { }
+            case CHRONO_REWINDER -> {
+                out.add(new SlotSpec(0, 52, 49, Role.INPUT));
+                out.add(new SlotSpec(1, 150, 49, Role.OUTPUT));
             }
             case CHARGING_DOCK -> {
                 out.add(new SlotSpec(0, 34, 31, Role.CHARGE));                     // 光子励起のオーブ

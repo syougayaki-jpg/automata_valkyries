@@ -1,0 +1,25 @@
+{
+  "type": "minecraft:block",
+  "pools": [
+    {
+      "bonus_rolls": 0.0,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "automata_valkyries:chrono_rewinder",
+          "functions": [
+            {
+              "function": "minecraft:copy_state",
+              "block": "automata_valkyries:chrono_rewinder",
+              "properties": [
+                "tier"
+              ]
+            }
+          ]
+        }
+      ],
+      "rolls": 1.0
+    }
+  ],
+  "random_sequence": "automata_valkyries:blocks/chrono_rewinder"
+}

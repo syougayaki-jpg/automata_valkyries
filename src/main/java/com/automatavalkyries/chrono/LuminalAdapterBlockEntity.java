@@ -76,8 +76,8 @@ public class LuminalAdapterBlockEntity extends ChronoMachineBlockEntity {
         }
         batch = times;
         stages = recipe.stages();
-        maxProgress = tier == ChronoTier.NEVERLAST ? 1 : tier.scaleTime(recipe.time());
-        long total = (long) tier.scaleEnergy(recipe.energy()) * times;
+        maxProgress = tier == ChronoTier.NEVERLAST ? 1 : scaledTime(tier, recipe.time());
+        long total = (long) scaledEnergy(tier, recipe.energy()) * times;
         int perTick = (int) Math.max(1, total / maxProgress);
         if (!energy.consume(perTick)) return false;
         if (++progress >= maxProgress) {

@@ -91,6 +91,8 @@ public class ValkyrieModel extends DefaultedEntityGeoModel<ValkyrieEntity> {
         CoreGeoBone head = bone("head");
         head.setRotX(head.getRotX() * up - 0.35F * buckle - 0.5F * down);
         head.setRotY(head.getRotY() * up);
+        // 首の傾き（Z）は頭の向きの処理（super）が戻さないので、毎フレーム 0 から決める。仕草が足すと積み重なって首がぐるぐる回っていた（2026-10-29 ユーザー指摘「また首がぐるぐるする」）
+        head.setRotZ(0.0F);
 
         // ---- 戦いの構え・攻撃・ステップ（2026-10-06 ユーザー指定「ステップと武器を構え攻撃するモーション」）
         float melee = Mth.lerp(pt, entity.meleeReadyO, entity.meleeReady) * up;
@@ -271,6 +273,43 @@ public class ValkyrieModel extends DefaultedEntityGeoModel<ValkyrieEntity> {
                     head.setRotX(head.getRotX() - 0.2F * env);
                     rightArm.setRotX(rightArm.getRotX() + 0.3F * env);
                     leftArm.setRotX(leftArm.getRotX() + 0.3F * env);
+                }
+                // ---- 待機中の仕草（2026-10-29）
+                case ValkyrieEntity.GESTURE_STRETCH -> { // 両手を頭の上へ組んで、背中を反らせて伸び
+                    float hold = Math.min(1.0F, env * 1.6F);
+                    rightArm.setRotX(rightArm.getRotX() + 2.9F * hold);
+                    leftArm.setRotX(leftArm.getRotX() + 2.9F * hold);
+                    rightArm.setRotZ(rightArm.getRotZ() - 0.25F * hold);
+                    leftArm.setRotZ(leftArm.getRotZ() + 0.25F * hold);
+                    body.setRotX(body.getRotX() + 0.12F * hold);
+                    head.setRotX(head.getRotX() + 0.25F * hold);
+                    bone("root").setPosY(bone("root").getPosY() + 0.3F * hold);
+                }
+                case ValkyrieEntity.GESTURE_YAWN -> { // 右手を口元へ、頭を少し後ろへ反らせてあくび
+                    rightArm.setRotX(rightArm.getRotX() + 1.95F * env);
+                    rightArm.setRotZ(rightArm.getRotZ() - 0.55F * env);
+                    head.setRotX(head.getRotX() + 0.3F * env);
+                    head.setRotZ(head.getRotZ() + 0.08F * env);
+                }
+                case ValkyrieEntity.GESTURE_LOOK_AROUND -> { // 頭を左・右へ振ってきょろきょろ
+                    head.setRotY(head.getRotY() + Mth.sin(gq * Mth.PI * 2.0F) * 0.75F * env);
+                    head.setRotX(head.getRotX() + 0.06F * env);
+                    body.setRotY(body.getRotY() + Mth.sin(gq * Mth.PI * 2.0F) * 0.15F * env);
+                }
+                case ValkyrieEntity.GESTURE_FIX_HAIR -> { // 左手で横髪を耳にかけ、首を少しかしげる
+                    leftArm.setRotX(leftArm.getRotX() + 2.3F * env);
+                    leftArm.setRotZ(leftArm.getRotZ() - 0.7F * env + Mth.sin(age * 0.5F) * 0.06F * env);
+                    head.setRotZ(head.getRotZ() - 0.18F * env);
+                }
+                case ValkyrieEntity.GESTURE_HUM -> { // 手を後ろで組み、体を左右に揺らして鼻歌
+                    float beat = Mth.sin(age * 0.35F);
+                    body.setRotZ(body.getRotZ() + 0.09F * beat * env);
+                    head.setRotZ(head.getRotZ() + 0.12F * beat * env);
+                    rightArm.setRotX(rightArm.getRotX() - 0.45F * env);
+                    leftArm.setRotX(leftArm.getRotX() - 0.45F * env);
+                    rightArm.setRotZ(rightArm.getRotZ() - 0.12F * env);
+                    leftArm.setRotZ(leftArm.getRotZ() + 0.12F * env);
+                    bone("root").setPosY(bone("root").getPosY() + 0.25F * Math.abs(beat) * env);
                 }
                 default -> { }
             }

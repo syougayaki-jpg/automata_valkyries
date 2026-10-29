@@ -97,6 +97,17 @@ public final class ValkyrieDaily {
             return switch (situation) {
                 case "idle" -> 6000;
                 case "greet", "wake_morning", "night", "rain", "lonely" -> 2400;
+                // 戦闘以外の仕草とセリフ（2026-10-29、ValkyrieChatter）。同日ユーザー指摘「釣りしてるのに出ない」で短くした
+                case "idle_stretch", "idle_yawn", "idle_look", "idle_hair", "idle_hum" -> 1200;
+                case "thunder", "snow", "sunset", "place_cave", "place_nether", "place_end", "place_ocean", "place_high" -> 600;
+                case "owner_building" -> 1800;
+                case "owner_mining", "owner_lumber", "owner_farming", "work_harvest", "work_mine", "work_fell" -> 300; // 釣りと同じ（2026-10-29）
+                case "owner_eating", "owner_craft", "owner_smelt", "owner_trade" -> 1200;
+                case "owner_levelup" -> 600;
+                case "owner_kill" -> 400;
+                case "owner_fishing", "work_fish" -> 300;
+                case "owner_sleep" -> 2400;
+                case "chat" -> 2400;
                 case "pat", "gift_candy", "gift_ice", "repaired" -> 200;
                 case "owner_saved" -> 6000;
                 case "sync_up", "revived", "boss_down", "charge_full" -> 40;
@@ -161,6 +172,7 @@ public final class ValkyrieDaily {
             if (ownerNear && v.getRandom().nextInt(90) == 0) {
                 v.talk(v.isSitting() ? "sit" : "idle");
             }
+            ValkyrieChatter.tick(level, v, owner, ownerNear); // 待機中の仕草・場面のセリフ・兵姫どうしの会話（2026-10-29）
         }
 
         /** 電力切れの休眠から起きた: 長く放っておかれた後は同調率 +10%（拡張仕様書 §12.1「スリープからの復旧」） */
