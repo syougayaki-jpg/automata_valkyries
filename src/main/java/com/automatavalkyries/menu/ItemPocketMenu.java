@@ -18,14 +18,15 @@ import net.minecraft.world.item.ItemStack;
  * アイテムポケットの画面（{@link ItemPocketItem}）。1 ページ 54 枠（容量が少なければその行数）、ページはボタンで送る。
  * <p>サーバーはポケットの中身すべてを持ち、枠は「今のページ × 54 + 何番目」を見る。描く側は今のページの分だけを持つ
  * （ページを送るとサーバーが新しいページの中身を枠ごとに送り直す）。持っているポケットの枠は動かせない</p>
+ * <p>T2 からは中でふつうより多く重なる（{@link ItemPocketItem#limit}）。取り出す時はふつうの 1 スタックまでにする（持ち物にふつうより多く重なった物ができないように）</p>
  */
 public class ItemPocketMenu extends AbstractContainerMenu {
 
-    public static final int BUTTON_PREV = 0, BUTTON_NEXT = 1, BUTTON_AUTO = 2, BUTTON_CATEGORY = 3;
+    public static final int BUTTON_PREV = 0, BUTTON_NEXT = 1, BUTTON_AUTO = 2, BUTTON_CATEGORY = 3, BUTTON_SORT = 20, BUTTON_REPOSITORY = 21;
 
     final ItemStack pocket;
     final InteractionHand hand;
-    public final int capacity, rows, pages;
+    public final int capacity, rows, pages, tier;
     final boolean client;
     final SimpleContainer store;
     final DataSlot page = DataSlot.standalone(), flags = DataSlot.standalone();
@@ -41,6 +42,7 @@ public class ItemPocketMenu extends AbstractContainerMenu {
         this.hand = hand;
         this.pocket = player.getItemInHand(hand);
         this.capacity = Math.max(1, ItemPocketItem.capacityOf(pocket));
+        this.tier = ItemPocketItem.tierOf(pocket);
         this.rows = Math.min(6, (capacity + 8) / 9);
         this.pages = (capacity + ItemPocketItem.PAGE - 1) / ItemPocketItem.PAGE;
         this.client = player.level().isClientSide;
@@ -80,6 +82,10 @@ public class ItemPocketMenu extends AbstractContainerMenu {
         addDataSlot(flags);
     }
 
+    public InteractionHand hand() {
+        return hand;
+    }
+
     /** このポケットの画面か */
     public boolean holds(ItemStack stack) {
         return pocket == stack;
@@ -104,10 +110,40 @@ public class ItemPocketMenu extends AbstractContainerMenu {
         if (id == BUTTON_PREV) page.set(Math.floorMod(page.get() - 1, pages));
         else if (id == BUTTON_NEXT) page.set(Math.floorMod(page.get() + 1, pages));
         else if (id == BUTTON_AUTO) ItemPocketItem.toggleAuto(pocket);
+        else if (id == BUTTON_SORT && tier >= ItemPocketItem.SORT_TIER && !client) sort();
+        else if (id == BUTTON_REPOSITORY && tier >= 4 && player instanceof net.minecraft.server.level.ServerPlayer sp) return openRepository(sp);
         else if (id >= BUTTON_CATEGORY && id < BUTTON_CATEGORY + ItemPocketItem.Category.values().length) ItemPocketItem.toggle(pocket, ItemPocketItem.Category.values()[id - BUTTON_CATEGORY]);
         else return false;
         flags.set(ItemPocketItem.flags(pocket));
         return true;
+    }
+
+    /** T4: リンクしたヴォイド・リポジトリの画面を、距離・ディメンションに関係なく開く（チャンクを読み込んで、開いている間読み込んでおく） */
+    private boolean openRepository(net.minecraft.server.level.ServerPlayer player) {
+        var at = ItemPocketItem.repository(pocket);
+        var level = at == null ? null : player.server.getLevel(at.dimension());
+        if (level == null) {
+            player.displayClientMessage(net.minecraft.network.chat.Component.translatable("message.automata_valkyries.item_pocket.no_repository").withStyle(net.minecraft.ChatFormatting.RED), true);
+            return false;
+        }
+        level.getChunk(at.pos());                                                               // 読み込まれていなければここで読み込む
+        com.automatavalkyries.chrono.ChronoLinks.keepLoaded(level, at.pos());
+        if (!(level.getBlockEntity(at.pos()) instanceof com.automatavalkyries.chrono.VoidRepositoryBlockEntity repo)) {
+            player.displayClientMessage(net.minecraft.network.chat.Component.translatable("message.automata_valkyries.item_pocket.repository_gone").withStyle(net.minecraft.ChatFormatting.RED), true);
+            return false;
+        }
+        net.minecraftforge.network.NetworkHooks.openScreen(player, new net.minecraft.world.SimpleMenuProvider(
+                (id, inv, p) -> com.automatavalkyries.chrono.ChronoMenu.remote(id, inv, repo), repo.getDisplayName()), repo::writeMenuData);
+        return true;
+    }
+
+    /** 整理（サーバーの中身全体を並べ直して、今のページを送り直す） */
+    private void sort() {
+        NonNullList<ItemStack> items = NonNullList.withSize(capacity, ItemStack.EMPTY);
+        for (int i = 0; i < capacity; i++) items.set(i, store.getItem(i));
+        ItemPocketItem.sort(items, tier);
+        for (int i = 0; i < capacity; i++) store.setItem(i, items.get(i));
+        broadcastChanges();
     }
 
     @Override
@@ -123,13 +159,47 @@ public class ItemPocketMenu extends AbstractContainerMenu {
         ItemStack stack = slot.getItem(), before = stack.copy();
         int own = rows * 9;
         if (index < own) {
-            if (!moveItemStackTo(stack, own, slots.size(), true)) return ItemStack.EMPTY;
-        } else if (!ItemPocketItem.canStore(stack) || !moveItemStackTo(stack, 0, own, false)) {
+            // 持ち物へはふつうの 1 スタックずつ（中で多く重なった物をそのまま 1 枠に入れない）
+            boolean moved = false;
+            while (!stack.isEmpty()) {
+                ItemStack piece = stack.split(Math.min(stack.getCount(), stack.getMaxStackSize()));
+                int count = piece.getCount();
+                moveItemStackTo(piece, own, slots.size(), true);
+                moved |= piece.getCount() < count;
+                if (!piece.isEmpty()) {
+                    stack.grow(piece.getCount());
+                    break;
+                }
+            }
+            if (!moved) return ItemStack.EMPTY;
+        } else if (!ItemPocketItem.canStore(stack) || !moveIntoPocket(stack, own)) {
             return ItemStack.EMPTY;
         }
         if (stack.isEmpty()) slot.set(ItemStack.EMPTY);
         else slot.setChanged();
         return before;
+    }
+
+    /** 持ち物からポケットの今のページへ（ポケットの重なる数で、同じ物に重ねてから空きへ）。少しでも入ったら true */
+    private boolean moveIntoPocket(ItemStack stack, int own) {
+        int before = stack.getCount();
+        for (int pass = 0; pass < 2 && !stack.isEmpty(); pass++) {
+            for (int i = 0; i < own && !stack.isEmpty(); i++) {
+                Slot slot = slots.get(i);
+                if (!slot.mayPlace(stack)) continue;
+                ItemStack in = slot.getItem();
+                if (pass == 0 ? in.isEmpty() || !ItemStack.isSameItemSameTags(in, stack) : !in.isEmpty()) continue;
+                int room = slot.getMaxStackSize(stack) - in.getCount();
+                if (room <= 0) continue;
+                if (in.isEmpty()) slot.set(stack.split(room));
+                else {
+                    in.grow(Math.min(room, stack.getCount()));
+                    stack.shrink(Math.min(room, stack.getCount()));
+                    slot.setChanged();
+                }
+            }
+        }
+        return stack.getCount() < before;
     }
 
     @Override
@@ -172,7 +242,14 @@ public class ItemPocketMenu extends AbstractContainerMenu {
 
         @Override
         public ItemStack remove(int amount) {
-            return exists() ? container.removeItem(stored(), amount) : ItemStack.EMPTY;
+            if (!exists()) return ItemStack.EMPTY;
+            ItemStack in = container.getItem(stored());
+            return container.removeItem(stored(), Math.min(amount, Math.max(1, in.getMaxStackSize())));   // 取り出すのはふつうの 1 スタックまで
+        }
+
+        @Override
+        public int getMaxStackSize(ItemStack stack) {
+            return ItemPocketItem.limit(menu.tier, stack);
         }
 
         @Override

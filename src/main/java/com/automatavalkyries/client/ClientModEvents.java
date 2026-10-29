@@ -18,6 +18,7 @@ public class ClientModEvents {
         event.enqueueWork(() -> {
             net.minecraft.client.gui.screens.MenuScreens.register(com.automatavalkyries.registry.ModMachines.MENU.get(), MachineScreen::new);
             net.minecraft.client.gui.screens.MenuScreens.register(com.automatavalkyries.registry.ModChrono.MENU.get(), ChronoScreen::new);
+            net.minecraft.client.gui.screens.MenuScreens.register(com.automatavalkyries.registry.ModChrono.BLUEPRINT_MENU.get(), BlueprintCardScreen::new);
             net.minecraft.client.gui.screens.MenuScreens.register(com.automatavalkyries.registry.ModUpgrades.MENU.get(), UpgradeStationScreen::new);
             net.minecraft.client.gui.screens.MenuScreens.register(com.automatavalkyries.registry.ModEntities.VALKYRIE_MENU.get(), ValkyrieScreen::new);
             net.minecraft.client.gui.screens.MenuScreens.register(com.automatavalkyries.registry.ModItems.POCKET_MENU.get(), ItemPocketScreen::new);

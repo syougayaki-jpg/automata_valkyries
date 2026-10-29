@@ -91,8 +91,145 @@ public class VoidRepositoryBlockEntity extends ChronoMachineBlockEntity {
             .thenComparing(e -> e.key.hasTag() ? e.key.getTag().toString() : "");
     public int version() { return version; }
 
-    @Override protected int maxReceive(ChronoTier tier) { return 0; }
-    @Override protected boolean exposesEnergy() { return false; }
+    // ---- 電力を使う便利な機能（2026-10-29 ユーザー指定「電力を使って便利機能でもなにかあるか」。質問で: 自動圧縮・在庫を保って配る。数値は【提案】） ----
+    // しまう・取り出すは今までどおり電力なしで使える。電力が足りないとこの 2 つだけ止まる
+
+    /** 自動圧縮で残す元の物の数（これを超えた分を 9 個ずつ圧縮する） */
+    public static final int COMPRESS_KEEP = 64;
+    /** 圧縮 1 回（9 → 1）の電力と、在庫を配る 1 個の電力 */
+    public static final int COMPRESS_COST = 100, STOCK_COST = 10;
+    /** 在庫の決まりの数の段（画面で右クリックするたびに次へ。0 = 決まり無し） */
+    public static final int[] STOCK_STEPS = {0, 16, 64, 256, 1024};
+    /** 在庫の決まりの数の上限（種類） */
+    public static final int MAX_STOCK_RULES = 27;
+
+    /** 自動圧縮が入か */
+    private boolean compress;
+    /** テザー・パイロンから電力を受け取るか（既定は切。2026-10-29 ユーザー指定「テザーパイロンからの電力供給はデフォルトでオフにして」。隣のマシンなどからはいつでも受け取る） */
+    private boolean pylonPower;
+    /** 在庫の決まり: 物 → 搬出リンクの先に置いておく数 */
+    private final List<Entry> stockRules = new ArrayList<>();
+
+    /** 1 秒にできる圧縮の回数（T1 16、T2 128、T3 1,024、T4 8,192） */
+    public static int compressPerSecond(ChronoTier tier) {
+        return 16 << ((tier.level - 1) * 3);
+    }
+
+    public boolean compressing() { return compress; }
+
+    public boolean acceptsPylonPower() { return pylonPower; }
+
+    public void togglePylonPower() {
+        pylonPower = !pylonPower;
+        changed();
+    }
+
+    public void toggleCompress() {
+        compress = !compress;
+        changed();
+    }
+
+    /** その物の在庫の決まり（無ければ 0） */
+    public int stockOf(ItemStack key) {
+        for (Entry rule : stockRules) if (ItemStack.isSameItemSameTags(rule.key, key)) return (int) rule.count;
+        return 0;
+    }
+
+    /** index 番目の物の在庫の決まりを次（back なら前）の段へ */
+    public void cycleStock(int index, boolean back) {
+        if (index < 0 || index >= entries.size() || entries.get(index) == null) return;
+        ItemStack key = entries.get(index).key;
+        int now = stockOf(key), at = 0;
+        for (int i = 0; i < STOCK_STEPS.length; i++) if (STOCK_STEPS[i] == now) at = i;
+        int next = STOCK_STEPS[Math.floorMod(at + (back ? -1 : 1), STOCK_STEPS.length)];
+        stockRules.removeIf(rule -> ItemStack.isSameItemSameTags(rule.key, key));
+        if (next > 0 && stockRules.size() < MAX_STOCK_RULES) stockRules.add(new Entry(key, next));
+        changed();
+    }
+
+    /** 9 個をまとめて 1 個にする作業台のレシピの結果（無ければ空）。レシピの読み直しで作り直す */
+    private static final java.util.Map<net.minecraft.world.item.Item, ItemStack> COMPRESSED = new java.util.HashMap<>();
+    private static net.minecraft.world.item.crafting.RecipeManager compressedFor;
+
+    static ItemStack compressed(net.minecraft.world.level.Level level, ItemStack key) {
+        var manager = level.getRecipeManager();
+        if (manager != compressedFor) {
+            COMPRESSED.clear();
+            compressedFor = manager;
+        }
+        if (key.hasTag()) return ItemStack.EMPTY;
+        return COMPRESSED.computeIfAbsent(key.getItem(), item -> {
+            ItemStack probe = new ItemStack(item);
+            for (var recipe : manager.getAllRecipesFor(net.minecraft.world.item.crafting.RecipeType.CRAFTING)) {
+                var ingredients = recipe.getIngredients();
+                if (ingredients.size() != 9 || recipe.isSpecial()) continue;
+                boolean all = true;
+                for (var ingredient : ingredients) if (ingredient.isEmpty() || !ingredient.test(probe)) { all = false; break; }
+                if (!all) continue;
+                ItemStack result = recipe.getResultItem(level.registryAccess());
+                if (result.getCount() == 1 && !result.is(item)) return result.copy();
+            }
+            return ItemStack.EMPTY;
+        });
+    }
+
+    /** 自動圧縮（1 秒に 1 回）: 残す数を超えた分を 9 個ずつ、入る分だけ、電力のある分だけ */
+    public void compressContents(ChronoTier tier) {
+        int budget = compressPerSecond(tier);
+        for (int i = 0; i < entries.size() && budget > 0; i++) {
+            Entry entry = entries.get(i);
+            if (entry == null || entry.count < COMPRESS_KEEP + 9) continue;
+            ItemStack result = compressed(level, entry.key);
+            if (result.isEmpty()) continue;
+            long ops = Math.min(Math.min((entry.count - COMPRESS_KEEP) / 9, budget), energy.getEnergyStored() / COMPRESS_COST);
+            if (ops <= 0) return;
+            ItemStack out = result.copyWithCount((int) Math.min(ops, Integer.MAX_VALUE));
+            int fits = out.getCount() - insert(out, true).getCount();
+            if (fits <= 0) continue;
+            insert(result.copyWithCount(fits), false);
+            entry.count -= 9L * fits;
+            energy.consume(fits * COMPRESS_COST);
+            budget -= fits;
+            changed();
+        }
+    }
+
+    /** 在庫を保って配る（1 秒に 1 回）: 搬出リンクの先それぞれに、決まりの物が決まりの数あるよう足す（1 個ごとに電力） */
+    public void stockLinks(ChronoTier tier) {
+        if (stockRules.isEmpty()) return;
+        int budget = tier.transferPerTick * 20;
+        for (ChronoLink link : activeLinks(tier)) {
+            if (!link.mode().pushes() || budget <= 0) continue;
+            IItemHandler target = ChronoLinks.items(level, worldPosition, tier, link);
+            if (target == null) continue;
+            for (Entry rule : stockRules) {
+                if (budget <= 0) break;
+                long have = 0;
+                for (int s = 0; s < target.getSlots(); s++) {
+                    ItemStack in = target.getStackInSlot(s);
+                    if (ItemStack.isSameItemSameTags(in, rule.key)) have += in.getCount();
+                }
+                int index = -1;
+                for (int k = 0; k < entries.size(); k++) if (entries.get(k) != null && ItemStack.isSameItemSameTags(entries.get(k).key, rule.key)) index = k;
+                while (have < rule.count && budget > 0 && index >= 0 && entries.get(index) != null) {
+                    int want = (int) Math.min(Math.min(rule.count - have, budget), energy.getEnergyStored() / STOCK_COST);
+                    if (want <= 0) return;
+                    ItemStack piece = extract(index, want, true);
+                    if (piece.isEmpty()) break;
+                    ItemStack rest = net.minecraftforge.items.ItemHandlerHelper.insertItemStacked(target, piece, true);
+                    int moved = piece.getCount() - rest.getCount();
+                    if (moved <= 0) break;
+                    net.minecraftforge.items.ItemHandlerHelper.insertItemStacked(target, extract(index, moved, false), false);
+                    energy.consume(moved * STOCK_COST);
+                    have += moved;
+                    budget -= moved;
+                }
+            }
+        }
+    }
+
+    @Override protected int maxReceive(ChronoTier tier) { return tier.powerRate * 4; }
+    @Override protected boolean exposesEnergy() { return true; }
     @Override protected boolean accepts(int slot, ItemStack stack) { return true; }
 
     /** 入れる（入らなかった残りを返す） */
@@ -149,7 +286,11 @@ public class VoidRepositoryBlockEntity extends ChronoMachineBlockEntity {
         // 預け入れ口に置かれた物を中へ
         ItemStack deposit = items.getStackInSlot(0);
         if (!deposit.isEmpty()) items.setStackInSlot(0, insert(deposit, false));
-        // 搬入リンクの先から吸い込み、搬出リンクの先へは出さない（取り出しは他のマシン・画面から）
+        if (ticks % 20 == 0) {                                                                     // 電力を使う便利な機能
+            if (compress) compressContents(tier);
+            stockLinks(tier);
+        }
+        // 搬入リンクの先から吸い込む。搬出リンクの先へは在庫の決まりの物だけ配る（取り出しは他のマシン・画面から）
         if (ticks % 4 == 0) {
             for (ChronoLink link : activeLinks(tier)) {
                 if (!link.mode().pulls()) continue;
@@ -218,6 +359,16 @@ public class VoidRepositoryBlockEntity extends ChronoMachineBlockEntity {
             list.add(e);
         }
         tag.put("Contents", list);
+        tag.putBoolean("Compress", compress);
+        tag.putBoolean("PylonPower", pylonPower);
+        ListTag rules = new ListTag();
+        for (Entry rule : stockRules) {
+            CompoundTag r = new CompoundTag();
+            r.put("item", rule.key.save(new CompoundTag()));
+            r.putLong("count", rule.count);
+            rules.add(r);
+        }
+        tag.put("Stock", rules);
     }
 
     @Override
@@ -234,6 +385,14 @@ public class VoidRepositoryBlockEntity extends ChronoMachineBlockEntity {
             else entries.add(new Entry(key, e.getLong("count")));
         }
         while (!entries.isEmpty() && entries.get(entries.size() - 1) == null) entries.remove(entries.size() - 1);
+        compress = tag.getBoolean("Compress");
+        pylonPower = tag.getBoolean("PylonPower");
+        stockRules.clear();
+        for (Tag t : tag.getList("Stock", Tag.TAG_COMPOUND)) {
+            CompoundTag r = (CompoundTag) t;
+            ItemStack key = ItemStack.of(r.getCompound("item"));
+            if (!key.isEmpty() && r.getLong("count") > 0) stockRules.add(new Entry(key, r.getLong("count")));
+        }
         version++;
     }
 }

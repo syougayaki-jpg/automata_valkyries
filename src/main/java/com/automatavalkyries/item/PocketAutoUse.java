@@ -181,7 +181,7 @@ public final class PocketAutoUse {
         ItemStack result = stack.getItem().finishUsingItem(stack, player.level(), player);
         if (result != stack) {
             if (stack.isEmpty()) items.set(index, result);
-            else if (!result.isEmpty() && !insert(items, result)) player.getInventory().placeItemBackInInventory(result);
+            else if (!result.isEmpty() && !ItemPocketItem.insert(items, result, ItemPocketItem.tierOf(pocket))) player.getInventory().placeItemBackInInventory(result);
         }
         ItemPocketItem.save(pocket, items);
         if (potion) player.level().playSound(null, player.blockPosition(), SoundEvents.GENERIC_DRINK, SoundSource.PLAYERS, 0.8F, 1.0F);
@@ -189,31 +189,12 @@ public final class PocketAutoUse {
         return true;
     }
 
-    private static boolean insert(NonNullList<ItemStack> items, ItemStack add) {
-        for (ItemStack s : items) {
-            if (ItemStack.isSameItemSameTags(s, add) && s.getCount() < s.getMaxStackSize()) {
-                int moved = Math.min(add.getCount(), s.getMaxStackSize() - s.getCount());
-                s.grow(moved);
-                add.shrink(moved);
-                if (add.isEmpty()) return true;
-            }
-        }
-        for (int i = 0; i < items.size(); i++) {
-            if (items.get(i).isEmpty()) {
-                items.set(i, add.copy());
-                add.setCount(0);
-                return true;
-            }
-        }
-        return false;
-    }
-
     /** 中身を書き換えるので、そのポケットの画面が開いていれば閉じる（開いた画面の中身で上書きされないように） */
-    private static void closeIfOpen(ServerPlayer player, ItemStack pocket) {
+    static void closeIfOpen(ServerPlayer player, ItemStack pocket) {
         if (player.containerMenu instanceof ItemPocketMenu menu && menu.holds(pocket)) player.closeContainer();
     }
 
-    private static void notice(ServerPlayer player, ItemStack used) {
+    static void notice(ServerPlayer player, ItemStack used) {
         player.displayClientMessage(Component.translatable("message.automata_valkyries.item_pocket.used", used.getHoverName()).withStyle(ChatFormatting.GREEN), true);
     }
 

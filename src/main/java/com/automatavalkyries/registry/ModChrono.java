@@ -93,6 +93,9 @@ public final class ModChrono {
             () -> BlockEntityType.Builder.of(com.automatavalkyries.chrono.ChronoRewinderBlockEntity::new, CHRONO_REWINDER.get()).build(null));
 
     public static final RegistryObject<MenuType<ChronoMenu>> MENU = ModMachines.MENUS.register("chrono_machine", () -> IForgeMenuType.create(ChronoMenu::new));
+    /** 設計図カードの画面（JEI のレシピの「+」で書き込む。2026-10-29） */
+    public static final RegistryObject<MenuType<com.automatavalkyries.menu.BlueprintCardMenu>> BLUEPRINT_MENU =
+            ModMachines.MENUS.register("blueprint_card", () -> IForgeMenuType.create(com.automatavalkyries.menu.BlueprintCardMenu::new));
 
     // ---- ティアフレーム・道具 ----
     public static final RegistryObject<Item> FRAME_HIGH_END = frame("frame_high_end", ChronoTier.HIGH_END, Rarity.UNCOMMON);

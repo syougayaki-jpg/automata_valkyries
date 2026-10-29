@@ -2,6 +2,6 @@
   "type": "minecraft:crafting_shaped",
   "category": "misc",
   "pattern": [ "XAY", "PFE", "SZQ" ],
-  "key": { "X": { "item": "automata_valkyries:star_chronos" }, "A": { "item": "automata_valkyries:drive_tachyon" }, "Y": { "item": "automata_valkyries:star_luminal" }, "P": { "item": "automata_valkyries:matrix_photon" }, "F": { "item": "automata_valkyries:frame_future" }, "E": { "item": "automata_valkyries:tissue_eclipse" }, "S": { "item": "automata_valkyries:ingot_stellachronodyme" }, "Z": { "item": "automata_valkyries:star_nano" }, "Q": { "item": "automata_valkyries:circuit_quantum_tac" } },
+  "key": { "X": { "item": "automata_valkyries:star_chronos" }, "A": { "item": "automata_valkyries:drive_tachyon" }, "Y": { "item": "automata_valkyries:star_luminal" }, "P": { "item": "automata_valkyries:matrix_photon" }, "F": { "item": "automata_valkyries:frame_future" }, "E": { "item": "automata_valkyries:tissue_eclipse" }, "S": { "item": "automata_valkyries:ingot_stellachronodyme" }, "Z": { "item": "automata_valkyries:star_nano" }, "Q": { "item": "automata_valkyries:circuit_photonic" } },
   "result": { "item": "automata_valkyries:frame_beyond", "count": 1 }
 }

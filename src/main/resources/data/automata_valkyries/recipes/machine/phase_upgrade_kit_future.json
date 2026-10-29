@@ -3,7 +3,7 @@
   "conditions": [ { "type": "automata_valkyries:config", "key": "upgrades.upgrade_kit_future" } ],
   "tier": 2,
   "stages": 1,
-  "ingredients": [ { "ingredient": { "item": "automata_valkyries:frame_future" }, "count": 1 }, { "ingredient": { "item": "automata_valkyries:circuit_photonic" }, "count": 2 }, { "ingredient": { "item": "automata_valkyries:coil_chrono" }, "count": 2 } ],
+  "ingredients": [ { "ingredient": { "item": "automata_valkyries:frame_future" }, "count": 1 }, { "ingredient": { "item": "automata_valkyries:circuit_quantum_tac" }, "count": 2 }, { "ingredient": { "item": "automata_valkyries:coil_chrono" }, "count": 2 } ],
   "result": { "item": "automata_valkyries:upgrade_kit_future", "count": 1 },
   "energy": 500000,
   "time": 300

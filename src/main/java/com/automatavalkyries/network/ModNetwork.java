@@ -135,5 +135,17 @@ public final class ModNetwork {
                 .decoder(TacticalShakePacket::decode)
                 .consumerMainThread(TacticalShakePacket::handle)
                 .add();
+        // 画面のボタン（番号を 1 バイトに縮めずに送る。2026-10-29）
+        CHANNEL.messageBuilder(MenuButtonPacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(MenuButtonPacket::encode)
+                .decoder(MenuButtonPacket::decode)
+                .consumerMainThread(MenuButtonPacket::handle)
+                .add();
+        // JEI のレシピの「+」で設計図カードに書き込む（2026-10-29）
+        CHANNEL.messageBuilder(BlueprintWritePacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(BlueprintWritePacket::encode)
+                .decoder(BlueprintWritePacket::decode)
+                .consumerMainThread(BlueprintWritePacket::handle)
+                .add();
     }
 }

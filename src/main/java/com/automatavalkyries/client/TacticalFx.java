@@ -131,7 +131,10 @@ public final class TacticalFx {
                 case TacticalFxPacket.COMET -> { } // TacticalComet（下の素材の段でまとめて描く）
                 default -> {
                     if (t < DESCENT) descent(m, glow, dark, e.radius, t / DESCENT, t);
-                    else strike(m, glow, dark, e.radius, t - DESCENT, fade);
+                    else {
+                        strike(m, glow, dark, e.radius, t - DESCENT, fade);
+                        pierce(m, glow, dark, mc.level.getMinBuildHeight() - e.pos.y, t - DESCENT, fade);
+                    }
                 }
             }
             // 素材を貼った光・炎・煙・花びら（TacticalSprites）を重ねる
@@ -142,7 +145,10 @@ public final class TacticalFx {
                 case TacticalFxPacket.ABYSS -> TacticalSprites.abyss(k, e.seed, t, e.duration);
                 case TacticalFxPacket.COMET -> TacticalComet.render(m, glow, dark, k, e.seed, e.radius, t, e.duration,
                         new Vec3(cam.x - e.pos.x, cam.y - e.pos.y, cam.z - e.pos.z));
-                default -> TacticalSprites.gungnir(k, e.radius, t, fade);
+                default -> {
+                    TacticalSprites.gungnir(k, e.radius, t, fade);
+                    if (t >= DESCENT) TacticalSprites.gungnirPierce(k, mc.level.getMinBuildHeight() - e.pos.y, t - DESCENT, fade);
+                }
             }
             pose.popPose();
         }
@@ -187,6 +193,30 @@ public final class TacticalFx {
     }
 
     /** 照射: 柱・巻き上がる螺旋・地面の輪 */
+    /** 縦穴の半径（サーバーの TacticalProtocols.carveToBedrock と同じ） */
+    static final double PIERCE_R = 10.0;
+
+    /**
+     * 地中まで貫く光（2026-10-29 ユーザー指定「グングニルの中心がちゃんと地中まで貫通する演出にして」）: 着弾直後に白赤の掘削の先端が地表から
+     * 岩盤の層（depth、中心からの相対で負）まで一気に潜り、その後ろに光の柱が地中へ続く。縦穴の壁は赤く灼け、光の輪が下へ下へ走る。
+     * 地表の穴の縁は溶けた赤橙の輪。地中の分は地形に隠れるが、地形を壊す設定で縦穴が開くと穴から見える
+     */
+    private static void pierce(Matrix4f m, VertexConsumer glow, VertexConsumer dark, double depth, float st, float fade) {
+        double reach = depth * Math.min(1.0, st / 20.0);                    // 先端が潜った深さ（20 Tick で岩盤の層まで）
+        int a = (int) (220 * fade);
+        cylinder(glow, m, 4.5, reach, 0, 24, 255, 30, 40, a);                  // 地中へ続く光の柱
+        cylinder(glow, m, 1.6, reach, 0, 16, 255, 220, 220, a);
+        cylinder(glow, m, PIERCE_R, reach, 0, 32, 200, 20, 20, (int) (70 * fade)); // 灼けた縦穴の壁
+        cylinder(dark, m, PIERCE_R + 0.6, reach, 0, 32, 30, 0, 0, (int) (120 * fade));
+        for (int w = 0; w < 6; w++) {                                         // 下へ走る光の輪
+            double ph = ((st * 2.2 + w * 9) % 54) / 54.0, y = reach * ph;
+            ring(glow, m, PIERCE_R - 0.3, y, 1.2, 255, 90 - (int) (40 * ph), 50, (int) (220 * fade * (1 - ph * 0.5)));
+        }
+        if (st < 24) cylinder(glow, m, 6.0, reach - 2, reach + 3, 20, 255, 240, 230, 255); // 掘削の先端
+        ring(glow, m, PIERCE_R + 0.8, 0.25, 2.2, 255, 120, 30, (int) (230 * fade)); // 溶けた縁
+        ring(glow, m, PIERCE_R + 2.6, 0.2, 1.4, 255, 50, 20, (int) (160 * fade));
+    }
+
     private static void strike(Matrix4f m, VertexConsumer glow, VertexConsumer dark, float radius, float t, float fade) {
         // 光の柱（赤、芯は白っぽく）
         int a = (int) (220 * fade);

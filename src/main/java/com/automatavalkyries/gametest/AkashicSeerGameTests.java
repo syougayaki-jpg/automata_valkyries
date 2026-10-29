@@ -153,4 +153,48 @@ public class AkashicSeerGameTests {
             helper.succeed();
         });
     }
+
+    /** 観測の立方体の強化（2026-10-29）: 金床で金属のオーブ・スター・コアを合わせると 1 個 1 段、ティアの上限まで。強化した数だけ別々の敵を狙う */
+    @GameTest(template = TEMPLATE, batch = "akashic_seer", timeoutTicks = 100)
+    public static void cubesUpgradeAtAnvil(GameTestHelper helper) {
+        ItemStack cubes = new ItemStack(ModItems.AKASHIC_CUBES.get());
+        ItemStack orbs = new ItemStack(com.automatavalkyries.item.AkashicCubeUpgrades.catalyst("orb", com.automatavalkyries.item.AkashicCubeUpgrades.Stat.DAMAGE), 9);
+        helper.assertTrue(!orbs.isEmpty(), "silver orb missing");
+        helper.assertTrue(com.automatavalkyries.item.AkashicCubeUpgrades.consumed(cubes, orbs) == 5, "orbs should stop at Lv 5");
+        ItemStack lv5 = com.automatavalkyries.item.AkashicCubeUpgrades.result(cubes, orbs);
+        helper.assertTrue(com.automatavalkyries.item.AkashicCubeUpgrades.damage(lv5) == 20.0F, "Lv 5 damage " + com.automatavalkyries.item.AkashicCubeUpgrades.damage(lv5));
+        helper.assertTrue(com.automatavalkyries.item.AkashicCubeUpgrades.consumed(lv5, orbs) == 0, "orbs past their cap");
+        ItemStack star = new ItemStack(com.automatavalkyries.item.AkashicCubeUpgrades.catalyst("star", com.automatavalkyries.item.AkashicCubeUpgrades.Stat.DAMAGE), 64);
+        helper.assertTrue(com.automatavalkyries.item.AkashicCubeUpgrades.consumed(lv5, star) == 5, "stars should stop at Lv 10");
+        ItemStack tinCore = new ItemStack(com.automatavalkyries.item.AkashicCubeUpgrades.catalyst("core", com.automatavalkyries.item.AkashicCubeUpgrades.Stat.RANGE));
+        helper.assertTrue(com.automatavalkyries.item.AkashicCubeUpgrades.statOf(tinCore) == com.automatavalkyries.item.AkashicCubeUpgrades.Stat.RANGE, "tin core -> range");
+        helper.assertTrue(com.automatavalkyries.item.AkashicCubeUpgrades.statOf(new ItemStack(ModItems.ORB_CHRONOS.get())) == null, "mod-own ore orbs must not upgrade");
+        // ウラン 6 段で 3 体を同時に狙う
+        ItemStack multi = cubes.copy();
+        com.automatavalkyries.item.AkashicCubeUpgrades.setLevel(multi, com.automatavalkyries.item.AkashicCubeUpgrades.Stat.MULTI, 6);
+        Player player = helper.makeMockPlayer();
+        player.setPos(helper.absoluteVec(new net.minecraft.world.phys.Vec3(1.5, 2, 1.5)));
+        player.getInventory().setItem(3, multi);
+        java.util.List<Zombie> zombies = new java.util.ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            Zombie z = helper.spawn(EntityType.ZOMBIE, i * 2, 2, 6);
+            z.setNoAi(true);
+            zombies.add(z);
+        }
+        AABB area = new AABB(helper.absolutePos(new net.minecraft.core.BlockPos(0, 0, 0))).inflate(14);
+        int before = helper.getLevel().getEntitiesOfClass(AkashicCubeEntity.class, area).size();
+        player.tickCount = com.automatavalkyries.item.AkashicCubeUpgrades.interval(multi) * 8;
+        com.automatavalkyries.item.AkashicCubesItem.onPlayerTick(new TickEvent.PlayerTickEvent(TickEvent.Phase.END, player));
+        int fired = helper.getLevel().getEntitiesOfClass(AkashicCubeEntity.class, area).size() - before;
+        helper.assertTrue(fired == 3, "expected 3 cubes, got " + fired);
+        zombies.forEach(Zombie::discard);
+        // マキシマイザー: 持ち物の立方体を全部 Lv 15 に、スニークで 0 に
+        helper.assertTrue(com.automatavalkyries.item.CubeMaximizerItem.applyAll(player.getInventory(), true) == 1, "maximizer found no cubes");
+        for (var stat : com.automatavalkyries.item.AkashicCubeUpgrades.Stat.values()) {
+            helper.assertTrue(com.automatavalkyries.item.AkashicCubeUpgrades.level(player.getInventory().getItem(3), stat) == com.automatavalkyries.item.AkashicCubeUpgrades.MAX_LEVEL, "not maxed: " + stat);
+        }
+        com.automatavalkyries.item.CubeMaximizerItem.applyAll(player.getInventory(), false);
+        helper.assertTrue(com.automatavalkyries.item.AkashicCubeUpgrades.level(player.getInventory().getItem(3), com.automatavalkyries.item.AkashicCubeUpgrades.Stat.DAMAGE) == 0, "reset failed");
+        helper.succeed();
+    }
 }

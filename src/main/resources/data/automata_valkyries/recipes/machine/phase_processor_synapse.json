@@ -2,7 +2,7 @@
   "type": "automata_valkyries:phase_transition",
   "tier": 2,
   "stages": 1,
-  "ingredients": [ { "ingredient": { "item": "automata_valkyries:circuit_quantum_tac" }, "count": 2 }, { "ingredient": { "item": "automata_valkyries:tissue_eclipse" }, "count": 1 }, { "ingredient": { "item": "automata_valkyries:circuit_photonic" }, "count": 2 } ],
+  "ingredients": [ { "ingredient": { "item": "automata_valkyries:circuit_photonic" }, "count": 2 }, { "ingredient": { "item": "automata_valkyries:tissue_eclipse" }, "count": 1 }, { "ingredient": { "item": "automata_valkyries:circuit_quantum_tac" }, "count": 2 } ],
   "result": { "item": "automata_valkyries:processor_synapse", "count": 1 },
   "energy": 400000,
   "time": 300

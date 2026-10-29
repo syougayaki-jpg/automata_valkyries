@@ -59,12 +59,14 @@ public class TetherPylonBlockEntity extends ChronoMachineBlockEntity {
         List<IEnergyStorage> targets = new ArrayList<>();
         for (ChronoMachineBlockEntity machine : ChronoMachineBlockEntity.LOADED) {
             if (machine == this || machine instanceof TetherPylonBlockEntity || machine.isRemoved() || machine.getLevel() == null) continue;
+            if (machine instanceof VoidRepositoryBlockEntity repo && !repo.acceptsPylonPower()) continue; // リポジトリは入にした物だけ（既定は切）
             boolean same = machine.getLevel() == level;
             if (!tier.reaches(same, same ? worldPosition.distSqr(machine.getBlockPos()) : 0)) continue;
             if (machine.energy().canReceive() && machine.energy().getEnergyStored() < machine.energy().getMaxEnergyStored()) targets.add(machine.energy());
         }
         for (ChronoLink link : activeLinks(tier)) {
             if (!link.mode().pushes()) continue;
+            if (ChronoLinks.resolve(level, worldPosition, tier, link) instanceof VoidRepositoryBlockEntity repo && !repo.acceptsPylonPower()) continue;
             IEnergyStorage target = ChronoLinks.energy(level, worldPosition, tier, link);
             if (target != null && target.canReceive() && !targets.contains(target)) targets.add(target);
         }

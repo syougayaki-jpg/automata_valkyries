@@ -94,10 +94,26 @@ public class AutomataJeiPlugin implements IModPlugin {
                 new ReactorFuelCategory.Fuel(new ItemStack(ModBlocks.BLOCK_LUMINAL_GEM.get()), LuminalReactorBlockEntity.fuelValue(new ItemStack(ModBlocks.BLOCK_LUMINAL_GEM.get()), ChronoTier.HIGH_END), ChronoTier.HIGH_END, false),
                 new ReactorFuelCategory.Fuel(new ItemStack(ModItems.ORB_LUMINAL.get()), LuminalReactorBlockEntity.fuelValue(new ItemStack(ModItems.ORB_LUMINAL.get()), ChronoTier.FUTURE), ChronoTier.FUTURE, false),
                 new ReactorFuelCategory.Fuel(new ItemStack(ModItems.STAR_LUMINAL.get()), LuminalReactorBlockEntity.fuelValue(new ItemStack(ModItems.STAR_LUMINAL.get()), ChronoTier.BEYOND), ChronoTier.BEYOND, false),
+                new ReactorFuelCategory.Fuel(new ItemStack(ModCompression.CORE_GENESIS_LUMINAL.get()), LuminalReactorBlockEntity.CORE_FUEL, ChronoTier.NEVERLAST, false),
                 new ReactorFuelCategory.Fuel(new ItemStack(ModCompression.CORE_GENESIS_LUMINAL.get()), 0, ChronoTier.NEVERLAST, true)));
         registration.addIngredientInfo(ModChrono.CHRONO_SMELTER.get(), Component.translatable("jei.automata_valkyries.info.chrono_smelter",
                 ChronoSmelterBlockEntity.multiplier(ChronoTier.HIGH_END), ChronoSmelterBlockEntity.multiplier(ChronoTier.NEVERLAST)));
         registration.addIngredientInfo(ModChrono.TOOL_CHRONO_TUNER.get(), Component.translatable("jei.automata_valkyries.info.chrono_tuner"));
+        // 観測の立方体の金床での強化（2026-10-29）: 能力ごとに、オーブ・スター・コアで 1 段上げた見本
+        registration.addIngredientInfo(ModItems.AKASHIC_CUBES.get(), Component.translatable("jei.automata_valkyries.info.akashic_cubes"));
+        var anvil = new ArrayList<mezz.jei.api.recipe.vanilla.IJeiAnvilRecipe>();
+        ItemStack cubes = new ItemStack(ModItems.AKASHIC_CUBES.get());
+        for (var stat : com.automatavalkyries.item.AkashicCubeUpgrades.Stat.values()) {
+            List<ItemStack> catalysts = new ArrayList<>(), outputs = new ArrayList<>();
+            for (String kind : List.of("orb", "star", "core")) {
+                ItemStack catalyst = new ItemStack(com.automatavalkyries.item.AkashicCubeUpgrades.catalyst(kind, stat));
+                if (catalyst.isEmpty()) continue;
+                catalysts.add(catalyst);
+                outputs.add(com.automatavalkyries.item.AkashicCubeUpgrades.result(cubes, catalyst));
+            }
+            if (!catalysts.isEmpty()) anvil.add(registration.getVanillaRecipeFactory().createAnvilRecipe(cubes, catalysts, outputs));
+        }
+        registration.addRecipes(RecipeTypes.ANVIL, anvil);
         registration.addIngredientInfo(ModChrono.BLUEPRINT_CARD.get(), Component.translatable("jei.automata_valkyries.info.blueprint_card"));
         for (var frame : List.of(ModChrono.FRAME_HIGH_END, ModChrono.FRAME_FUTURE, ModChrono.FRAME_BEYOND, ModChrono.FRAME_NEVERLAST)) {
             registration.addIngredientInfo(frame.get(), Component.translatable("jei.automata_valkyries.info.tier_frame"));
@@ -109,6 +125,14 @@ public class AutomataJeiPlugin implements IModPlugin {
             registration.addIngredientInfo(ModChrono.MACHINES.get(type).get(), Component.translatable("block.automata_valkyries." + type.id + ".desc"),
                     Component.translatable("jei.automata_valkyries.info.chrono_machine"));
         }
+    }
+
+    /** JEI のレシピの「+」で設計図カードに書き込む（設計図カードの画面とクロノ・ファブリケータの画面。2026-10-29） */
+    @Override
+    public void registerRecipeTransferHandlers(mezz.jei.api.registration.IRecipeTransferRegistration registration) {
+        var helper = registration.getTransferHelper();
+        registration.addUniversalRecipeTransferHandler(new BlueprintTransferHandler<>(com.automatavalkyries.menu.BlueprintCardMenu.class, ModChrono.BLUEPRINT_MENU.get(), helper));
+        registration.addUniversalRecipeTransferHandler(new BlueprintTransferHandler<>(com.automatavalkyries.chrono.ChronoMenu.class, ModChrono.MENU.get(), helper));
     }
 
     /** クロノリンク・マシンはティアごとに別のアイテムとして扱う（T2〜T4 のレシピが T1 のレシピに混ざらず、それぞれで引ける） */

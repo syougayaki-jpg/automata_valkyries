@@ -135,7 +135,7 @@ public class ChronoGameTests {
         LuminalAdapterBlockEntity adapter = place(helper, pos, ChronoMachineType.LUMINAL_ADAPTER);
         powered(adapter);
         Object[][] stella = {{ModItems.ALLOY_LUMINAL_STERLING.get(), 4}, {ModItems.ALLOY_CHRONO_FORTRESS.get(), 1}, {ModItems.ALLOY_TACHYON_ACCEL.get(), 1},
-                {ModItems.ALLOY_ECLIPSE_BIOMETAL.get(), 1}, {ModItems.CIRCUIT_QUANTUM_TAC.get(), 1}, {ModItems.ORB_LUMINAL.get(), 1}};
+                {ModItems.ALLOY_ECLIPSE_BIOMETAL.get(), 1}, {com.automatavalkyries.registry.ModFutureTech.CIRCUIT_PHOTONIC.get(), 1}, {ModItems.ORB_LUMINAL.get(), 1}};
         for (int i = 0; i < stella.length; i++) adapter.items().setStackInSlot(i, new ItemStack((net.minecraft.world.item.Item) stella[i][0], (int) stella[i][1]));
         helper.runAfterDelay(30, () -> {
             helper.assertTrue(adapter.items().getStackInSlot(6).isEmpty() && adapter.stage() == 0, "T1 adapter made Stellachronodyme");
@@ -270,7 +270,7 @@ public class ChronoGameTests {
         powered(adapter);
         adapter.items().setStackInSlot(0, new ItemStack(ModItems.ALLOY_TACHYON_ACCEL.get(), 2));
         adapter.items().setStackInSlot(1, new ItemStack(com.automatavalkyries.registry.ModCompression.COIL_CHRONO.get(), 2));
-        adapter.items().setStackInSlot(2, new ItemStack(ModItems.CIRCUIT_QUANTUM_TAC.get(), 1));
+        adapter.items().setStackInSlot(2, new ItemStack(com.automatavalkyries.registry.ModFutureTech.CIRCUIT_PHOTONIC.get(), 1));
         helper.runAfterDelay(20, () -> {
             helper.assertTrue(adapter.items().getStackInSlot(6).isEmpty(), "T1 adapter made a T2 intermediate");
             for (int i = 0; i < 3; i++) adapter.items().setStackInSlot(i, ItemStack.EMPTY);
@@ -279,6 +279,46 @@ public class ChronoGameTests {
             adapter.items().setStackInSlot(2, new ItemStack(ModItems.INGOT_CERULEAS.get(), 1));
             helper.succeedWhen(() -> helper.assertTrue(adapter.items().getStackInSlot(6).is(com.automatavalkyries.registry.ModCompression.LENS_LUMINAL.get()),
                     "no luminal lens: " + adapter.items().getStackInSlot(6)));
+        });
+    }
+
+    /** ヴォイド・リポジトリの自動圧縮（64 個を残して 9 → 1、電力を使う）と在庫の決まりの段（2026-10-29） */
+    @GameTest(template = TEMPLATE)
+    public static void repositoryCompressesAndKeepsStockRules(GameTestHelper helper) {
+        BlockPos pos = new BlockPos(1, 2, 1);
+        var repo = (com.automatavalkyries.chrono.VoidRepositoryBlockEntity) place(helper, pos, ChronoMachineType.VOID_REPOSITORY);
+        repo.insert(new ItemStack(net.minecraft.world.item.Items.IRON_INGOT, 64 + 20), false);
+        repo.compressContents(ChronoTier.HIGH_END);
+        helper.assertTrue(repo.entries().get(0).count == 84, "compressed without power or while switched off");
+        repo.toggleCompress();
+        repo.energy().set(repo.energy().getMaxEnergyStored());
+        repo.compressContents(ChronoTier.HIGH_END);
+        long ingots = repo.entries().get(0).count;
+        long blocks = repo.entries().stream().filter(e -> e != null && e.key.is(net.minecraft.world.item.Items.IRON_BLOCK)).mapToLong(e -> e.count).sum();
+        helper.assertTrue(ingots == 66 && blocks == 2, "auto compress: " + ingots + " ingots, " + blocks + " blocks");
+        repo.cycleStock(0, false);
+        helper.assertTrue(repo.stockOf(new ItemStack(net.minecraft.world.item.Items.IRON_INGOT)) == 16, "first stock step");
+        repo.cycleStock(0, true);
+        helper.assertTrue(repo.stockOf(new ItemStack(net.minecraft.world.item.Items.IRON_INGOT)) == 0, "stepping back clears the rule");
+        helper.succeed();
+    }
+
+    /** 創世ルミナルコアは T4 の燃料にもなる（スターの 9 倍。2026-10-29）。コアの枠が空なら燃料の枠には入らない（Shift クリックで燃えないように） */
+    @GameTest(template = TEMPLATE)
+    public static void genesisCoreBurnsAtNeverlast(GameTestHelper helper) {
+        ItemStack core = new ItemStack(com.automatavalkyries.registry.ModCompression.CORE_GENESIS_LUMINAL.get());
+        helper.assertTrue(com.automatavalkyries.chrono.LuminalReactorBlockEntity.fuelValue(core, ChronoTier.BEYOND) == 0, "genesis core burns below T4");
+        helper.assertTrue(com.automatavalkyries.chrono.LuminalReactorBlockEntity.fuelValue(core, ChronoTier.NEVERLAST) == 450_000_000L, "genesis core fuel value");
+        BlockPos pos = new BlockPos(1, 2, 1);
+        place(helper, pos, ChronoMachineType.LUMINAL_REACTOR);
+        setTier(helper, pos, 4);
+        helper.runAfterDelay(1, () -> {
+            ChronoMachineBlockEntity t4 = (ChronoMachineBlockEntity) helper.getBlockEntity(pos);
+            ItemStack left = t4.items().insertItem(0, core.copy(), true);
+            helper.assertTrue(left.getCount() == 1, "a genesis core went into the fuel slot while the core slot was empty");
+            t4.items().setStackInSlot(1, core.copy());
+            helper.assertTrue(t4.items().insertItem(0, core.copy(), true).isEmpty(), "a second genesis core cannot be burned");
+            helper.succeed();
         });
     }
 
@@ -316,12 +356,12 @@ public class ChronoGameTests {
         helper.assertTrue(com.automatavalkyries.config.MachineConfig.FLAGS.size() == 3, "one switch per upgrade kit");
         helper.succeed();
     }
-    /** 未来技術の上位回路・パーツ: 必要なティアがそろって上がっていく（T1 フォトニック → T3 時空格子 → T4 因果演算）、ティアフレームの材料になる */
+    /** 未来技術の上位回路・パーツ: 必要なティアがそろって上がっていく（T1 量子TAC → T2 フォトニック → T3 時空格子 → T4 因果演算。2026-10-29 に量子TAC とフォトニックのティアを入れ替え）、ティアフレームの材料になる */
     @GameTest(template = TEMPLATE)
     public static void futureCircuitsClimbTiers(GameTestHelper helper) {
         var level = helper.getLevel();
         var transitions = level.getRecipeManager().getAllRecipesFor(com.automatavalkyries.registry.ModRecipes.PHASE_TRANSITION.get());
-        Object[][] expected = {{com.automatavalkyries.registry.ModFutureTech.CIRCUIT_PHOTONIC.get(), 1}, {com.automatavalkyries.registry.ModFutureTech.EMITTER_SPATIAL.get(), 1},
+        Object[][] expected = {{ModItems.CIRCUIT_QUANTUM_TAC.get(), 1}, {com.automatavalkyries.registry.ModFutureTech.CIRCUIT_PHOTONIC.get(), 2}, {com.automatavalkyries.registry.ModFutureTech.EMITTER_SPATIAL.get(), 1},
                 {com.automatavalkyries.registry.ModFutureTech.PROCESSOR_SYNAPSE.get(), 2}, {com.automatavalkyries.registry.ModFutureTech.CIRCUIT_CHRONO_LATTICE.get(), 3},
                 {com.automatavalkyries.registry.ModFutureTech.GATE_WORMHOLE.get(), 3}, {com.automatavalkyries.registry.ModFutureTech.CIRCUIT_CAUSAL.get(), 4},
                 {com.automatavalkyries.registry.ModFutureTech.ENGINE_PERPETUAL.get(), 4}};
@@ -332,8 +372,8 @@ public class ChronoGameTests {
             helper.assertTrue(recipe.get().tier() == (int) e[1], item + " needs tier " + recipe.get().tier() + ", expected " + e[1]);
         }
         var crafting = level.getRecipeManager().getAllRecipesFor(RecipeType.CRAFTING);
-        Object[][] frames = {{ModChrono.FRAME_FUTURE.get(), com.automatavalkyries.registry.ModFutureTech.CIRCUIT_PHOTONIC.get()},
-                {ModChrono.FRAME_BEYOND.get(), ModItems.CIRCUIT_QUANTUM_TAC.get()},
+        Object[][] frames = {{ModChrono.FRAME_FUTURE.get(), ModItems.CIRCUIT_QUANTUM_TAC.get()},
+                {ModChrono.FRAME_BEYOND.get(), com.automatavalkyries.registry.ModFutureTech.CIRCUIT_PHOTONIC.get()},
                 {ModChrono.FRAME_NEVERLAST.get(), com.automatavalkyries.registry.ModFutureTech.CIRCUIT_CHRONO_LATTICE.get()}};
         for (Object[] f : frames) {
             var frame = (net.minecraft.world.item.Item) f[0];

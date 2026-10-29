@@ -28,7 +28,7 @@ public final class ValkyrieConfig {
                 .defineInRange("easyPodEnergy", 30_000, 1_000, 100_000);
         builder.pop();
         builder.comment("戦術級コード（追加拡張仕様書 §13）").push("tactical");
-        TACTICAL_GRIEFING = builder.comment("true にすると、戦術級コード（CARPET の爆発・GUNGNIR の光の柱）で地形も壊れる。false ならモブへのダメージだけ")
+        TACTICAL_GRIEFING = builder.comment("true にすると、戦術級コードで地形も壊れる（CARPET・GUNGNIR・ABYSS・COMET のクレーター、GUNGNIR の岩盤の層までの縦穴、ABYSS のブロックの吸い込み）。false ならモブへのダメージだけ")
                 .define("enableTacticalGriefing", false);
         TACTICAL_VS_BOSSES = builder.comment("true にすると、戦術級コードがボスにも効く（ダメージ・吸い込み・吹き飛ばし）。false ならボスには何もしない。",
                         "ボス = forge:bosses のタグのあるモブ（ウィザー・エンダードラゴン・他 MOD のボス）と、このMOD のボス")

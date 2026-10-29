@@ -53,7 +53,7 @@ public final class ChronoLinks {
         return target.getBlockEntity(link.pos());
     }
 
-    private static void keepLoaded(ServerLevel level, BlockPos pos) {
+    public static void keepLoaded(ServerLevel level, BlockPos pos) {
         ChunkPos chunk = new ChunkPos(pos);
         level.getChunkSource().addRegionTicket(TICKET, chunk, 1, chunk);
     }

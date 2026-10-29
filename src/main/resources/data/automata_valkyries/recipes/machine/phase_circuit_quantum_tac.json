@@ -1,9 +1,37 @@
 {
   "type": "automata_valkyries:phase_transition",
-  "tier": 2,
+  "tier": 1,
   "stages": 1,
-  "ingredients": [ { "ingredient": { "tag": "forge:dusts/redstone" }, "count": 4 }, { "ingredient": { "tag": "forge:ingots/gold" }, "count": 2 }, { "ingredient": { "tag": "forge:plates/constantan" }, "count": 2 }, { "ingredient": { "item": "automata_valkyries:crystal_luminal" }, "count": 1 } ],
-  "result": { "item": "automata_valkyries:circuit_quantum_tac", "count": 1 },
-  "energy": 150000,
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_advanced"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:alloy_luminal_sterling"
+      },
+      "count": 1
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:crystal_luminal"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:wire_gold"
+      },
+      "count": 4
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:circuit_quantum_tac",
+    "count": 2
+  },
+  "energy": 120000,
   "time": 200
 }

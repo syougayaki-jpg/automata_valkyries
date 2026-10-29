@@ -16,6 +16,9 @@ public final class ClientChrono {
         var player = Minecraft.getInstance().player;
         if (player == null || !(player.containerMenu instanceof ChronoMenu menu) || menu.containerId != packet.containerId()) return;
         menu.repository.clear();
+        menu.repositoryStock = packet.stock();
+        menu.repositoryCompress = packet.compress();
+        menu.repositoryPylonPower = packet.pylonPower();
         for (int i = 0; i < packet.keys().size(); i++) {
             ItemStack key = packet.keys().get(i);
             menu.repository.add(key.isEmpty() ? null : new VoidRepositoryBlockEntity.Entry(key, packet.counts()[i])); // 空きは null

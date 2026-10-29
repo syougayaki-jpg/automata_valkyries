@@ -113,6 +113,22 @@ final class TacticalSprites {
 
     // ------------------------------------------------------------------ GUNGNIR
 
+    /** 地中へ貫く光の芯（{@link TacticalFx} の地中の柱に重ねる）: 縦に重ねた赤と白の光、掘削の先端の閃光、縁から噴き上がる溶けた光 */
+    static void gungnirPierce(Ctx k, double depth, float st, float fade) {
+        double reach = depth * Math.min(1.0, st / 20.0);
+        int al = (int) (255 * fade);
+        for (double y = 0; y > reach; y -= 5) glow(k, 0, y, 0, 7.0 + 1.5 * Mth.sin((float) (st * 0.3 + y)), 255, 60, 70, al / 2);
+        for (double y = 0; y > reach; y -= 9) glow(k, 0, y, 0, 3.0, 255, 235, 235, al);
+        if (st < 24) { // 掘削の先端の閃光
+            sprite(k, k.flare, 0, reach, 0, 22, st * 0.2F, 255, 240, 230, 255, 0, 0, 1, 1);
+            glow(k, 0, reach, 0, 14, 255, 120, 80, 255);
+        }
+        for (int i = 0; i < 24; i++) { // 縁から噴き上がる溶けた光
+            double a = i * Math.PI * 2 / 24 + st * 0.05, ph = ((st * 0.8 + i * 7) % 30) / 30.0;
+            glow(k, Math.cos(a) * 10.5, ph * 8, Math.sin(a) * 10.5, 1.4 * (1 - ph) + 0.4, 255, 130, 40, (int) (220 * fade * (1 - ph)));
+        }
+    }
+
     static void gungnir(Ctx k, float radius, float t, float fade) {
         float descent = TacticalFxPacket.GUNGNIR_DESCENT;
         if (t < descent) {

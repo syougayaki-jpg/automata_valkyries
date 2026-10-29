@@ -43,6 +43,12 @@ public class AkashicCubeEntity extends ThrowableProjectile {
 
     private float damage = 6.0F, blast;
     private int life = 120, homingTicks;
+    /** 追いかけるとき 1 Tick に向きを曲げる割合 */
+    private float homingRate = 0.12F;
+    /** 観測の立方体の強化（2026-10-29）: あと何体突き抜けるか・当たった所のまわりの半径（半分のダメージ） */
+    private int pierce;
+    private float splash;
+    private final java.util.Set<Integer> pierced = new java.util.HashSet<>();
     @Nullable
     private LivingEntity homing;
 
@@ -67,6 +73,24 @@ public class AkashicCubeEntity extends ThrowableProjectile {
     public AkashicCubeEntity homing(LivingEntity target, int ticks) {
         this.homing = target;
         this.homingTicks = ticks;
+        return this;
+    }
+
+    /** 追いかける（曲げる割合を指定） */
+    public AkashicCubeEntity homing(LivingEntity target, int ticks, float rate) {
+        this.homingRate = rate;
+        return homing(target, ticks);
+    }
+
+    /** count 体まで突き抜ける */
+    public AkashicCubeEntity pierce(int count) {
+        this.pierce = count;
+        return this;
+    }
+
+    /** 当たった所のまわり半径 radius の敵にも半分のダメージ */
+    public AkashicCubeEntity splash(float radius) {
+        this.splash = radius;
         return this;
     }
 
@@ -118,7 +142,7 @@ public class AkashicCubeEntity extends ThrowableProjectile {
                 Vec3 v = getDeltaMovement();
                 double speed = v.length();
                 Vec3 want = homing.position().add(0, homing.getBbHeight() * 0.5, 0).subtract(position()).normalize().scale(speed);
-                setDeltaMovement(v.add(want.subtract(v).scale(0.12)).normalize().scale(speed));
+                setDeltaMovement(v.add(want.subtract(v).scale(homingRate)).normalize().scale(speed));
             } else {
                 homing = null;
             }
@@ -144,7 +168,7 @@ public class AkashicCubeEntity extends ThrowableProjectile {
 
     @Override
     protected boolean canHitEntity(Entity e) {
-        return super.canHitEntity(e) && target(e) && (damage > 0.0F || blast > 0.0F);   // 見た目だけの結晶（ダメージ 0）は体をすり抜ける
+        return super.canHitEntity(e) && target(e) && (damage > 0.0F || blast > 0.0F) && !pierced.contains(e.getId());   // 見た目だけの結晶（ダメージ 0）は体をすり抜ける
     }
 
     @Override
@@ -153,6 +177,13 @@ public class AkashicCubeEntity extends ThrowableProjectile {
         if (level().isClientSide || blast > 0.0F) return;
         LivingEntity owner = getOwner() instanceof LivingEntity l ? l : null;
         hit.getEntity().hurt(source(owner), damage);
+        if (splash > 0.0F && level() instanceof ServerLevel server) {                     // 着弾のまわりにも半分（観測の立方体の強化）
+            for (LivingEntity e : server.getEntitiesOfClass(LivingEntity.class, getBoundingBox().inflate(splash), this::target)) {
+                if (e == hit.getEntity() || e.distanceTo(this) > splash + e.getBbWidth() / 2) continue;
+                e.hurt(source(owner), damage * 0.5F);
+            }
+            Fx.shockwave(server, position(), color(), splash, 8);
+        }
         if (owner instanceof AkashicSeerEntity seer) {
             seer.observed(3.0F);                                                           // 当てると論理突破率が上がり、観測の印が付く
             if (hit.getEntity() instanceof LivingEntity l) seer.mark(l);
@@ -163,6 +194,14 @@ public class AkashicCubeEntity extends ThrowableProjectile {
 
     @Override
     protected void onHit(HitResult hit) {
+        if (pierce > 0 && blast <= 0.0F && hit instanceof EntityHitResult eh) {          // 突き抜けて飛び続ける
+            super.onHit(hit);
+            if (!level().isClientSide) {
+                pierce--;
+                pierced.add(eh.getEntity().getId());
+            }
+            return;
+        }
         super.onHit(hit);
         if (level().isClientSide) return;
         if (blast > 0.0F && level() instanceof ServerLevel server) {

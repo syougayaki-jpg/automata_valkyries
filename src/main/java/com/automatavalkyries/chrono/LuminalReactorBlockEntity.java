@@ -30,6 +30,9 @@ public class LuminalReactorBlockEntity extends ChronoMachineBlockEntity {
         if (stack.is(ModBlocks.BLOCK_LUMINAL_GEM.get().asItem())) return 540_000L;
         if (stack.is(ModItems.ORB_LUMINAL.get())) return tier.level >= 2 ? 5_000_000L : 0;
         if (stack.is(ModItems.STAR_LUMINAL.get())) return tier.level >= 3 ? 50_000_000L : 0;
+        // 創世ルミナルコアを燃料の枠に入れると、スターの 9 倍を燃やす（T4。2026-10-29 ユーザー指定「ルミナル反応炉をルミナルコアまで対応させて」「ティア４で単純に長く持つ」。
+        // コアの枠に置いた時の永久の発電はそのまま。燃やすか置いておくかは選べる）
+        if (stack.is(com.automatavalkyries.registry.ModCompression.CORE_GENESIS_LUMINAL.get())) return tier.level >= 4 ? CORE_FUEL : 0;
         return 0;
     }
 
@@ -46,12 +49,18 @@ public class LuminalReactorBlockEntity extends ChronoMachineBlockEntity {
     @Override protected int maxReceive(ChronoTier tier) { return 0; }
     @Override protected int maxExtract(ChronoTier tier) { return generation(tier) * 2; }
 
+    /** 創世ルミナルコアを燃やした時の電力（スターの 9 倍） */
+    public static final long CORE_FUEL = 450_000_000L;
+
     /** 創世ルミナルコアの発電（FE/Tick）: 毎秒 1,000,000 FE */
     public static final int GENESIS_PER_TICK = 50_000;
 
     @Override
     protected boolean accepts(int slot, ItemStack stack) {
-        if (slot == 1) return tier() == ChronoTier.NEVERLAST && stack.is(com.automatavalkyries.registry.ModCompression.CORE_GENESIS_LUMINAL.get());
+        boolean core = stack.is(com.automatavalkyries.registry.ModCompression.CORE_GENESIS_LUMINAL.get());
+        if (slot == 1) return tier() == ChronoTier.NEVERLAST && core;
+        // 燃やすのはコアの枠が埋まっている時だけ（Shift クリックで永久の発電の枠より先に燃料の枠へ入って燃えないように）
+        if (core && items.getStackInSlot(1).isEmpty()) return false;
         return slot == 0 && fuelValue(stack, tier()) > 0;
     }
 
@@ -59,7 +68,7 @@ public class LuminalReactorBlockEntity extends ChronoMachineBlockEntity {
 
     @Override
     protected boolean work(ChronoTier tier) {
-        if (ticks % 4 == 0) pullFromLinks(tier, 0, 1, s -> fuelValue(s, tier) > 0);
+        if (ticks % 4 == 0) pullFromLinks(tier, 0, 1, s -> fuelValue(s, tier) > 0 && !s.is(com.automatavalkyries.registry.ModCompression.CORE_GENESIS_LUMINAL.get())); // コアはリンク先から勝手に燃やさない
         generatedLastTick = 0;
         if (pending <= 0 && energy.getEnergyStored() < energy.getMaxEnergyStored()) {
             ItemStack fuel = items.getStackInSlot(0);

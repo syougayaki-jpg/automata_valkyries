@@ -49,7 +49,7 @@ public class ModItems {
     public static final RegistryObject<Item> ALLOY_CHRONO_FORTRESS = effect("alloy_chrono_fortress", Rarity.UNCOMMON, ModEffects.CHRONO_FORTRESS, 10, false);
     public static final RegistryObject<Item> ALLOY_TACHYON_ACCEL = effect("alloy_tachyon_accel", Rarity.UNCOMMON, ModEffects.TACHYON_ACCEL, 8, false);
     public static final RegistryObject<Item> ALLOY_ECLIPSE_BIOMETAL = effect("alloy_eclipse_biometal", Rarity.UNCOMMON, ModEffects.ECLIPSE_BIOMETAL, 12, false);
-    public static final RegistryObject<Item> CIRCUIT_QUANTUM_TAC = effect("circuit_quantum_tac", Rarity.RARE, ModEffects.QUANTUM_CIRCUIT, 10, false);
+    public static final RegistryObject<Item> CIRCUIT_QUANTUM_TAC = effect("circuit_quantum_tac", Rarity.UNCOMMON, ModEffects.QUANTUM_CIRCUIT, 10, false);
     public static final RegistryObject<Item> INGOT_STELLACHRONODYME = effect("ingot_stellachronodyme", Rarity.EPIC, ModEffects.STELLACHRONODYME, 6, true);
 
     // ---- 基礎文明マシンの部品（追加拡張仕様書 §11.1.2）。連携素材を多く使う重めのレシピ ----
@@ -206,6 +206,9 @@ public class ModItems {
                     new org.joml.Vector3f(1.0F, 0.35F, 0.85F)));
     public static final RegistryObject<Item> AKASHIC_CUBES = ITEMS.register("akashic_cubes", () ->
             new com.automatavalkyries.item.AkashicCubesItem(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC)));
+    /** 観測の立方体マキシマイザー（クリエイティブ用。2026-10-29） */
+    public static final RegistryObject<Item> CUBE_MAXIMIZER = ITEMS.register("cube_maximizer", () ->
+            new com.automatavalkyries.item.CubeMaximizerItem(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC)));
 
     // ---- テスト用 ----
     public static final RegistryObject<Item> DEBUG_KILL_STICK = ITEMS.register("debug_kill_stick", () ->

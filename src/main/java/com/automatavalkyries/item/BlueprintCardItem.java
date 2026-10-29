@@ -25,7 +25,8 @@ import java.util.stream.Stream;
 /**
  * 設計図カード（docs/SPEC_CHRONOLINK_MACHINES.md §4.4）: クロノ・ファブリケータに差すレシピ 1 つ。
  * 作りたい物をオフハンドに持ち、カードを持って右クリックすると、それを作るレシピ（作業台・組み立て機・兵装ワークベンチ）を書き込む。
- * オフハンドが空なら消す。
+ * オフハンドが空なら、カードの画面を開く（書き込んであるレシピと消すボタン。開いたまま JEI のレシピの「+」で書き込める。2026-10-29 ユーザー指定
+ * 「設計図カードもJEIの窓からもレシピを持ってこれるようにして」。前はオフハンドが空だと消していた）。
  */
 public class BlueprintCardItem extends Item {
 
@@ -40,8 +41,10 @@ public class BlueprintCardItem extends Item {
         if (level.isClientSide) return InteractionResultHolder.success(card);
         ItemStack wanted = player.getOffhandItem();
         if (wanted.isEmpty()) {
-            card.removeTagKey("Recipe");
-            player.displayClientMessage(Component.translatable("message.automata_valkyries.blueprint.cleared"), true);
+            if (player instanceof net.minecraft.server.level.ServerPlayer sp) {
+                net.minecraftforge.network.NetworkHooks.openScreen(sp, new net.minecraft.world.SimpleMenuProvider(
+                        (id, inv, p) -> new com.automatavalkyries.menu.BlueprintCardMenu(id, inv, hand), card.getHoverName()), buf -> buf.writeEnum(hand));
+            }
             return InteractionResultHolder.success(card);
         }
         // 同じ物を作るレシピがいくつもあれば、持ち物の材料でいちばん作れそうな物を選ぶ。もう一度同じ物で使うと次のレシピへ
@@ -63,6 +66,12 @@ public class BlueprintCardItem extends Item {
                         ? Component.translatable("message.automata_valkyries.blueprint.alternatives", options.size()) : Component.empty()), true);
         level.playSound(null, player.blockPosition(), SoundEvents.BOOK_PAGE_TURN, SoundSource.PLAYERS, 1.0F, 1.2F);
         return InteractionResultHolder.success(card);
+    }
+
+    /** カードに書けるレシピか（作業台・組み立て機・兵装ワークベンチ。作業台の特別なレシピ＝花火などは除く） */
+    public static boolean writable(Recipe<?> recipe) {
+        if (recipe.getType() == RecipeType.CRAFTING) return !recipe.isSpecial();
+        return recipe.getType() == ModRecipes.ASSEMBLING.get() || recipe.getType() == ModRecipes.WEAPON_ASSEMBLING.get();
     }
 
     /** その物を作るレシピ（作業台 → 組み立て機 → 兵装ワークベンチの順に探す） */

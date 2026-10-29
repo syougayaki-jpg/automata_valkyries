@@ -38,6 +38,7 @@ public class ValkyrieRenderer extends GeoEntityRenderer<ValkyrieEntity> {
         GenesisBackdropClient.render(entity, poseStack, bufferSource, partialTick);
         RequiemBackdropClient.render(entity, poseStack, bufferSource, partialTick);
         MementoButterflies.render(entity, poseStack, bufferSource, partialTick); // メメント・ファミリアの蝶
+        FlightWingClient.render(entity, poseStack, bufferSource, partialTick); // 光翼の飛翔機の光の翼（2026-10-29）
         ValkyrieOverhead.render(entity, poseStack, bufferSource, partialTick, entityRenderDispatcher, getFont()); // 名前・バー・感情アイコン・吹き出し
     }
 

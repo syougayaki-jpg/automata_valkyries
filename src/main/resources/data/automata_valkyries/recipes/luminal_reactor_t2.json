@@ -2,6 +2,6 @@
   "type": "minecraft:crafting_shaped",
   "category": "misc",
   "pattern": [ "ICI", "AFA", "IXI" ],
-  "key": { "I": { "item": "automata_valkyries:alloy_luminal_sterling" }, "C": { "item": "automata_valkyries:circuit_photonic" }, "A": { "item": "automata_valkyries:lens_luminal" }, "F": { "item": "automata_valkyries:frame_future" }, "X": { "item": "automata_valkyries:improved_generator" } },
+  "key": { "I": { "item": "automata_valkyries:alloy_luminal_sterling" }, "C": { "item": "automata_valkyries:circuit_quantum_tac" }, "A": { "item": "automata_valkyries:lens_luminal" }, "F": { "item": "automata_valkyries:frame_future" }, "X": { "item": "automata_valkyries:improved_generator" } },
   "result": { "item": "automata_valkyries:luminal_reactor", "count": 1, "nbt": "{BlockStateTag:{tier:\"2\"}}" }
 }

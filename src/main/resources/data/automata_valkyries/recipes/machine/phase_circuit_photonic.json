@@ -1,9 +1,37 @@
 {
   "type": "automata_valkyries:phase_transition",
-  "tier": 1,
+  "tier": 2,
   "stages": 1,
-  "ingredients": [ { "ingredient": { "item": "automata_valkyries:circuit_advanced" }, "count": 2 }, { "ingredient": { "item": "automata_valkyries:lens_luminal" }, "count": 1 }, { "ingredient": { "item": "automata_valkyries:wire_gold" }, "count": 4 }, { "ingredient": { "item": "automata_valkyries:crystal_luminal" }, "count": 2 } ],
-  "result": { "item": "automata_valkyries:circuit_photonic", "count": 1 },
-  "energy": 60000,
-  "time": 160
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "automata_valkyries:circuit_quantum_tac"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:lens_luminal"
+      },
+      "count": 1
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:wire_gold"
+      },
+      "count": 4
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:crystal_luminal"
+      },
+      "count": 2
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:circuit_photonic",
+    "count": 1
+  },
+  "energy": 150000,
+  "time": 200
 }

@@ -91,4 +91,92 @@ public class ItemPocketGameTests {
         helper.assertTrue(player.getFoodData().getFoodLevel() > 6, "food level " + player.getFoodData().getFoodLevel());
         helper.succeed();
     }
+
+    /** ティアの機能（2026-10-29）: T2 で重ならない物が 16、T3 で何でも 64 まで重なる・整理・取り出しはふつうの 1 スタックまで */
+    @GameTest(template = TEMPLATE)
+    public static void pocketTierStacking(GameTestHelper helper) {
+        ItemStack potion = PotionUtils.setPotion(new ItemStack(Items.POTION), Potions.HEALING);
+        helper.assertTrue(ItemPocketItem.limit(1, potion) == 1 && ItemPocketItem.limit(2, potion) == 16 && ItemPocketItem.limit(3, potion) == 64, "potion limits");
+        helper.assertTrue(ItemPocketItem.limit(2, new ItemStack(Items.ENDER_PEARL)) == 16 && ItemPocketItem.limit(3, new ItemStack(Items.ENDER_PEARL)) == 64, "pearl limits");
+        helper.assertTrue(ItemPocketItem.limit(4, new ItemStack(Items.DIAMOND_SWORD)) == 1, "damageable items must not stack");
+        NonNullList<ItemStack> items = NonNullList.withSize(27, ItemStack.EMPTY);
+        for (int i = 0; i < 20; i++) ItemPocketItem.insert(items, potion.copy(), 2);
+        helper.assertTrue(items.get(0).getCount() == 16 && items.get(1).getCount() == 4, "T2 potions did not stack to 16: " + items.get(0).getCount() + "/" + items.get(1).getCount());
+        items.set(5, new ItemStack(Items.TOTEM_OF_UNDYING));
+        items.set(9, new ItemStack(Items.TOTEM_OF_UNDYING));
+        ItemPocketItem.sort(items, 2);
+        long used = items.stream().filter(st -> !st.isEmpty()).count();
+        helper.assertTrue(used == 3, "sort did not merge: " + used + " slots used");
+        // 取り出し: 中で 16 重なっていても 1 本ずつ
+        FakePlayer player = player(helper);
+        ItemStack pocket = new ItemStack(ModItems.ITEM_POCKET_T2.get());
+        NonNullList<ItemStack> stored = ItemPocketItem.load(pocket);
+        stored.set(0, potion.copyWithCount(16));
+        ItemPocketItem.save(pocket, stored);
+        player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, pocket);
+        var menu = new com.automatavalkyries.menu.ItemPocketMenu(0, player.getInventory(), net.minecraft.world.InteractionHand.MAIN_HAND);
+        ItemStack taken = menu.getSlot(0).remove(64);
+        helper.assertTrue(taken.getCount() == 1 && menu.getSlot(0).getItem().getCount() == 15, "took " + taken.getCount() + " potions at once");
+        helper.succeed();
+    }
+
+    /** T3 の自動回収: 入っている種類の物を拾うとポケットへ。T4 の補充: 手の物を使い切るとポケットから */
+    @GameTest(template = TEMPLATE)
+    public static void pocketCollectAndRefill(GameTestHelper helper) {
+        FakePlayer player = player(helper);
+        ItemStack pocket = new ItemStack(ModItems.ITEM_POCKET_T4.get());
+        NonNullList<ItemStack> stored = ItemPocketItem.load(pocket);
+        stored.set(0, new ItemStack(Items.COBBLESTONE, 10));
+        ItemPocketItem.save(pocket, stored);
+        player.getInventory().setItem(9, pocket);
+        var drop = new net.minecraft.world.entity.item.ItemEntity(helper.getLevel(), player.getX(), player.getY(), player.getZ(), new ItemStack(Items.COBBLESTONE, 5));
+        helper.getLevel().addFreshEntity(drop);
+        var event = new net.minecraftforge.event.entity.player.EntityItemPickupEvent(player, drop);
+        com.automatavalkyries.item.PocketPerks.onPickup(event);
+        helper.assertTrue(event.isCanceled() && ItemPocketItem.load(pocket).get(0).getCount() == 15, "cobblestone was not collected into the pocket");
+        var dirt = new net.minecraft.world.entity.item.ItemEntity(helper.getLevel(), player.getX(), player.getY(), player.getZ(), new ItemStack(Items.DIRT, 3));
+        helper.getLevel().addFreshEntity(dirt);
+        var event2 = new net.minecraftforge.event.entity.player.EntityItemPickupEvent(player, dirt);
+        com.automatavalkyries.item.PocketPerks.onPickup(event2);
+        helper.assertFalse(event2.isCanceled(), "an item type not in the pocket was collected");
+        dirt.discard();
+        // 補充: 手の丸石を使い切った
+        helper.assertTrue(com.automatavalkyries.item.PocketPerks.refill(player, net.minecraft.world.InteractionHand.MAIN_HAND, new ItemStack(Items.COBBLESTONE, 1)), "hand was not refilled");
+        helper.assertTrue(player.getMainHandItem().is(Items.COBBLESTONE) && player.getMainHandItem().getCount() == 15, "refill amount " + player.getMainHandItem());
+        helper.succeed();
+    }
+
+    /** T4 のチート級の機能（2026-10-29）: 磁石・死んでも残る・どこでもリポジトリのリンク */
+    @GameTest(template = TEMPLATE)
+    public static void pocketNeverlastPerks(GameTestHelper helper) {
+        FakePlayer player = player(helper);
+        ItemStack pocket = new ItemStack(ModItems.ITEM_POCKET_T4.get());
+        player.getInventory().setItem(9, pocket);
+        // 磁石: 10 ブロック先の物が足元へ
+        var far = new net.minecraft.world.entity.item.ItemEntity(helper.getLevel(), player.getX() + 10, player.getY(), player.getZ(), new ItemStack(Items.DIAMOND));
+        far.setNoPickUpDelay();
+        helper.getLevel().addFreshEntity(far);
+        com.automatavalkyries.item.PocketPerks.magnet(player);
+        helper.assertTrue(far.distanceToSqr(player) < 1.0, "magnet did not pull the item: " + far.distanceTo(player));
+        far.discard();
+        // 死んでも残る: 控えを取り、落とし物から消し、生き返ると戻る
+        player.getInventory().setItem(0, new ItemStack(Items.DIAMOND_SWORD));
+        player.experienceLevel = 30;
+        com.automatavalkyries.item.PocketPerks.onDeath(new net.minecraftforge.event.entity.living.LivingDeathEvent(player, helper.getLevel().damageSources().generic()));
+        java.util.List<net.minecraft.world.entity.item.ItemEntity> drops = new java.util.ArrayList<>();
+        drops.add(new net.minecraft.world.entity.item.ItemEntity(helper.getLevel(), player.getX(), player.getY(), player.getZ(), new ItemStack(Items.DIAMOND_SWORD)));
+        drops.add(new net.minecraft.world.entity.item.ItemEntity(helper.getLevel(), player.getX(), player.getY(), player.getZ(), new ItemStack(Items.APPLE)));
+        var dropsEvent = new net.minecraftforge.event.entity.living.LivingDropsEvent(player, helper.getLevel().damageSources().generic(), drops, 0, true);
+        com.automatavalkyries.item.PocketPerks.onDrops(dropsEvent);
+        helper.assertTrue(dropsEvent.getDrops().size() == 1 && dropsEvent.getDrops().iterator().next().getItem().is(Items.APPLE), "kept items were still dropped: " + dropsEvent.getDrops().size());
+        FakePlayer reborn = player(helper);
+        com.automatavalkyries.item.PocketPerks.onClone(new net.minecraftforge.event.entity.player.PlayerEvent.Clone(reborn, player, true));
+        helper.assertTrue(reborn.getInventory().getItem(0).is(Items.DIAMOND_SWORD) && reborn.getInventory().getItem(9).getItem() == ModItems.ITEM_POCKET_T4.get(), "inventory was not restored");
+        helper.assertTrue(reborn.experienceLevel == 30, "experience was not restored: " + reborn.experienceLevel);
+        // どこでもリポジトリ: リンクの読み書き
+        var at = net.minecraft.core.GlobalPos.of(helper.getLevel().dimension(), new net.minecraft.core.BlockPos(100, 64, -200));
+        ItemPocketItem.link(pocket, at);
+        helper.assertTrue(at.equals(ItemPocketItem.repository(pocket)), "repository link was not kept: " + ItemPocketItem.repository(pocket));
+        helper.succeed();
+    }
 }

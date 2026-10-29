@@ -16,7 +16,7 @@ import java.util.List;
 public final class ModFutureTech {
 
     // ---- 上位回路 ----
-    public static final RegistryObject<Item> CIRCUIT_PHOTONIC = effect("circuit_photonic", Rarity.UNCOMMON, ModEffects.LUMINAL, 16, false);
+    public static final RegistryObject<Item> CIRCUIT_PHOTONIC = effect("circuit_photonic", Rarity.RARE, ModEffects.LUMINAL, 16, false);
     public static final RegistryObject<Item> CIRCUIT_CHRONO_LATTICE = effect("circuit_chrono_lattice", Rarity.EPIC, ModEffects.CHRONO, 6, true);
     public static final RegistryObject<Item> CIRCUIT_CAUSAL = effect("circuit_causal", Rarity.EPIC, ModEffects.STELLACHRONODYME, 3, true);
 

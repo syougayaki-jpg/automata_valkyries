@@ -4,7 +4,7 @@
   "pattern": [ "NCN", "OMO", "NIN" ],
   "key": {
     "M": { "item": "automata_valkyries:boss_drop_memory_stella" },
-    "C": { "item": "automata_valkyries:circuit_quantum_tac" },
+    "C": { "item": "automata_valkyries:circuit_photonic" },
     "O": { "item": "automata_valkyries:orb_nano" },
     "N": { "item": "automata_valkyries:nano_solution" },
     "I": { "item": "automata_valkyries:module_repair_injector" }

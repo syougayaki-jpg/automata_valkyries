@@ -2,6 +2,6 @@
   "type": "minecraft:crafting_shaped",
   "category": "misc",
   "pattern": [ "ICI", "AFA", "IXI" ],
-  "key": { "I": { "item": "automata_valkyries:alloy_chrono_fortress" }, "C": { "item": "automata_valkyries:circuit_photonic" }, "A": { "item": "automata_valkyries:coil_chrono" }, "F": { "item": "automata_valkyries:frame_future" }, "X": { "item": "automata_valkyries:improved_electric_furnace" } },
+  "key": { "I": { "item": "automata_valkyries:alloy_chrono_fortress" }, "C": { "item": "automata_valkyries:circuit_quantum_tac" }, "A": { "item": "automata_valkyries:coil_chrono" }, "F": { "item": "automata_valkyries:frame_future" }, "X": { "item": "automata_valkyries:improved_electric_furnace" } },
   "result": { "item": "automata_valkyries:chrono_smelter", "count": 1, "nbt": "{BlockStateTag:{tier:\"2\"}}" }
 }

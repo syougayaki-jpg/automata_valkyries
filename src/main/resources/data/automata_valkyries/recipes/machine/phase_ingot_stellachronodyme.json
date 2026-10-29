@@ -2,7 +2,7 @@
   "type": "automata_valkyries:phase_transition",
   "tier": 2,
   "stages": 4,
-  "ingredients": [ { "ingredient": { "item": "automata_valkyries:alloy_luminal_sterling" }, "count": 4 }, { "ingredient": { "item": "automata_valkyries:alloy_chrono_fortress" }, "count": 1 }, { "ingredient": { "item": "automata_valkyries:alloy_tachyon_accel" }, "count": 1 }, { "ingredient": { "item": "automata_valkyries:alloy_eclipse_biometal" }, "count": 1 }, { "ingredient": { "item": "automata_valkyries:circuit_quantum_tac" }, "count": 1 }, { "ingredient": { "item": "automata_valkyries:orb_luminal" }, "count": 1 } ],
+  "ingredients": [ { "ingredient": { "item": "automata_valkyries:alloy_luminal_sterling" }, "count": 4 }, { "ingredient": { "item": "automata_valkyries:alloy_chrono_fortress" }, "count": 1 }, { "ingredient": { "item": "automata_valkyries:alloy_tachyon_accel" }, "count": 1 }, { "ingredient": { "item": "automata_valkyries:alloy_eclipse_biometal" }, "count": 1 }, { "ingredient": { "item": "automata_valkyries:circuit_photonic" }, "count": 1 }, { "ingredient": { "item": "automata_valkyries:orb_luminal" }, "count": 1 } ],
   "result": { "item": "automata_valkyries:ingot_stellachronodyme", "count": 1 },
   "energy": 2000000,
   "time": 800

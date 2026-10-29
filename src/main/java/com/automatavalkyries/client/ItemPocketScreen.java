@@ -14,7 +14,8 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * アイテムポケットの画面: 大きなチェストと同じ見た目の枠（容量に合わせた行数）と、右側にページ送り・自動使用の全体と分類ごとの切り替え
+ * アイテムポケットの画面: 大きなチェストと同じ見た目の枠（容量に合わせた行数）と、右側にページ送り・自動使用の全体と分類ごとの切り替え。
+ * ティアで増える切り替え（T3 の自動回収・T4 の補充）はそのティアから出す。T2 から整理のボタン
  */
 public class ItemPocketScreen extends AbstractContainerScreen<ItemPocketMenu> {
 
@@ -41,8 +42,21 @@ public class ItemPocketScreen extends AbstractContainerScreen<ItemPocketMenu> {
         y += 20;
         categoryButtons.clear();
         for (ItemPocketItem.Category c : ItemPocketItem.Category.values()) {
-            categoryButtons.add(addRenderableWidget(Button.builder(Component.empty(), b -> press(ItemPocketMenu.BUTTON_CATEGORY + c.ordinal())).bounds(x, y, 76, 16).build()));
+            Button b = Button.builder(Component.empty(), btn -> press(ItemPocketMenu.BUTTON_CATEGORY + c.ordinal())).bounds(x, y, 76, 16).build();
+            categoryButtons.add(b);
+            if (menu.tier < c.minTier) continue;                                                 // まだ使えない機能のボタンは出さない
+            addRenderableWidget(b);
             y += 18;
+        }
+        if (menu.tier >= ItemPocketItem.SORT_TIER) {
+            addRenderableWidget(Button.builder(Component.translatable("gui.automata_valkyries.item_pocket.sort"), b -> press(ItemPocketMenu.BUTTON_SORT))
+                    .bounds(x, y + 4, 76, 16).build());
+            y += 20;
+        }
+        if (menu.tier >= 4) {                                                                    // どこでもリポジトリ（リンクしていなければ押せない）
+            Button repo = addRenderableWidget(Button.builder(Component.translatable("gui.automata_valkyries.item_pocket.repository"), b -> press(ItemPocketMenu.BUTTON_REPOSITORY))
+                    .bounds(x, y + 4, 76, 16).build());
+            repo.active = minecraft != null && minecraft.player != null && ItemPocketItem.repository(minecraft.player.getItemInHand(menu.hand())) != null;
         }
         refresh();
     }

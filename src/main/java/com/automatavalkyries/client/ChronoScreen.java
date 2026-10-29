@@ -47,16 +47,45 @@ public class ChronoScreen extends AbstractContainerScreen<ChronoMenu> {
     private int page;
     /** ヴォイド・リポジトリの絞り込み（0 = 全部、1 = 素材、2 = 装備） */
     private int repoFilter;
+    /** ヴォイド・リポジトリの検索（2026-10-29 ユーザー指定「ヴォイドリポジトリに検索機能をつけて」） */
+    @org.jetbrains.annotations.Nullable private net.minecraft.client.gui.components.EditBox search;
+    private static final int SEARCH_X = 132, SEARCH_Y = 5, SEARCH_W = 62, COMPRESS_X = 104;
 
-    /** 絞り込みで見える物の番号（中身の並びの番号） */
+    /** 絞り込みと検索で見える物の番号（中身の並びの番号） */
     private List<Integer> repoVisible() {
         List<Integer> out = new ArrayList<>();
+        String query = search == null ? "" : search.getValue().trim();
         for (int i = 0; i < menu.repository.size(); i++) {
             var e = menu.repository.get(i);
-            if (repoFilter == 0) out.add(i); // 全部は空きも場所のまま見せる（場所が動かないよう）
+            if (!query.isEmpty()) {                                                             // 検索中は当たった物だけを詰めて見せる
+                if (e != null && (repoFilter == 0 || (repoFilter == 1) != VoidRepositoryBlockEntity.gear(e.key)) && RepositorySearch.matches(e.key, query)) out.add(i);
+            } else if (repoFilter == 0) out.add(i); // 全部は空きも場所のまま見せる（場所が動かないよう）
             else if (e != null && (repoFilter == 1) != VoidRepositoryBlockEntity.gear(e.key)) out.add(i);
         }
         return out;
+    }
+
+    @Override
+    protected void init() {
+        super.init();
+        if (menu.type() != ChronoMachineType.VOID_REPOSITORY) return;
+        String before = search == null ? "" : search.getValue();                                 // 画面の大きさが変わっても検索は残す
+        search = new net.minecraft.client.gui.components.EditBox(font, leftPos + SEARCH_X, topPos + SEARCH_Y, SEARCH_W, 12,
+                Component.translatable("gui.automata_valkyries.chrono.repo_search"));
+        search.setMaxLength(50);
+        search.setValue(before);
+        search.setHint(Component.translatable("gui.automata_valkyries.chrono.repo_search").withStyle(net.minecraft.ChatFormatting.DARK_GRAY));
+        search.setResponder(text -> page = 0);
+        addRenderableWidget(search);
+    }
+
+    /** 検索の欄に打っている間は、キー（持ち物を閉じる E など）を欄に渡す。Esc は閉じる */
+    @Override
+    public boolean keyPressed(int key, int scan, int modifiers) {
+        if (search != null && search.isFocused() && key != org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE) {
+            return search.keyPressed(key, scan, modifiers) || search.canConsumeInput();
+        }
+        return super.keyPressed(key, scan, modifiers);
     }
 
     public ChronoScreen(ChronoMenu menu, Inventory inventory, Component title) {
@@ -460,6 +489,10 @@ public class ChronoScreen extends AbstractContainerScreen<ChronoMenu> {
             g.pose().translate(0, 0, 200);
             g.pose().scale(0.5F, 0.5F, 1);
             g.drawString(font, count, (sx + 17) * 2 - font.width(count), (sy + 12) * 2, 0xFFFFFFFF, true);
+            int index = visible.get(shown);
+            if (index < menu.repositoryStock.length && menu.repositoryStock[index] > 0) {        // 在庫の決まり（緑の数字を左上に）
+                g.drawString(font, "▶" + menu.repositoryStock[index], sx * 2, sy * 2, 0xFF6CFF9A, true);
+            }
             g.pose().popPose();
         }
         long max = VoidRepositoryBlockEntity.maxTypes(tier);
@@ -473,6 +506,10 @@ public class ChronoScreen extends AbstractContainerScreen<ChronoMenu> {
         g.drawString(font, "◀", x + 22, y + REPO_ARROW_Y, argb(255, page > 0 ? accent() : 0x404860), false);
         g.drawString(font, "▶", x + 36, y + REPO_ARROW_Y, argb(255, page < pages - 1 ? accent() : 0x404860), false);
         button(g, x + 21, y + REPO_SORT_Y, Component.translatable("gui.automata_valkyries.chrono.repo_sort"));
+        // 自動圧縮の切り替え（入は緑）
+        g.fill(x + COMPRESS_X, y + SEARCH_Y, x + COMPRESS_X + 26, y + SEARCH_Y + 12, menu.repositoryCompress ? argb(200, 0x1E6A3A) : argb(160, 0x101828));
+        g.drawCenteredString(font, Component.translatable("gui.automata_valkyries.chrono.repo_compress"), x + COMPRESS_X + 13, y + SEARCH_Y + 2,
+                menu.repositoryCompress ? 0xFF8CFFB0 : 0xFF808898);
     }
 
     /** 左の列の小さなボタン（幅 26・高さ 11） */
@@ -537,7 +574,15 @@ public class ChronoScreen extends AbstractContainerScreen<ChronoMenu> {
         renderTooltip(g, mouseX, mouseY);
         NumberFormat f = NumberFormat.getIntegerInstance();
         if (inside(mouseX, mouseY, leftPos + GAUGE_X, topPos + GAUGE_Y, GAUGE_W, GAUGE_H)) {
-            g.renderTooltip(font, Component.translatable("gui.automata_valkyries.energy", f.format(menu.energy()), f.format(menu.capacity())), mouseX, mouseY);
+            if (menu.type() == ChronoMachineType.VOID_REPOSITORY) {                                // リポジトリはテザー・パイロンから受け取るか（クリックで切り替え）
+                g.renderComponentTooltip(font, List.of(
+                        Component.translatable("gui.automata_valkyries.energy", f.format(menu.energy()), f.format(menu.capacity())),
+                        Component.translatable("gui.automata_valkyries.chrono.repo_pylon", Component.translatable(menu.repositoryPylonPower ? "options.on" : "options.off"))
+                                .withStyle(menu.repositoryPylonPower ? net.minecraft.ChatFormatting.GREEN : net.minecraft.ChatFormatting.GRAY),
+                        Component.translatable("gui.automata_valkyries.chrono.repo_pylon_hint").withStyle(net.minecraft.ChatFormatting.DARK_GRAY)), mouseX, mouseY);
+            } else {
+                g.renderTooltip(font, Component.translatable("gui.automata_valkyries.energy", f.format(menu.energy()), f.format(menu.capacity())), mouseX, mouseY);
+            }
         }
         int ly = topPos + ChronoMachineType.LINK_Y;
         for (int i = 0; i < Math.min(menu.linkCount(), menu.links.size()); i++) {
@@ -559,15 +604,36 @@ public class ChronoScreen extends AbstractContainerScreen<ChronoMenu> {
                     Component.translatable("gui.automata_valkyries.chrono.fab_hint." + menu.extra(2)).withStyle(net.minecraft.ChatFormatting.GRAY),
                     Component.translatable("gui.automata_valkyries.chrono.crafts", ChronoMachineType.craftsPerOp(tier), menu.extra(1))), mouseX, mouseY);
         }
+        if (menu.type() == ChronoMachineType.VOID_REPOSITORY && inside(mouseX, mouseY, leftPos + COMPRESS_X, topPos + SEARCH_Y, 26, 12)) {
+            g.renderComponentTooltip(font, List.of(
+                    Component.translatable("gui.automata_valkyries.chrono.repo_compress_tip.0", Component.translatable(menu.repositoryCompress ? "options.on" : "options.off")),
+                    Component.translatable("gui.automata_valkyries.chrono.repo_compress_tip.1", VoidRepositoryBlockEntity.COMPRESS_KEEP).withStyle(net.minecraft.ChatFormatting.GRAY),
+                    Component.translatable("gui.automata_valkyries.chrono.repo_compress_tip.2", VoidRepositoryBlockEntity.COMPRESS_COST,
+                            VoidRepositoryBlockEntity.compressPerSecond(tier)).withStyle(net.minecraft.ChatFormatting.GRAY)), mouseX, mouseY);
+        }
+        if (search != null && inside(mouseX, mouseY, leftPos + SEARCH_X, topPos + SEARCH_Y, SEARCH_W, 12)) {
+            List<Component> lines = new ArrayList<>();
+            for (int k = 0; k < 7; k++) lines.add(Component.translatable("gui.automata_valkyries.chrono.repo_search_help." + k)
+                    .withStyle(k == 0 ? net.minecraft.ChatFormatting.WHITE : net.minecraft.ChatFormatting.GRAY));
+            g.renderComponentTooltip(font, lines, mouseX, mouseY);
+        }
         if (menu.type() == ChronoMachineType.VOID_REPOSITORY) {
             int index = repositoryIndexAt(mouseX, mouseY);
             if (index >= 0) {
                 VoidRepositoryBlockEntity.Entry entry = menu.repository.get(index);
                 List<Component> lines = new ArrayList<>(getTooltipFromContainerItem(entry.key));
                 lines.add(Component.translatable("gui.automata_valkyries.chrono.stored", f.format(entry.count)).withStyle(net.minecraft.ChatFormatting.AQUA));
+                int stock = index < menu.repositoryStock.length ? menu.repositoryStock[index] : 0;
+                lines.add(stock > 0 ? Component.translatable("gui.automata_valkyries.chrono.repo_stock", stock).withStyle(net.minecraft.ChatFormatting.GREEN)
+                        : Component.translatable("gui.automata_valkyries.chrono.repo_stock_hint").withStyle(net.minecraft.ChatFormatting.DARK_GRAY));
                 g.renderComponentTooltip(font, lines, mouseX, mouseY);
             }
         }
+    }
+
+    /** ボタンを押す（番号を 1 バイトに縮めない専用の通信で。{@link com.automatavalkyries.network.MenuButtonPacket}） */
+    private void press(int id) {
+        com.automatavalkyries.network.ModNetwork.CHANNEL.sendToServer(new com.automatavalkyries.network.MenuButtonPacket(menu.containerId, id));
     }
 
     private static boolean inside(double mx, double my, int x, int y, int w, int h) {
@@ -591,18 +657,35 @@ public class ChronoScreen extends AbstractContainerScreen<ChronoMenu> {
             if (!inside(mx, my, linkIconX(i), ly, 10, 10)) continue;
             int id = Screen.hasShiftDown() ? ChronoMenu.BUTTON_REMOVE + i : ChronoMenu.BUTTON_MODE + i;
             menu.clickMenuButton(minecraft.player, id);
-            minecraft.gameMode.handleInventoryButtonClick(menu.containerId, id);
+            press(id);
             return true;
         }
         if (menu.type() == ChronoMachineType.VOID_REPOSITORY) {
             int index = repositoryIndexAt(mx, my);
             if (index >= 0) {
-                minecraft.gameMode.handleInventoryButtonClick(menu.containerId, ChronoMenu.BUTTON_EXTRACT + index);
+                int id = button == 1 ? (Screen.hasShiftDown() ? ChronoMenu.BUTTON_STOCK_BACK : ChronoMenu.BUTTON_STOCK) + index // 右クリックで在庫の決まり
+                        : ChronoMenu.BUTTON_EXTRACT + index;
+                press(id);
                 return true;
             }
+            if (inside(mx, my, leftPos + COMPRESS_X, topPos + SEARCH_Y, 26, 12)) {
+                press(ChronoMenu.BUTTON_COMPRESS);
+                return true;
+            }
+            if (inside(mx, my, leftPos + GAUGE_X, topPos + GAUGE_Y, GAUGE_W, GAUGE_H)) {           // 電力の目盛りをクリック: テザー・パイロンから受け取るかの切り替え
+                press(ChronoMenu.BUTTON_PYLON);
+                return true;
+            }
+            if (search != null && inside(mx, my, leftPos + SEARCH_X, topPos + SEARCH_Y, SEARCH_W, 12)) {
+                if (button == 1) search.setValue("");                                            // 右クリックで消す
+                setFocused(search);
+                search.setFocused(true);
+                return true;
+            }
+            if (search != null) search.setFocused(false);
             if (inside(mx, my, leftPos + 21, topPos + REPO_FILTER_Y, 26, 11)) { repoFilter = (repoFilter + 1) % 3; page = 0; return true; }
             if (inside(mx, my, leftPos + 21, topPos + REPO_SORT_Y, 26, 11)) {
-                minecraft.gameMode.handleInventoryButtonClick(menu.containerId, ChronoMenu.BUTTON_SORT);
+                press(ChronoMenu.BUTTON_SORT);
                 return true;
             }
             if (inside(mx, my, leftPos + 20, topPos + REPO_ARROW_Y - 2, 12, 11)) { page = Math.max(0, page - 1); return true; }

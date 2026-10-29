@@ -219,6 +219,76 @@ public final class TacticalProtocols {
         return ValkyrieConfig.tacticalGriefing();
     }
 
+    // ------------------------------------------------------------------ 地形の破壊（2026-10-29 ユーザー指定「地形破壊も演出に合わせて強化して」）
+
+    /** 1 Tick に調べるブロックの上限（大きなクレーターは数 Tick に分けて掘る。サーバーが止まらないように） */
+    static final int CARVE_BUDGET = 40_000;
+
+    /** 楕円の穴を掘る仕事（中心・半径 x/y/z。burn なら縁の地表に火を付ける） */
+    private static final class Carve {
+        final ServerLevel level;
+        final Vec3 c;
+        final double rx, ry, rz;
+        final boolean burn;
+        /** 円柱（縦は bottom から c.y + ry まで全部）か */
+        final boolean column;
+        final int bottom;
+        final java.util.Iterator<BlockPos> it;
+
+        Carve(ServerLevel level, Vec3 c, double rx, double ry, double rz, boolean burn) {
+            this(level, c, rx, ry, rz, burn, false, 0);
+        }
+
+        Carve(ServerLevel level, Vec3 c, double rx, double ry, double rz, boolean burn, boolean column, int bottom) {
+            this.level = level;
+            this.c = c;
+            this.rx = rx;
+            this.ry = ry;
+            this.rz = rz;
+            this.burn = burn;
+            this.column = column;
+            this.bottom = bottom;
+            BlockPos lo = column ? BlockPos.containing(c.x - rx, bottom, c.z - rz) : BlockPos.containing(c.x - rx, c.y - ry, c.z - rz);
+            BlockPos hi = BlockPos.containing(c.x + rx, c.y + ry, c.z + rz);
+            this.it = BlockPos.betweenClosed(lo, hi).iterator();
+        }
+    }
+
+    private static final java.util.ArrayDeque<Carve> CARVES = new java.util.ArrayDeque<>();
+
+    /** 地形を壊す設定のときだけ、楕円の穴を掘る（壊せない物・ブロックエンティティは残す。落とし物は出さない） */
+    static void carve(ServerLevel level, Vec3 c, double rx, double ry, double rz, boolean burn) {
+        if (griefing()) CARVES.add(new Carve(level, c, rx, ry, rz, burn));
+    }
+
+    /** 地形を壊す設定のときだけ、地表から岩盤の層まで円柱の穴を開ける（岩盤は壊せないので残る） */
+    static void carveToBedrock(ServerLevel level, Vec3 c, double r, double above, boolean burn) {
+        if (griefing()) CARVES.add(new Carve(level, c, r, above, r, burn, true, level.getMinBuildHeight()));
+    }
+
+    private static void runCarves() {
+        int budget = CARVE_BUDGET;
+        while (budget > 0 && !CARVES.isEmpty()) {
+            Carve k = CARVES.peek();
+            while (budget-- > 0 && k.it.hasNext()) {
+                BlockPos p = k.it.next();
+                double dx = (p.getX() + 0.5 - k.c.x) / k.rx, dy = (p.getY() + 0.5 - k.c.y) / k.ry, dz = (p.getZ() + 0.5 - k.c.z) / k.rz;
+                double d = k.column ? dx * dx + dz * dz : dx * dx + dy * dy + dz * dz;
+                if (d > 1.0) {
+                    // 縁の地表を焦がして火を付ける（穴の外側のすぐ近く）
+                    if (k.burn && d < 1.25 && k.level.random.nextInt(6) == 0 && k.level.isEmptyBlock(p) && net.minecraft.world.level.block.Blocks.FIRE.defaultBlockState().canSurvive(k.level, p)) {
+                        k.level.setBlock(p, net.minecraft.world.level.block.Blocks.FIRE.defaultBlockState(), 2 | 16);
+                    }
+                    continue;
+                }
+                var st = k.level.getBlockState(p);
+                if (st.isAir() || st.getDestroySpeed(k.level, p) < 0 || st.hasBlockEntity()) continue;
+                k.level.setBlock(p, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 2 | 16);
+            }
+            if (!k.it.hasNext()) CARVES.poll();
+        }
+    }
+
     /** 味方か（兵姫が呼んだなら兵姫の味方、プレイヤーが呼んだならそのプレイヤー・ほかのプレイヤー・その兵姫と飼っている動物） */
     static boolean ally(LivingEntity source, Entity e) {
         if (source instanceof ValkyrieEntity v) return ValkyrieCombat.isAlly(v, e);
@@ -285,7 +355,7 @@ public final class TacticalProtocols {
                         e.hurt(WeaponDamage.source(source, WeaponDamage.ENERGY, source, source), 300.0F);
                         e.setSecondsOnFire(6);
                     }
-                    if (griefing()) level.explode(source, hit.x, hit.y, hit.z, 3.5F, true, Level.ExplosionInteraction.TNT);
+                    carve(level, hit, 4.5, 3.0, 4.5, true); // 着弾ごとのクレーターと燃える縁（2026-10-29 強化）
                     if (level.random.nextInt(6) == 0) Fx.shockwave(level, hit.add(0, 0.2, 0), 0xFF7A2A, (float) TacticalPatterns.CARPET_BLAST_R * 1.6F, 14);
                 }
             }
@@ -332,6 +402,7 @@ public final class TacticalProtocols {
                 level.playSound(null, BlockPos.containing(center), SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.PLAYERS, 6.0F, 0.6F);
                 level.playSound(null, BlockPos.containing(center), SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 6.0F, 0.5F);
                 impact(level, center, 0xFF2040, GUNGNIR_RADIUS, 1.0F, 16);
+                TacticalProtocols.carveToBedrock(level, center, 10, 12, true); // 光の柱が地下の岩盤の層まで貫く縦穴（2026-10-29 ユーザー指定「岩盤の層まで貫通」）
             }
             if (age > GUNGNIR_DESCENT && (age - GUNGNIR_DESCENT) % 40 == 0) impact(level, center, 0xFF2040, GUNGNIR_RADIUS * 0.6, 0.45F, 4); // 照射の間も脈打つ
             int st = age - GUNGNIR_DESCENT;
@@ -350,7 +421,7 @@ public final class TacticalProtocols {
         }
 
         /**
-         * 螺旋の腕の先（{@link com.automatavalkyries.network.TacticalFxPacket#gungnirArm}）の地面を、半径 3・深さ 6 で削り取る
+         * 螺旋の腕の先（{@link com.automatavalkyries.network.TacticalFxPacket#gungnirArm}）の地面を、半径 6・深さ 14 で削り取る（2026-10-29 に半径 3・深さ 6 から強化）
          * （2026-10-07 ユーザー指定「螺旋が大地をえぐり取るように、やりすぎなくらいに」）。地形を壊す設定のときだけ。
          * 岩盤など壊せない物と、ブロックエンティティ（チェスト・マシン）は残す。落とし物・音は出さない（重くならないよう）
          */
@@ -359,10 +430,10 @@ public final class TacticalProtocols {
                 double[] g = com.automatavalkyries.network.TacticalFxPacket.gungnirArm(arm, strikeTicks, GUNGNIR_RADIUS);
                 int cx = Mth.floor(center.x + g[0]), cz = Mth.floor(center.z + g[1]);
                 int top = level.getHeight(Heightmap.Types.WORLD_SURFACE, cx, cz);
-                for (int dx = -3; dx <= 3; dx++) {
-                    for (int dz = -3; dz <= 3; dz++) {
-                        if (dx * dx + dz * dz > 9) continue;
-                        int depth = 6 - (dx * dx + dz * dz) / 3; // 中ほど深く
+                for (int dx = -6; dx <= 6; dx++) { // 2026-10-29 に半径 3 → 6・深さ 6 → 14
+                    for (int dz = -6; dz <= 6; dz++) {
+                        if (dx * dx + dz * dz > 36) continue;
+                        int depth = 14 - (dx * dx + dz * dz) / 3; // 中ほど深く
                         for (int y = top + 1; y >= top - depth; y--) {
                             BlockPos p = new BlockPos(cx + dx, y, cz + dz);
                             var st = level.getBlockState(p);
@@ -382,7 +453,14 @@ public final class TacticalProtocols {
 
     // ------------------------------------------------------------------ ABYSS（特異点重力崩壊球）
 
+    /** ブロックを吸い込む範囲（半径）と、1 Tick に剥がす数 */
+    static final double ABYSS_SUCK_R = 40.0;
+    static final int ABYSS_SUCK_PER_TICK = 6;
+
     private static final class Abyss extends Active {
+        /** 吸い込んでいるブロック（地形を壊す設定のとき。2026-10-29 ユーザー指定「アビスはブロックを吸い込むように」） */
+        final java.util.List<net.minecraft.world.entity.item.FallingBlockEntity> sucked = new ArrayList<>();
+
         Abyss(ServerLevel level, LivingEntity source, Vec3 center) {
             super(level, source, center, TacticalPatterns.ABYSS_TIME);
             sendFx(level, center, new com.automatavalkyries.network.TacticalFxPacket(com.automatavalkyries.network.TacticalFxPacket.ABYSS,
@@ -398,6 +476,7 @@ public final class TacticalProtocols {
             }
             if (age % 20 == 0) level.playSound(null, BlockPos.containing(center), SoundEvents.PORTAL_AMBIENT, SoundSource.PLAYERS, 1.5F, 0.5F);
             double r = TacticalPatterns.abyssRadius(age); // 吸い込む範囲が広がっていく
+            if (griefing()) suckBlocks(Math.min(r, ABYSS_SUCK_R));
             AABB area = new AABB(center, center).inflate(r);
             for (Entity e : level.getEntities(source, area, e -> e.distanceToSqr(center) <= r * r)) {
                 if (ProjectileLike.is(e) && !ally(source, e)) { // 弾幕を飲み込む
@@ -417,12 +496,55 @@ public final class TacticalProtocols {
             }
         }
 
+        /**
+         * 地表のブロックを剥がして中心へ吸い込む: 毎 Tick {@value #ABYSS_SUCK_PER_TICK} 個、範囲の中のランダムな所の一番上のブロックを、
+         * 落ちないブロックの塊（落下するブロックの重力なし）にして中心へ引き寄せる。中心に届いたら砕けて消える（置かれない・落とし物も出さない）
+         */
+        void suckBlocks(double r) {
+            for (int i = 0; i < ABYSS_SUCK_PER_TICK; i++) {
+                double a = level.random.nextDouble() * Math.PI * 2, d = 3 + Math.sqrt(level.random.nextDouble()) * (r - 3);
+                int x = Mth.floor(center.x + Math.cos(a) * d), z = Mth.floor(center.z + Math.sin(a) * d);
+                int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z) - 1;
+                BlockPos p = new BlockPos(x, y, z);
+                var st = level.getBlockState(p);
+                if (st.isAir() || st.getDestroySpeed(level, p) < 0 || st.hasBlockEntity() || !st.getFluidState().isEmpty()) continue;
+                var fb = net.minecraft.world.entity.item.FallingBlockEntity.fall(level, p, st);
+                fb.setNoGravity(true);
+                fb.noPhysics = true; // 地形をすり抜ける（途中で地面に触れて置かれないように）
+                fb.disableDrop();
+                fb.setDeltaMovement(0, 0.4, 0);
+                sucked.add(fb);
+            }
+            for (var it = sucked.iterator(); it.hasNext(); ) {
+                var fb = it.next();
+                if (!fb.isAlive()) {
+                    it.remove();
+                    continue;
+                }
+                Vec3 pull = center.subtract(fb.position());
+                double dist = pull.length();
+                if (dist < 2.0) { // 中心で砕けて消える
+                    level.sendParticles(new net.minecraft.core.particles.BlockParticleOption(ParticleTypes.BLOCK, fb.getBlockState()), fb.getX(), fb.getY(), fb.getZ(), 8, 0.3, 0.3, 0.3, 0.1);
+                    fb.discard();
+                    it.remove();
+                    continue;
+                }
+                fb.time = 1; // 時間切れで落とし物にしない
+                Vec3 tangent = new Vec3(-pull.z, 0, pull.x).normalize().scale(0.25); // 渦を巻いて吸い込まれる
+                fb.setDeltaMovement(fb.getDeltaMovement().scale(0.7).add(pull.scale(Math.min(1.6, 0.25 + 6.0 / dist) / dist)).add(tangent));
+                fb.hurtMarked = true;
+            }
+        }
+
         @Override
         void end() {
+            for (var fb : sucked) if (fb.isAlive()) fb.discard(); // 残りは爆縮で消える
+            sucked.clear();
             level.sendParticles(ParticleTypes.EXPLOSION_EMITTER, center.x, center.y, center.z, 1, 0, 0, 0, 0);
             level.playSound(null, BlockPos.containing(center), SoundEvents.WARDEN_SONIC_BOOM, SoundSource.PLAYERS, 4.0F, 0.6F);
             level.playSound(null, BlockPos.containing(center), SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 6.0F, 0.4F);
             impact(level, center, 0xB060FF, TacticalPatterns.ABYSS_END_R, 1.0F, 12);
+            carve(level, center, 16, 16, 16, false); // 爆縮で空間ごとえぐれる球の穴（2026-10-29）
             for (ServerPlayer p : level.players()) {
                 if (p.distanceToSqr(center) < 200 * 200) com.automatavalkyries.network.ModNetwork.CHANNEL.send(net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> p),
                         new com.automatavalkyries.network.TwilightPacket(16, com.automatavalkyries.network.TwilightPacket.FLASH));
@@ -485,17 +607,7 @@ public final class TacticalProtocols {
                 e.setDeltaMovement(e.getDeltaMovement().add(push.scale(3.5 * (1 - k))).add(0, 1.6 * (1 - k) + 0.4, 0));
                 e.hurtMarked = true;
             }
-            if (griefing()) { // クレーター（壊せない物とブロックエンティティは残す）
-                BlockPos c = BlockPos.containing(center);
-                int cr = 18; // 2026-10-29 に広げた（これ以上は重い）
-                for (BlockPos p : BlockPos.betweenClosed(c.offset(-cr, -cr / 2, -cr), c.offset(cr, cr, cr))) {
-                    double dx = p.getX() + 0.5 - center.x, dy = (p.getY() + 0.5 - center.y) * 1.6, dz = p.getZ() + 0.5 - center.z;
-                    if (dx * dx + dy * dy + dz * dz > cr * cr) continue;
-                    var st = level.getBlockState(p);
-                    if (st.isAir() || st.getDestroySpeed(level, p) < 0 || st.hasBlockEntity()) continue;
-                    level.setBlock(p, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 2 | 16);
-                }
-            }
+            carve(level, center, 34, 20, 34, true); // 大クレーターと燃える縁（2026-10-29 に半径 18 → 34。数 Tick に分けて掘る）
         }
     }
 
@@ -544,7 +656,9 @@ public final class TacticalProtocols {
 
     @SubscribeEvent
     public static void onServerTick(TickEvent.ServerTickEvent event) {
-        if (event.phase != TickEvent.Phase.END || ACTIVE.isEmpty()) return;
+        if (event.phase != TickEvent.Phase.END) return;
+        if (!CARVES.isEmpty()) runCarves();
+        if (ACTIVE.isEmpty()) return;
         Iterator<Active> it = ACTIVE.iterator();
         while (it.hasNext()) {
             Active a = it.next();

@@ -30,6 +30,8 @@ import java.util.List;
 public class ChronoMenu extends AbstractContainerMenu {
 
     public static final int BUTTON_MODE = 100, BUTTON_REMOVE = 200, BUTTON_EXTRACT = 1000, BUTTON_SORT = 99;
+    /** ヴォイド・リポジトリ: 自動圧縮の入切・在庫の決まりを次の段へ（+ 番号）・前の段へ（+ 番号）（2026-10-29） */
+    public static final int BUTTON_COMPRESS = 98, BUTTON_PYLON = 97, BUTTON_STOCK = 1_000_000, BUTTON_STOCK_BACK = 2_000_000;
 
     private final ChronoMachineType type;
     private final ChronoTier tier;
@@ -41,10 +43,15 @@ public class ChronoMenu extends AbstractContainerMenu {
     public final List<ChronoLink> links;
     /** リポジトリの中身（クライアント側の写し） */
     public final List<VoidRepositoryBlockEntity.Entry> repository = new ArrayList<>();
+    /** リポジトリの在庫の決まりの数（中身の番号ごと）と自動圧縮の入切（クライアント側の写し） */
+    public int[] repositoryStock = new int[0];
+    public boolean repositoryCompress, repositoryPylonPower;
     private int sentVersion = -1;
     private final int machineSlots;
     /** 開いたプレイヤー（リポジトリの中身を送る相手） */
     private final Player owner;
+    /** T4 のアイテムポケットから遠くのリポジトリを開いた（距離・ディメンションを見ず、開いている間チャンクを読み込んでおく。2026-10-29） */
+    private boolean remote;
 
     /** クライアント */
     public ChronoMenu(int id, Inventory inventory, FriendlyByteBuf buf) {
@@ -60,6 +67,13 @@ public class ChronoMenu extends AbstractContainerMenu {
 
     private ChronoMenu(int id, Inventory inventory, BlockPos pos, ChronoMachineType type, ChronoTier tier, List<ChronoLink> links) {
         this(id, inventory, pos, type, tier, links, new ItemStackHandler(type.slotCount), new SimpleContainerData(ChronoMachineBlockEntity.DATA_COUNT), null);
+    }
+
+    /** サーバー: 遠くから開く（T4 のアイテムポケットの「どこでもリポジトリ」） */
+    public static ChronoMenu remote(int id, Inventory inventory, ChronoMachineBlockEntity machine) {
+        ChronoMenu menu = new ChronoMenu(id, inventory, machine);
+        menu.remote = true;
+        return menu;
     }
 
     /** サーバー */
@@ -94,6 +108,8 @@ public class ChronoMenu extends AbstractContainerMenu {
     }
 
     public ChronoMachineType type() { return type; }
+    /** サーバーの機械（クライアントは null） */
+    @Nullable public ChronoMachineBlockEntity machine() { return machine; }
     public ChronoTier tier() { return tier; }
 
     public int energy() { return (data.get(0) & 0xFFFF) | (data.get(1) << 16); }
@@ -116,6 +132,10 @@ public class ChronoMenu extends AbstractContainerMenu {
             return true;
         }
         if (id == BUTTON_SORT && machine instanceof VoidRepositoryBlockEntity repo) repo.sortContents(); // 整理
+        else if (id == BUTTON_COMPRESS && machine instanceof VoidRepositoryBlockEntity repo) repo.toggleCompress();
+        else if (id == BUTTON_PYLON && machine instanceof VoidRepositoryBlockEntity repo) repo.togglePylonPower();
+        else if (id >= BUTTON_STOCK_BACK && machine instanceof VoidRepositoryBlockEntity repo) repo.cycleStock(id - BUTTON_STOCK_BACK, true);
+        else if (id >= BUTTON_STOCK && machine instanceof VoidRepositoryBlockEntity repo) repo.cycleStock(id - BUTTON_STOCK, false);
         else if (id >= BUTTON_MODE && id < BUTTON_MODE + 16) machine.cycleLinkMode(id - BUTTON_MODE);
         else if (id >= BUTTON_REMOVE && id < BUTTON_REMOVE + 16) {
             int index = id - BUTTON_REMOVE;
@@ -123,7 +143,7 @@ public class ChronoMenu extends AbstractContainerMenu {
             machine.removeLink(index);
             if (removed != null) forgetInTuners(player, removed);
         }
-        else if (id >= BUTTON_EXTRACT && machine instanceof VoidRepositoryBlockEntity repo) {
+        else if (id >= BUTTON_EXTRACT && id < BUTTON_STOCK && machine instanceof VoidRepositoryBlockEntity repo) {
             ItemStack taken = repo.extract(id - BUTTON_EXTRACT, 64, false);
             if (!taken.isEmpty() && !player.getInventory().add(taken)) player.drop(taken, false);
         }
@@ -149,16 +169,20 @@ public class ChronoMenu extends AbstractContainerMenu {
     @Override
     public void broadcastChanges() {
         super.broadcastChanges();
+        if (remote && machine != null && machine.getLevel() instanceof net.minecraft.server.level.ServerLevel level && owner.tickCount % 20 == 0) {
+            ChronoLinks.keepLoaded(level, pos);
+        }
         if (machine instanceof VoidRepositoryBlockEntity repo && repo.version() != sentVersion) {
             sentVersion = repo.version();
             if (owner instanceof ServerPlayer player) {
-                ModNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), RepositoryContentsPacket.of(containerId, repo.entries()));
+                ModNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), RepositoryContentsPacket.of(containerId, repo));
             }
         }
     }
 
     @Override
     public boolean stillValid(Player player) {
+        if (remote) return machine != null && !machine.isRemoved();
         return stillValid(access, player, player.level().getBlockState(pos).getBlock());
     }
 
