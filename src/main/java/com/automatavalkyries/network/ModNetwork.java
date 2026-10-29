@@ -130,5 +130,10 @@ public final class ModNetwork {
                 .decoder(TrialStartPacket::decode)
                 .consumerMainThread(TrialStartPacket::handle)
                 .add();
+        CHANNEL.messageBuilder(TacticalShakePacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(TacticalShakePacket::encode)
+                .decoder(TacticalShakePacket::decode)
+                .consumerMainThread(TacticalShakePacket::handle)
+                .add();
     }
 }

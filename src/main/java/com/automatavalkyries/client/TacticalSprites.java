@@ -73,6 +73,21 @@ final class TacticalSprites {
         v(c, k.m, px + lx + ux, py + ly + uy, pz + lz + uz, r, g, b, a, u0, v0);
     }
 
+    /**
+     * 線に沿った光の筋（a から b へ、幅 w。カメラの方へ向けて張る）。素材の明るい端（v = 1）が a 側。
+     * 仮想彗星の尾（2026-10-29 ユーザー指定「彗星の尾を引く演出をそっくりに」）
+     */
+    static void axisSprite(Ctx k, VertexConsumer c, Vec3 a, Vec3 b, double w, Vec3 camRel, int r, int g, int bl, int al) {
+        Vec3 dir = b.subtract(a), view = camRel.subtract(a.add(b).scale(0.5));
+        Vec3 side = dir.cross(view);
+        if (side.lengthSqr() < 1.0e-8) return;
+        side = side.normalize().scale(w / 2);
+        v(c, k.m, (float) (a.x - side.x), (float) (a.y - side.y), (float) (a.z - side.z), r, g, bl, al, 0, 1);
+        v(c, k.m, (float) (a.x + side.x), (float) (a.y + side.y), (float) (a.z + side.z), r, g, bl, al, 1, 1);
+        v(c, k.m, (float) (b.x + side.x), (float) (b.y + side.y), (float) (b.z + side.z), r, g, bl, al, 1, 0);
+        v(c, k.m, (float) (b.x - side.x), (float) (b.y - side.y), (float) (b.z - side.z), r, g, bl, al, 0, 0);
+    }
+
     static void glow(Ctx k, double x, double y, double z, double s, int r, int g, int b, int a) {
         sprite(k, k.glow, x, y, z, s, 0, r, g, b, a, 0, 0, 1, 1);
     }
@@ -187,20 +202,20 @@ final class TacticalSprites {
                 if (age < 8) glow(k, b.x(), gy + 1, b.z(), 6 * (1 - age / 8), 255, 200, 120, (int) (255 * (1 - age / 8))); // 着弾の閃光
                 // 炎（16 コマをずらして、炎の半径いっぱいに大小 9 枚。燃える範囲が見て分かるよう大きく）
                 double fr = TacticalPatterns.CARPET_FIRE_R;
-                for (int f = 0; f < 9; f++) {
+                for (int f = 0; f < 3; f++) { // 炎の主役は TacticalFx#flameVortex（2026-10-29）。素材の炎は根元に小さく
                     int frame = (int) ((t * 0.6F + b.dropTick() * 3 + f * 5) % 16);
                     float v0 = frame / 16F, v1 = (frame + 1) / 16F;
                     double fa = f * 2.4 + b.dropTick(), fd = f == 0 ? 0 : fr * (0.35 + 0.6 * ((f * 37 % 10) / 10.0));
                     double ox = Math.cos(fa) * fd, oz = Math.sin(fa) * fd;
-                    double h = (f == 0 ? 6.5 : 4.2 - fd * 0.35) * (age < 6 ? 1.5 : 1.0) * (0.9 + 0.1 * Mth.sin(t * 0.3F + f));
+                    double h = (f == 0 ? 3.5 : 2.4) * (age < 6 ? 1.5 : 1.0) * (0.9 + 0.1 * Mth.sin(t * 0.3F + f));
                     upright(k, k.flame, b.x() + ox, gy - 0.05, b.z() + oz, h * 0.5, h, 255, 255, 255, (int) (255 * life), 0, v0, 1, v1);
                 }
                 glow(k, b.x(), gy + 1.0, b.z(), fr * 1.1, 255, 90, 40, (int) (150 * life));
-                glow(k, b.x(), gy + 4.5, b.z(), fr * 0.7, 200, 60, 255, (int) (80 * life)); // 炎の上の紫の揺らめき
+                glow(k, b.x(), gy + 4.5, b.z(), fr * 0.9, 255, 150, 40, (int) (90 * life)); // 渦の芯の照り
                 for (int p = 0; p < 2; p++) {
                     double sa = ((age + p * 11 + b.dropTick()) % 30) / 30.0;
                     sprite(k, k.smoke, b.x() + Mth.sin((float) (age * 0.05 + p)) * 1.2, gy + 5 + sa * 9, b.z(), 2.4 + sa * 4.0, (float) (sa * 2 + p),
-                            30, 26, 30, (int) (170 * life * (1 - sa)), 0, 0, 1, 1);
+                            45, 18, 22, (int) (190 * life * (1 - sa)), 0, 0, 1, 1); // 暗い赤みの煙（参考画像）
                 }
             }
         }

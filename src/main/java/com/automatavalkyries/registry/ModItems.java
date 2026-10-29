@@ -243,6 +243,9 @@ public class ModItems {
     /** 戦術ポインター（追加拡張仕様書 §13.1）: 戦術級コードを要請する */
     public static final RegistryObject<Item> TOOL_TAC_POINTER = ITEMS.register("tool_tac_pointer", () ->
             new com.automatavalkyries.item.TacPointerItem(new Item.Properties().stacksTo(1).rarity(net.minecraft.world.item.Rarity.EPIC)));
+    /** 戦術級コード・オーバーライド（クリエイティブ用、2026-10-29 ユーザー指定）: クールタイム・兵姫・電力なしで戦術級コードを発動する */
+    public static final RegistryObject<Item> TAC_OVERRIDE = ITEMS.register("tac_override", () ->
+            new com.automatavalkyries.item.TacOverrideItem(new Item.Properties().stacksTo(1).rarity(net.minecraft.world.item.Rarity.EPIC)));
     /** 同調率マキシマイザー（クリエイティブ用、2026-10-07 ユーザー指定）: 自分の兵姫の同調率を 100% に */
     public static final RegistryObject<Item> SYNC_MAXIMIZER = ITEMS.register("sync_maximizer", () ->
             new com.automatavalkyries.item.SyncMaximizerItem(new Item.Properties().stacksTo(1).rarity(net.minecraft.world.item.Rarity.EPIC)));

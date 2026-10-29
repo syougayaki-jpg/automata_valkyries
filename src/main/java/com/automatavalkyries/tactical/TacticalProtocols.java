@@ -62,12 +62,13 @@ public final class TacticalProtocols {
     /** 時間のかかるコード（グングニル・アビス・アイリス） */
     private abstract static class Active {
         final ServerLevel level;
-        final ValkyrieEntity source;
+        /** 呼んだ者（承認した兵姫。クリエイティブの端末ならプレイヤー） */
+        final LivingEntity source;
         final Vec3 center;
         int age;
         final int life;
 
-        Active(ServerLevel level, ValkyrieEntity source, Vec3 center, int life) {
+        Active(ServerLevel level, LivingEntity source, Vec3 center, int life) {
             this.level = level;
             this.source = source;
             this.center = center;
@@ -158,23 +159,83 @@ public final class TacticalProtocols {
         best.emote(ValkyrieEntity.Emote.ALERT);
         best.lookAt(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES, target);
         level.playSound(null, best.blockPosition(), SoundEvents.BEACON_ACTIVATE, SoundSource.PLAYERS, 1.5F, 0.7F);
-        switch (p) {
-            case CARPET -> ACTIVE.add(new Carpet(level, best, target));
-            case GUNGNIR -> ACTIVE.add(new Gungnir(level, best, target));
-            case ABYSS -> ACTIVE.add(new Abyss(level, best, target.add(0, 1.5, 0)));
-            case IRIS -> ACTIVE.add(new Iris(level, best, target));
-            case COMET -> ACTIVE.add(new Comet(level, best, target));
-        }
+        launch(level, best, p, target);
         return new Outcome("approved", best, 0);
+    }
+
+    /** コードを発動する（承認・支払い・クールタイムは済んだ後。クリエイティブの端末はこれを直接呼ぶ） */
+    public static void launch(ServerLevel level, LivingEntity source, TacticalProtocol p, Vec3 target) {
+        switch (p) {
+            case CARPET -> ACTIVE.add(new Carpet(level, source, target));
+            case GUNGNIR -> ACTIVE.add(new Gungnir(level, source, target));
+            case ABYSS -> ACTIVE.add(new Abyss(level, source, target.add(0, 1.5, 0)));
+            case IRIS -> ACTIVE.add(new Iris(level, source, target));
+            case COMET -> ACTIVE.add(new Comet(level, source, target));
+        }
+    }
+
+    /**
+     * クリエイティブ用の端末（{@link com.automatavalkyries.item.TacOverrideItem}）から: 兵姫・同調率・電力・クールタイムなしで、すぐ発動する
+     * （2026-10-29 ユーザー指定「クリエイティブ用のクールタイムのない戦術コード」）
+     */
+    public static void creativeLaunch(ServerPlayer player, TacticalProtocol p, Vec3 target) {
+        ServerLevel level = player.serverLevel();
+        level.playSound(null, player.blockPosition(), SoundEvents.BEACON_ACTIVATE, SoundSource.PLAYERS, 1.5F, 0.7F);
+        launch(level, player, p, target);
+        player.displayClientMessage(Component.translatable("message.automata_valkyries.tactical.override", Component.translatable("tactical.automata_valkyries." + p.id))
+                .withStyle(ChatFormatting.LIGHT_PURPLE), true);
+    }
+
+    /**
+     * 着弾の派手な演出（2026-10-29 ユーザー指定「もっと派手に」）: 広がる衝撃波の輪を何重にも、まわりに演出だけの雷、閃光と画面の揺れ（{@link com.automatavalkyries.network.TacticalShakePacket}）。
+     * power は 0〜1（揺れの強さ）、radius は揺れ・雷の届く広さ
+     */
+    static void impact(ServerLevel level, Vec3 at, int color, double radius, float power, int bolts) {
+        for (int i = 0; i < 4; i++) {
+            final float r = (float) (radius * (0.25 + i * 0.25));
+            WeaponUtil.later(level, i * 3, () -> Fx.shockwave(level, at.add(0, 0.2, 0), color, r, 24));
+        }
+        level.sendParticles(ParticleTypes.EXPLOSION_EMITTER, at.x, at.y + 1, at.z, 4, radius * 0.08, 1, radius * 0.08, 0);
+        for (int i = 0; i < bolts; i++) {
+            double a = level.random.nextDouble() * Math.PI * 2, d = radius * (0.2 + level.random.nextDouble() * 0.7);
+            int x = Mth.floor(at.x + Math.cos(a) * d), z = Mth.floor(at.z + Math.sin(a) * d);
+            WeaponUtil.later(level, level.random.nextInt(20), () -> {
+                var bolt = net.minecraft.world.entity.EntityType.LIGHTNING_BOLT.create(level);
+                if (bolt == null) return;
+                bolt.moveTo(x + 0.5, level.getHeight(Heightmap.Types.MOTION_BLOCKING, x, z), z + 0.5);
+                bolt.setVisualOnly(true);
+                level.addFreshEntity(bolt);
+            });
+        }
+        for (ServerPlayer p : level.players()) {
+            double d = Math.sqrt(p.distanceToSqr(at));
+            if (d > radius * 3) continue;
+            com.automatavalkyries.network.ModNetwork.CHANNEL.send(net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> p),
+                    new com.automatavalkyries.network.TacticalShakePacket((float) (power * (1.0 - d / (radius * 3)))));
+        }
     }
 
     static boolean griefing() {
         return ValkyrieConfig.tacticalGriefing();
     }
 
-    /** 敵か（承認した兵姫から見て味方でない生き物） */
-    static boolean foe(ValkyrieEntity v, Entity e) {
-        return e instanceof LivingEntity l && l.isAlive() && !ValkyrieCombat.isAlly(v, l) && l != v;
+    /** 味方か（兵姫が呼んだなら兵姫の味方、プレイヤーが呼んだならそのプレイヤー・ほかのプレイヤー・その兵姫と飼っている動物） */
+    static boolean ally(LivingEntity source, Entity e) {
+        if (source instanceof ValkyrieEntity v) return ValkyrieCombat.isAlly(v, e);
+        if (e == source || e instanceof net.minecraft.world.entity.player.Player) return true;
+        if (e instanceof ValkyrieEntity v) return source.getUUID().equals(v.getOwnerUUID());
+        return e instanceof net.minecraft.world.entity.OwnableEntity o && source.getUUID().equals(o.getOwnerUUID());
+    }
+
+    /** 敵か（呼んだ者から見て味方でない生き物）。ボスは設定 tactical.tacticalAffectsBosses が true のときだけ（既定は効かない） */
+    static boolean foe(LivingEntity source, Entity e) {
+        return e instanceof LivingEntity l && l.isAlive() && !ally(source, l) && l != source && (ValkyrieConfig.tacticalAffectsBosses() || !isBoss(l));
+    }
+
+    /** ボスか（forge:bosses のタグ、またはこのMOD のボス＝退くボス・保護されたボス） */
+    public static boolean isBoss(LivingEntity e) {
+        return e.getType().is(net.minecraftforge.common.Tags.EntityTypes.BOSSES) || e instanceof com.automatavalkyries.entity.RetreatableBoss
+                || (e instanceof com.automatavalkyries.protect.IEprotected && !(e instanceof ValkyrieEntity) && !(e instanceof com.automatavalkyries.entity.ProtectDummyZombieEntity)); // 訓練用ダミーゾンビはボス扱いしない（試し撃ち用）
     }
 
     // ------------------------------------------------------------------ CARPET（絨毯飽和爆撃）
@@ -196,7 +257,7 @@ public final class TacticalProtocols {
         final long seed;
         final java.util.List<TacticalPatterns.Bomb> bombs;
 
-        Carpet(ServerLevel level, ValkyrieEntity source, Vec3 center) {
+        Carpet(ServerLevel level, LivingEntity source, Vec3 center) {
             super(level, source, center, TacticalPatterns.carpetDuration());
             seed = level.random.nextLong();
             bombs = TacticalPatterns.carpetBombs(seed);
@@ -213,6 +274,7 @@ public final class TacticalProtocols {
         @Override
         void tick() {
             if (age == TacticalPatterns.CARPET_PORTAL) level.playSound(null, BlockPos.containing(center), SoundEvents.ENDER_DRAGON_FLAP, SoundSource.PLAYERS, 4.0F, 0.5F);
+            if (age == TacticalPatterns.CARPET_PORTAL + TacticalPatterns.CARPET_PASS / 2) impact(level, center, 0xFF7A2A, TacticalPatterns.CARPET_R, 0.6F, 0); // 爆撃のさなかの大揺れ（雷は出さない。2026-10-29 ユーザー指定）
             for (TacticalPatterns.Bomb b : bombs) {
                 if (b.landTick() == age) {
                     Vec3 hit = ground(b);
@@ -220,10 +282,11 @@ public final class TacticalProtocols {
                     if (age % 4 == 0) level.playSound(null, BlockPos.containing(hit), SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 1.5F, 0.8F + level.random.nextFloat() * 0.3F);
                     for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, new AABB(hit, hit).inflate(TacticalPatterns.CARPET_BLAST_R), e -> foe(source, e))) {
                         e.invulnerableTime = 0;
-                        e.hurt(WeaponDamage.source(source, WeaponDamage.ENERGY, source, source), 24.0F);
-                        e.setSecondsOnFire(4);
+                        e.hurt(WeaponDamage.source(source, WeaponDamage.ENERGY, source, source), 300.0F);
+                        e.setSecondsOnFire(6);
                     }
-                    if (griefing()) level.explode(source, hit.x, hit.y, hit.z, 2.5F, true, Level.ExplosionInteraction.TNT);
+                    if (griefing()) level.explode(source, hit.x, hit.y, hit.z, 3.5F, true, Level.ExplosionInteraction.TNT);
+                    if (level.random.nextInt(6) == 0) Fx.shockwave(level, hit.add(0, 0.2, 0), 0xFF7A2A, (float) TacticalPatterns.CARPET_BLAST_R * 1.6F, 14);
                 }
             }
             if (age % 10 == 0) { // 残る炎
@@ -232,8 +295,8 @@ public final class TacticalProtocols {
                     Vec3 hit = ground(b);
                     for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, new AABB(hit, hit).inflate(TacticalPatterns.CARPET_FIRE_R, 3, TacticalPatterns.CARPET_FIRE_R), e -> foe(source, e))) {
                         e.invulnerableTime = 0;
-                        e.hurt(WeaponDamage.source(source, WeaponDamage.ENERGY, source, source), 4.0F);
-                        e.setSecondsOnFire(3);
+                        e.hurt(WeaponDamage.source(source, WeaponDamage.ENERGY, source, source), 40.0F);
+                        e.setSecondsOnFire(4);
                     }
                 }
             }
@@ -248,7 +311,7 @@ public final class TacticalProtocols {
      * 描画は client/TacticalFx）。地形を壊す設定でも、壊すのは中心の柱（半径 5）だけ
      */
     private static final class Gungnir extends Active {
-        Gungnir(ServerLevel level, ValkyrieEntity source, Vec3 center) {
+        Gungnir(ServerLevel level, LivingEntity source, Vec3 center) {
             super(level, source, center, GUNGNIR_DESCENT + GUNGNIR_STRIKE);
             var packet = new com.automatavalkyries.network.TacticalFxPacket(com.automatavalkyries.network.TacticalFxPacket.GUNGNIR,
                     center.x, center.y, center.z, (float) GUNGNIR_RADIUS, GUNGNIR_DESCENT + GUNGNIR_STRIKE);
@@ -268,7 +331,9 @@ public final class TacticalProtocols {
             if (age == GUNGNIR_DESCENT) { // 着弾
                 level.playSound(null, BlockPos.containing(center), SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.PLAYERS, 6.0F, 0.6F);
                 level.playSound(null, BlockPos.containing(center), SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 6.0F, 0.5F);
+                impact(level, center, 0xFF2040, GUNGNIR_RADIUS, 1.0F, 16);
             }
+            if (age > GUNGNIR_DESCENT && (age - GUNGNIR_DESCENT) % 40 == 0) impact(level, center, 0xFF2040, GUNGNIR_RADIUS * 0.6, 0.45F, 4); // 照射の間も脈打つ
             int st = age - GUNGNIR_DESCENT;
             if (griefing() && st % 2 == 0) carve(st); // 螺旋の腕が大地をえぐり取る
             if (st % 15 == 0) level.playSound(null, BlockPos.containing(center), SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 3.0F, 0.5F + level.random.nextFloat() * 0.3F);
@@ -280,7 +345,7 @@ public final class TacticalProtocols {
             for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, new AABB(center.x - r, center.y - 6, center.z - r, center.x + r, center.y + 80, center.z + r),
                     e -> foe(this.source, e) && Math.hypot(e.getX() - center.x, e.getZ() - center.z) <= r)) {
                 e.invulnerableTime = 0;
-                e.hurt(source, 150.0F); // 毎秒 300（前の倍）
+                e.hurt(source, 1500.0F); // 毎秒 3,000（2026-10-29 に 10 倍）
             }
         }
 
@@ -311,14 +376,14 @@ public final class TacticalProtocols {
     }
 
     /** GUNGNIR の範囲（半径）と、光が落ちてくる間（Tick） */
-    public static final double GUNGNIR_RADIUS = 50.0;
+    public static final double GUNGNIR_RADIUS = 100.0;
     public static final int GUNGNIR_DESCENT = com.automatavalkyries.network.TacticalFxPacket.GUNGNIR_DESCENT,
             GUNGNIR_STRIKE = com.automatavalkyries.network.TacticalFxPacket.GUNGNIR_STRIKE;
 
     // ------------------------------------------------------------------ ABYSS（特異点重力崩壊球）
 
     private static final class Abyss extends Active {
-        Abyss(ServerLevel level, ValkyrieEntity source, Vec3 center) {
+        Abyss(ServerLevel level, LivingEntity source, Vec3 center) {
             super(level, source, center, TacticalPatterns.ABYSS_TIME);
             sendFx(level, center, new com.automatavalkyries.network.TacticalFxPacket(com.automatavalkyries.network.TacticalFxPacket.ABYSS,
                     center.x, center.y, center.z, (float) TacticalPatterns.ABYSS_END_R, life, level.random.nextLong()));
@@ -335,7 +400,7 @@ public final class TacticalProtocols {
             double r = TacticalPatterns.abyssRadius(age); // 吸い込む範囲が広がっていく
             AABB area = new AABB(center, center).inflate(r);
             for (Entity e : level.getEntities(source, area, e -> e.distanceToSqr(center) <= r * r)) {
-                if (ProjectileLike.is(e) && !ValkyrieCombat.isAlly(source, e)) { // 弾幕を飲み込む
+                if (ProjectileLike.is(e) && !ally(source, e)) { // 弾幕を飲み込む
                     e.discard();
                     continue;
                 }
@@ -355,7 +420,13 @@ public final class TacticalProtocols {
         @Override
         void end() {
             level.sendParticles(ParticleTypes.EXPLOSION_EMITTER, center.x, center.y, center.z, 1, 0, 0, 0, 0);
-            level.playSound(null, BlockPos.containing(center), SoundEvents.WARDEN_SONIC_BOOM, SoundSource.PLAYERS, 2.0F, 0.6F);
+            level.playSound(null, BlockPos.containing(center), SoundEvents.WARDEN_SONIC_BOOM, SoundSource.PLAYERS, 4.0F, 0.6F);
+            level.playSound(null, BlockPos.containing(center), SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 6.0F, 0.4F);
+            impact(level, center, 0xB060FF, TacticalPatterns.ABYSS_END_R, 1.0F, 12);
+            for (ServerPlayer p : level.players()) {
+                if (p.distanceToSqr(center) < 200 * 200) com.automatavalkyries.network.ModNetwork.CHANNEL.send(net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> p),
+                        new com.automatavalkyries.network.TwilightPacket(16, com.automatavalkyries.network.TwilightPacket.FLASH));
+            }
             double r = TacticalPatterns.ABYSS_END_R;
             for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, new AABB(center, center).inflate(r), e -> foe(source, e) && e.distanceToSqr(center) <= r * r)) {
                 // 中心（半径 4）に引き込まれた相手には 500 を足す
@@ -364,7 +435,7 @@ public final class TacticalProtocols {
                     e.hurt(WeaponDamage.source(source, WeaponDamage.ENERGY, source, source), TacticalPatterns.ABYSS_CORE_DAMAGE);
                 }
                 e.invulnerableTime = 0;
-                e.hurt(WeaponDamage.source(source, WeaponDamage.ENERGY, source, source), e.getMaxHealth() * 0.3F); // 最大 HP の 30%（保護対象は上限が掛かる）
+                e.hurt(WeaponDamage.source(source, WeaponDamage.ENERGY, source, source), e.getMaxHealth() * TacticalPatterns.ABYSS_RATIO); // 最大 HP の 50%（保護対象は上限が掛かる）
             }
         }
     }
@@ -378,12 +449,16 @@ public final class TacticalProtocols {
     private static final class Comet extends Active {
         final long seed;
 
-        Comet(ServerLevel level, ValkyrieEntity source, Vec3 center) {
+        Comet(ServerLevel level, LivingEntity source, Vec3 center) {
             super(level, source, center, TacticalPatterns.COMET_FALL + TacticalPatterns.COMET_AFTER);
             seed = level.random.nextLong();
             sendFx(level, center, new com.automatavalkyries.network.TacticalFxPacket(com.automatavalkyries.network.TacticalFxPacket.COMET,
                     center.x, center.y, center.z, (float) TacticalPatterns.COMET_R, life, seed));
             level.playSound(null, BlockPos.containing(center), SoundEvents.BEACON_ACTIVATE, SoundSource.PLAYERS, 4.0F, 0.5F);
+            for (ServerPlayer p : level.players()) { // 落ちてくる間、空を星空に暗くする（尾の色が映えるように。2026-10-29）
+                if (p.distanceToSqr(center) < 320 * 320) com.automatavalkyries.network.ModNetwork.CHANNEL.send(net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> p),
+                        new com.automatavalkyries.network.TwilightPacket(TacticalPatterns.COMET_FALL + 30, com.automatavalkyries.network.TwilightPacket.STARRY));
+            }
         }
 
         @Override
@@ -395,6 +470,7 @@ public final class TacticalProtocols {
             level.playSound(null, BlockPos.containing(center), SoundEvents.LIGHTNING_BOLT_IMPACT, SoundSource.PLAYERS, 8.0F, 0.6F);
             level.playSound(null, BlockPos.containing(center), SoundEvents.AMETHYST_BLOCK_RESONATE, SoundSource.PLAYERS, 6.0F, 0.5F);
             level.sendParticles(ParticleTypes.EXPLOSION_EMITTER, center.x, center.y + 1, center.z, 3, 2, 1, 2, 0);
+            impact(level, center, 0x9FE8FF, TacticalPatterns.COMET_R, 1.0F, 24);
             for (ServerPlayer p : level.players()) {
                 if (p.distanceToSqr(center) < 200 * 200) com.automatavalkyries.network.ModNetwork.CHANNEL.send(net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> p),
                         new com.automatavalkyries.network.TwilightPacket(20, com.automatavalkyries.network.TwilightPacket.FLASH));
@@ -406,12 +482,12 @@ public final class TacticalProtocols {
                 e.hurt(WeaponDamage.source(source, WeaponDamage.ENERGY, source, source), (float) (TacticalPatterns.COMET_CORE + (TacticalPatterns.COMET_EDGE - TacticalPatterns.COMET_CORE) * k));
                 Vec3 push = e.position().subtract(center);
                 push = push.lengthSqr() < 1.0e-4 ? new Vec3(0, 1, 0) : push.normalize();
-                e.setDeltaMovement(e.getDeltaMovement().add(push.scale(2.5 * (1 - k))).add(0, 1.2 * (1 - k) + 0.3, 0));
+                e.setDeltaMovement(e.getDeltaMovement().add(push.scale(3.5 * (1 - k))).add(0, 1.6 * (1 - k) + 0.4, 0));
                 e.hurtMarked = true;
             }
             if (griefing()) { // クレーター（壊せない物とブロックエンティティは残す）
                 BlockPos c = BlockPos.containing(center);
-                int cr = 12;
+                int cr = 18; // 2026-10-29 に広げた（これ以上は重い）
                 for (BlockPos p : BlockPos.betweenClosed(c.offset(-cr, -cr / 2, -cr), c.offset(cr, cr, cr))) {
                     double dx = p.getX() + 0.5 - center.x, dy = (p.getY() + 0.5 - center.y) * 1.6, dz = p.getZ() + 0.5 - center.z;
                     if (dx * dx + dy * dy + dz * dz > cr * cr) continue;
@@ -426,7 +502,7 @@ public final class TacticalProtocols {
     // ------------------------------------------------------------------ IRIS（広域ナノ防壁・野戦病院）
 
     private static final class Iris extends Active {
-        Iris(ServerLevel level, ValkyrieEntity source, Vec3 center) {
+        Iris(ServerLevel level, LivingEntity source, Vec3 center) {
             super(level, source, center, TacticalPatterns.IRIS_TIME);
             sendFx(level, center, new com.automatavalkyries.network.TacticalFxPacket(com.automatavalkyries.network.TacticalFxPacket.IRIS,
                     center.x, center.y, center.z, (float) TacticalPatterns.IRIS_R, life, level.random.nextLong()));
@@ -434,16 +510,17 @@ public final class TacticalProtocols {
 
         @Override
         void tick() {
-            double r = 16.0;
+            double r = TacticalPatterns.IRIS_R;
+            if (age == 0) impact(level, center, 0x7CFFD8, r, 0.3F, 0);
             // 敵の弾を消す
             for (Entity e : level.getEntities(source, new AABB(center, center).inflate(r), e -> ProjectileLike.is(e) && e.distanceToSqr(center) <= r * r)) {
-                if (!ValkyrieCombat.isAlly(source, e)) {
+                if (!ally(source, e)) {
                     level.sendParticles(ParticleTypes.ELECTRIC_SPARK, e.getX(), e.getY(), e.getZ(), 4, 0.1, 0.1, 0.1, 0.05);
                     e.discard();
                 }
             }
             if (age % 10 == 0) { // ドーム
-                for (int i = 0; i < 40; i++) {
+                for (int i = 0; i < 90; i++) {
                     double u = level.random.nextDouble() * Math.PI * 2, w = level.random.nextDouble() * Math.PI / 2;
                     Vec3 p = center.add(Math.cos(u) * Math.cos(w) * r, Math.sin(w) * r, Math.sin(u) * Math.cos(w) * r);
                     Fx.spray(level, Fx.opt(ModParticles.GLOW.get(), 0x7CFFD8, 0.5F, 20), p, 1, 0, 0, 0, 0);
@@ -451,13 +528,15 @@ public final class TacticalProtocols {
             }
             if (age % 20 == 0) { // 中の味方の HP を毎秒 10%、兵姫の充電 3 倍
                 for (LivingEntity e : level.getEntitiesOfClass(LivingEntity.class, new AABB(center, center).inflate(r),
-                        e -> e.isAlive() && ValkyrieCombat.isAlly(source, e) && e.distanceToSqr(center) <= r * r)) {
+                        e -> e.isAlive() && ally(source, e) && e.distanceToSqr(center) <= r * r)) {
                     if (e instanceof ValkyrieEntity v) {
-                        v.repair(v.getMaxHealth() * 0.1F);
-                        v.setEnergy(v.getEnergy() + 10_000); // 充電の上乗せ（毎秒）
+                        v.repair(v.getMaxHealth() * 0.25F);
+                        v.setEnergy(v.getEnergy() + 50_000); // 充電の上乗せ（毎秒）
                     } else {
-                        e.heal(e.getMaxHealth() * 0.1F);
+                        e.heal(e.getMaxHealth() * 0.25F);
                     }
+                    e.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.DAMAGE_RESISTANCE, 40, 1, true, true));
+                    e.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.DAMAGE_BOOST, 40, 0, true, true));
                 }
             }
         }

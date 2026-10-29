@@ -12,8 +12,8 @@ import java.util.Random;
  * COMET［仮想彗星］の幻想的な演出（2026-10-07 ユーザー指定「範囲を倍に、エフェクトを複雑で半透明にして幻想的に。時間をかけて高度なエフェクトを」）。
  * <ol>
  *   <li>前兆: 狙った所の地面に、回る魔法陣（同心の輪・刻印の破線・星形の線）が少しずつ広がる。空にオーロラの帳が揺れる</li>
- *   <li>落下: 彗星の頭は光の芯・重なる半透明の殻（縁ほど光る）・回る結晶の面。後ろへまっすぐ伸びる青いイオンの尾と、曲がって広がる金白の塵の尾。
- *       横に伸びる光の筋（レンズの光）</li>
+ *   <li>落下（2026-10-29 に電脳の彗星へ作り替え。{@link #cometHead}）: 多面体の結晶の核・回る光の弧・水色と桃紫の長い光の筋の束の尾と光の粒（空は星空に暗くなる）。
+ *       地面に沈み込む電脳の格子と照準。画面に警告（{@link #hud}）</li>
  *   <li>着弾: 半透明のドーム（縁ほど光る殻）が範囲いっぱいまで二重に広がり、地面に波紋。結晶の欠片がゆっくり回りながら昇り、
  *       光の花びらが螺旋に舞い上がり、オーロラが残る</li>
  * </ol>
@@ -32,7 +32,8 @@ final class TacticalComet {
         // 空のオーロラ（全体を通して）
         aurora(m, glow, seed, radius, t, Math.min(omen * 1.5F, 1F) * fade);
         if (t < fall) {
-            magicCircle(m, glow, dark, radius * Mth.clamp(omen * 1.2F, 0.05F, 1F), t, omen);
+            magicCircle(m, glow, dark, radius * Mth.clamp(omen * 1.2F, 0.05F, 1F), t, omen * 0.5F);
+            cyberGrid(m, glow, radius, t, omen); // 電脳の格子が沈み込む（2026-10-29）
             cometHead(m, glow, dark, k, seed, t, camRel);
             return;
         }
@@ -111,39 +112,150 @@ final class TacticalComet {
         }
     }
 
-    // ------------------------------------------------------------------ 落下: 彗星
+    // ------------------------------------------------------------------ 落下: 彗星（電脳の彗星）
 
+    /** 尾の筋の色（参考画像: 水色・桃紫・白・紫・青。水色と桃紫を多めに） */
+    private static final int[][] TAIL = {{70, 225, 255}, {255, 60, 215}, {245, 250, 255}, {60, 225, 255}, {170, 80, 255}, {255, 90, 230}, {60, 130, 255}};
+
+    /** 電脳の色: 水色・青・白・桃紫・紫 */
+    private static final int[][] CYBER = {{60, 230, 255}, {40, 120, 255}, {235, 250, 255}, {255, 70, 220}, {150, 80, 255}};
+
+    /**
+     * 彗星の本体（2026-10-29 ユーザー指定「仮想彗星の本体の演出をこんな感じに」。参考画像: 多面体の結晶の核・まわりを回る光の弧・
+     * 水色と桃紫の光の筋が長く伸びる尾・四角いデータの粒と数字の列）。
+     * <ul>
+     *   <li>核: 細かく割った多面体の面を、水色・青・白・桃紫で塗り分けて瞬かせ、辺を白く光らせる。中に光の芯</li>
+     *   <li>光の弧: 傾いた 3 本の輪（水色・桃紫）が核のまわりを回る（途切れた弧）</li>
+     *   <li>尾: 来た方へ束になって伸びる長い光の筋（素材を線に沿って張る）、頭のすぐ後ろの太い光、瞬く光の粒</li>
+     * </ul>
+     */
     private static void cometHead(Matrix4f m, VertexConsumer glow, VertexConsumer dark, TacticalSprites.Ctx k, long seed, float t, Vec3 camRel) {
         int fall = TacticalPatterns.COMET_FALL;
         Vec3 head = TacticalPatterns.cometPos(t, seed);
         Vec3 back = TacticalPatterns.cometPos(t - 2, seed).subtract(head);
         Vec3 motion = back.lengthSqr() < 1.0e-6 ? new Vec3(0, 1, 0) : back.normalize(); // 尾の向き（来た方）
-        float grow = 0.6F + 0.5F * (t / fall);
-        // 重なる半透明の殻（縁ほど光る）
-        shell(m, glow, head, 4.0 * grow, camRel, 200, 235, 255, 210, 18, 32);
-        shell(m, glow, head, 7.5 * grow, camRel, 110, 190, 255, 150, 16, 28);
-        shell(m, glow, head, 12.0 * grow, camRel, 140, 120, 255, 90, 14, 24);
-        // 回る結晶の面（正二十面体の半透明の面）
-        crystal(m, glow, dark, head, 3.2 * grow, t * 0.05, t * 0.031);
-        // イオンの尾（まっすぐ後ろへ。青い光の帯を何本も）
-        Random r = new Random(seed);
-        for (int s = 0; s < 6; s++) {
-            Vec3 off = new Vec3(r.nextGaussian(), r.nextGaussian(), r.nextGaussian()).scale(0.8);
-            Vec3 tail = head.add(motion.scale(70 + s * 8)).add(off.scale(6));
-            TacticalFx.ribbon(glow, m, head.x + off.x, head.y + off.y, head.z + off.z, tail.x, tail.y, tail.z, 1.4 * grow, 90, 170, 255, 90);
-        }
-        // 塵の尾（曲がりながら広がる金白の光の粒）
         Vec3 side = motion.cross(new Vec3(0, 1, 0));
         side = side.lengthSqr() < 1.0e-4 ? new Vec3(1, 0, 0) : side.normalize();
-        for (int i = 0; i < 160; i++) {
-            double u = i / 160.0;
-            Vec3 p = head.add(motion.scale(u * 60)).add(side.scale(u * u * 22)).add(new Vec3(Math.sin(i * 1.7) * u * 4, Math.cos(i * 2.3) * u * 4, Math.sin(i * 0.9) * u * 4));
-            TacticalSprites.glow(k, p.x, p.y, p.z, 1.2 + u * 2.5, 255, (int) (240 - u * 40), (int) (200 - u * 60), (int) (170 * (1 - u)));
+        Vec3 lift = side.cross(motion).normalize();
+        float grow = 0.7F + 0.6F * (t / fall);
+        int tick = (int) t;
+
+        // ---- 尾（2026-10-29 ユーザー指定「本体まわりの四角い光を消して、尾を引く演出をそっくりに」）:
+        //      頭から来た方へ、水色・桃紫・白・紫・青の長い光の筋が束になって伸びる（素材の筋を線に沿って張る。明るい端が頭側）。
+        //      頭のすぐ後ろは太い白と水色の光（コマ）、尾の中に小さな光の粒が瞬きながら流れる
+        Random r = new Random(seed ^ 0x5EED);
+        for (int s = 0; s < 90; s++) {
+            double ang = r.nextDouble() * Math.PI * 2, spread = Math.pow(r.nextDouble(), 0.7);
+            double len = (35 + r.nextDouble() * 110) * (0.9 + 0.1 * Math.sin(t * 0.25 + s));
+            Vec3 o0 = side.scale(Math.cos(ang) * spread * 2.4 * grow).add(lift.scale(Math.sin(ang) * spread * 2.4 * grow));
+            Vec3 o1 = side.scale(Math.cos(ang) * spread * 16 * grow).add(lift.scale(Math.sin(ang) * spread * 16 * grow));
+            Vec3 p0 = head.add(o0).add(motion.scale(1.0 + r.nextDouble() * 4)), p1 = head.add(motion.scale(len)).add(o1);
+            int[] c = TAIL[s % TAIL.length];
+            double flick = 0.7 + 0.3 * Math.sin(t * 0.8 + s * 1.3);
+            double width = (0.5 + Math.pow(r.nextDouble(), 2) * 2.6) * grow;
+            TacticalSprites.axisSprite(k, k.streak, p0, p1, width, camRel, c[0], c[1], c[2], (int) (235 * flick));
         }
-        // 光る芯・十字の光・横に伸びる光の筋（レンズの光）
-        TacticalSprites.glow(k, head.x, head.y, head.z, 9 * grow, 235, 250, 255, 255);
-        TacticalSprites.sprite(k, k.flare, head.x, head.y, head.z, 30 * grow, t * 0.015F, 220, 240, 255, 255, 0, 0, 1, 1);
-        TacticalSprites.sprite(k, k.streak, head.x, head.y, head.z, 40 * grow, Mth.HALF_PI, 150, 210, 255, 160, 0, 0, 1, 1);
+        for (int s = 0; s < 4; s++) { // コマ（頭のすぐ後ろの太い光）
+            Vec3 p1 = head.add(motion.scale((28 + s * 9) * grow));
+            int[] c = s % 2 == 0 ? TAIL[2] : TAIL[0];
+            TacticalSprites.axisSprite(k, k.streak, head.add(motion.scale(0.5)), p1, (9 - s * 1.6) * grow, camRel, c[0], c[1], c[2], 255);
+        }
+        Random d = new Random(seed ^ 0xDA7A);
+        for (int i = 0; i < 180; i++) { // 尾の中の光の粒
+            double u = Math.pow(d.nextDouble(), 0.8);
+            double ang = d.nextDouble() * Math.PI * 2, rad = (1 + u * 17) * grow * Math.sqrt(d.nextDouble());
+            double drift = (t * (0.6 + d.nextDouble())) % 15;
+            Vec3 p = head.add(motion.scale(u * 115 + drift)).add(side.scale(Math.cos(ang) * rad)).add(lift.scale(Math.sin(ang) * rad));
+            int[] c = TAIL[i % TAIL.length];
+            double tw = 0.5 + 0.5 * Math.sin(t * 1.3 + i * 2.1);
+            TacticalSprites.glow(k, p.x, p.y, p.z, (0.25 + d.nextDouble() * 0.6) * (1 - u * 0.4), c[0], c[1], c[2], (int) (230 * tw * (1 - u * 0.6)));
+        }
+
+        // ---- 核: 多面体の結晶（面の塗り分けと瞬き、白い辺）
+        cyberCore(m, glow, dark, head, 4.2 * grow, t, seed);
+        shell(m, glow, head, 6.5 * grow, camRel, 120, 210, 255, 120, 14, 24);
+        shell(m, glow, head, 9.5 * grow, camRel, 230, 90, 255, 70, 12, 20);
+
+        // ---- 光の弧: 傾いた 3 本の輪が回る（途切れた弧）
+        for (int ringI = 0; ringI < 3; ringI++) {
+            double tilt = 0.6 + ringI * 0.9, spin = t * (0.12 + ringI * 0.05) * (ringI % 2 == 0 ? 1 : -1);
+            double rr = (7 + ringI * 2.2) * grow;
+            int[] c = ringI == 1 ? CYBER[3] : CYBER[0];
+            Vec3 ax = side.scale(Math.cos(tilt)).add(lift.scale(Math.sin(tilt)));
+            Vec3 ay = motion.cross(ax).normalize();
+            int seg = 48;
+            for (int sgi = 0; sgi < seg; sgi++) {
+                if ((sgi + ringI * 5) % 12 >= 8) continue; // 途切れ
+                double a0 = spin + Math.PI * 2 * sgi / seg, a1 = spin + Math.PI * 2 * (sgi + 1) / seg;
+                Vec3 p0 = head.add(ax.scale(Math.cos(a0) * rr)).add(ay.scale(Math.sin(a0) * rr * 0.55)).add(motion.scale(Math.sin(a0) * 1.5));
+                Vec3 p1 = head.add(ax.scale(Math.cos(a1) * rr)).add(ay.scale(Math.sin(a1) * rr * 0.55)).add(motion.scale(Math.sin(a1) * 1.5));
+                TacticalFx.ribbon(glow, m, p0.x, p0.y, p0.z, p1.x, p1.y, p1.z, 0.28 * grow, c[0], c[1], c[2], 220);
+            }
+        }
+
+        // ---- 光る芯・閃光・横に伸びる光の筋
+        TacticalSprites.glow(k, head.x, head.y, head.z, 10 * grow, 240, 252, 255, 255);
+        TacticalSprites.glow(k, head.x, head.y, head.z, 18 * grow, 120, 200, 255, 140);
+        TacticalSprites.sprite(k, k.flare, head.x, head.y, head.z, 34 * grow, t * 0.02F, 210, 235, 255, 255, 0, 0, 1, 1);
+    }
+
+    /** 多面体の核: 正二十面体を 1 段細かく割った 80 面を、色を塗り分けて瞬かせる。辺は白く光る */
+    private static void cyberCore(Matrix4f m, VertexConsumer glow, VertexConsumer dark, Vec3 c, double size, float t, long seed) {
+        double rotY = t * 0.05, rotX = t * 0.031;
+        double cy = Math.cos(rotY), sy = Math.sin(rotY), cx = Math.cos(rotX), sx = Math.sin(rotX);
+        Vec3[] base = new Vec3[12];
+        for (int i = 0; i < 12; i++) base[i] = new Vec3(ICO_V[i][0], ICO_V[i][1], ICO_V[i][2]).normalize();
+        int fi = 0;
+        for (int[] f : ICO_F) {
+            Vec3 a = base[f[0]], b = base[f[1]], cc = base[f[2]];
+            Vec3 ab = a.add(b).normalize(), bc = b.add(cc).normalize(), ca = cc.add(a).normalize();
+            Vec3[][] tris = {{a, ab, ca}, {ab, b, bc}, {ca, bc, cc}, {ab, bc, ca}};
+            for (Vec3[] tri : tris) {
+                Vec3[] w = new Vec3[3];
+                for (int q = 0; q < 3; q++) {
+                    double jag = 1.0 + 0.12 * Math.sin(fi * 2.1 + q + seed % 13); // 少し凸凹の面
+                    Vec3 v = tri[q].scale(jag);
+                    double x1 = v.x * cy + v.z * sy, z1 = -v.x * sy + v.z * cy;
+                    double y2 = v.y * cx - z1 * sx, z2 = v.y * sx + z1 * cx;
+                    w[q] = c.add(new Vec3(x1, y2, z2).scale(size));
+                }
+                int[] col = CYBER[(fi * 7 + (int) (seed & 3)) % CYBER.length];
+                double flick = 0.45 + 0.55 * Math.max(0, Math.sin(t * 0.7 + fi * 1.3));
+                TacticalFx.quadPts(dark, m, w[0], w[1], w[2], w[2], new int[]{col[0] / 3, col[1] / 3, col[2] / 2, 150});
+                TacticalFx.quadPts(glow, m, w[0], w[1], w[2], w[2], new int[]{col[0], col[1], col[2], (int) (170 * flick)});
+                TacticalFx.ribbon(glow, m, w[0].x, w[0].y, w[0].z, w[1].x, w[1].y, w[1].z, 0.07, 235, 250, 255, 230);
+                fi++;
+            }
+        }
+    }
+
+    /**
+     * 前兆の電脳の格子（参考画像の歪む格子）: 狙った所のまわりに水色の格子を敷き、彗星が近づくほど中心へ向かって沈み込む。
+     * 外ほど薄く、中心に照準の十字
+     */
+    private static void cyberGrid(Matrix4f m, VertexConsumer glow, float radius, float t, float k) {
+        if (k <= 0.01F) return;
+        int n = 24;
+        double step = radius * 2 / n, depth = 14 * k;
+        for (int axis = 0; axis < 2; axis++) {
+            for (int i = 0; i <= n; i++) {
+                double fixed = -radius + i * step;
+                for (int j = 0; j < n; j++) {
+                    double v0 = -radius + j * step, v1 = v0 + step;
+                    double x0 = axis == 0 ? fixed : v0, z0 = axis == 0 ? v0 : fixed, x1 = axis == 0 ? fixed : v1, z1 = axis == 0 ? v1 : fixed;
+                    double d0 = Math.sqrt(x0 * x0 + z0 * z0) / radius, d1 = Math.sqrt(x1 * x1 + z1 * z1) / radius;
+                    if (d0 > 1 && d1 > 1) continue;
+                    double y0 = 0.3 - depth * Math.pow(Math.max(0, 1 - d0), 2), y1 = 0.3 - depth * Math.pow(Math.max(0, 1 - d1), 2);
+                    int a = (int) (170 * k * Math.max(0, 1 - Math.min(d0, d1)) * (0.7 + 0.3 * Math.sin(t * 0.2 + i)));
+                    TacticalFx.ribbon(glow, m, x0, y0, z0, x1, y1, z1, 0.12, 70, 220, 255, a);
+                }
+            }
+        }
+        int ca = (int) (230 * k);
+        double cr = radius * 0.12;
+        TacticalFx.ring(glow, m, cr, 0.4 - depth, 0.35, 255, 70, 200, ca);
+        TacticalFx.ribbon(glow, m, -cr * 1.6, 0.4 - depth, 0, cr * 1.6, 0.4 - depth, 0, 0.25, 255, 70, 200, ca);
+        TacticalFx.ribbon(glow, m, 0, 0.4 - depth, -cr * 1.6, 0, 0.4 - depth, cr * 1.6, 0.25, 255, 70, 200, ca);
     }
 
     /** 縁ほど光る半透明の殻（見る向きと面の向きで明るさを変える） */
@@ -262,5 +374,53 @@ final class TacticalComet {
             TacticalFx.quadPts(dark, m, v[f[0]], v[f[1]], v[f[2]], v[f[2]], new int[]{160, 225, 255, (int) (80 * a)});
             TacticalFx.ribbon(glow, m, v[f[0]].x, v[f[0]].y, v[f[0]].z, v[f[1]].x, v[f[1]].y, v[f[1]].z, 0.08, 200, 240, 255, (int) (200 * a));
         }
+    }
+    // ------------------------------------------------------------------ 画面の警告（落下の間）
+
+    /**
+     * 落下の間の画面の警告（参考画像の HUD）: 左上に照準と「[WARNING] VIRTUAL COMET IMPACT」、右に「仮想彗星（バーチャル・コメット）」、
+     * 下に着弾までの残り時間。点滅し、着弾が近いほど速く
+     */
+    static void hud(net.minecraft.client.gui.GuiGraphics g, net.minecraft.client.gui.Font font, int w, int h, float t) {
+        int fall = TacticalPatterns.COMET_FALL;
+        if (t >= fall) return;
+        float left = (fall - t) / 20F;
+        boolean blink = Mth.sin(t * (0.4F + (1 - left / (fall / 20F)) * 1.2F)) > -0.3F;
+        int pink = 0xFF4A9A, cyan = 0x3BE8FF;
+        // 照準（左上）
+        int cx = 46, cy = 46;
+        for (int i = 0; i < 64; i++) {
+            double a = i * Math.PI * 2 / 64;
+            if (i % 16 < 12) g.fill(cx + (int) (Math.cos(a) * 18), cy + (int) (Math.sin(a) * 18), cx + (int) (Math.cos(a) * 18) + 1, cy + (int) (Math.sin(a) * 18) + 1, 0xC0000000 | cyan);
+        }
+        g.fill(cx - 26, cy, cx - 8, cy + 1, 0xC0000000 | cyan);
+        g.fill(cx + 8, cy, cx + 26, cy + 1, 0xC0000000 | cyan);
+        g.fill(cx, cy - 26, cx + 1, cy - 8, 0xC0000000 | cyan);
+        g.fill(cx, cy + 8, cx + 1, cy + 26, 0xC0000000 | cyan);
+        g.fill(cx - 2, cy - 2, cx + 3, cy + 3, 0xE0000000 | pink);
+        if (blink) {
+            g.pose().pushPose();
+            g.pose().translate(24, 82, 0);
+            g.pose().scale(1.6F, 1.6F, 1);
+            g.drawString(font, "[WARNING]", 0, 0, 0xFF000000 | pink, true);
+            g.pose().popPose();
+        }
+        g.drawString(font, "VIRTUAL COMET IMPACT", 26, 100, 0xD0000000 | pink, true);
+        // 題（右）
+        net.minecraft.network.chat.Component title = net.minecraft.network.chat.Component.translatable("tactical.automata_valkyries.comet.hud_title");
+        net.minecraft.network.chat.Component sub = net.minecraft.network.chat.Component.translatable("tactical.automata_valkyries.comet.hud_sub");
+        g.pose().pushPose();
+        g.pose().translate(w - 20 - font.width(title) * 2.2F, h * 0.38F, 0);
+        g.pose().scale(2.2F, 2.2F, 1);
+        g.drawString(font, title, 0, 0, 0xFF000000 | pink, true);
+        g.pose().popPose();
+        g.drawString(font, sub, w - 20 - font.width(sub), (int) (h * 0.38F) + 24, 0xE0000000 | pink, true);
+        g.fill(w - 22 - font.width(sub) - 4, (int) (h * 0.38F) + 36, w - 16, (int) (h * 0.38F) + 37, 0xA0000000 | cyan);
+        // 残り時間（下）
+        String eta = String.format(java.util.Locale.ROOT, "IMPACT  T-%.1fs", Math.max(0, left));
+        int ew = font.width(eta);
+        g.fill(w / 2 - ew / 2 - 8, h - 74, w / 2 + ew / 2 + 8, h - 60, 0x90000000);
+        g.fill(w / 2 - ew / 2 - 8, h - 61, w / 2 - ew / 2 - 8 + (int) ((ew + 16) * (1 - left / (fall / 20F))), h - 60, 0xFF000000 | pink);
+        g.drawString(font, eta, w / 2 - ew / 2, h - 71, 0xFF000000 | cyan, true);
     }
 }

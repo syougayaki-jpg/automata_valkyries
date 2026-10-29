@@ -12,8 +12,9 @@ import java.util.Random;
  * <ul>
  *   <li>CARPET: 4 機の無人爆撃機が異空間（裂け目）から現れて上空を横切り、大量の焼夷弾を落とす。落ちた所に独自の炎が残る</li>
  *   <li>IRIS: 範囲内にカラフルな花びらが舞い落ちる</li>
- *   <li>ABYSS: ひび割れた球体から光が漏れ出しながら吸い込み、吸い込む範囲が広がっていく。最後に中心へ 500</li>
+ *   <li>ABYSS: ひび割れた球体から光が漏れ出しながら吸い込み、吸い込む範囲が広がっていく。最後に中心へ 20,000</li>
  * </ul>
+ * 2026-10-29 ユーザー指定「最近の MOD のインフレを見るに、もっと派手に」（質問で: 威力・範囲と演出の両方）で範囲をおよそ倍・威力をおよそ 10 倍【仮】
  */
 public final class TacticalPatterns {
 
@@ -22,11 +23,11 @@ public final class TacticalPatterns {
     // ------------------------------------------------------------------ CARPET
 
     /** 裂け目が開くまで・爆撃機が横切る長さ・焼夷弾が落ちる時間・炎が残る長さ（Tick） */
-    public static final int CARPET_PORTAL = 20, CARPET_PASS = 100, CARPET_FALL = 15, CARPET_FIRE = 200, CARPET_BOMBERS = 4;
+    public static final int CARPET_PORTAL = 20, CARPET_PASS = 140, CARPET_FALL = 15, CARPET_FIRE = 200, CARPET_BOMBERS = 8;
     /** 爆撃する範囲（半径）と、爆撃機の高さ */
-    public static final double CARPET_R = 32.0, CARPET_ALT = 40.0;
+    public static final double CARPET_R = 64.0, CARPET_ALT = 60.0;
     /** 着弾の爆風と、残る炎の半径（範囲内の敵に当たるよう大きく。2026-10-07 ユーザー指定「炎をもっと大きく」） */
-    public static final double CARPET_BLAST_R = 5.0, CARPET_FIRE_R = 5.0;
+    public static final double CARPET_BLAST_R = 8.0, CARPET_FIRE_R = 7.0;
 
     public static int carpetDuration() {
         return CARPET_PORTAL + CARPET_PASS + CARPET_FALL + CARPET_FIRE + 20;
@@ -53,11 +54,11 @@ public final class TacticalPatterns {
     public static List<Bomb> carpetBombs(long seed) {
         List<Bomb> out = new ArrayList<>();
         for (int i = 0; i < CARPET_BOMBERS; i++) {
-            for (int t = CARPET_PORTAL; t <= CARPET_PORTAL + CARPET_PASS; t += 2) {
+            for (int t = CARPET_PORTAL; t <= CARPET_PORTAL + CARPET_PASS; t += 3) { // 8 機になったので 3 Tick ごと（2026-10-29）
                 Vec3 p = bomber(i, t, seed);
                 if (p.x * p.x + p.z * p.z > CARPET_R * CARPET_R) continue;
                 Random r = new Random(seed ^ (i * 7919L + t * 104729L));
-                double jx = (r.nextDouble() - 0.5) * 14, jz = (r.nextDouble() - 0.5) * 14; // 範囲を隙間なく焼くよう広くばらける（2026-10-07）
+                double jx = (r.nextDouble() - 0.5) * 18, jz = (r.nextDouble() - 0.5) * 18; // 範囲を隙間なく焼くよう広くばらける（2026-10-07）
                 out.add(new Bomb(p.x + jx, p.z + jz, t, t + CARPET_FALL, p));
             }
         }
@@ -66,9 +67,9 @@ public final class TacticalPatterns {
 
     // ------------------------------------------------------------------ ABYSS
 
-    public static final int ABYSS_TIME = 160;
-    public static final double ABYSS_START_R = 24.0, ABYSS_END_R = 48.0, ABYSS_CORE_R = 4.0;
-    public static final float ABYSS_CORE_DAMAGE = 500.0F;
+    public static final int ABYSS_TIME = 200;
+    public static final double ABYSS_START_R = 48.0, ABYSS_END_R = 96.0, ABYSS_CORE_R = 8.0;
+    public static final float ABYSS_CORE_DAMAGE = 20000.0F, ABYSS_RATIO = 0.5F;
 
     /** 吸い込む範囲（時間とともに広がる） */
     public static double abyssRadius(float t) {
@@ -80,8 +81,8 @@ public final class TacticalPatterns {
     /** 落ちてくる間・落ちた後の残光（Tick）、吹き飛ばす半径、中心と縁のダメージ */
     public static final int COMET_FALL = 80, COMET_AFTER = 200;
     /** 2026-10-07 ユーザー指定で範囲を倍（30 → 60）、威力を 5 倍（中心 800 → 4,000、縁 200 → 1,000）に */
-    public static final double COMET_R = 60.0;
-    public static final float COMET_CORE = 4000.0F, COMET_EDGE = 1000.0F;
+    public static final double COMET_R = 120.0;
+    public static final float COMET_CORE = 40000.0F, COMET_EDGE = 10000.0F;
 
     /** 彗星の t（0〜COMET_FALL）のときの位置（狙った所からの相対）。斜め上の遠くから、だんだん速く */
     public static Vec3 cometPos(float t, long seed) {
@@ -93,6 +94,6 @@ public final class TacticalPatterns {
 
     // ------------------------------------------------------------------ IRIS
 
-    public static final int IRIS_TIME = 600;
-    public static final double IRIS_R = 16.0;
+    public static final int IRIS_TIME = 900;
+    public static final double IRIS_R = 32.0;
 }

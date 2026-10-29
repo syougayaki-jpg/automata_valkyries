@@ -15,6 +15,8 @@ public final class ValkyrieConfig {
     public static final ForgeConfigSpec.IntValue EASY_POD_ENERGY;
     /** 戦術級コードで地形を壊すか（追加拡張仕様書 §13.1） */
     public static final ForgeConfigSpec.BooleanValue TACTICAL_GRIEFING;
+    /** 戦術級コードがボスに効くか（2026-10-29 ユーザー指定「ボスに通用するかを設定出来るように、デフォルトはオフ」） */
+    public static final ForgeConfigSpec.BooleanValue TACTICAL_VS_BOSSES;
 
     static {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
@@ -28,6 +30,9 @@ public final class ValkyrieConfig {
         builder.comment("戦術級コード（追加拡張仕様書 §13）").push("tactical");
         TACTICAL_GRIEFING = builder.comment("true にすると、戦術級コード（CARPET の爆発・GUNGNIR の光の柱）で地形も壊れる。false ならモブへのダメージだけ")
                 .define("enableTacticalGriefing", false);
+        TACTICAL_VS_BOSSES = builder.comment("true にすると、戦術級コードがボスにも効く（ダメージ・吸い込み・吹き飛ばし）。false ならボスには何もしない。",
+                        "ボス = forge:bosses のタグのあるモブ（ウィザー・エンダードラゴン・他 MOD のボス）と、このMOD のボス")
+                .define("tacticalAffectsBosses", false);
         builder.pop();
         SPEC = builder.build();
     }
@@ -45,6 +50,14 @@ public final class ValkyrieConfig {
     public static boolean tacticalGriefing() {
         try {
             return TACTICAL_GRIEFING.get();
+        } catch (IllegalStateException notLoaded) {
+            return false;
+        }
+    }
+
+    public static boolean tacticalAffectsBosses() {
+        try {
+            return TACTICAL_VS_BOSSES.get();
         } catch (IllegalStateException notLoaded) {
             return false;
         }

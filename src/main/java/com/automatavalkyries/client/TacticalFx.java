@@ -149,6 +149,19 @@ public final class TacticalFx {
         buffers.endBatch();
     }
 
+    /** 仮想彗星が落ちてくる間の画面の警告（近く＝範囲の 3 倍以内にいるとき。2026-10-29） */
+    @SubscribeEvent
+    public static void onHud(net.minecraftforge.client.event.RenderGuiEvent.Post event) {
+        Minecraft mc = Minecraft.getInstance();
+        if (ACTIVE.isEmpty() || mc.level == null || mc.player == null || mc.options.hideGui) return;
+        for (Effect e : ACTIVE) {
+            if (e.kind != TacticalFxPacket.COMET || mc.player.position().distanceTo(e.pos) > e.radius * 3) continue;
+            float t = mc.level.getGameTime() - e.start + event.getPartialTick();
+            TacticalComet.hud(event.getGuiGraphics(), mc.font, event.getGuiGraphics().guiWidth(), event.getGuiGraphics().guiHeight(), t);
+            return;
+        }
+    }
+
     /** 降下: 螺旋 8 本の頭が空から地面へ。半径は高さに比例（上で radius、下で 3） */
     private static void descent(Matrix4f m, VertexConsumer glow, VertexConsumer dark, float radius, float k, float t) {
         double head = HEIGHT * (1 - k * k); // だんだん速く
@@ -265,7 +278,7 @@ public final class TacticalFx {
             } else if (t >= b.landTick() && t < b.landTick() + com.automatavalkyries.tactical.TacticalPatterns.CARPET_FIRE) {
                 float age = t - b.landTick();
                 float life = Math.min(1F, (com.automatavalkyries.tactical.TacticalPatterns.CARPET_FIRE - age) / 30F) * fade;
-                flames(glow, m, b.x(), groundY(e, b.x(), b.z()), b.z(), t + b.dropTick() * 3, life * 0.35F, age < 6 ? 1.0F + (6 - age) * 0.4F : 1.0F);
+                flameVortex(glow, dark, m, b.x(), groundY(e, b.x(), b.z()), b.z(), t + b.dropTick() * 3, life, age < 6 ? 1.0F + (6 - age) * 0.4F : 1.0F, b.dropTick());
             }
         }
     }
@@ -309,23 +322,61 @@ public final class TacticalFx {
         ribbon(glow, m, tail.x, tail.y + 0.3, tail.z, exhaust.x, exhaust.y + 0.3, exhaust.z, 0.9, 255, 120, 60, 220);
     }
 
-    /** 独自の炎（黄白の芯から橙・紫へ移る揺らめく炎を、十字に 2 枚） */
-    private static void flames(VertexConsumer c, Matrix4f m, double x, double y, double z, float t, float life, float burst) {
+    /** 炎の舌の色（下から上へ）: 芯の黄白、橙、赤。縁は暗い紅紫 */
+    private static final int[] FIRE_CORE = {255, 236, 150}, FIRE_MID = {255, 110, 25}, FIRE_TIP = {225, 35, 35}, FIRE_RIM = {90, 10, 55};
+
+    /**
+     * 炎の渦（2026-10-29 ユーザー指定「絨毯爆撃の炎の演出をこれに近づけて」。参考画像: 渦を巻いて立ち昇るアニメ調の炎、黄白の芯・橙・赤・暗い紅紫の縁）。
+     * 1 か所に 4 本の炎の舌が螺旋に巻き上がる。舌は 3 層: 外の暗い紅紫（半透明）、中の橙から赤（足し算）、芯の黄白（足し算・細い）。
+     * 舌の先は揺れて細く尖る。burst は着弾直後の大きさ
+     */
+    private static void flameVortex(VertexConsumer glow, VertexConsumer dark, Matrix4f m, double x, double y, double z, float t, float life, float burst, int seed) {
         if (life <= 0.01F) return;
-        for (int k = 0; k < 3; k++) {
-            double a = k * Math.PI / 3 + t * 0.03;
-            double dx = Math.cos(a), dz = Math.sin(a);
-            double h = (1.8 + 0.6 * Math.sin(t * 0.45 + k * 2)) * burst;
-            double w = 0.9 * burst;
-            int al = (int) (220 * life);
-            // 下: 黄白、中: 橙、上: 紫（足し算の描き方なので重なるほど明るい）
-            quad(c, m, new float[]{(float) (x - dx * w), (float) y, (float) (z - dz * w), (float) (x + dx * w), (float) y, (float) (z + dz * w),
-                            (float) (x + dx * w * 0.6), (float) (y + h * 0.5), (float) (z + dz * w * 0.6), (float) (x - dx * w * 0.6), (float) (y + h * 0.5), (float) (z - dz * w * 0.6)},
-                    new int[]{255, 240, 170, al, 255, 240, 170, al, 255, 120, 30, al, 255, 120, 30, al});
-            quad(c, m, new float[]{(float) (x - dx * w * 0.6), (float) (y + h * 0.5), (float) (z - dz * w * 0.6), (float) (x + dx * w * 0.6), (float) (y + h * 0.5), (float) (z + dz * w * 0.6),
-                            (float) (x + dx * 0.05), (float) (y + h), (float) (z + dz * 0.05), (float) (x - dx * 0.05), (float) (y + h), (float) (z - dz * 0.05)},
-                    new int[]{255, 120, 30, al, 255, 120, 30, al, 190, 40, 255, 0, 190, 40, 255, 0});
+        double fr = com.automatavalkyries.tactical.TacticalPatterns.CARPET_FIRE_R;
+        double height = (fr * 1.3 + 1.2 * Math.sin(t * 0.21 + seed)) * burst, base = fr * 0.42 * burst;
+        int segs = 8;
+        for (int j = 0; j < 4; j++) {
+            double phase = j * Math.PI / 2 + seed * 0.7;
+            double hj = height * (0.75 + 0.25 * Math.sin(seed + j * 1.9));
+            for (int layer = 0; layer < 3; layer++) {
+                double wMul = layer == 0 ? 1.35 : layer == 1 ? 1.0 : 0.42, rOff = layer == 0 ? 0.15 : 0;
+                VertexConsumer c = layer == 0 ? dark : glow;
+                for (int s = 0; s < segs; s++) {
+                    double u0 = (double) s / segs, u1 = (double) (s + 1) / segs;
+                    double[] p0 = tonguePoint(x, y, z, u0, phase, t, base + rOff, hj), p1 = tonguePoint(x, y, z, u1, phase, t, base + rOff, hj);
+                    double w0 = tongueWidth(u0, t, j) * wMul * burst, w1 = tongueWidth(u1, t, j) * wMul * burst;
+                    int[] c0 = tongueColor(layer, u0), c1 = tongueColor(layer, u1);
+                    int a0 = (int) ((layer == 0 ? 200 : 230) * life * (1 - u0 * 0.35)), a1 = (int) ((layer == 0 ? 200 : 230) * life * (1 - u1 * 0.35));
+                    quad(c, m, new float[]{(float) (p0[0] - p0[3] * w0), (float) p0[1], (float) (p0[2] - p0[4] * w0), (float) (p0[0] + p0[3] * w0), (float) p0[1], (float) (p0[2] + p0[4] * w0),
+                                    (float) (p1[0] + p1[3] * w1), (float) p1[1], (float) (p1[2] + p1[4] * w1), (float) (p1[0] - p1[3] * w1), (float) p1[1], (float) (p1[2] - p1[4] * w1)},
+                            new int[]{c0[0], c0[1], c0[2], a0, c0[0], c0[1], c0[2], a0, c1[0], c1[1], c1[2], a1, c1[0], c1[1], c1[2], a1});
+                }
+            }
         }
+    }
+
+    /** 舌の u（0 根元〜1 先）の位置と、幅を張る向き（水平の接線） */
+    private static double[] tonguePoint(double x, double y, double z, double u, double phase, float t, double base, double h) {
+        double a = phase + u * 2.4 + t * 0.16;                       // 上ほど回り込む螺旋
+        double rr = base * (1 - u * 0.75) + 0.25 * Math.sin(t * 0.4 + u * 6 + phase);
+        double sway = 0.5 * u * u * Math.sin(t * 0.33 + phase);      // 先が揺れる
+        return new double[]{x + Math.cos(a) * rr + sway, y + u * h, z + Math.sin(a) * rr, -Math.sin(a), Math.cos(a)};
+    }
+
+    /** 舌の幅（根元が太く、先へ尖る。先は少し揺らめく） */
+    private static double tongueWidth(double u, float t, int j) {
+        return 0.85 * Math.pow(1 - u, 0.85) * (0.85 + 0.15 * Math.sin(t * 0.7 + u * 9 + j));
+    }
+
+    private static int[] tongueColor(int layer, double u) {
+        if (layer == 0) return FIRE_RIM;
+        if (layer == 2) return mix(FIRE_CORE, FIRE_MID, u * 0.8);
+        return u < 0.5 ? mix(FIRE_MID, FIRE_MID, 0) : mix(FIRE_MID, FIRE_TIP, (u - 0.5) * 2);
+    }
+
+    private static int[] mix(int[] a, int[] b, double k) {
+        k = Math.max(0, Math.min(1, k));
+        return new int[]{(int) (a[0] + (b[0] - a[0]) * k), (int) (a[1] + (b[1] - a[1]) * k), (int) (a[2] + (b[2] - a[2]) * k)};
     }
 
     /** 炎から火の粉と煙（クライアントの Tick） */
@@ -333,10 +384,16 @@ public final class TacticalFx {
         float t = level.getGameTime() - e.start;
         var rand = level.random;
         for (com.automatavalkyries.tactical.TacticalPatterns.Bomb b : e.bombs) {
-            if (t < b.landTick() || t >= b.landTick() + com.automatavalkyries.tactical.TacticalPatterns.CARPET_FIRE || rand.nextFloat() > 0.25F) continue;
+            if (t < b.landTick() || t >= b.landTick() + com.automatavalkyries.tactical.TacticalPatterns.CARPET_FIRE || rand.nextFloat() > 0.45F) continue;
             double x = e.pos.x + b.x(), z = e.pos.z + b.z(), y = e.pos.y + groundY(e, b.x(), b.z());
-            level.addParticle(net.minecraft.core.particles.ParticleTypes.FLAME, x + rand.nextGaussian() * 0.4, y + 0.3, z + rand.nextGaussian() * 0.4, 0, 0.06, 0);
-            if (rand.nextFloat() < 0.3F) level.addParticle(net.minecraft.core.particles.ParticleTypes.SMOKE, x, y + 1.5, z, 0, 0.08, 0);
+            // 火の粉（渦から外へ・上へ飛び散る。2026-10-29 参考画像に寄せて多く）
+            for (int s = 0; s < 3; s++) {
+                double a = rand.nextDouble() * Math.PI * 2, sp = 0.08 + rand.nextDouble() * 0.22;
+                level.addParticle(net.minecraft.core.particles.ParticleTypes.SMALL_FLAME, x + Math.cos(a) * 1.5, y + 1 + rand.nextDouble() * 6, z + Math.sin(a) * 1.5,
+                        Math.cos(a) * sp, 0.05 + rand.nextDouble() * 0.15, Math.sin(a) * sp);
+            }
+            if (rand.nextFloat() < 0.4F) level.addParticle(net.minecraft.core.particles.ParticleTypes.FLAME, x + rand.nextGaussian() * 0.8, y + 0.3, z + rand.nextGaussian() * 0.8, 0, 0.08, 0);
+            if (rand.nextFloat() < 0.25F) level.addParticle(net.minecraft.core.particles.ParticleTypes.LARGE_SMOKE, x + rand.nextGaussian(), y + 6 + rand.nextDouble() * 3, z + rand.nextGaussian(), 0, 0.06, 0);
             if (t == b.landTick()) level.addParticle(net.minecraft.core.particles.ParticleTypes.LAVA, x, y + 0.5, z, 0, 0, 0);
         }
     }

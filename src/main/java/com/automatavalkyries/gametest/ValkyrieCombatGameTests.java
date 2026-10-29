@@ -418,6 +418,10 @@ public class ValkyrieCombatGameTests {
         }
         helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, new net.minecraft.world.phys.AABB(c).inflate(24))
                 .forEach(net.minecraft.world.entity.Entity::discard);
+        // 前の回・ほかのテストの残りの敵（兵姫が戦い始めてお掃除・運搬をしなかった。2026-10-29）。保護された物は外さない
+        helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.Mob.class, new net.minecraft.world.phys.AABB(c).inflate(32),
+                        m -> m instanceof net.minecraft.world.entity.monster.Enemy && !(m instanceof com.automatavalkyries.protect.IEprotected))
+                .forEach(net.minecraft.world.entity.Entity::discard);
     }
 
     /** 飛び道具らしい物の見分け: バニラの雪玉・Projectile を継がない速い小さな物は飛び道具、落ちている物・止まった物は違う。兵姫へ向かって来れば遠距離の脅威 */
