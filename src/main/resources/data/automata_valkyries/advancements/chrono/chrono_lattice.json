@@ -1,0 +1,37 @@
+{
+  "parent": "automata_valkyries:chrono/photonic",
+  "display": {
+    "icon": {
+      "item": "automata_valkyries:circuit_chrono_lattice"
+    },
+    "title": {
+      "translate": "advancements.automata_valkyries.chrono.chrono_lattice.title"
+    },
+    "description": {
+      "translate": "advancements.automata_valkyries.chrono.chrono_lattice.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "c": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "automata_valkyries:circuit_chrono_lattice"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "c"
+    ]
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "parent": "automata_valkyries:story/weapon_t1",
+  "display": {
+    "icon": {
+      "item": "automata_valkyries:weapon_heavy_particle_cannon"
+    },
+    "title": {
+      "translate": "advancements.automata_valkyries.story.weapon_t2.title"
+    },
+    "description": {
+      "translate": "advancements.automata_valkyries.story.weapon_t2.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "c": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "automata_valkyries:tool_chainsaw_t2",
+              "automata_valkyries:tool_drill_t2",
+              "automata_valkyries:tool_tac_pointer",
+              "automata_valkyries:weapon_berserk_axe",
+              "automata_valkyries:weapon_crimson_sickle",
+              "automata_valkyries:weapon_heavy_particle_cannon",
+              "automata_valkyries:weapon_levitation_rod",
+              "automata_valkyries:weapon_luxion_saber",
+              "automata_valkyries:weapon_mirage_dagger",
+              "automata_valkyries:weapon_plasma_chakram",
+              "automata_valkyries:weapon_plasma_flamer",
+              "automata_valkyries:weapon_prism_rifle",
+              "automata_valkyries:weapon_ricochet_rifle",
+              "automata_valkyries:weapon_sonic_cannon",
+              "automata_valkyries:weapon_spectral_chain",
+              "automata_valkyries:weapon_static_trap",
+              "automata_valkyries:weapon_thunder_javelin",
+              "automata_valkyries:weapon_vortex_cannon"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "c"
+    ]
+  ]
+}

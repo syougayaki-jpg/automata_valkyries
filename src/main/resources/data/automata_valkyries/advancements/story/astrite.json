@@ -1,0 +1,37 @@
+{
+  "parent": "automata_valkyries:story/scrap",
+  "display": {
+    "icon": {
+      "item": "automata_valkyries:ingot_astrite"
+    },
+    "title": {
+      "translate": "advancements.automata_valkyries.story.astrite.title"
+    },
+    "description": {
+      "translate": "advancements.automata_valkyries.story.astrite.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "c": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "automata_valkyries:ingot_astrite"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "c"
+    ]
+  ]
+}

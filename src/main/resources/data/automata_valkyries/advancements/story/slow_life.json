@@ -1,0 +1,41 @@
+{
+  "parent": "automata_valkyries:story/valkyrie_body",
+  "display": {
+    "icon": {
+      "item": "automata_valkyries:backpack_harvester"
+    },
+    "title": {
+      "translate": "advancements.automata_valkyries.story.slow_life.title"
+    },
+    "description": {
+      "translate": "advancements.automata_valkyries.story.slow_life.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "c": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "automata_valkyries:backpack_harvester",
+              "automata_valkyries:backpack_mining_arm",
+              "automata_valkyries:backpack_lumber_saw",
+              "automata_valkyries:backpack_fishing_rig",
+              "automata_valkyries:backpack_field_kitchen"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "c"
+    ]
+  ]
+}

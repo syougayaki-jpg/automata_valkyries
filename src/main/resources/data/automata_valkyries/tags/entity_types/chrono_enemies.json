@@ -1,0 +1,20 @@
+{
+  "replace": false,
+  "values": [
+    "automata_valkyries:chrono_scout_drone",
+    "automata_valkyries:chrono_spider_bot",
+    "automata_valkyries:chrono_heavy_walker",
+    "automata_valkyries:chrono_mask_drone",
+    "automata_valkyries:chrono_trooper",
+    "automata_valkyries:pulse_phalanx",
+    "automata_valkyries:siege_cannon",
+    "automata_valkyries:siren_eye",
+    "automata_valkyries:chrono_guardian",
+    "automata_valkyries:mimic_container",
+    "automata_valkyries:crane_loader",
+    "automata_valkyries:shield_drone",
+    "automata_valkyries:phase_condenser",
+    "automata_valkyries:chrono_interceptor",
+    "automata_valkyries:delay_node"
+  ]
+}

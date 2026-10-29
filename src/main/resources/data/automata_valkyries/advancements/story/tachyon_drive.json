@@ -1,0 +1,28 @@
+{
+  "parent": "automata_valkyries:story/valkyrie_body",
+  "display": {
+    "icon": {
+      "item": "automata_valkyries:backpack_tachyon_drive"
+    },
+    "title": {
+      "translate": "advancements.automata_valkyries.story.tachyon_drive.title"
+    },
+    "description": {
+      "translate": "advancements.automata_valkyries.story.tachyon_drive.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "c": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "requirements": [
+    [
+      "c"
+    ]
+  ]
+}

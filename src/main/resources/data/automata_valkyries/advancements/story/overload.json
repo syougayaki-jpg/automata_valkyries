@@ -1,0 +1,37 @@
+{
+  "parent": "automata_valkyries:story/weapon_t1",
+  "display": {
+    "icon": {
+      "item": "automata_valkyries:overload_memory"
+    },
+    "title": {
+      "translate": "advancements.automata_valkyries.story.overload.title"
+    },
+    "description": {
+      "translate": "advancements.automata_valkyries.story.overload.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "c": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "automata_valkyries:overload_memory"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "c"
+    ]
+  ]
+}

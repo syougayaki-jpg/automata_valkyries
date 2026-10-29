@@ -213,8 +213,9 @@ public class ValkyrieInventory implements Container {
     public ItemStack removeItem(int slot, int amount) {
         ItemStack current = getItem(slot);
         if (current.isEmpty() || amount <= 0) return ItemStack.EMPTY;
-        ItemStack taken = current.split(amount);
-        setItem(slot, current); // 手・コアは入れ直して反映させる
+        ItemStack left = current.copy();                                                      // 元の物は割らない（ほかが持っている写しまで空にしないように。2026-10-30）
+        ItemStack taken = left.split(amount);
+        setItem(slot, left.isEmpty() ? ItemStack.EMPTY : left); // 手・コアは入れ直して反映させる
         return taken;
     }
 

@@ -1,0 +1,40 @@
+{
+  "parent": "automata_valkyries:story/astrite",
+  "display": {
+    "icon": {
+      "item": "automata_valkyries:item_pocket_t1"
+    },
+    "title": {
+      "translate": "advancements.automata_valkyries.story.pocket.title"
+    },
+    "description": {
+      "translate": "advancements.automata_valkyries.story.pocket.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "c": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "automata_valkyries:item_pocket_t1",
+              "automata_valkyries:item_pocket_t2",
+              "automata_valkyries:item_pocket_t3",
+              "automata_valkyries:item_pocket_t4"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "c"
+    ]
+  ]
+}

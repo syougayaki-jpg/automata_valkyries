@@ -1,0 +1,37 @@
+{
+  "parent": "automata_valkyries:story/weapon_t1",
+  "display": {
+    "icon": {
+      "item": "automata_valkyries:upgrade_station"
+    },
+    "title": {
+      "translate": "advancements.automata_valkyries.story.upgrade_station.title"
+    },
+    "description": {
+      "translate": "advancements.automata_valkyries.story.upgrade_station.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "c": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "automata_valkyries:upgrade_station"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "c"
+    ]
+  ]
+}

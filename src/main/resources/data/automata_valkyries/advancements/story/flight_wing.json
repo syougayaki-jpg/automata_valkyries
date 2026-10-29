@@ -1,0 +1,37 @@
+{
+  "parent": "automata_valkyries:story/weapon_t3",
+  "display": {
+    "icon": {
+      "item": "automata_valkyries:tool_flight_wing"
+    },
+    "title": {
+      "translate": "advancements.automata_valkyries.story.flight_wing.title"
+    },
+    "description": {
+      "translate": "advancements.automata_valkyries.story.flight_wing.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "c": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "automata_valkyries:tool_flight_wing"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "c"
+    ]
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "parent": "automata_valkyries:story/pocket",
+  "display": {
+    "icon": {
+      "item": "automata_valkyries:item_pocket_t4"
+    },
+    "title": {
+      "translate": "advancements.automata_valkyries.story.pocket_t4.title"
+    },
+    "description": {
+      "translate": "advancements.automata_valkyries.story.pocket_t4.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "c": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "automata_valkyries:item_pocket_t4"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "c"
+    ]
+  ],
+  "rewards": {
+    "experience": 100
+  }
+}

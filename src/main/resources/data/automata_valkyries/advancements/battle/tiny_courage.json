@@ -1,0 +1,40 @@
+{
+  "parent": "automata_valkyries:battle/elenor",
+  "display": {
+    "icon": {
+      "item": "automata_valkyries:tiny_courage"
+    },
+    "title": {
+      "translate": "advancements.automata_valkyries.battle.tiny_courage.title"
+    },
+    "description": {
+      "translate": "advancements.automata_valkyries.battle.tiny_courage.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": true
+  },
+  "criteria": {
+    "c": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "automata_valkyries:tiny_courage"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "c"
+    ]
+  ],
+  "rewards": {
+    "experience": 100
+  }
+}

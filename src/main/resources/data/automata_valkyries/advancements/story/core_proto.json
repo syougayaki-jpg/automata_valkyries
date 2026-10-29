@@ -1,0 +1,37 @@
+{
+  "parent": "automata_valkyries:story/circuit_advanced",
+  "display": {
+    "icon": {
+      "item": "automata_valkyries:core_proto"
+    },
+    "title": {
+      "translate": "advancements.automata_valkyries.story.core_proto.title"
+    },
+    "description": {
+      "translate": "advancements.automata_valkyries.story.core_proto.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "c": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "automata_valkyries:core_proto"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "c"
+    ]
+  ]
+}

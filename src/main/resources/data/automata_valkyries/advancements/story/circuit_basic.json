@@ -1,0 +1,37 @@
+{
+  "parent": "automata_valkyries:story/astrite",
+  "display": {
+    "icon": {
+      "item": "automata_valkyries:circuit_basic"
+    },
+    "title": {
+      "translate": "advancements.automata_valkyries.story.circuit_basic.title"
+    },
+    "description": {
+      "translate": "advancements.automata_valkyries.story.circuit_basic.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "c": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "automata_valkyries:circuit_basic"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "c"
+    ]
+  ]
+}

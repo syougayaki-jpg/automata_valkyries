@@ -1,0 +1,37 @@
+{
+  "parent": "automata_valkyries:chrono/frame_future",
+  "display": {
+    "icon": {
+      "item": "automata_valkyries:frame_beyond"
+    },
+    "title": {
+      "translate": "advancements.automata_valkyries.chrono.frame_beyond.title"
+    },
+    "description": {
+      "translate": "advancements.automata_valkyries.chrono.frame_beyond.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "c": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "automata_valkyries:frame_beyond"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "c"
+    ]
+  ]
+}

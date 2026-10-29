@@ -1,0 +1,37 @@
+{
+  "parent": "automata_valkyries:story/circuit_basic",
+  "display": {
+    "icon": {
+      "item": "automata_valkyries:circuit_advanced"
+    },
+    "title": {
+      "translate": "advancements.automata_valkyries.story.circuit_advanced.title"
+    },
+    "description": {
+      "translate": "advancements.automata_valkyries.story.circuit_advanced.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "c": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "automata_valkyries:circuit_advanced"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "c"
+    ]
+  ]
+}

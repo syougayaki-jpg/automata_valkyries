@@ -1,0 +1,40 @@
+{
+  "parent": "automata_valkyries:chrono/frame_beyond",
+  "display": {
+    "icon": {
+      "item": "automata_valkyries:frame_neverlast"
+    },
+    "title": {
+      "translate": "advancements.automata_valkyries.chrono.frame_neverlast.title"
+    },
+    "description": {
+      "translate": "advancements.automata_valkyries.chrono.frame_neverlast.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "c": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "automata_valkyries:frame_neverlast"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "c"
+    ]
+  ],
+  "rewards": {
+    "experience": 100
+  }
+}

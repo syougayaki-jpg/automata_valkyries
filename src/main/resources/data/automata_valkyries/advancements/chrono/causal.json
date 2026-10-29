@@ -1,0 +1,40 @@
+{
+  "parent": "automata_valkyries:chrono/chrono_lattice",
+  "display": {
+    "icon": {
+      "item": "automata_valkyries:circuit_causal"
+    },
+    "title": {
+      "translate": "advancements.automata_valkyries.chrono.causal.title"
+    },
+    "description": {
+      "translate": "advancements.automata_valkyries.chrono.causal.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "c": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "automata_valkyries:circuit_causal"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "c"
+    ]
+  ],
+  "rewards": {
+    "experience": 100
+  }
+}

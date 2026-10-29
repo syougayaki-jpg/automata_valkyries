@@ -1,0 +1,40 @@
+{
+  "parent": "automata_valkyries:story/core_proto",
+  "display": {
+    "icon": {
+      "item": "automata_valkyries:valkyrie_body_v"
+    },
+    "title": {
+      "translate": "advancements.automata_valkyries.story.valkyrie_body.title"
+    },
+    "description": {
+      "translate": "advancements.automata_valkyries.story.valkyrie_body.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "c": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "automata_valkyries:valkyrie_body_v",
+              "automata_valkyries:valkyrie_body_s",
+              "automata_valkyries:valkyrie_body_h",
+              "automata_valkyries:valkyrie_body_c"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "c"
+    ]
+  ]
+}

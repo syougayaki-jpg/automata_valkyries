@@ -1,0 +1,37 @@
+{
+  "parent": "automata_valkyries:chrono/generator",
+  "display": {
+    "icon": {
+      "item": "automata_valkyries:assembler"
+    },
+    "title": {
+      "translate": "advancements.automata_valkyries.chrono.assembler.title"
+    },
+    "description": {
+      "translate": "advancements.automata_valkyries.chrono.assembler.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "c": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "automata_valkyries:assembler"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "c"
+    ]
+  ]
+}

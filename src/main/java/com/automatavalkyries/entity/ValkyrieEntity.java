@@ -608,6 +608,16 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
 
     // ------------------------------------------------------------------ 段階 2: 装備・素体・同調率・シールド・電力
 
+    /**
+     * 描く側では、受け取った装備を自分の写しにして持つ（2026-10-30 ユーザー指定「戦術兵姫の兵装を外しても攻撃力が引き継がれた」の原因）。
+     * 1 人で遊ぶ時は通信を書き出さないので、サーバーが「前の Tick の手の物」として持つ写しと同じ物がそのまま描く側の手に入る。
+     * 画面で取り出すと描く側の先読みがその物を割って空にし、サーバーの「前の手の物」も空になって、兵装の攻撃力が外れなかった（入れ直すまで残る）
+     */
+    @Override
+    public void setItemSlot(net.minecraft.world.entity.EquipmentSlot slot, ItemStack stack) {
+        super.setItemSlot(slot, level().isClientSide ? stack.copy() : stack);
+    }
+
     public ValkyrieInventory getInventory() {
         if (inventory == null) inventory = new ValkyrieInventory(this); // 親のコンストラクタから呼ばれることがある
         return inventory;
@@ -846,6 +856,9 @@ public class ValkyrieEntity extends PathfinderMob implements GeoEntity {
             setTarget(null);
             setSitting(false);
             talk("sleepy");
+            if (getOwner() instanceof net.minecraft.server.level.ServerPlayer owner) {       // 進捗「アンドロイドは電気羊の夢を見ない」（2026-10-30）
+                com.automatavalkyries.registry.ModAdvancements.award(owner, com.automatavalkyries.registry.ModAdvancements.ANDROID_DREAM);
+            }
         } else if (isAsleep() && getEnergy() >= WAKE_ENERGY && !podSleeper) { // 墜落ポッドの深い休眠は端末でだけ起きる（眠った零号機は再起動パッチでだけ）
             entityData.set(ASLEEP, false);
             life().onWake();

@@ -1,0 +1,46 @@
+{
+  "parent": "automata_valkyries:story/weapon_t3",
+  "display": {
+    "icon": {
+      "item": "automata_valkyries:weapon_luminous_requiem"
+    },
+    "title": {
+      "translate": "advancements.automata_valkyries.story.weapon_t4.title"
+    },
+    "description": {
+      "translate": "advancements.automata_valkyries.story.weapon_t4.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "c": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "automata_valkyries:tool_chainsaw_t4",
+              "automata_valkyries:tool_drill_t4",
+              "automata_valkyries:weapon_catastrophe_buster",
+              "automata_valkyries:weapon_genesis_halo",
+              "automata_valkyries:weapon_luminous_requiem",
+              "automata_valkyries:weapon_punishment_railgun",
+              "automata_valkyries:weapon_ragnarok_edge"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "c"
+    ]
+  ],
+  "rewards": {
+    "experience": 100
+  }
+}

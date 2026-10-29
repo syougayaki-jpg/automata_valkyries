@@ -1,0 +1,42 @@
+{
+  "parent": "automata_valkyries:battle/memento_mori",
+  "display": {
+    "icon": {
+      "item": "automata_valkyries:boss_drop_necro_colony"
+    },
+    "title": {
+      "translate": "advancements.automata_valkyries.battle.memento_mori_ex.title"
+    },
+    "description": {
+      "translate": "advancements.automata_valkyries.battle.memento_mori_ex.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "c": {
+      "trigger": "minecraft:player_killed_entity",
+      "conditions": {
+        "entity": [
+          {
+            "condition": "minecraft:entity_properties",
+            "entity": "this",
+            "predicate": {
+              "type": "automata_valkyries:memento_mori_ex"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "c"
+    ]
+  ],
+  "rewards": {
+    "experience": 100
+  }
+}

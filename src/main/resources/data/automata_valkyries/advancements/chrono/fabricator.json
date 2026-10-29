@@ -1,0 +1,37 @@
+{
+  "parent": "automata_valkyries:chrono/blueprint",
+  "display": {
+    "icon": {
+      "item": "automata_valkyries:chrono_fabricator"
+    },
+    "title": {
+      "translate": "advancements.automata_valkyries.chrono.fabricator.title"
+    },
+    "description": {
+      "translate": "advancements.automata_valkyries.chrono.fabricator.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "c": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "automata_valkyries:chrono_fabricator"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "c"
+    ]
+  ]
+}

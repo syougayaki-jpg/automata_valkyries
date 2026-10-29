@@ -1,0 +1,28 @@
+{
+  "parent": "automata_valkyries:story/valkyrie_body",
+  "display": {
+    "icon": {
+      "item": "automata_valkyries:core_proto"
+    },
+    "title": {
+      "translate": "advancements.automata_valkyries.story.android_dream.title"
+    },
+    "description": {
+      "translate": "advancements.automata_valkyries.story.android_dream.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "c": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "requirements": [
+    [
+      "c"
+    ]
+  ]
+}

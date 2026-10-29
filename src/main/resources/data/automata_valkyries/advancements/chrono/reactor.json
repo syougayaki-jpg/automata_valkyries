@@ -1,0 +1,37 @@
+{
+  "parent": "automata_valkyries:chrono/generator",
+  "display": {
+    "icon": {
+      "item": "automata_valkyries:luminal_reactor"
+    },
+    "title": {
+      "translate": "advancements.automata_valkyries.chrono.reactor.title"
+    },
+    "description": {
+      "translate": "advancements.automata_valkyries.chrono.reactor.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "c": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "automata_valkyries:luminal_reactor"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "c"
+    ]
+  ]
+}

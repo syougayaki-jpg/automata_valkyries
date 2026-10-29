@@ -1,0 +1,37 @@
+{
+  "parent": "automata_valkyries:story/root",
+  "display": {
+    "icon": {
+      "item": "automata_valkyries:drop_chrono_scrap"
+    },
+    "title": {
+      "translate": "advancements.automata_valkyries.story.scrap.title"
+    },
+    "description": {
+      "translate": "advancements.automata_valkyries.story.scrap.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "c": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "automata_valkyries:drop_chrono_scrap"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "c"
+    ]
+  ]
+}

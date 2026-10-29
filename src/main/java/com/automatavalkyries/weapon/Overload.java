@@ -224,6 +224,21 @@ public final class Overload {
         user.addEffect(new MobEffectInstance(effect, duration, amp, true, false, true));
     }
 
+    /**
+     * 兵装を手から外したら、その加護（{@link #bless}。周りの光の粒を出さない「環境の効果」として付ける）をすぐ消す
+     * （2026-10-30 ユーザー指定「兵装を手に持っていない時に武器の攻撃力を引き継がないように」「戦術兵姫の兵装を外しても引き継がれた」。
+     * 加護の力 III〜V が最大 3 秒残り、外した後も攻撃力が +9〜+15 のままだった）。ビーコン・コンジットの効果は光の粒を出すので消さない
+     */
+    @SubscribeEvent
+    public static void onEquipmentChange(net.minecraftforge.event.entity.living.LivingEquipmentChangeEvent event) {
+        if (event.getSlot() != net.minecraft.world.entity.EquipmentSlot.MAINHAND || event.getEntity().level().isClientSide()) return;
+        if (!(event.getFrom().getItem() instanceof TacticalWeaponItem) || event.getTo().getItem() == event.getFrom().getItem()) return;
+        LivingEntity user = event.getEntity();
+        java.util.List<MobEffect> blessings = new java.util.ArrayList<>();
+        for (MobEffectInstance e : user.getActiveEffects()) if (e.isAmbient() && !e.isVisible()) blessings.add(e.getEffect());
+        for (MobEffect effect : blessings) user.removeEffect(effect);
+    }
+
     /** オーバーロードの T4 兵装の加護の上乗せ: どの T4 兵装でも耐性 IV・再生 VI・火炎耐性 */
     public static void blessExtras(LivingEntity user) {
         if (!holdingT4(user)) return;

@@ -1,0 +1,54 @@
+{
+  "parent": "automata_valkyries:story/weapon_t2",
+  "display": {
+    "icon": {
+      "item": "automata_valkyries:weapon_quantum_blade"
+    },
+    "title": {
+      "translate": "advancements.automata_valkyries.story.weapon_t3.title"
+    },
+    "description": {
+      "translate": "advancements.automata_valkyries.story.weapon_t3.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "c": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "automata_valkyries:module_aegis_barrier",
+              "automata_valkyries:tool_chainsaw_t3",
+              "automata_valkyries:tool_drill_t3",
+              "automata_valkyries:tool_flight_wing",
+              "automata_valkyries:weapon_avalanche",
+              "automata_valkyries:weapon_black_lotus",
+              "automata_valkyries:weapon_chrono_repeater",
+              "automata_valkyries:weapon_eclipse_blade",
+              "automata_valkyries:weapon_hex_grimoire",
+              "automata_valkyries:weapon_nova_lance",
+              "automata_valkyries:weapon_phoenix_wing",
+              "automata_valkyries:weapon_quantum_blade",
+              "automata_valkyries:weapon_reflector_blade",
+              "automata_valkyries:weapon_seraph_staff",
+              "automata_valkyries:weapon_starfall_bow",
+              "automata_valkyries:weapon_storm_caller",
+              "automata_valkyries:weapon_time_eliminator",
+              "automata_valkyries:weapon_void_scythe"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "c"
+    ]
+  ]
+}

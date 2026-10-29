@@ -523,4 +523,103 @@ public class ValkyrieGameTests {
             others.releaseAndDiscard();
         }, lost, active, others);
     }
+
+    /** 兵装を外したら攻撃力が戻る（2026-10-30 ユーザー指定「戦術兵姫の兵装を外しても攻撃力が引き継がれた」の再現） */
+    @GameTest(template = TEMPLATE, timeoutTicks = 100)
+    public static void valkyrieAttackDropsWhenWeaponRemoved(GameTestHelper helper) {
+        ValkyrieEntity v = helper.spawn(ModEntities.VALKYRIE.get(), 1, 2, 1);
+        float bare = (float) v.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE);
+        v.getInventory().setItem(com.automatavalkyries.entity.ValkyrieInventory.MAIN_HAND,
+                ((com.automatavalkyries.weapon.TacticalWeaponItem) com.automatavalkyries.registry.ModWeapons.LUMINOUS_REQUIEM.get()).charged());
+        helper.runAfterDelay(5, () -> {
+            float armed = (float) v.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE);
+            helper.assertTrue(armed > bare, "the weapon did not raise attack: " + armed);
+            v.getInventory().setItem(com.automatavalkyries.entity.ValkyrieInventory.MAIN_HAND, net.minecraft.world.item.ItemStack.EMPTY);
+            helper.runAfterDelay(5, () -> {
+                float after = (float) v.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE);
+                helper.assertTrue(after == bare, "attack stayed after removing the weapon: " + after + " (bare " + bare + ", armed " + armed + ")");
+                v.discard();
+                helper.succeed();
+            });
+        });
+    }
+
+    /** 画面の枠と同じ取り出し方（removeItem）で外しても攻撃力が戻る */
+    @GameTest(template = TEMPLATE, timeoutTicks = 100)
+    public static void valkyrieAttackDropsWhenWeaponTakenOut(GameTestHelper helper) {
+        ValkyrieEntity v = helper.spawn(ModEntities.VALKYRIE.get(), 1, 2, 1);
+        float bare = v.attackValue();
+        v.getInventory().setItem(com.automatavalkyries.entity.ValkyrieInventory.MAIN_HAND,
+                ((com.automatavalkyries.weapon.TacticalWeaponItem) com.automatavalkyries.registry.ModWeapons.PHOTON_EDGE.get()).charged());
+        helper.runAfterDelay(5, () -> {
+            float armed = v.attackValue();
+            net.minecraft.world.item.ItemStack taken = v.getInventory().removeItem(com.automatavalkyries.entity.ValkyrieInventory.MAIN_HAND, 1);
+            helper.assertTrue(!taken.isEmpty(), "nothing was taken out");
+            helper.runAfterDelay(5, () -> {
+                float after = v.attackValue();
+                helper.assertTrue(Math.abs(after - bare) < 0.01F, "attack stayed after taking the weapon out: " + after + " (bare " + bare + ", armed " + armed + ", hand " + v.getMainHandItem() + ")");
+                v.discard();
+                helper.succeed();
+            });
+        });
+    }
+
+    /** 持ち主がいて、レクイエムで戦った後に画面の取り出し方で外しても攻撃力が戻る（ゲームの中に近い形の再現） */
+    @GameTest(template = TEMPLATE, timeoutTicks = 200)
+    public static void valkyrieAttackDropsAfterFightingWithRequiem(GameTestHelper helper) {
+        net.minecraft.world.entity.player.Player owner = helper.makeMockPlayer();
+        ValkyrieEntity v = helper.spawn(ModEntities.VALKYRIE.get(), 1, 2, 1);
+        v.setOwnerUUID(owner.getUUID());
+        float bare = (float) v.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE);
+        v.getInventory().setItem(com.automatavalkyries.entity.ValkyrieInventory.MAIN_HAND,
+                ((com.automatavalkyries.weapon.TacticalWeaponItem) com.automatavalkyries.registry.ModWeapons.LUMINOUS_REQUIEM.get()).charged());
+        net.minecraft.world.entity.monster.Zombie zombie = helper.spawn(net.minecraft.world.entity.EntityType.ZOMBIE, 4, 2, 1);
+        zombie.setInvulnerable(true);
+        v.setTarget(zombie);
+        helper.runAfterDelay(60, () -> {
+            float armed = (float) v.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE);
+            v.getInventory().removeItem(com.automatavalkyries.entity.ValkyrieInventory.MAIN_HAND, 1);
+            helper.runAfterDelay(10, () -> {
+                float after = (float) v.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE);
+                var inst = v.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE);
+                String mods = inst == null ? "" : inst.getModifiers().stream().map(m -> m.getName() + "=" + m.getAmount()).toList().toString();
+                zombie.discard();
+                v.discard();
+                helper.assertTrue(after < bare + 0.5F, "attack stayed after fighting: " + after + " (bare " + bare + ", armed " + armed + ", mods " + mods
+                        + ", main " + v.getMainHandItem() + ", off " + v.getOffhandItem() + ")");
+                helper.succeed();
+            });
+        });
+    }
+
+    /** 持ち主が画面を開き、立っているだけの兵姫の手の枠からクリックで兵装を取り出しても攻撃力が戻る（ゲームの中と同じ操作） */
+    @GameTest(template = TEMPLATE, timeoutTicks = 200)
+    public static void valkyrieAttackDropsWhenClickedOutOfMenu(GameTestHelper helper) {
+        var owner = new net.minecraftforge.common.util.FakePlayer(helper.getLevel(), new com.mojang.authlib.GameProfile(java.util.UUID.randomUUID(), "valk_owner"));
+        ValkyrieEntity v = helper.spawn(ModEntities.VALKYRIE.get(), 1, 2, 1);
+        owner.moveTo(v.getX() + 1, v.getY(), v.getZ());
+        v.setOwnerUUID(owner.getUUID());
+        float bare = (float) v.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE);
+        var menu = new com.automatavalkyries.menu.ValkyrieMenu(1, owner.getInventory(), v);
+        owner.getInventory().setItem(0, ((com.automatavalkyries.weapon.TacticalWeaponItem) com.automatavalkyries.registry.ModWeapons.LUMINOUS_REQUIEM.get()).charged());
+        int handSlot = com.automatavalkyries.entity.ValkyrieInventory.MAIN_HAND;
+        int playerHotbar0 = menu.slots.size() - 9;
+        menu.clicked(playerHotbar0, 0, net.minecraft.world.inventory.ClickType.PICKUP, owner);   // 持ち物の兵装を持って
+        menu.clicked(handSlot, 0, net.minecraft.world.inventory.ClickType.PICKUP, owner);        // 手の枠に置く
+        helper.runAfterDelay(40, () -> {
+            float armed = (float) v.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE);
+            menu.clicked(handSlot, 0, net.minecraft.world.inventory.ClickType.PICKUP, owner);    // 手の枠から取り出す
+            menu.clicked(playerHotbar0, 0, net.minecraft.world.inventory.ClickType.PICKUP, owner); // 持ち物へ戻す
+            helper.runAfterDelay(10, () -> {
+                float after = (float) v.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE);
+                var inst = v.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE);
+                String mods = inst == null ? "" : inst.getModifiers().stream().map(m -> m.getName() + "=" + m.getAmount()).toList().toString();
+                String hand = v.getMainHandItem().toString();
+                v.discard();
+                helper.assertTrue(armed > bare + 100, "the weapon was not equipped through the menu: " + armed + ", hand " + hand);
+                helper.assertTrue(after < bare + 0.5F, "attack stayed after clicking the weapon out: " + after + " (bare " + bare + ", armed " + armed + ", mods " + mods + ", hand " + hand + ")");
+                helper.succeed();
+            });
+        });
+    }
 }

@@ -1,0 +1,39 @@
+{
+  "parent": "automata_valkyries:battle/chrono_hunter",
+  "display": {
+    "icon": {
+      "item": "automata_valkyries:boss_drop_akashic_core"
+    },
+    "title": {
+      "translate": "advancements.automata_valkyries.battle.akashic_seer.title"
+    },
+    "description": {
+      "translate": "advancements.automata_valkyries.battle.akashic_seer.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "c": {
+      "trigger": "minecraft:player_killed_entity",
+      "conditions": {
+        "entity": [
+          {
+            "condition": "minecraft:entity_properties",
+            "entity": "this",
+            "predicate": {
+              "type": "automata_valkyries:akashic_seer"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "c"
+    ]
+  ]
+}

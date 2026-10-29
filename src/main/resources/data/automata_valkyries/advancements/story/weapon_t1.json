@@ -1,0 +1,53 @@
+{
+  "parent": "automata_valkyries:story/circuit_advanced",
+  "display": {
+    "icon": {
+      "item": "automata_valkyries:weapon_photon_edge"
+    },
+    "title": {
+      "translate": "advancements.automata_valkyries.story.weapon_t1.title"
+    },
+    "description": {
+      "translate": "advancements.automata_valkyries.story.weapon_t1.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "c": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "automata_valkyries:module_polar_deflector",
+              "automata_valkyries:module_repair_injector",
+              "automata_valkyries:tool_chainsaw_t1",
+              "automata_valkyries:tool_drill_t1",
+              "automata_valkyries:weapon_arc_lancer",
+              "automata_valkyries:weapon_flash_launcher",
+              "automata_valkyries:weapon_frost_knuckle",
+              "automata_valkyries:weapon_gale_fan",
+              "automata_valkyries:weapon_gravity_hammer",
+              "automata_valkyries:weapon_heat_pile",
+              "automata_valkyries:weapon_linear_rail_rifle",
+              "automata_valkyries:weapon_necrosis_needle",
+              "automata_valkyries:weapon_photon_edge",
+              "automata_valkyries:weapon_scatter_blaster",
+              "automata_valkyries:weapon_shock_whip",
+              "automata_valkyries:weapon_twin_blaster",
+              "automata_valkyries:weapon_venom_stinger"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "c"
+    ]
+  ]
+}

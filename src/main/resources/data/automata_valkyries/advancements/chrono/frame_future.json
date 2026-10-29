@@ -1,0 +1,37 @@
+{
+  "parent": "automata_valkyries:chrono/adapter",
+  "display": {
+    "icon": {
+      "item": "automata_valkyries:frame_future"
+    },
+    "title": {
+      "translate": "advancements.automata_valkyries.chrono.frame_future.title"
+    },
+    "description": {
+      "translate": "advancements.automata_valkyries.chrono.frame_future.description"
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "c": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "automata_valkyries:frame_future"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "c"
+    ]
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "parent": "automata_valkyries:chrono/reactor",
+  "display": {
+    "icon": {
+      "item": "automata_valkyries:star_luminal"
+    },
+    "title": {
+      "translate": "advancements.automata_valkyries.chrono.star.title"
+    },
+    "description": {
+      "translate": "advancements.automata_valkyries.chrono.star.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true,
+    "hidden": false
+  },
+  "criteria": {
+    "c": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "automata_valkyries:star_luminal"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "c"
+    ]
+  ]
+}
