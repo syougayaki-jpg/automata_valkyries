@@ -24,6 +24,8 @@ MOD 全体の仕様（世界観、兵姫、敵・ボス、アイテム、マシ�
 
 **注意（2026-10-02 時点）**: Java エージェントのクラスや深いフックを持つ MOD（Hyperlink・ECA など）とは、保護同士・保護と即死がぶつかって干渉することがある。ECA ＋ The Last Sword の組み合わせでのプレイヤーのリスキル問題は解決済み。原因はこのMOD自身の後始末（`EcaLastSwordHelper.cleanupPlayerRestraints` が錨の無いプレイヤーに The Last Sword の `clearDefence` を呼び、HP を 0 に書いていた）（詳細は保護の仕様書 §8.1）。検証は組み合わせを絞って行う。
 
+設定ファイル（コンフィグ）の全項目（ファイル・区分・既定・範囲・説明）とよく使う設定は **[`docs/CONFIG_REFERENCE.md`](docs/CONFIG_REFERENCE.md)**（2026-10-31。`config/*.java` から抜き出した一覧）。
+
 保護の仕組み（Eprotect）の全体像・各層・設定・テスト方針・他 MOD への移植手順は **[`docs/SPEC_EPROTECT_ARCHITECTURE.md`](docs/SPEC_EPROTECT_ARCHITECTURE.md)** にまとめてある（ゲーム内保護側）。
 
 守る側の Java エージェント（観察者・LifeGuard・オートマタヴァルキリー protect、共通部品 `src/agentcommon`、起動の順番、このMOD 同士の決まり、乗っ取る MOD への備え）の地図は **[`docs/SPEC_JAVA_AGENTS_DEFENSIVE.md`](docs/SPEC_JAVA_AGENTS_DEFENSIVE.md)**（2026-10-08 整理）。
