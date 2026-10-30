@@ -1,0 +1,18 @@
+{
+  "conditions": [
+    {
+      "type": "forge:mod_loaded",
+      "modid": "tconstruct"
+    }
+  ],
+  "type": "tconstruct:melting",
+  "ingredient": {
+    "tag": "forge:ingots/phononium"
+  },
+  "result": {
+    "amount": 90,
+    "tag": "forge:molten_phononium"
+  },
+  "temperature": 750,
+  "time": 61
+}

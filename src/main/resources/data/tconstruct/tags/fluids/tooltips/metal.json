@@ -1,0 +1,13 @@
+{
+  "replace": false,
+  "values": [
+    "#forge:molten_astrite",
+    "#forge:molten_phononium",
+    "#forge:molten_ceruleas",
+    "#forge:molten_luminal_sterling",
+    "#forge:molten_chrono_fortress",
+    "#forge:molten_tachyon_accel",
+    "#forge:molten_eclipse_biometal",
+    "#forge:molten_stellachronodyme"
+  ]
+}

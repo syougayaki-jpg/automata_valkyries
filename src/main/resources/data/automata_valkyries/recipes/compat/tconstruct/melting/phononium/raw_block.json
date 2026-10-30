@@ -1,0 +1,20 @@
+{
+  "conditions": [
+    {
+      "type": "forge:mod_loaded",
+      "modid": "tconstruct"
+    }
+  ],
+  "type": "tconstruct:ore_melting",
+  "ingredient": {
+    "tag": "forge:storage_blocks/raw_phononium"
+  },
+  "result": {
+    "amount": 810,
+    "tag": "forge:molten_phononium"
+  },
+  "temperature": 750,
+  "time": 364,
+  "rate": "metal",
+  "byproducts": []
+}

@@ -1,0 +1,17 @@
+{
+  "conditions": [
+    {
+      "type": "forge:mod_loaded",
+      "modid": "tconstruct"
+    }
+  ],
+  "type": "tconstruct:casting_basin",
+  "cooling_time": 228,
+  "fluid": {
+    "amount": 810,
+    "tag": "forge:molten_stellachronodyme"
+  },
+  "result": {
+    "item": "automata_valkyries:block_stellachronodyme"
+  }
+}

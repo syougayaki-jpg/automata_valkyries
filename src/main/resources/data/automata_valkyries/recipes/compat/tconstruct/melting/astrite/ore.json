@@ -1,0 +1,20 @@
+{
+  "conditions": [
+    {
+      "type": "forge:mod_loaded",
+      "modid": "tconstruct"
+    }
+  ],
+  "type": "tconstruct:ore_melting",
+  "ingredient": {
+    "tag": "forge:ores/astrite"
+  },
+  "result": {
+    "amount": 180,
+    "tag": "forge:molten_astrite"
+  },
+  "temperature": 600,
+  "time": 140,
+  "rate": "metal",
+  "byproducts": []
+}

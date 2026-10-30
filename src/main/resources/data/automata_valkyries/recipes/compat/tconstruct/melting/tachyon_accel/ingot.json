@@ -1,0 +1,18 @@
+{
+  "conditions": [
+    {
+      "type": "forge:mod_loaded",
+      "modid": "tconstruct"
+    }
+  ],
+  "type": "tconstruct:melting",
+  "ingredient": {
+    "item": "automata_valkyries:alloy_tachyon_accel"
+  },
+  "result": {
+    "amount": 90,
+    "tag": "forge:molten_tachyon_accel"
+  },
+  "temperature": 1000,
+  "time": 67
+}

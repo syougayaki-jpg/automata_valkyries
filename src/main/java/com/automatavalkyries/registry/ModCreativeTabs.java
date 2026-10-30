@@ -126,7 +126,7 @@ public class ModCreativeTabs {
             "steel", "bronze", "brass", "electrum", "invar", "constantan", "iron", "copper", "gold");
     /** 形の並び（頭に付く名前） */
     private static final List<String> FORMS = List.of("ore_", "deepslate_ore_", "raw_", "block_raw_", "drop_", "crystal_", "ingot_", "alloy_", "nugget_",
-            "dust_", "plate_", "gear_", "rod_", "block_alloy_", "block_", "orb_", "star_", "core_");
+            "dust_", "plate_", "gear_", "rod_", "block_alloy_", "block_", "orb_", "star_", "core_", "molten_");
     /** 3 系統などの名前のゆれ */
     private static final Map<String, String> ALIASES = Map.of("luminal_gem", "luminal", "chrono_metal", "chronos", "chrono_scrap", "chronos",
             "distorted_chrono_shard", "chronos", "nano_mesh", "nano", "nanomachine", "nano", "singularity_chronos", "chronos",
@@ -140,6 +140,7 @@ public class ModCreativeTabs {
 
     /** 素材の金属の順位（素材でなければ -1） */
     static int materialFamily(String id) {
+        if (id.startsWith("molten_") && id.endsWith("_bucket")) id = id.substring(0, id.length() - "_bucket".length()); // 溶けた金属のバケツ
         String f = form(id);
         if (f.isEmpty()) return -1;
         String rest = id.substring(f.length());
@@ -149,6 +150,7 @@ public class ModCreativeTabs {
 
     static int materialOrder(Item item) {
         String id = path(item);
+        if (id.startsWith("molten_") && id.endsWith("_bucket")) id = id.substring(0, id.length() - "_bucket".length());
         return materialFamily(id) * 100 + FORMS.indexOf(form(id));
     }
 

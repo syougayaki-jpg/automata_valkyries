@@ -1,0 +1,18 @@
+{
+  "conditions": [
+    {
+      "type": "forge:mod_loaded",
+      "modid": "tconstruct"
+    }
+  ],
+  "type": "tconstruct:melting",
+  "ingredient": {
+    "item": "automata_valkyries:block_alloy_chrono_fortress"
+  },
+  "result": {
+    "amount": 810,
+    "tag": "forge:molten_chrono_fortress"
+  },
+  "temperature": 950,
+  "time": 198
+}

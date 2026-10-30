@@ -220,6 +220,7 @@
     "- Basic and advanced circuits are interchangeable with other mods' circuits of the same tier (e.g. Mekanism control circuits)",
     "- Create: crushing wheels turn this mod's ores into dust; the press makes shared-metal plates",
     "- Immersive Engineering / Thermal: their crushers double this mod's ores into dust too",
+    "- Tinkers' Construct: melt this mod's metals (higher alloys and Stellachronodyme too) in the smeltery and cast ingots and blocks (no alloying)",
     "- EMI shows this mod's recipe screens when JEI is installed too"
    ]
   },

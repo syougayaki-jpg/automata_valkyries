@@ -648,6 +648,11 @@ dependencies {
         runtimeOnly fg.deobf("maven.modrinth:thermal-foundation:11.0.6")
         runtimeOnly fg.deobf("maven.modrinth:cofh-core:11.0.2")
     }
+    // Tinkers' Construct（2026-10-30。溶鉱炉でこのMODの金属を溶かす・鋳造するレシピの確認用）: ./gradlew runGameTestServer -PwithTinkers
+    if (project.hasProperty('withTinkers')) {
+        runtimeOnly fg.deobf("maven.modrinth:tinkers-construct:3.12.1.231")
+        runtimeOnly fg.deobf("maven.modrinth:mantle:1.11.117")
+    }
     // JEI だけ（レシピ・タグの手動確認用）: ./gradlew runClient -PwithJei
     if (project.hasProperty('withJei') && !project.hasProperty('withTechMods')) {
         runtimeOnly fg.deobf("maven.modrinth:jei:15.62.0.217")

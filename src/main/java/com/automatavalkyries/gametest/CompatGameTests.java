@@ -230,4 +230,29 @@ public class CompatGameTests {
         }
         helper.succeed();
     }
+
+    /**
+     * Tinkers' Construct（2026-10-30）: 溶けた金属の液体がそれぞれ forge:molten_* のタグに入り、バケツで置けて、
+     * 溶かす・鋳造するレシピは tconstruct が入っている時だけある（-PwithTinkers で確かめる。無ければ無いことを確かめる）
+     */
+    @GameTest(template = TEMPLATE)
+    public static void moltenMetalsForTinkers(GameTestHelper helper) {
+        var manager = helper.getLevel().getRecipeManager();
+        boolean tinkers = ModList.get().isLoaded("tconstruct");
+        int x = 0;
+        for (var molten : com.automatavalkyries.registry.ModFluids.MOLTEN.values()) {
+            var tag = net.minecraft.tags.FluidTags.create(ResourceLocation.fromNamespaceAndPath("forge", "molten_" + molten.metal()));
+            helper.assertTrue(molten.source().get().is(tag) && molten.flowing().get().is(tag), "molten " + molten.metal() + " is not in " + tag.location());
+            helper.assertTrue(molten.bucket().get() instanceof net.minecraft.world.item.BucketItem bucket && bucket.getFluid() == molten.source().get(),
+                    "bucket of molten " + molten.metal() + " holds the wrong fluid");
+            BlockPos pos = new BlockPos(1 + (x++ % 3), 2, 1 + x / 3);
+            helper.setBlock(pos, molten.block().get());
+            helper.assertTrue(helper.getLevel().getFluidState(helper.absolutePos(pos)).getType() == molten.source().get(), "molten " + molten.metal() + " block holds no fluid");
+            for (String name : List.of("melting/" + molten.metal() + "/ingot", "casting/" + molten.metal() + "/ingot_gold_cast", "casting/" + molten.metal() + "/block")) {
+                var recipe = manager.byKey(ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "compat/tconstruct/" + name));
+                helper.assertTrue(recipe.isPresent() == tinkers, "Tinkers recipe " + name + " present=" + recipe.isPresent() + " (tconstruct loaded=" + tinkers + ")");
+            }
+        }
+        helper.succeed();
+    }
 }

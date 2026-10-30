@@ -277,6 +277,7 @@ JA = [
         "- 基本回路・高等回路は他の MOD の同じ段の回路（Mekanism の制御回路など）と互いに代わりに使えます",
         "- Create: 破砕ホイールで独自鉱石を粉に、プレス機で連携金属の板を作れます",
         "- Immersive Engineering・Thermal: その粉砕機でも独自鉱石を粉 2 個にできます",
+        "- Tinkers' Construct: 溶鉱炉でこのMODの金属（上位合金・ステラクロノダイムも）を溶かし、延べ棒・ブロックに鋳造できます（合金を混ぜて作ることはできません）",
         "- EMI: JEI と一緒に入れると、このMODのレシピの画面も EMI で見られます",
         "",
         "> 困ったら JEI でアイテムを調べ、この手引きと進捗のタブを見返してください",
@@ -435,6 +436,7 @@ EN = [
         "- Basic and advanced circuits are interchangeable with other mods' circuits of the same tier (e.g. Mekanism control circuits)",
         "- Create: crushing wheels turn this mod's ores into dust; the press makes shared-metal plates",
         "- Immersive Engineering / Thermal: their crushers double this mod's ores into dust too",
+        "- Tinkers' Construct: melt this mod's metals (higher alloys and Stellachronodyme too) in the smeltery and cast ingots and blocks (no alloying)",
         "- EMI shows this mod's recipe screens when JEI is installed too",
     ]),
 ]

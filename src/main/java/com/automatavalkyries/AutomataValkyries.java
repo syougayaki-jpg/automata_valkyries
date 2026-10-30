@@ -50,6 +50,9 @@ public class AutomataValkyries {
         com.automatavalkyries.registry.ModUpgrades.init(); // 兵装強化台（カスタムアップグレード）
         com.automatavalkyries.registry.ModWeapons.MOB_EFFECTS.register(modEventBus);
         com.automatavalkyries.registry.ModParticles.PARTICLES.register(modEventBus); // 兵装の自作エフェクトの粒子
+        com.automatavalkyries.registry.ModFluids.init(); // 溶けた金属（Tinkers' Construct の連携。液体のブロック・バケツを BLOCKS / ITEMS に足す。2026-10-30）
+        com.automatavalkyries.registry.ModFluids.FLUID_TYPES.register(modEventBus);
+        com.automatavalkyries.registry.ModFluids.FLUIDS.register(modEventBus);
         com.automatavalkyries.registry.ModFutureTech.init(); // 未来技術の上位回路・パーツ // クロノリンク・マシン（BLOCKS / ITEMS / BLOCK_ENTITIES / MENUS に足す）
         com.automatavalkyries.registry.ModMachines.BLOCK_ENTITIES.register(modEventBus);
         com.automatavalkyries.registry.ModMachines.MENUS.register(modEventBus);
