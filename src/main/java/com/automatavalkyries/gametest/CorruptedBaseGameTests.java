@@ -167,7 +167,10 @@ public class CorruptedBaseGameTests {
     @GameTest(template = "empty", batch = "corrupted_base", timeoutTicks = 20)
     public static void chronoBastionFloatsWithKeeperAltarAndPortal(GameTestHelper helper) {
         var level = helper.getLevel();
-        net.minecraft.core.BlockPos at = helper.absolutePos(net.minecraft.core.BlockPos.ZERO).offset(-1800, 0, 2600); // 前の形の要塞が残る所（試験の世界は残る）を避ける
+        // 毎回まだ何も無い遠くの場所に置く（試験の世界は残り、試験の場所も試験が増えるとずれるので、決まったずらし方では前の回の要塞の門が数える範囲に入り
+        // 「a gate block is out of place」で落ちていた。2026-10-31）。1,024 ブロックずつ離れた 2,000 か所から選ぶ
+        int slot = (int) Math.floorMod(System.nanoTime() / 1000L, 2000L);
+        net.minecraft.core.BlockPos at = new net.minecraft.core.BlockPos(3_000_000 + slot * 1024, helper.absolutePos(net.minecraft.core.BlockPos.ZERO).getY(), 3_000_000);
         net.minecraft.world.level.ChunkPos c = new net.minecraft.world.level.ChunkPos(at);
         int portals = 0, keystones = 0, grass = 0, water = 0, rock = 0, lowestGate = Integer.MAX_VALUE;
         CorruptedBases.populate = false;

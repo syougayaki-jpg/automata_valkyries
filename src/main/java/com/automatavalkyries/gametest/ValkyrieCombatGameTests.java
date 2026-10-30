@@ -554,21 +554,34 @@ public class ValkyrieCombatGameTests {
                 com.automatavalkyries.registry.ModValkyrieUnits.BACKPACKS.get(com.automatavalkyries.item.unit.ValkyrieUnits.BackpackKind.THRUSTER).get()));
         int[] dashes = {0};
         net.minecraft.world.phys.Vec3 fwd = new net.minecraft.world.phys.Vec3(1, 0, 0);
-        var seq = helper.startSequence().thenIdle(2);
+        // 何も無い遠くの空で数える（試験の世界には前の回の試験のロスト・カタストロフィ＝消せない保護付きのボスが残っていて、その電力の吸い取りの範囲が
+        // この試験の場所まで届き、電力を吸われて休眠し空中ジャンプが出ずに落ちていた。2026-10-31）
+        int slot = (int) Math.floorMod(System.nanoTime() / 1000L, 2000L);
+        net.minecraft.world.phys.Vec3 start = new net.minecraft.world.phys.Vec3(-3_000_000 + slot * 64 + 0.5, 200, -3_000_000 + 0.5);
+        net.minecraft.world.level.ChunkPos chunk = new net.minecraft.world.level.ChunkPos(net.minecraft.core.BlockPos.containing(start));
+        helper.getLevel().setChunkForced(chunk.x, chunk.z, true);
+        v.moveTo(start.x, start.y, start.z);
+        var seq = helper.startSequence().thenIdle(40); // 遠くの区画が動き出すまで待つ（動く前は Tick が来ず、間隔が減らない）
         for (int i = 0; i < 4; i++) {
             seq = seq.thenExecute(() -> {
+                // 毎回もとの場所へ戻してから出す（ダッシュで前へ流れて隣の試験の場所＝ロスト・カタストロフィの電力の吸い取りの範囲へ入り、
+                // 電力を吸われて休眠し空中ジャンプが出ずに落ちていた。2026-10-31）
+                v.moveTo(start.x, start.y, start.z);
                 v.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
                 if (v.combat().airDash(fwd, 0.6)) dashes[0]++;
             }).thenIdle(com.automatavalkyries.entity.ai.ValkyrieCombat.AIR_GAP + 1);
         }
         seq.thenExecute(() -> {
-            helper.assertTrue(dashes[0] == 3, "the T1 thruster should allow 3 air dashes before landing, got " + dashes[0]);
-            helper.assertTrue(v.combat().airJump(), "the air jump did not fire");
+            v.moveTo(start.x, start.y, start.z);
+            helper.assertTrue(dashes[0] == 3, "the T1 thruster should allow 3 air dashes before landing, got " + dashes[0] + " (" + v.combat().airState() + ")");
+            String before = v.combat().airState();
+            helper.assertTrue(v.combat().airJump(), "the air jump did not fire (" + before + ")");
         }).thenIdle(com.automatavalkyries.entity.ai.ValkyrieCombat.AIR_GAP + 1).thenExecute(() -> {
             helper.assertTrue(v.combat().airJump(), "the T1 thruster did not allow a second air jump");
         }).thenIdle(com.automatavalkyries.entity.ai.ValkyrieCombat.AIR_GAP + 1).thenExecute(() -> {
             helper.assertFalse(v.combat().airJump(), "the T1 thruster allowed a third air jump");
             v.releaseAndDiscard();
+            helper.getLevel().setChunkForced(chunk.x, chunk.z, false);
         }).thenSucceed();
     }
 

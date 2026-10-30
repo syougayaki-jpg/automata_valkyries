@@ -23,8 +23,6 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.Set;
 import java.util.WeakHashMap;
 
 /**
@@ -38,15 +36,15 @@ import java.util.WeakHashMap;
 @Mod.EventBusSubscriber(modid = AutomataValkyries.MODID)
 public final class DeathLootFallback {
 
-    /** ふつうの死亡処理の落とし物が出た個体 */
-    private static final Set<LivingEntity> DROPPED = Collections.newSetFromMap(new WeakHashMap<>());
+    /** ふつうの死亡処理の落とし物が出た個体（値 = そのときプレイヤーに最近叩かれていたか＝バニラが経験値も出したか） */
+    private static final java.util.Map<LivingEntity, Boolean> DROPPED = new WeakHashMap<>();
 
     private DeathLootFallback() {}
 
     @SubscribeEvent(priority = EventPriority.LOWEST, receiveCanceled = true)
     public static void onDrops(LivingDropsEvent event) {
         if (!event.getDrops().isEmpty()) {
-            DROPPED.add(event.getEntity());
+            DROPPED.put(event.getEntity(), event.isRecentlyHit());
         }
     }
 
@@ -55,10 +53,24 @@ public final class DeathLootFallback {
         DROPPED.remove(victim);
     }
 
-    /** 抹殺の後に呼ぶ: ふつうの落とし物が出ていなければ補う */
+    /**
+     * 抹殺の後に呼ぶ: ふつうの落とし物が出ていなければ補う。
+     * 出ていても、プレイヤーが倒したのにプレイヤーに叩かれた印が無かった（抹殺はふつうの攻撃を通さない）なら、バニラは経験値を出していないので経験値だけ補う
+     * （2026-10-31: GameTest overloadT4AnnihilationDropsLootAndExp が羊毛は出るのに経験値が出ずに失敗し続けていた。1.20.1 のバニラは死亡処理の落とし物の所で
+     * lastHurtByPlayerTime > 0 のときだけ経験値を出す）
+     */
     public static void after(ServerLevel level, LivingEntity victim, DamageSource source, @Nullable LivingEntity killer) {
-        if (DROPPED.remove(victim)) return;
-        drop(level, victim, source, killer);
+        Boolean recentlyHit = DROPPED.remove(victim);
+        if (recentlyHit == null) {
+            drop(level, victim, source, killer);
+            return;
+        }
+        if (!recentlyHit && killer instanceof Player player && level.getGameRules().getBoolean(GameRules.RULE_DOMOBLOOT)) awardExperience(level, victim, player);
+    }
+
+    private static void awardExperience(ServerLevel level, LivingEntity victim, Player player) {
+        int xp = ForgeEventFactory.getExperienceDrop(victim, player, victim.getExperienceReward());
+        if (xp > 0) ExperienceOrb.award(level, victim.position(), xp);
     }
 
     /** バニラの死んだときの落とし物と同じこと（相手の上書きを通さない）。GameTest からも呼ぶ */
@@ -84,9 +96,6 @@ public final class DeathLootFallback {
         }
         Collection<ItemEntity> drops = victim.captureDrops(null);
         if (drops != null && !ForgeHooks.onLivingDrops(victim, source, drops, looting, player != null)) drops.forEach(level::addFreshEntity);
-        if (player != null) {
-            int xp = ForgeEventFactory.getExperienceDrop(victim, player, victim.getExperienceReward());
-            if (xp > 0) ExperienceOrb.award(level, victim.position(), xp);
-        }
+        if (player != null) awardExperience(level, victim, player);
     }
 }

@@ -524,6 +524,14 @@ public final class ValkyrieCombat {
             return true;
         }
 
+        /** 空中の機動の状態（GameTest・調査用） */
+        public String airState() {
+            var m = maneuver();
+            return "dashes=" + airDashes + "/" + (m == null ? "-" : m.airDashes()) + " jumps=" + airJumps + "/" + (m == null ? "-" : m.airJumps())
+                    + " gap=" + airGap + " ground=" + v.onGround() + " energy=" + v.getEnergy() + " cost=" + thrusterFe() + " stepLocked=" + stepLocked
+                    + " anchored=" + anchored + " pos=" + v.blockPosition().toShortString() + " shutdown=" + v.isShutdown() + " asleep=" + v.isAsleep();
+        }
+
         /** 空中ジャンプ（空中でもう一度上へ跳ぶ）。着地までスラスターの回数だけ。できたら true */
         public boolean airJump() {
             var m = maneuver();
