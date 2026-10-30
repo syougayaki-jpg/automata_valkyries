@@ -367,4 +367,39 @@ public class CompatGameTests {
         }
         helper.succeed();
     }
+
+    /**
+     * TiCEX の再鍛抜刀剣（2026-10-31 ユーザー報告「再鍛抜刀剣がつくれない」「ほかの素材でも作れない」）: TiCEX は道具の定義を Tinkers の読み込みより後に
+     * 登録するので、開いた時点では定義が空でどの素材でも組めなかった。ワールドの開始時に 1 度データパックを読み直す回避（{@link com.automatavalkyries.compat.tconstruct.TicexDefinitionFix}）の後、
+     * ステラ・クロノダイムの刀身・鞘と強化持ち手で作業台に組めることを確かめる（TiCEX が無ければ素通り）
+     */
+    @GameTest(template = TEMPLATE, timeoutTicks = 400)
+    public static void ticexReforgedSlashBladeBuilds(GameTestHelper helper) {
+        if (absent(helper, "ticex")) return;
+        try {
+            Class<?> materialId = Class.forName("slimeknights.tconstruct.library.materials.definition.MaterialId");
+            Class<?> variantId = Class.forName("slimeknights.tconstruct.library.materials.definition.MaterialVariantId");
+            var withMaterial = Class.forName("slimeknights.tconstruct.library.tools.part.IMaterialItem").getMethod("withMaterial", ItemStack.class, variantId);
+            Object stella = materialId.getConstructor(String.class, String.class).newInstance(AutomataValkyries.MODID, "stellachronodyme");
+            BlockPos pos = new BlockPos(1, 2, 1);
+            helper.setBlock(pos, block("tconstruct:tinker_station"));
+            Object station = helper.getBlockEntity(pos);
+            var setItem = station.getClass().getMethod("setItem", int.class, ItemStack.class);
+            var calc = station.getClass().getMethod("calcResult", net.minecraft.world.entity.player.Player.class);
+            var player = helper.makeMockPlayer();
+            String[] parts = {"ticex:slashblade_blade", "ticex:slashblade_saya", "tconstruct:tough_handle"};
+            helper.succeedWhen(() -> {
+                try {
+                    for (int i = 0; i < parts.length; i++) setItem.invoke(station, 1 + i, (ItemStack) withMaterial.invoke(null, new ItemStack(item(parts[i])), stella));
+                    ItemStack result = (ItemStack) calc.invoke(station, player);
+                    helper.assertTrue(!result.isEmpty(), "Reforged SlashBlade was not built from Stellachronodyme parts (TiCEX definitions without data: "
+                            + com.automatavalkyries.compat.tconstruct.TicexDefinitionFix.missingTicexDefinitions() + ")");
+                } catch (ReflectiveOperationException e) {
+                    throw new IllegalStateException(e);
+                }
+            });
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("TiCEX / Tinkers API changed", e);
+        }
+    }
 }
