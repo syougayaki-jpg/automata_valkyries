@@ -653,7 +653,7 @@ public final class ValkyrieDaily {
     static void depositInto(ValkyrieEntity v, BlockPos pos) {
         BlockEntity be = v.level().getBlockEntity(pos);
         if (be == null) return;
-        IItemHandler handler = be.getCapability(ForgeCapabilities.ITEM_HANDLER, Direction.UP).orElse(null);
+        IItemHandler handler = ValkyriePorter.handlerOf(be);
         if (handler == null) return;
         v.getInventory().deliverPickups(handler);
         v.getLookControl().setLookAt(Vec3.atCenterOf(pos));

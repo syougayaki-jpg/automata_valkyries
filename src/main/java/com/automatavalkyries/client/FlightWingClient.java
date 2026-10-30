@@ -37,7 +37,8 @@ public final class FlightWingClient {
     private FlightWingClient() {}
 
     static boolean holding(LivingEntity e) {
-        return e.getMainHandItem().getItem() instanceof FlightWingItem || e.getOffhandItem().getItem() instanceof FlightWingItem;
+        return e.getMainHandItem().getItem() instanceof FlightWingItem || e.getOffhandItem().getItem() instanceof FlightWingItem
+                || !com.automatavalkyries.compat.curios.CuriosCompat.find(e, s -> s.getItem() instanceof FlightWingItem).isEmpty(); // Curios の背中の枠（2026-10-30）
     }
 
     @SubscribeEvent

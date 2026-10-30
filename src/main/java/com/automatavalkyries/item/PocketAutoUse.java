@@ -199,13 +199,14 @@ public final class PocketAutoUse {
     }
 
     /** 持ち物（左手も含むすべての枠）のポケット */
-    static java.util.List<ItemStack> pockets(ServerPlayer player) {
+    public static java.util.List<ItemStack> pockets(ServerPlayer player) {
         java.util.List<ItemStack> out = new java.util.ArrayList<>();
         Inventory inv = player.getInventory();
         for (int i = 0; i < inv.getContainerSize(); i++) {
             ItemStack s = inv.getItem(i);
             if (s.getItem() instanceof ItemPocketItem) out.add(s);
         }
+        out.addAll(com.automatavalkyries.compat.curios.CuriosCompat.find(player, s -> s.getItem() instanceof ItemPocketItem)); // Curios のベルトの枠（2026-10-30）
         return out;
     }
 }

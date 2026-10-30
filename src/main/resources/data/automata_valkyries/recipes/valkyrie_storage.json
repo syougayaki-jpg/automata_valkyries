@@ -11,7 +11,7 @@
       "item": "automata_valkyries:ingot_astrite"
     },
     "C": {
-      "item": "automata_valkyries:circuit_advanced"
+      "tag": "forge:circuits/advanced"
     },
     "L": {
       "item": "automata_valkyries:crystal_luminal"

@@ -424,6 +424,10 @@ dependencies {
 
     // JEI のプラグイン（compat/jei）を書くための API。JEI 自体は入れない（-PwithJei / -PwithTechMods のときだけ実行時に読み込む）
     compileOnly fg.deobf("maven.modrinth:jei:15.62.0.217")
+    // 他 MOD との連携（compat/）を書くための API。実行時に読み込むのは -PwithCompatMods / -PwithTechMods のとき（2026-10-30）
+    compileOnly fg.deobf("maven.modrinth:jade:11.13.3+forge")
+    compileOnly fg.deobf("maven.modrinth:curios:5.14.1+1.20.1")
+    compileOnly fg.deobf("maven.modrinth:ae2:15.4.11")                       // AE2 の連携の確かめ（GameTest。実行時は -PwithTechMods）
     // LifeGuard の呼び出し先（実行時はエージェントがブートストラップに置く。MOD の jar には入れない）
     compileOnly sourceSets.lifeguardhooks.output
     // オートマタヴァルキリー protect の呼び出し先（同じく実行時はエージェントがブートストラップに置く）
@@ -620,7 +624,29 @@ dependencies {
         runtimeOnly fg.deobf("maven.modrinth:mekanism:10.4.16.80")             // Mekanism 10.4.16
         runtimeOnly fg.deobf("maven.modrinth:ae2:15.4.11")                     // Applied Energistics 2 15.4.11
         runtimeOnly fg.deobf("maven.modrinth:guideme:20.1.15")                 // AE2 が必須
+        runtimeOnly fg.deobf("maven.modrinth:refined-storage:1.12.4")          // Refined Storage 1.12.4（2026-10-30。外部ストレージ・インターフェースとつながるかの手動確認用）
         runtimeOnly fg.deobf("maven.modrinth:jei:15.62.0.217")                 // タグ・レシピの手動確認用
+    }
+    // 情報表示と装備枠の連携の確認用（Jade・Curios。2026-10-30）: ./gradlew runClient -PwithCompatMods（-PwithTechMods とも併せられる）
+    if (project.hasProperty('withCompatMods') || project.hasProperty('withTechMods')) {
+        runtimeOnly fg.deobf("maven.modrinth:jade:11.13.3+forge")
+        runtimeOnly fg.deobf("maven.modrinth:curios:5.14.1+1.20.1")
+    }
+    // EMI（JEI の代わりのレシピ表示。このMODの JEI の画面は JEI も一緒に入れた時に EMI で見える。2026-10-30）: ./gradlew runClient -PwithEmi
+    if (project.hasProperty('withEmi')) {
+        runtimeOnly fg.deobf("maven.modrinth:emi:1.1.24+1.20.1+forge")
+        if (!project.hasProperty('withJei') && !project.hasProperty('withTechMods')) runtimeOnly fg.deobf("maven.modrinth:jei:15.62.0.217")
+    }
+    // Create（2026-10-30。Create の機械でこのMODの鉱石・板を加工するレシピの確認用）: ./gradlew runGameTestServer -PwithCreate
+    if (project.hasProperty('withCreate')) {
+        runtimeOnly fg.deobf("maven.modrinth:create:mc1.20.1-6.0.8")
+    }
+    // Immersive Engineering・Thermal Expansion（2026-10-30。その機械でこのMODの鉱石を加工するレシピの確認用）: ./gradlew runGameTestServer -PwithIEThermal
+    if (project.hasProperty('withIEThermal')) {
+        runtimeOnly fg.deobf("maven.modrinth:immersiveengineering:10.2.0-183")
+        runtimeOnly fg.deobf("maven.modrinth:thermal-expansion:11.0.1")
+        runtimeOnly fg.deobf("maven.modrinth:thermal-foundation:11.0.6")
+        runtimeOnly fg.deobf("maven.modrinth:cofh-core:11.0.2")
     }
     // JEI だけ（レシピ・タグの手動確認用）: ./gradlew runClient -PwithJei
     if (project.hasProperty('withJei') && !project.hasProperty('withTechMods')) {

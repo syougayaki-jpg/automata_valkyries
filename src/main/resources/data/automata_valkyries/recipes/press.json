@@ -1,7 +1,30 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "misc",
-  "pattern": [ "OPO", "IMI", "OCO" ],
-  "key": { "O": { "item": "automata_valkyries:motor" }, "P": { "item": "minecraft:piston" }, "I": { "tag": "forge:plates/invar" }, "M": { "item": "automata_valkyries:machine_frame_advanced" }, "C": { "item": "automata_valkyries:circuit_advanced" } },
-  "result": { "item": "automata_valkyries:press", "count": 1 }
+  "pattern": [
+    "OPO",
+    "IMI",
+    "OCO"
+  ],
+  "key": {
+    "O": {
+      "item": "automata_valkyries:motor"
+    },
+    "P": {
+      "item": "minecraft:piston"
+    },
+    "I": {
+      "tag": "forge:plates/invar"
+    },
+    "M": {
+      "item": "automata_valkyries:machine_frame_advanced"
+    },
+    "C": {
+      "tag": "forge:circuits/advanced"
+    }
+  },
+  "result": {
+    "item": "automata_valkyries:press",
+    "count": 1
+  }
 }

@@ -1,7 +1,30 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "misc",
-  "pattern": [ "ICI", "AFA", "IXI" ],
-  "key": { "I": { "tag": "forge:ingots/astrite" }, "C": { "item": "automata_valkyries:circuit_advanced" }, "A": { "item": "automata_valkyries:coil_chrono" }, "F": { "item": "automata_valkyries:frame_high_end" }, "X": { "item": "automata_valkyries:weapon_workbench" } },
-  "result": { "item": "automata_valkyries:tactical_armory", "count": 1 }
+  "pattern": [
+    "ICI",
+    "AFA",
+    "IXI"
+  ],
+  "key": {
+    "I": {
+      "tag": "forge:ingots/astrite"
+    },
+    "C": {
+      "tag": "forge:circuits/advanced"
+    },
+    "A": {
+      "item": "automata_valkyries:coil_chrono"
+    },
+    "F": {
+      "item": "automata_valkyries:frame_high_end"
+    },
+    "X": {
+      "item": "automata_valkyries:weapon_workbench"
+    }
+  },
+  "result": {
+    "item": "automata_valkyries:tactical_armory",
+    "count": 1
+  }
 }

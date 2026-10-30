@@ -1,7 +1,24 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "misc",
-  "pattern": [ "PPP", "RCR", "PPP" ],
-  "key": { "P": { "item": "minecraft:paper" }, "R": { "tag": "forge:dusts/redstone" }, "C": { "item": "automata_valkyries:circuit_basic" } },
-  "result": { "item": "automata_valkyries:blueprint_card", "count": 4 }
+  "pattern": [
+    "PPP",
+    "RCR",
+    "PPP"
+  ],
+  "key": {
+    "P": {
+      "item": "minecraft:paper"
+    },
+    "R": {
+      "tag": "forge:dusts/redstone"
+    },
+    "C": {
+      "tag": "forge:circuits/basic"
+    }
+  },
+  "result": {
+    "item": "automata_valkyries:blueprint_card",
+    "count": 4
+  }
 }

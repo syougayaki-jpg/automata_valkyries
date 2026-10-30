@@ -8,7 +8,7 @@
     },
     {
       "ingredient": {
-        "item": "automata_valkyries:circuit_basic"
+        "tag": "forge:circuits/basic"
       },
       "count": 2
     },

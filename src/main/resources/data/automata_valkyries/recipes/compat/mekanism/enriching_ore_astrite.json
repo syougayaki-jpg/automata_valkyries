@@ -1,0 +1,18 @@
+{
+  "conditions": [
+    {
+      "type": "forge:mod_loaded",
+      "modid": "mekanism"
+    }
+  ],
+  "type": "mekanism:enriching",
+  "input": {
+    "ingredient": {
+      "tag": "forge:ores/astrite"
+    }
+  },
+  "output": {
+    "count": 2,
+    "item": "automata_valkyries:dust_astrite"
+  }
+}

@@ -14,7 +14,7 @@
       "item": "automata_valkyries:tech_glass"
     },
     "C": {
-      "item": "automata_valkyries:circuit_basic"
+      "tag": "forge:circuits/basic"
     }
   },
   "result": {

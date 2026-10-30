@@ -1,7 +1,30 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "misc",
-  "pattern": [ "ICI", "AFA", "IXI" ],
-  "key": { "I": { "tag": "forge:ingots/ceruleas" }, "C": { "item": "automata_valkyries:circuit_advanced" }, "A": { "item": "automata_valkyries:emitter_spatial" }, "F": { "item": "automata_valkyries:frame_high_end" }, "X": { "item": "automata_valkyries:improved_battery" } },
-  "result": { "item": "automata_valkyries:tether_pylon", "count": 1 }
+  "pattern": [
+    "ICI",
+    "AFA",
+    "IXI"
+  ],
+  "key": {
+    "I": {
+      "tag": "forge:ingots/ceruleas"
+    },
+    "C": {
+      "tag": "forge:circuits/advanced"
+    },
+    "A": {
+      "item": "automata_valkyries:emitter_spatial"
+    },
+    "F": {
+      "item": "automata_valkyries:frame_high_end"
+    },
+    "X": {
+      "item": "automata_valkyries:improved_battery"
+    }
+  },
+  "result": {
+    "item": "automata_valkyries:tether_pylon",
+    "count": 1
+  }
 }

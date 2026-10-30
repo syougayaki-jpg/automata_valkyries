@@ -1,0 +1,32 @@
+{
+  "conditions": [
+    {
+      "type": "forge:mod_loaded",
+      "modid": "create"
+    }
+  ],
+  "type": "create:crushing",
+  "ingredients": [
+    {
+      "tag": "forge:ores/astrite"
+    }
+  ],
+  "processingTime": 250,
+  "results": [
+    {
+      "item": "automata_valkyries:dust_astrite"
+    },
+    {
+      "item": "automata_valkyries:dust_astrite",
+      "chance": 0.75
+    },
+    {
+      "item": "create:experience_nugget",
+      "chance": 0.75
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "chance": 0.125
+    }
+  ]
+}

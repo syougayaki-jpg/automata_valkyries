@@ -14,7 +14,7 @@
       "item": "automata_valkyries:black_death_cocoon"
     },
     "C": {
-      "item": "automata_valkyries:circuit_advanced"
+      "tag": "forge:circuits/advanced"
     },
     "L": {
       "item": "automata_valkyries:crystal_luminal"

@@ -1,0 +1,19 @@
+{
+  "conditions": [
+    {
+      "type": "forge:mod_loaded",
+      "modid": "thermal"
+    }
+  ],
+  "type": "thermal:pulverizer",
+  "ingredient": {
+    "tag": "forge:ingots/ceruleas"
+  },
+  "result": [
+    {
+      "item": "automata_valkyries:dust_ceruleas",
+      "count": 1
+    }
+  ],
+  "energy_mod": 0.5
+}

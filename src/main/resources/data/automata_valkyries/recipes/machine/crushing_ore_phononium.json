@@ -1,0 +1,14 @@
+{
+  "type": "automata_valkyries:crushing",
+  "ingredients": [
+    {
+      "ingredient": {
+        "tag": "forge:ores/phononium"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:dust_phononium",
+    "count": 2
+  }
+}

@@ -1,7 +1,24 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "misc",
-  "pattern": [ "PGP", "GCG", "PGP" ],
-  "key": { "P": { "tag": "forge:plates/steel" }, "G": { "tag": "forge:gears/bronze" }, "C": { "item": "automata_valkyries:circuit_basic" } },
-  "result": { "item": "automata_valkyries:machine_frame_basic", "count": 1 }
+  "pattern": [
+    "PGP",
+    "GCG",
+    "PGP"
+  ],
+  "key": {
+    "P": {
+      "tag": "forge:plates/steel"
+    },
+    "G": {
+      "tag": "forge:gears/bronze"
+    },
+    "C": {
+      "tag": "forge:circuits/basic"
+    }
+  },
+  "result": {
+    "item": "automata_valkyries:machine_frame_basic",
+    "count": 1
+  }
 }

@@ -329,7 +329,8 @@ public class VoidRepositoryBlockEntity extends ChronoMachineBlockEntity {
             public @NotNull ItemStack getStackInSlot(int slot) {
                 if (slot >= entries.size() || entries.get(slot) == null) return ItemStack.EMPTY;
                 Entry entry = entries.get(slot);
-                return entry.key.copyWithCount((int) Math.min(entry.count, entry.key.getMaxStackSize()));
+                // 本当の数を見せる（2026-10-30。1 スタック分しか見せていなかったので、AE2 のストレージバスが 64 個までと数えていた）。取り出しは 1 回 1 スタックまで
+                return entry.key.copyWithCount((int) Math.min(entry.count, Integer.MAX_VALUE));
             }
 
             @Override public int getSlotLimit(int slot) { return Integer.MAX_VALUE; }

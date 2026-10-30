@@ -1,7 +1,30 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "misc",
-  "pattern": [ "ICI", "AFA", "IXI" ],
-  "key": { "I": { "tag": "forge:ingots/phononium" }, "C": { "item": "automata_valkyries:circuit_advanced" }, "A": { "item": "automata_valkyries:capsule_spatial" }, "F": { "item": "automata_valkyries:frame_high_end" }, "X": { "item": "minecraft:ender_chest" } },
-  "result": { "item": "automata_valkyries:void_repository", "count": 1 }
+  "pattern": [
+    "ICI",
+    "AFA",
+    "IXI"
+  ],
+  "key": {
+    "I": {
+      "tag": "forge:ingots/phononium"
+    },
+    "C": {
+      "tag": "forge:circuits/advanced"
+    },
+    "A": {
+      "item": "automata_valkyries:capsule_spatial"
+    },
+    "F": {
+      "item": "automata_valkyries:frame_high_end"
+    },
+    "X": {
+      "item": "minecraft:ender_chest"
+    }
+  },
+  "result": {
+    "item": "automata_valkyries:void_repository",
+    "count": 1
+  }
 }

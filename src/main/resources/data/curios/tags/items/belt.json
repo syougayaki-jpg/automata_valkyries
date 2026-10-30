@@ -1,0 +1,9 @@
+{
+  "replace": false,
+  "values": [
+    "automata_valkyries:item_pocket_t1",
+    "automata_valkyries:item_pocket_t2",
+    "automata_valkyries:item_pocket_t3",
+    "automata_valkyries:item_pocket_t4"
+  ]
+}

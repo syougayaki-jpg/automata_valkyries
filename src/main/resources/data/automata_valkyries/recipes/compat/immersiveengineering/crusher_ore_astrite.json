@@ -1,0 +1,20 @@
+{
+  "conditions": [
+    {
+      "type": "forge:mod_loaded",
+      "modid": "immersiveengineering"
+    }
+  ],
+  "type": "immersiveengineering:crusher",
+  "energy": 6000,
+  "input": {
+    "tag": "forge:ores/astrite"
+  },
+  "result": {
+    "base_ingredient": {
+      "item": "automata_valkyries:dust_astrite"
+    },
+    "count": 2
+  },
+  "secondaries": []
+}

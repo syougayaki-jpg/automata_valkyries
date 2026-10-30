@@ -268,6 +268,17 @@ JA = [
         "- 機械の設定: 時間加速器の重ねがけの制限や対象・巻き戻しで鉱石に戻すか（既定はしない）",
         "- クライアントの設定: ダメージの数字・ボスの位置の印・HUD",
         "",
+        "## 他の MOD と一緒に",
+        "- Jade: マシンを見るとティアとリンクの数、兵姫を見ると持ち主・状態・電力・シールド・同調率が出ます",
+        "- Curios: アイテムポケットをベルトの枠、観測の立方体をお守りの枠、光翼の飛翔機を背中の枠に付けられます（付けたままでも動き、飛べます）",
+        "- Mekanism: アストライト・フォノニウム・セルリアスの鉱石を濃縮機で粉 2 個にできます（このMODの粉砕機でも 2 個）",
+        "- AE2 / Refined Storage: ストレージバスや外部ストレージでヴォイド・リポジトリや機械につなげます。ポーターのチップの兵姫は、拾った物を ME インターフェースなどへも運びます",
+        "- 共通の金属（スズ・鉛など）は forge のタグで他の工業 MOD の物と同じに使えます",
+        "- 基本回路・高等回路は他の MOD の同じ段の回路（Mekanism の制御回路など）と互いに代わりに使えます",
+        "- Create: 破砕ホイールで独自鉱石を粉に、プレス機で連携金属の板を作れます",
+        "- Immersive Engineering・Thermal: その粉砕機でも独自鉱石を粉 2 個にできます",
+        "- EMI: JEI と一緒に入れると、このMODのレシピの画面も EMI で見られます",
+        "",
         "> 困ったら JEI でアイテムを調べ、この手引きと進捗のタブを見返してください",
     ]),
 ]
@@ -416,6 +427,15 @@ EN = [
         "- V: tactical code   H: valkyrie HUD   J: HUD layout",
         "- automata_valkyries-valkyries.toml: earlyGame.easyPodWake, enableTacticalGriefing, tacticalAffectsBosses",
         "- Machine config: Time Accelerator limits and Time Rewinder ores (off by default)",
+        "## With other mods",
+        "- Jade shows machine tiers and links, and valkyrie owner, state, power, shield and sync",
+        "- Curios: Item Pocket in a belt slot, Observation Cubes in a charm slot, Light Wing Flyer in a back slot (fly while worn)",
+        "- Mekanism: astrite, phononium and ceruleas ores double in the Enrichment Chamber",
+        "- AE2 / Refined Storage connect to the Void Repository and machines through storage buses; porter-chip valkyries deliver pickups to ME interfaces too",
+        "- Basic and advanced circuits are interchangeable with other mods' circuits of the same tier (e.g. Mekanism control circuits)",
+        "- Create: crushing wheels turn this mod's ores into dust; the press makes shared-metal plates",
+        "- Immersive Engineering / Thermal: their crushers double this mod's ores into dust too",
+        "- EMI shows this mod's recipe screens when JEI is installed too",
     ]),
 ]
 
@@ -446,7 +466,7 @@ def vanilla_lang(code):
 # タグの形 → （このMODのアイテムの頭、バニラのアイテムの形）
 TAG_FORMS = {"ingots": ("ingot_", "{}_ingot"), "nuggets": ("nugget_", "{}_nugget"), "dusts": ("dust_", None), "plates": ("plate_", None),
              "gears": ("gear_", None), "rods": ("rod_", None), "storage_blocks": ("block_", "{}_block"), "raw_materials": ("raw_", "raw_{}"),
-             "gems": (None, "{}"), "ores": ("ore_", "{}_ore"), "dyes": (None, "{}_dye")}
+             "gems": (None, "{}"), "ores": ("ore_", "{}_ore"), "dyes": (None, "{}_dye"), "circuits": ("circuit_", None)}
 # 形で引けないタグ → 代わりに名前を出すバニラのアイテム
 TAG_ITEMS = {"forge:chests/wooden": "chest", "forge:chests/ender": "ender_chest", "forge:chests": "chest", "forge:slimeballs": "slime_ball", "minecraft:wool": "white_wool",
              "minecraft:planks": "oak_planks", "minecraft:logs": "oak_log", "forge:glass": "glass", "forge:string": "string", "forge:feathers": "feather"}

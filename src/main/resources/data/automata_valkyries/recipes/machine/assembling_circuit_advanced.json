@@ -1,7 +1,41 @@
 {
   "type": "automata_valkyries:assembling",
-  "ingredients": [ { "ingredient": { "item": "automata_valkyries:circuit_basic" }, "count": 3 }, { "ingredient": { "item": "automata_valkyries:wire_gold" }, "count": 4 }, { "ingredient": { "tag": "forge:plates/silver" }, "count": 1 }, { "ingredient": { "tag": "forge:plates/electrum" }, "count": 1 }, { "ingredient": { "item": "automata_valkyries:crystal_luminal" }, "count": 1 } ],
-  "result": { "item": "automata_valkyries:circuit_advanced", "count": 2 },
+  "ingredients": [
+    {
+      "ingredient": {
+        "tag": "forge:circuits/basic"
+      },
+      "count": 3
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:wire_gold"
+      },
+      "count": 4
+    },
+    {
+      "ingredient": {
+        "tag": "forge:plates/silver"
+      },
+      "count": 1
+    },
+    {
+      "ingredient": {
+        "tag": "forge:plates/electrum"
+      },
+      "count": 1
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:crystal_luminal"
+      },
+      "count": 1
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:circuit_advanced",
+    "count": 2
+  },
   "energy": 20000,
   "time": 200
 }

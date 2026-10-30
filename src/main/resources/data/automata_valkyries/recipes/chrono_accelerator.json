@@ -11,7 +11,7 @@
       "tag": "forge:ingots/phononium"
     },
     "C": {
-      "item": "automata_valkyries:circuit_advanced"
+      "tag": "forge:circuits/advanced"
     },
     "A": {
       "item": "automata_valkyries:crystal_luminal"

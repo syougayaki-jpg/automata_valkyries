@@ -199,7 +199,7 @@ public class OreGameTests {
         for (int i = 0; i < inputs.size(); i++) grid.setItem(i, new ItemStack(inputs.get(i)));
         ItemStack out = level.getRecipeManager().getRecipeFor(RecipeType.CRAFTING, grid, level)
                 .map(r -> r.assemble(grid, level.registryAccess())).orElse(ItemStack.EMPTY);
-        helper.assertTrue(out.is(result) && out.getCount() == count, inputs + " crafted into " + out);
+        helper.assertTrue(sameKind(out, result) && out.getCount() == count, inputs + " crafted into " + out); // 同じ金属を持つ他 MOD（Thermal の青銅の粉など）の物でもよい
     }
 
     private static void compressRoundTrip(GameTestHelper helper, Item unit, net.minecraft.world.level.ItemLike storage) {
@@ -212,7 +212,7 @@ public class OreGameTests {
         for (int i = 0; i < 9; i++) grid.setItem(i, new ItemStack(unit));
         ItemStack packed = recipes.getRecipeFor(RecipeType.CRAFTING, grid, level)
                 .map(r -> r.assemble(grid, level.registryAccess())).orElse(ItemStack.EMPTY);
-        helper.assertTrue(packed.is(storage.asItem()) && packed.getCount() == 1, "9 x " + unit + " crafted into " + packed);
+        helper.assertTrue(sameKind(packed, storage.asItem()) && packed.getCount() == 1, "9 x " + unit + " crafted into " + packed); // 同じ金属を持つ他 MOD（Create の亜鉛など）の物でもよい
 
         for (int i = 0; i < 9; i++) grid.setItem(i, ItemStack.EMPTY);
         grid.setItem(0, new ItemStack(storage));

@@ -1,7 +1,30 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "misc",
-  "pattern": [ "HBH", "AMA", "HCH" ],
-  "key": { "H": { "item": "automata_valkyries:heating_coil" }, "B": { "item": "minecraft:blast_furnace" }, "A": { "tag": "forge:plates/constantan" }, "M": { "item": "automata_valkyries:machine_frame_advanced" }, "C": { "item": "automata_valkyries:circuit_advanced" } },
-  "result": { "item": "automata_valkyries:alloy_smelter", "count": 1 }
+  "pattern": [
+    "HBH",
+    "AMA",
+    "HCH"
+  ],
+  "key": {
+    "H": {
+      "item": "automata_valkyries:heating_coil"
+    },
+    "B": {
+      "item": "minecraft:blast_furnace"
+    },
+    "A": {
+      "tag": "forge:plates/constantan"
+    },
+    "M": {
+      "item": "automata_valkyries:machine_frame_advanced"
+    },
+    "C": {
+      "tag": "forge:circuits/advanced"
+    }
+  },
+  "result": {
+    "item": "automata_valkyries:alloy_smelter",
+    "count": 1
+  }
 }

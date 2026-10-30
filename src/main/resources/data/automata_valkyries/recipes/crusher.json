@@ -1,7 +1,30 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "misc",
-  "pattern": [ "GDG", "OMO", "GCG" ],
-  "key": { "G": { "tag": "forge:gears/steel" }, "D": { "tag": "forge:gems/diamond" }, "O": { "item": "automata_valkyries:motor" }, "M": { "item": "automata_valkyries:machine_frame_basic" }, "C": { "item": "automata_valkyries:circuit_basic" } },
-  "result": { "item": "automata_valkyries:crusher", "count": 1 }
+  "pattern": [
+    "GDG",
+    "OMO",
+    "GCG"
+  ],
+  "key": {
+    "G": {
+      "tag": "forge:gears/steel"
+    },
+    "D": {
+      "tag": "forge:gems/diamond"
+    },
+    "O": {
+      "item": "automata_valkyries:motor"
+    },
+    "M": {
+      "item": "automata_valkyries:machine_frame_basic"
+    },
+    "C": {
+      "tag": "forge:circuits/basic"
+    }
+  },
+  "result": {
+    "item": "automata_valkyries:crusher",
+    "count": 1
+  }
 }

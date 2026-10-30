@@ -1,7 +1,30 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "misc",
-  "pattern": [ "PAP", "IFI", "PSP" ],
-  "key": { "P": { "item": "automata_valkyries:composite_plate" }, "A": { "item": "automata_valkyries:circuit_advanced" }, "I": { "tag": "forge:plates/invar" }, "F": { "item": "automata_valkyries:machine_frame_heavy" }, "S": { "item": "minecraft:smithing_table" } },
-  "result": { "item": "automata_valkyries:weapon_workbench", "count": 1 }
+  "pattern": [
+    "PAP",
+    "IFI",
+    "PSP"
+  ],
+  "key": {
+    "P": {
+      "item": "automata_valkyries:composite_plate"
+    },
+    "A": {
+      "tag": "forge:circuits/advanced"
+    },
+    "I": {
+      "tag": "forge:plates/invar"
+    },
+    "F": {
+      "item": "automata_valkyries:machine_frame_heavy"
+    },
+    "S": {
+      "item": "minecraft:smithing_table"
+    }
+  },
+  "result": {
+    "item": "automata_valkyries:weapon_workbench",
+    "count": 1
+  }
 }

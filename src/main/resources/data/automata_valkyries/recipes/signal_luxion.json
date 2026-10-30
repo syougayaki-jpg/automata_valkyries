@@ -11,7 +11,7 @@
       "item": "automata_valkyries:photon_blade_shard"
     },
     "C": {
-      "item": "automata_valkyries:circuit_advanced"
+      "tag": "forge:circuits/advanced"
     },
     "P": {
       "item": "automata_valkyries:crystal_luminal"

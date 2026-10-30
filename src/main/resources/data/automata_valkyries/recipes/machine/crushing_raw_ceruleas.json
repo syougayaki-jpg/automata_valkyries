@@ -1,0 +1,14 @@
+{
+  "type": "automata_valkyries:crushing",
+  "ingredients": [
+    {
+      "ingredient": {
+        "tag": "forge:raw_materials/ceruleas"
+      }
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:dust_ceruleas",
+    "count": 2
+  }
+}

@@ -1,6 +1,7 @@
 package com.automatavalkyries.gametest;
 
 import com.automatavalkyries.AutomataValkyries;
+import com.automatavalkyries.registry.ModItems;
 import com.automatavalkyries.machine.MachineBlockEntity;
 import com.automatavalkyries.machine.MachineKind;
 import com.automatavalkyries.registry.IndustrialMetals;
@@ -173,14 +174,59 @@ public class CompatGameTests {
     @GameTest(template = TEMPLATE)
     public static void oreGenerationYieldsToOtherMods(GameTestHelper helper) {
         boolean mekanism = ModList.get().isLoaded("mekanism");
+        boolean otherOreMod = java.util.stream.Stream.of("create", "immersiveengineering", "thermal").anyMatch(ModList.get()::isLoaded);
         for (String metal : List.of("tin", "lead", "osmium", "uranium")) {
-            helper.assertTrue(generatesOurs(helper, metal) != mekanism,
-                    metal + (mekanism ? " ore is still generated next to Mekanism's" : " ore is not generated"));
-            if (mekanism) helper.assertTrue(com.automatavalkyries.world.OreOverlap.skipped().getOrDefault(metal, "").startsWith("mekanism:"),
-                    metal + " was not attributed to Mekanism: " + com.automatavalkyries.world.OreOverlap.skipped());
+            boolean yielded = com.automatavalkyries.world.OreOverlap.skipped().containsKey(metal);
+            if (mekanism) helper.assertTrue(yielded, metal + " was not yielded next to Mekanism: " + com.automatavalkyries.world.OreOverlap.skipped());
+            if (!mekanism && !otherOreMod) helper.assertTrue(!yielded, metal + " was yielded although no ore mod is loaded");
+            helper.assertTrue(generatesOurs(helper, metal) != yielded, metal + (yielded ? " ore is still generated next to " + com.automatavalkyries.world.OreOverlap.skipped().get(metal) : " ore is not generated"));
         }
+        // ほかの金属: 他 MOD（Create・Immersive Engineering・Thermal など）が生成する物は譲り、そうでない物は生成する（2026-10-30）
+        boolean anyOreMod = java.util.stream.Stream.of("create", "immersiveengineering", "thermal").anyMatch(ModList.get()::isLoaded);
         for (String metal : List.of("silver", "nickel", "zinc", "aluminum")) {
-            helper.assertTrue(generatesOurs(helper, metal), metal + " ore is not generated");
+            boolean yielded = com.automatavalkyries.world.OreOverlap.skipped().containsKey(metal);
+            helper.assertTrue(anyOreMod || !yielded, metal + " was yielded although no ore mod is loaded: " + com.automatavalkyries.world.OreOverlap.skipped());
+            helper.assertTrue(generatesOurs(helper, metal) != yielded, metal + (yielded ? " ore is still generated next to " + com.automatavalkyries.world.OreOverlap.skipped().get(metal) : " ore is not generated"));
+        }
+        helper.succeed();
+    }
+
+    /** 固有金属の粉（2026-10-30）: このMODの粉砕機で鉱石 1 から粉 2 個。Mekanism が入っていれば濃縮機・粉砕機のレシピも読まれる */
+    @GameTest(template = TEMPLATE)
+    public static void uniqueOresDoubleIntoDust(GameTestHelper helper) {
+        var manager = helper.getLevel().getRecipeManager();
+        for (String m : new String[]{"astrite", "phononium", "ceruleas"}) {
+            var crush = manager.byKey(net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "machine/crushing_ore_" + m));
+            helper.assertTrue(crush.isPresent() && crush.get().getResultItem(helper.getLevel().registryAccess()).getCount() == 2, "crusher does not double " + m + " ore");
+            var mek = manager.byKey(net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "compat/mekanism/enriching_ore_" + m));
+            helper.assertTrue(mek.isPresent() == ModList.get().isLoaded("mekanism"), "Mekanism enriching recipe for " + m + " present=" + mek.isPresent());
+            var create = manager.byKey(net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "compat/create/crushing_ore_" + m));
+            helper.assertTrue(create.isPresent() == ModList.get().isLoaded("create"), "Create crushing recipe for " + m + " present=" + create.isPresent());
+            var ie = manager.byKey(net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "compat/immersiveengineering/crusher_ore_" + m));
+            helper.assertTrue(ie.isPresent() == ModList.get().isLoaded("immersiveengineering"), "IE crusher recipe for " + m + " present=" + ie.isPresent());
+            var thermal = manager.byKey(net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "compat/thermal/pulverizer_ore_" + m));
+            helper.assertTrue(thermal.isPresent() == ModList.get().isLoaded("thermal"), "Thermal pulverizer recipe for " + m + " present=" + thermal.isPresent());
+        }
+        helper.succeed();
+    }
+
+    /**
+     * 回路の互換（2026-10-30 ユーザー指定「回路は基本と高等回路に互換性を」）: このMODの基本回路・高等回路は forge:circuits/basic・advanced に入り、
+     * このMODのレシピはそのタグで受ける。Mekanism が入っていれば、その制御回路でもこのMODの高等回路が作れる
+     */
+    @GameTest(template = TEMPLATE)
+    public static void basicAndAdvancedCircuitsAreShared(GameTestHelper helper) {
+        var basicTag = net.minecraft.tags.ItemTags.create(net.minecraft.resources.ResourceLocation.parse("forge:circuits/basic"));
+        var advancedTag = net.minecraft.tags.ItemTags.create(net.minecraft.resources.ResourceLocation.parse("forge:circuits/advanced"));
+        helper.assertTrue(new ItemStack(ModItems.CIRCUIT_BASIC.get()).is(basicTag) && new ItemStack(ModItems.CIRCUIT_ADVANCED.get()).is(advancedTag), "circuits are not in the forge tags");
+        var recipe = helper.getLevel().getRecipeManager().byKey(net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "circuit_advanced"));
+        helper.assertTrue(recipe.isPresent(), "advanced circuit recipe missing");
+        boolean takesOurs = recipe.get().getIngredients().stream().anyMatch(i -> i.test(new ItemStack(ModItems.CIRCUIT_BASIC.get())));
+        helper.assertTrue(takesOurs, "the advanced circuit recipe no longer takes our basic circuit");
+        if (ModList.get().isLoaded("mekanism")) {
+            var mek = net.minecraftforge.registries.ForgeRegistries.ITEMS.getValue(net.minecraft.resources.ResourceLocation.parse("mekanism:basic_control_circuit"));
+            boolean takesMek = recipe.get().getIngredients().stream().anyMatch(i -> i.test(new ItemStack(mek)));
+            helper.assertTrue(takesMek, "the advanced circuit recipe does not take Mekanism's basic control circuit");
         }
         helper.succeed();
     }

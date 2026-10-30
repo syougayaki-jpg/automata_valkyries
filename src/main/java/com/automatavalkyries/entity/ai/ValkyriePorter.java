@@ -63,8 +63,23 @@ public class ValkyriePorter extends Goal {
 
     @Nullable
     static IItemHandler handler(ValkyrieEntity v, BlockPos p) {
-        BlockEntity be = v.level().getBlockEntity(p);
-        return be == null ? null : be.getCapability(ForgeCapabilities.ITEM_HANDLER, Direction.UP).orElse(null);
+        return handlerOf(v.level().getBlockEntity(p));
+    }
+
+    /**
+     * 入れ物の物の受け口: 上の面 → 面の指定なし → ほかの面の順に探す（2026-10-30 ユーザー指定「AE2 / Refined Storage」「兵姫が拾った物を倉庫へ」。
+     * 上の面にしか聞いていなかったので、面ごとに受け口の違う他 MOD の入れ物（ME インターフェース・ストレージの外部の口・機械の面の設定）へ入れられないことがあった）
+     */
+    @Nullable
+    public static IItemHandler handlerOf(@Nullable BlockEntity be) {
+        if (be == null) return null;
+        IItemHandler h = be.getCapability(ForgeCapabilities.ITEM_HANDLER, Direction.UP).orElse(null);
+        if (h == null) h = be.getCapability(ForgeCapabilities.ITEM_HANDLER, null).orElse(null);
+        for (Direction d : Direction.values()) {
+            if (h != null) break;
+            h = be.getCapability(ForgeCapabilities.ITEM_HANDLER, d).orElse(null);
+        }
+        return h;
     }
 
     /** お掃除（モード 0）の運び先。モード 0 でなければ null */

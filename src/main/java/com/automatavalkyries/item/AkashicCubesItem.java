@@ -48,7 +48,9 @@ public class AkashicCubesItem extends Item {
     public static ItemStack carried(Player player) {
         if (player.getOffhandItem().getItem() instanceof AkashicCubesItem) return player.getOffhandItem();
         for (int i = 0; i < 9; i++) if (player.getInventory().getItem(i).getItem() instanceof AkashicCubesItem) return player.getInventory().getItem(i);
-        return ItemStack.EMPTY;
+        // Curios のお守りの枠（2026-10-30）
+        List<ItemStack> curios = com.automatavalkyries.compat.curios.CuriosCompat.find(player, s -> s.getItem() instanceof AkashicCubesItem);
+        return curios.isEmpty() ? ItemStack.EMPTY : curios.get(0);
     }
 
     /** 立方体の回る所（描く側と同じ式。i は 0〜2） */

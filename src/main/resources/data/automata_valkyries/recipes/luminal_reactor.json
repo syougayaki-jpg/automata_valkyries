@@ -1,7 +1,30 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "misc",
-  "pattern": [ "ICI", "AFA", "IXI" ],
-  "key": { "I": { "tag": "forge:ingots/ceruleas" }, "C": { "item": "automata_valkyries:circuit_advanced" }, "A": { "item": "automata_valkyries:crystal_luminal" }, "F": { "item": "automata_valkyries:frame_high_end" }, "X": { "item": "automata_valkyries:improved_generator" } },
-  "result": { "item": "automata_valkyries:luminal_reactor", "count": 1 }
+  "pattern": [
+    "ICI",
+    "AFA",
+    "IXI"
+  ],
+  "key": {
+    "I": {
+      "tag": "forge:ingots/ceruleas"
+    },
+    "C": {
+      "tag": "forge:circuits/advanced"
+    },
+    "A": {
+      "item": "automata_valkyries:crystal_luminal"
+    },
+    "F": {
+      "item": "automata_valkyries:frame_high_end"
+    },
+    "X": {
+      "item": "automata_valkyries:improved_generator"
+    }
+  },
+  "result": {
+    "item": "automata_valkyries:luminal_reactor",
+    "count": 1
+  }
 }

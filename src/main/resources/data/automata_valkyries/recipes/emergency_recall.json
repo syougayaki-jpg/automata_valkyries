@@ -17,7 +17,7 @@
       "item": "automata_valkyries:crystal_luminal"
     },
     "A": {
-      "item": "automata_valkyries:circuit_advanced"
+      "tag": "forge:circuits/advanced"
     },
     "R": {
       "item": "minecraft:redstone"

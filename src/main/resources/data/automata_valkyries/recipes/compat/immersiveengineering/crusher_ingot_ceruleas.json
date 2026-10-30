@@ -1,0 +1,17 @@
+{
+  "conditions": [
+    {
+      "type": "forge:mod_loaded",
+      "modid": "immersiveengineering"
+    }
+  ],
+  "type": "immersiveengineering:crusher",
+  "energy": 3000,
+  "input": {
+    "tag": "forge:ingots/ceruleas"
+  },
+  "result": {
+    "item": "automata_valkyries:dust_ceruleas"
+  },
+  "secondaries": []
+}

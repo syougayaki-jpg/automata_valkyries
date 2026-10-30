@@ -19,6 +19,10 @@ public class ModItems {
     // ---- 下位鉱石・下位金属（SPEC §7.7） ----
     public static final RegistryObject<Item> RAW_ASTRITE = simple("raw_astrite");
     public static final RegistryObject<Item> INGOT_ASTRITE = simple("ingot_astrite");
+    /** 固有金属の粉（2026-10-30 ユーザー指定「Mekanism を深く」→ 独自鉱石を 2 倍化。粉砕機・Mekanism の濃縮機で鉱石 1 から 2 個、精錬でインゴット） */
+    public static final RegistryObject<Item> DUST_ASTRITE = simple("dust_astrite");
+    public static final RegistryObject<Item> DUST_PHONONIUM = simple("dust_phononium");
+    public static final RegistryObject<Item> DUST_CERULEAS = simple("dust_ceruleas");
     public static final RegistryObject<Item> RAW_PHONONIUM = simple("raw_phononium");
     public static final RegistryObject<Item> INGOT_PHONONIUM = simple("ingot_phononium");
     public static final RegistryObject<Item> RAW_CERULEAS = simple("raw_ceruleas");

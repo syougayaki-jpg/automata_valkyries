@@ -1,7 +1,35 @@
 {
   "type": "automata_valkyries:assembling",
-  "ingredients": [ { "ingredient": { "item": "automata_valkyries:circuit_advanced" }, "count": 2 }, { "ingredient": { "item": "automata_valkyries:alloy_luminal_sterling" }, "count": 1 }, { "ingredient": { "item": "automata_valkyries:crystal_luminal" }, "count": 2 }, { "ingredient": { "item": "automata_valkyries:wire_gold" }, "count": 4 } ],
-  "result": { "item": "automata_valkyries:circuit_quantum_tac", "count": 1 },
+  "ingredients": [
+    {
+      "ingredient": {
+        "tag": "forge:circuits/advanced"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:alloy_luminal_sterling"
+      },
+      "count": 1
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:crystal_luminal"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:wire_gold"
+      },
+      "count": 4
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:circuit_quantum_tac",
+    "count": 1
+  },
   "energy": 60000,
   "time": 300
 }

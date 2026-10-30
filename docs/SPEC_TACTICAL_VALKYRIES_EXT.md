@@ -349,6 +349,19 @@ MOD単体で完全自己完結しつつ、外部工業MODの導入時に生産�
   * 自動で譲らないときは `[ores]` の `skipWhenOtherModGenerates = false`。金属ごとに切る設定も残す
 * 手で確かめること: Mekanism の物流パイプ・AE2 のインポート／エクスポートバスや ME インターフェースから、マシンの材料スロットへ入れ・結果スロットから出せるか（このMODのアイテムの出し入れの決まり §11.1.2 どおりか）
 
+### 11.1.6 情報表示・装備枠の連携（2026-10-30 ユーザー指定「他MODとの連携要素を増やす」。質問で: 情報表示・装備枠系・Mekanism を深く・AE2 / Refined Storage）
+
+* **Jade**（`compat/jade/AutomataJadePlugin`、Jade 11.13.3）: 電力のバーは Jade が自分で出すので、Jade が知らない物を足す。クロノリンク・マシン = ティア・使えるリンクの数（ヴォイド・リポジトリは入っている種類の数も）。戦術兵姫 = 素体タイプ・持ち主・状態（行動モード／機能停止／休眠）・電力・シールド・同調率。Jade の設定で項目ごとに切れる
+* **Curios**（`compat/curios/CuriosCompat`、Curios 5.14.1）: アイテムポケットをベルトの枠、観測の立方体をお守りの枠、光翼の飛翔機を背中の枠（同日ユーザー指定「キュリオススロットに光翼の飛翔機も背中につくように」）に付けられる（`data/curios/tags/items/belt.json`・`charm.json`・`back.json`、枠は `data/automata_valkyries/curios/`）。付けている物も持ち物・手にある時と同じように動く（ポケットの自動使用・ティアの機能、立方体の射撃と回る見た目、飛翔機で飛ぶ・背中の光の翼）。ポケットの画面は手に持った時だけ開く
+* **Mekanism**（独自鉱石の 2 倍化）: 固有金属の粉（`dust_astrite`・`dust_phononium`・`dust_ceruleas`、タグ `forge:dusts/<金属>`）を足した。このMODの粉砕機で鉱石・原石 1 → 粉 2、インゴット → 粉 1。粉は精錬・溶鉱炉でインゴット。Mekanism が入っている時だけ読むレシピ（`recipes/compat/mekanism/`、条件 `forge:mod_loaded`）: 濃縮機で鉱石 → 粉 2・原石 3 → 粉 4、粉砕機でインゴット → 粉。GameTest `uniqueOresDoubleIntoDust`
+* **AE2 / Refined Storage**: このMODの機械とヴォイド・リポジトリは Forge の共通の物の受け口を持つので、ストレージバス・搬入出バス・パターンプロバイダー・外部ストレージがそのままつながる。確かめた（GameTest `ae2StorageBusSeesRepository`、`-PwithTechMods`）: AE2 のストレージバスで ME からリポジトリの中身が見え、ME から取り出せる。その時に見つけて直した: リポジトリの受け口が 1 種類 1 スタック分（64）しか数を見せず、ME が 64 個までと数えていた → 本当の数を見せる（取り出しは 1 回 1 スタックまでのまま）。Refined Storage 1.12.4 も `-PwithTechMods` で読み込む（手で確かめる）
+* **兵姫が拾った物を倉庫へ**: ポーターのロジックチップ（モード 0「拾った物を指定の入れ物へ」）は、もともとチェストに限らず物を受け取れるブロックなら覚えられた。入れる時に上の面にしか聞いていなかったので、面ごとに受け口が違う他 MOD の倉庫（ME インターフェース・RS の外部の口・機械の面の設定）に入れられないことがあった → 上の面 → 面の指定なし → ほかの面の順に探す（`ValkyriePorter.handlerOf`）。ヴォイド・リポジトリや ME インターフェースを運び先にできる
+* **回路の互換**（同日ユーザー指定「手間が少ないやつからして回路は基本と高等回路に互換性を」）: 基本回路を `forge:circuits/basic`、高等回路を `forge:circuits/advanced`（と `forge:circuits`）に入れた。このMODのレシピの材料の基本回路・高等回路（92 か所）をそのタグに置き換えたので、他 MOD の回路（Mekanism の基本・高等制御回路など）でも作れ、このMODの回路も他 MOD のレシピで使える。量子 TAC から上は互換にしない（他 MOD の回路の方が安く作れるため）。GameTest `basicAndAdvancedCircuitsAreShared`
+* **Create**（入っている時だけ読むレシピ `recipes/compat/create/`、`-PwithCreate`）: 破砕ホイールで固有金属の鉱石 → 粉 1（＋75% でもう 1・経験値のかけら 75%・丸石 12.5%）、原石 → 粉 1（＋50%）。プレス機で連携金属のインゴット → このMODの板（Create に板の無い 13 種。真鍮は Create の板があるので除く）。Create は亜鉛の鉱石を生成するので、このMODの亜鉛は譲る（鉱石の重なりの自動の譲り）
+* **Immersive Engineering・Thermal**（入っている時だけ読むレシピ `recipes/compat/immersiveengineering/`・`thermal/`、`-PwithIEThermal`）: 固有金属の鉱石・原石・インゴットを粉に。IE の粉砕機 = 鉱石 → 粉 2・原石 → 粉 1（＋33%）・インゴット → 粉 1。Thermal の粉砕機 = 鉱石 → 粉 2（＋砂利 20%）・原石 → 粉 1.25・インゴット → 粉 1。どちらも連携金属の鉱石を生成するので、このMODの同じ金属の鉱石は自動で譲る。鉱石の重なり・同じ金属のレシピの重なりの GameTest は、どの工業 MOD と一緒でも通るように直した（譲ったかを OreOverlap の記録で見る・できた物を同じタグで見る）
+* **EMI**: このMODの JEI の画面は、JEI も一緒に入れた時に EMI で見える（EMI は JEI のプラグインを読む）。確かめるには `-PwithEmi`（JEI も読み込む）
+* どちらも入っていない時は何もしない（相手のクラスは連携のクラスの中だけで触る）。確かめるには `-PwithCompatMods`（`-PwithTechMods` でも読み込む）。GameTest `CompatModsGameTests`（Curios の枠を見つけるか。無ければ素通り）
+
 ### 11.2 タグ設計標準（元資料は `c:tags` 準拠。本プロジェクトでは `forge:` に読み替え。E0.1）
 
 * `forge:ingots/astrite`, `forge:ingots/phononium`, `forge:ingots/ceruleas`, `forge:ingots/steel`

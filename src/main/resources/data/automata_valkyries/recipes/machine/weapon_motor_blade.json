@@ -1,7 +1,41 @@
 {
   "type": "automata_valkyries:weapon_assembling",
-  "ingredients": [ { "ingredient": { "item": "minecraft:iron_sword" }, "count": 1 }, { "ingredient": { "item": "automata_valkyries:motor" }, "count": 1 }, { "ingredient": { "tag": "forge:plates/steel" }, "count": 2 }, { "ingredient": { "item": "automata_valkyries:wire_copper" }, "count": 4 }, { "ingredient": { "item": "automata_valkyries:circuit_basic" }, "count": 1 } ],
-  "result": { "item": "automata_valkyries:weapon_motor_blade", "count": 1 },
+  "ingredients": [
+    {
+      "ingredient": {
+        "item": "minecraft:iron_sword"
+      },
+      "count": 1
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:motor"
+      },
+      "count": 1
+    },
+    {
+      "ingredient": {
+        "tag": "forge:plates/steel"
+      },
+      "count": 2
+    },
+    {
+      "ingredient": {
+        "item": "automata_valkyries:wire_copper"
+      },
+      "count": 4
+    },
+    {
+      "ingredient": {
+        "tag": "forge:circuits/basic"
+      },
+      "count": 1
+    }
+  ],
+  "result": {
+    "item": "automata_valkyries:weapon_motor_blade",
+    "count": 1
+  },
   "energy": 30000,
   "time": 300
 }

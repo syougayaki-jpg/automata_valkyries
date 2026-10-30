@@ -1,0 +1,28 @@
+{
+  "conditions": [
+    {
+      "type": "forge:mod_loaded",
+      "modid": "create"
+    }
+  ],
+  "type": "create:crushing",
+  "ingredients": [
+    {
+      "tag": "forge:raw_materials/phononium"
+    }
+  ],
+  "processingTime": 400,
+  "results": [
+    {
+      "item": "automata_valkyries:dust_phononium"
+    },
+    {
+      "item": "automata_valkyries:dust_phononium",
+      "chance": 0.5
+    },
+    {
+      "item": "create:experience_nugget",
+      "chance": 0.75
+    }
+  ]
+}

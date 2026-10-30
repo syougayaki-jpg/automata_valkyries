@@ -1,7 +1,27 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "misc",
-  "pattern": [ "PCP", "UFU", "PCP" ],
-  "key": { "P": { "item": "automata_valkyries:composite_plate" }, "C": { "item": "automata_valkyries:circuit_advanced" }, "U": { "item": "automata_valkyries:uranium_cell" }, "F": { "item": "automata_valkyries:machine_frame_advanced" } },
-  "result": { "item": "automata_valkyries:machine_frame_improved", "count": 1 }
+  "pattern": [
+    "PCP",
+    "UFU",
+    "PCP"
+  ],
+  "key": {
+    "P": {
+      "item": "automata_valkyries:composite_plate"
+    },
+    "C": {
+      "tag": "forge:circuits/advanced"
+    },
+    "U": {
+      "item": "automata_valkyries:uranium_cell"
+    },
+    "F": {
+      "item": "automata_valkyries:machine_frame_advanced"
+    }
+  },
+  "result": {
+    "item": "automata_valkyries:machine_frame_improved",
+    "count": 1
+  }
 }

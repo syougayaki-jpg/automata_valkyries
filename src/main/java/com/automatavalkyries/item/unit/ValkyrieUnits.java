@@ -318,7 +318,7 @@ public final class ValkyrieUnits {
             var player = ctx.getPlayer();
             if (!level.isClientSide) {
                 var be = level.getBlockEntity(ctx.getClickedPos());
-                if (be == null || !be.getCapability(net.minecraftforge.common.capabilities.ForgeCapabilities.ITEM_HANDLER).isPresent()) {
+                if (com.automatavalkyries.entity.ai.ValkyriePorter.handlerOf(be) == null) { // どの面でも物を受け取れる入れ物（他 MOD の倉庫も。2026-10-30）
                     player.displayClientMessage(Component.translatable("gui.automata_valkyries.unit.chip.porter.not_container").withStyle(ChatFormatting.RED), true);
                 } else {
                     ItemStack held = player.getItemInHand(ctx.getHand());

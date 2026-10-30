@@ -90,10 +90,13 @@ public class FlightWingItem extends Item {
         tooltip.add(ItemEnergy.tooltip(stack, CAPACITY));
     }
 
-    /** どちらかの手に持っている、電力の残った飛翔機（無ければ空） */
-    static ItemStack held(Player player) {
+    /** どちらかの手に持っているか Curios の背中の枠に付けている（2026-10-30）、電力の残った飛翔機（無ければ空） */
+    public static ItemStack held(Player player) {
         for (ItemStack stack : new ItemStack[]{player.getMainHandItem(), player.getOffhandItem()}) {
             if (stack.getItem() instanceof FlightWingItem && ItemEnergy.get(stack) >= HOVER_COST) return stack;
+        }
+        for (ItemStack stack : com.automatavalkyries.compat.curios.CuriosCompat.find(player, s -> s.getItem() instanceof FlightWingItem)) {
+            if (ItemEnergy.get(stack) >= HOVER_COST) return stack;
         }
         return ItemStack.EMPTY;
     }

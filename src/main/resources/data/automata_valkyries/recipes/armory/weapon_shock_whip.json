@@ -16,7 +16,7 @@
     },
     {
       "ingredient": {
-        "item": "automata_valkyries:circuit_advanced"
+        "tag": "forge:circuits/advanced"
       }
     },
     {
