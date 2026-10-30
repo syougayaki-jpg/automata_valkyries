@@ -392,6 +392,27 @@ public class ChronoScreen extends AbstractContainerScreen<ChronoMenu> {
                     for (int i = 0; i < stages; i++) g.fill(x + 96 + i * 7, y + 84, x + 101 + i * 7, y + 87, argb(255, i < stage ? accent() : 0x303850));
                 }
                 if (batch > 1) g.drawCenteredString(font, "×" + batch, x + 112, y + 38, text);
+                // レシピの選び（出力の上。自動か、選んだレシピの出来上がり）
+                g.fill(x + RECIPE_X, y + RECIPE_Y, x + RECIPE_X + 24, y + RECIPE_Y + 22, argb(160, 0x101828));
+                g.renderOutline(x + RECIPE_X, y + RECIPE_Y, 24, 22, argb(220, menu.extra(4) > 0 ? accent() : 0x606C88));
+                var chosen = adapterChoice();
+                if (chosen == null) {
+                    g.drawCenteredString(font, Component.translatable("gui.automata_valkyries.chrono.recipe_auto"), x + RECIPE_X + 12, y + RECIPE_Y + 7, 0xFFB8C4D8);
+                } else {
+                    g.renderItem(chosen.getResultItem(minecraft.level.registryAccess()), x + RECIPE_X + 4, y + RECIPE_Y + 3);
+                    // 空いている材料のスロットに、入れる材料を薄く出す（材料の順に 1 番目のスロットから）
+                    for (int i = 0; i < chosen.inputs().size() && i < 6; i++) {
+                        if (!adapterSlotEmpty(i)) continue;
+                        net.minecraft.world.item.ItemStack[] options = chosen.inputs().get(i).ingredient().getItems();
+                        if (options.length == 0) continue;
+                        int sx = x + 34 + (i % 3) * 18, sy = y + 40 + (i / 3) * 18;
+                        net.minecraft.world.item.ItemStack ghost = options[(int) (minecraft.level.getGameTime() / 20 % options.length)].copy();
+                        ghost.setCount(chosen.inputs().get(i).count());
+                        g.renderFakeItem(ghost, sx, sy);
+                        g.renderItemDecorations(font, ghost, sx, sy);
+                        g.fill(net.minecraft.client.renderer.RenderType.guiGhostRecipeOverlay(), sx, sy, sx + 16, sy + 16, 0x80202838);
+                    }
+                }
             }
             case TACTICAL_ARMORY -> arrow(g, x + 102, y + 49, menu.extra(0) / 1000F);
             case CHARGING_DOCK -> { // 立っている兵姫の数と、送っている電力
@@ -512,6 +533,28 @@ public class ChronoScreen extends AbstractContainerScreen<ChronoMenu> {
                 menu.repositoryCompress ? 0xFF8CFFB0 : 0xFF808898);
     }
 
+    /** ルミナルエナジーアダプターのレシピの選び（出力の上） */
+    private static final int RECIPE_X = 146, RECIPE_Y = 22;
+
+    /** 画面に出す選んだレシピ（自動なら null）。並びはサーバーと同じ {@link com.automatavalkyries.chrono.LuminalAdapterBlockEntity#choices} */
+    @org.jetbrains.annotations.Nullable
+    private com.automatavalkyries.machine.MachineRecipe adapterChoice() {
+        int index = menu.extra(4) - 1;
+        if (index < 0 || minecraft == null || minecraft.level == null) return null;
+        var list = com.automatavalkyries.chrono.LuminalAdapterBlockEntity.choices(minecraft.level, tier.level);
+        return index < list.size() ? list.get(index) : null;
+    }
+
+    /** アダプターの i 番目の材料のスロットが空か */
+    private boolean adapterSlotEmpty(int index) {
+        for (net.minecraft.world.inventory.Slot slot : menu.slots) {
+            if (slot instanceof net.minecraftforge.items.SlotItemHandler handler && handler.getSlotIndex() == index && !(slot.container instanceof net.minecraft.world.entity.player.Inventory)) {
+                return !slot.hasItem();
+            }
+        }
+        return false;
+    }
+
     /** 左の列の小さなボタン（幅 26・高さ 11） */
     private void button(GuiGraphics g, int bx, int by, Component text) {
         g.fill(bx, by, bx + 26, by + 11, argb(160, 0x101828));
@@ -611,6 +654,23 @@ public class ChronoScreen extends AbstractContainerScreen<ChronoMenu> {
                     Component.translatable("gui.automata_valkyries.chrono.repo_compress_tip.2", VoidRepositoryBlockEntity.COMPRESS_COST,
                             VoidRepositoryBlockEntity.compressPerSecond(tier)).withStyle(net.minecraft.ChatFormatting.GRAY)), mouseX, mouseY);
         }
+        if (menu.type() == ChronoMachineType.LUMINAL_ADAPTER && inside(mouseX, mouseY, leftPos + RECIPE_X, topPos + RECIPE_Y, 24, 22)) {
+            List<Component> lines = new ArrayList<>();
+            var chosen = adapterChoice();
+            if (chosen == null) {
+                lines.add(Component.translatable("gui.automata_valkyries.chrono.recipe_auto_title"));
+                lines.add(Component.translatable("gui.automata_valkyries.chrono.recipe_auto_desc").withStyle(net.minecraft.ChatFormatting.GRAY));
+            } else {
+                net.minecraft.world.item.ItemStack result = chosen.getResultItem(minecraft.level.registryAccess());
+                lines.add(Component.translatable("gui.automata_valkyries.chrono.recipe_selected", result.getHoverName(), result.getCount()));
+                for (var input : chosen.inputs()) {
+                    net.minecraft.world.item.ItemStack[] options = input.ingredient().getItems();
+                    if (options.length > 0) lines.add(Component.literal("  " + input.count() + " × ").append(options[0].getHoverName()).withStyle(net.minecraft.ChatFormatting.GRAY));
+                }
+            }
+            lines.add(Component.translatable("gui.automata_valkyries.chrono.recipe_hint").withStyle(net.minecraft.ChatFormatting.DARK_GRAY));
+            g.renderComponentTooltip(font, lines, mouseX, mouseY);
+        }
         if (search != null && inside(mouseX, mouseY, leftPos + SEARCH_X, topPos + SEARCH_Y, SEARCH_W, 12)) {
             List<Component> lines = new ArrayList<>();
             for (int k = 0; k < 7; k++) lines.add(Component.translatable("gui.automata_valkyries.chrono.repo_search_help." + k)
@@ -658,6 +718,10 @@ public class ChronoScreen extends AbstractContainerScreen<ChronoMenu> {
             int id = Screen.hasShiftDown() ? ChronoMenu.BUTTON_REMOVE + i : ChronoMenu.BUTTON_MODE + i;
             menu.clickMenuButton(minecraft.player, id);
             press(id);
+            return true;
+        }
+        if (menu.type() == ChronoMachineType.LUMINAL_ADAPTER && inside(mx, my, leftPos + RECIPE_X, topPos + RECIPE_Y, 24, 22)) {
+            press(Screen.hasShiftDown() ? ChronoMenu.BUTTON_RECIPE_AUTO : button == 1 ? ChronoMenu.BUTTON_RECIPE_PREV : ChronoMenu.BUTTON_RECIPE_NEXT);
             return true;
         }
         if (menu.type() == ChronoMachineType.VOID_REPOSITORY) {

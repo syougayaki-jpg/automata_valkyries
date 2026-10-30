@@ -71,6 +71,34 @@ public class UpgradeGameTests {
         helper.succeed();
     }
 
+    /**
+     * T1・T2 の金属（2026-10-31）: T1 は固有金属のどれか（混ぜて数える）、T2 は上位合金のどれか。
+     * T1 にアストライト 4・フォノニウム 3・セルリアス 3 で 10 個として上がり、T2 にタキオン合金で上がる。T2 に固有金属は使えない
+     */
+    @GameTest(template = TEMPLATE, batch = "upgrades")
+    public static void tierMetalsAcceptAnyOfTheirGroup(GameTestHelper helper) {
+        FakePlayer player = player(helper);
+        UpgradeStationMenu menu = new UpgradeStationMenu(0, player.getInventory(), ContainerLevelAccess.NULL);
+        menu.getSlot(UpgradeStationMenu.WEAPON).set(((TacticalWeaponItem) ModWeapons.PHOTON_EDGE.get()).charged());
+        menu.getSlot(UpgradeStationMenu.CATALYST).set(new ItemStack(ModItems.ORB_LUMINAL.get(), 4));
+        player.getInventory().add(new ItemStack(ModItems.INGOT_ASTRITE.get(), 4));
+        player.getInventory().add(new ItemStack(ModItems.INGOT_PHONONIUM.get(), 3));
+        player.getInventory().add(new ItemStack(ModItems.INGOT_CERULEAS.get(), 3));
+        helper.assertTrue(menu.clickMenuButton(player, Stat.DAMAGE.ordinal()), "T1 upgrade with mixed unique metals failed");
+        helper.assertTrue(player.getInventory().countItem(ModItems.INGOT_ASTRITE.get()) + player.getInventory().countItem(ModItems.INGOT_PHONONIUM.get())
+                + player.getInventory().countItem(ModItems.INGOT_CERULEAS.get()) == 0, "mixed metals were not all used");
+        // T2 の兵装
+        String t2 = com.automatavalkyries.weapon.WeaponTiers.all().entrySet().stream().filter(e -> e.getValue() == 2).map(java.util.Map.Entry::getKey).sorted().findFirst().orElseThrow();
+        ItemStack weapon = new ItemStack(net.minecraftforge.registries.ForgeRegistries.ITEMS.getValue(net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(com.automatavalkyries.AutomataValkyries.MODID, t2)));
+        menu.getSlot(UpgradeStationMenu.WEAPON).set(weapon);
+        player.getInventory().add(new ItemStack(ModItems.INGOT_PHONONIUM.get(), 20));
+        helper.assertFalse(menu.clickMenuButton(player, Stat.DAMAGE.ordinal()), "a unique metal upgraded a T2 weapon (" + t2 + ")");
+        player.getInventory().add(new ItemStack(ModItems.ALLOY_TACHYON_ACCEL.get(), 10));
+        helper.assertTrue(menu.clickMenuButton(player, Stat.DAMAGE.ordinal()), "T2 upgrade with Tachyon Accel alloy failed (" + t2 + ")");
+        helper.assertTrue(player.getInventory().countItem(ModItems.ALLOY_TACHYON_ACCEL.get()) == 0, "T2 upgrade did not use the alloy");
+        helper.succeed();
+    }
+
     /** 効き目: 攻撃力 +100% でダメージ 2 倍、チャージ +100% でチャージ時間半分、エネルギー容量 +100% で容量 2 倍 */
     @GameTest(template = TEMPLATE, batch = "upgrades")
     public static void upgradeEffects(GameTestHelper helper) {

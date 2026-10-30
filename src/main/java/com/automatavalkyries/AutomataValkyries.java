@@ -50,6 +50,7 @@ public class AutomataValkyries {
         com.automatavalkyries.registry.ModUpgrades.init(); // 兵装強化台（カスタムアップグレード）
         com.automatavalkyries.registry.ModWeapons.MOB_EFFECTS.register(modEventBus);
         com.automatavalkyries.registry.ModParticles.PARTICLES.register(modEventBus); // 兵装の自作エフェクトの粒子
+        com.automatavalkyries.compat.slashblade.SlashBladeCompat.init(modEventBus); // 抜刀剣の独自の抜刀術・特殊効果（抜刀剣があるときだけ。2026-10-30）
         com.automatavalkyries.registry.ModFluids.init(); // 溶けた金属（Tinkers' Construct の連携。液体のブロック・バケツを BLOCKS / ITEMS に足す。2026-10-30）
         com.automatavalkyries.registry.ModFluids.FLUID_TYPES.register(modEventBus);
         com.automatavalkyries.registry.ModFluids.FLUIDS.register(modEventBus);

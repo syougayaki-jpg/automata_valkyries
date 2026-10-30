@@ -1,0 +1,8 @@
+{
+  "replace": false,
+  "values": [
+    "#forge:ingots/astrite",
+    "#forge:ingots/phononium",
+    "#forge:ingots/ceruleas"
+  ]
+}

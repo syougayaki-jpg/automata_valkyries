@@ -12,7 +12,8 @@ import net.minecraftforge.energy.IEnergyStorage;
 /**
  * ルミナル反応炉（設計書 §4.1）: ルミナル系の圧縮素材を燃料にして発電する。オーブ 1 個 = 5,000,000 FE を基準に、段ごとに 9 倍。
  * 作った電力は隣のマシン・テザー・パイロンへ渡し、搬出リンクの先（他 MOD の蓄電器なども）へも無線で送る。
- * 燃料は搬入リンクの先からも引く。T4 は創世ルミナルコアを置くと、燃料と別に毎秒 1,000,000 FE（毎 Tick 50,000 FE）を永久に作る（§9.3）。
+ * 燃料は搬入リンクの先からも引く。T4 は創世ルミナルコアを置くと、燃料と別にコア 1 個につき毎秒 1,000,000 FE（毎 Tick 50,000 FE）を永久に作る（§9.3。
+ * 2026-10-31 ユーザー指定「ティア４のルミナル反応炉はルミナルコアの個数に応じて出力をあげて」で個数分に。64 個で毎秒 64,000,000 FE）。
  */
 public class LuminalReactorBlockEntity extends ChronoMachineBlockEntity {
 
@@ -47,13 +48,19 @@ public class LuminalReactorBlockEntity extends ChronoMachineBlockEntity {
     }
 
     @Override protected int maxReceive(ChronoTier tier) { return 0; }
-    @Override protected int maxExtract(ChronoTier tier) { return generation(tier) * 2; }
+    /** 渡せる速さ: 発電の 2 倍。T4 はコア 64 個分（毎 Tick 3,200,000 FE）の 2 倍まで */
+    @Override protected int maxExtract(ChronoTier tier) { return tier == ChronoTier.NEVERLAST ? GENESIS_PER_TICK * 64 * 2 : generation(tier) * 2; }
 
     /** 創世ルミナルコアを燃やした時の電力（スターの 9 倍） */
     public static final long CORE_FUEL = 450_000_000L;
 
-    /** 創世ルミナルコアの発電（FE/Tick）: 毎秒 1,000,000 FE */
+    /** 創世ルミナルコア 1 個の発電（FE/Tick）: 毎秒 1,000,000 FE。コアの枠の個数だけ掛ける */
     public static final int GENESIS_PER_TICK = 50_000;
+
+    /** コアの枠の発電（FE/Tick）: コアの個数 × {@link #GENESIS_PER_TICK} */
+    public static int genesisOutput(int cores) {
+        return GENESIS_PER_TICK * Math.max(0, cores);
+    }
 
     @Override
     protected boolean accepts(int slot, ItemStack stack) {
@@ -87,15 +94,18 @@ public class LuminalReactorBlockEntity extends ChronoMachineBlockEntity {
                 generatedLastTick = made;
             }
         }
-        if (tier == ChronoTier.NEVERLAST && items.getStackInSlot(1).is(com.automatavalkyries.registry.ModCompression.CORE_GENESIS_LUMINAL.get())) {
+        int coreOutput = 0;
+        ItemStack cores = items.getStackInSlot(1);
+        if (tier == ChronoTier.NEVERLAST && cores.is(com.automatavalkyries.registry.ModCompression.CORE_GENESIS_LUMINAL.get())) {
+            coreOutput = genesisOutput(cores.getCount());
             int room = energy.getMaxEnergyStored() - energy.getEnergyStored();
-            int made = Math.min(GENESIS_PER_TICK, room);
+            int made = Math.min(coreOutput, room);
             if (made > 0) {
                 energy.produce(made);
                 generatedLastTick += made;
             }
         }
-        int limit = generation(tier) * 2;
+        int limit = Math.max(generation(tier), coreOutput) * 2;
         pushEnergyToNeighbors(limit);
         for (ChronoLink link : activeLinks(tier)) {
             if (!link.mode().pushes() || energy.getEnergyStored() <= 0) continue;

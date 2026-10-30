@@ -2,10 +2,15 @@
   "name": "automata_valkyries:blade_ceruleas",
   "properties": {
     "attack_base": 4.5,
-    "max_damage": 900
+    "max_damage": 900,
+    "special_effects": [
+      "automata_valkyries:azure_guard"
+    ]
   },
   "render": {
     "carry_type": "default",
-    "texture": "automata_valkyries:model/slashblade/ceruleas.png"
+    "model": "automata_valkyries:model/slashblade/ceruleas.obj",
+    "texture": "automata_valkyries:model/slashblade/ceruleas.png",
+    "summon_sword_color": 6271192
   }
 }

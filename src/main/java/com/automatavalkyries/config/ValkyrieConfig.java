@@ -20,6 +20,8 @@ public final class ValkyrieConfig {
     public static final ForgeConfigSpec.BooleanValue BASE_DISTANCE_SCALING;
     public static final ForgeConfigSpec.IntValue BASE_FULL_DISTANCE;
     public static final ForgeConfigSpec.DoubleValue BASE_MIN_CHANCE;
+    /** T4 のマシン（タクティカルアーモリーも）をタイム・ルーラーを倒すまで作れなくする（2026-10-31） */
+    public static final ForgeConfigSpec.BooleanValue T4_REQUIRES_TIME_RULER;
 
     static {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
@@ -44,6 +46,11 @@ public final class ValkyrieConfig {
                 .defineInRange("fullChanceDistance", 3_000, 0, 1_000_000);
         BASE_MIN_CHANCE = builder.comment("初めのリスポーン地点のすぐそばで出る割合（0〜1。距離に比例して 1 まで上がる）")
                 .defineInRange("minChance", 0.1, 0.0, 1.0);
+        builder.pop();
+        builder.comment("クロノリンク・マシン").push("machines");
+        T4_REQUIRES_TIME_RULER = builder.comment("true にすると、T4（ネバーラスト）のマシン（タクティカルアーモリーも）は、タイム・ルーラーを倒した進捗を持つプレイヤーだけが作れる",
+                        "（作業台・T4 の強化キット・設計図カード）。2026-10-31 ユーザー指定「タクティカルアーモリー以外のティア４マシンレシピはタイムルーラー撃破後に解禁で」")
+                .define("t4RequiresTimeRuler", true);
         builder.pop();
         SPEC = builder.build();
     }

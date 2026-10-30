@@ -1,0 +1,29 @@
+{
+  "conditions": [
+    {
+      "type": "forge:mod_loaded",
+      "modid": "tconstruct"
+    }
+  ],
+  "type": "tconstruct:modifier",
+  "allow_crystal": true,
+  "inputs": [
+    {
+      "item": "automata_valkyries:boss_drop_time_needle"
+    },
+    {
+      "item": "minecraft:clock"
+    },
+    {
+      "item": "automata_valkyries:boss_drop_time_needle"
+    }
+  ],
+  "level": 1,
+  "result": "automata_valkyries:time_stitch",
+  "slots": {
+    "abilities": 1
+  },
+  "tools": {
+    "tag": "tconstruct:modifiable/melee"
+  }
+}

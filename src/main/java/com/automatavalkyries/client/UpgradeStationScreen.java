@@ -52,7 +52,9 @@ public class UpgradeStationScreen extends AbstractContainerScreen<UpgradeStation
         ItemStack weapon = menu.weapon();
         boolean has = WeaponUpgrades.upgradeable(weapon);
         int tier = has ? WeaponTiers.of(weapon.getItem()) : 1;
-        Item metal = WeaponUpgrades.metalItem(tier);
+        // T1・T2 は使える金属が複数なので、1 秒ごとに替えて出す
+        java.util.List<Item> metals = WeaponUpgrades.metalChoices(tier);
+        Item metal = metals.get((int) (net.minecraft.Util.getMillis() / 1000 % metals.size()));
         int owned = WeaponUpgrades.metalOwned(menu.player().getInventory(), tier);
         for (WeaponUpgrades.Stat stat : WeaponUpgrades.Stat.values()) {
             int rx = x + ROW_X, ry = y + ROW_Y + stat.ordinal() * (ROW_H + ROW_GAP);
@@ -92,7 +94,19 @@ public class UpgradeStationScreen extends AbstractContainerScreen<UpgradeStation
             if (mouseX >= rx && mouseX < rx + ROW_W && mouseY >= ry && mouseY < ry + ROW_H) {
                 Component problem = WeaponUpgrades.problem(menu.player(), weapon, menu.catalyst(), stat);
                 Component desc = Component.translatable("upgrade.automata_valkyries." + stat.id + ".desc");
-                g.renderComponentTooltip(font, problem == null ? java.util.List.of(desc) : java.util.List.of(desc, problem.copy().withStyle(s -> s.withColor(0xFF6A6A))), mouseX, mouseY);
+                java.util.List<Component> lines = new java.util.ArrayList<>();
+                lines.add(desc);
+                if (WeaponUpgrades.upgradeable(weapon)) {   // 使える金属（どれでも・混ぜてよい）
+                    java.util.List<Item> metals = WeaponUpgrades.metalChoices(WeaponTiers.of(weapon.getItem()));
+                    net.minecraft.network.chat.MutableComponent names = Component.empty();
+                    for (int i = 0; i < metals.size(); i++) {
+                        if (i > 0) names.append(" / ");
+                        names.append(new ItemStack(metals.get(i)).getHoverName());
+                    }
+                    lines.add(Component.translatable("upgrade.automata_valkyries.metals", names).withStyle(net.minecraft.ChatFormatting.GRAY));
+                }
+                if (problem != null) lines.add(problem.copy().withStyle(s -> s.withColor(0xFF6A6A)));
+                g.renderComponentTooltip(font, lines, mouseX, mouseY);
             }
         }
     }

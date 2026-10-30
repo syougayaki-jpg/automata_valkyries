@@ -136,21 +136,32 @@ public class StellaArmorItem extends MetalArmorItem {
         modifier(player, ForgeMod.STEP_HEIGHT_ADDITION.get(), STEP_ID, "stella step", 0.5, worn(player, Tune.STEP) > 0);
         modifier(player, ForgeMod.SWIM_SPEED.get(), STRIDE_ID, "stella depth strider", 2.0, worn(player, Tune.DEPTH_STRIDE) > 0 && player.isInWater());   // 水の中の進みを 3 倍（水中歩行 III くらい）
         if (player.tickCount % 10 != 0) return;
+        // この防具が付けた効果を名前で覚えておき、覚えている物だけを外す（2026-10-31 ユーザー指定「ティア４兵装を持った時に一瞬火炎耐性がでたりきえたりする」:
+        // 見分けを「粒の出ない環境の効果で 300 Tick 以下」にしていたので、T4 兵装の加護（同じ形で 60 Tick）まで防具の物と見て 10 Tick ごとに外していた）
+        net.minecraft.nbt.CompoundTag mine = player.getPersistentData().getCompound(APPLIED_KEY);
         for (Tune t : Tune.values()) {
             if (t.effect == null) continue;
+            String key = String.valueOf(net.minecraftforge.registries.ForgeRegistries.MOB_EFFECTS.getKey(t.effect));
             int lv = worn(player, t);
             MobEffectInstance cur = player.getEffect(t.effect);
-            boolean ours = cur != null && cur.isAmbient() && !cur.isVisible() && cur.getDuration() <= 300;   // この防具が付けた物（ビーコンの物は粒が見える）
+            boolean ours = mine.getBoolean(key) && cur != null && cur.isAmbient() && !cur.isVisible();
+            if (cur == null) mine.remove(key);            // 切れた・ほかで消えた
             if (lv > 0) {
                 if (cur == null || ours && (cur.getDuration() < 220 || cur.getAmplifier() != lv - 1)) {
                     if (ours && cur.getAmplifier() != lv - 1) player.removeEffect(t.effect);
                     player.addEffect(new MobEffectInstance(t.effect, 300, lv - 1, true, false, true));
+                    mine.putBoolean(key, true);
                 }
             } else if (ours) {
                 player.removeEffect(t.effect);
+                mine.remove(key);
             }
         }
+        player.getPersistentData().put(APPLIED_KEY, mine);
     }
+
+    /** この防具が付けた効果の名前（プレイヤーの永続データ） */
+    public static final String APPLIED_KEY = "automata_valkyries:stella_armor_effects";
 
     /** 着ている部位のその機能の段（着ていなければ 0） */
     public static int worn(Player player, Tune tune) {

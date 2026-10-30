@@ -1,0 +1,29 @@
+{
+  "conditions": [
+    {
+      "type": "forge:mod_loaded",
+      "modid": "tconstruct"
+    }
+  ],
+  "type": "tconstruct:modifier",
+  "allow_crystal": true,
+  "inputs": [
+    {
+      "item": "automata_valkyries:boss_drop_necro_colony"
+    },
+    {
+      "item": "automata_valkyries:boss_drop_memento_wings"
+    },
+    {
+      "item": "automata_valkyries:boss_drop_necro_colony"
+    }
+  ],
+  "level": 1,
+  "result": "automata_valkyries:black_death",
+  "slots": {
+    "abilities": 1
+  },
+  "tools": {
+    "tag": "tconstruct:modifiable/melee"
+  }
+}

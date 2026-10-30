@@ -49,7 +49,13 @@ public class BlueprintCardItem extends Item {
         }
         // 同じ物を作るレシピがいくつもあれば、持ち物の材料でいちばん作れそうな物を選ぶ。もう一度同じ物で使うと次のレシピへ
         // （最初に見つかったレシピを選び、思っていた材料と違って「材料として認識されない」ことがあった。2026-10-07）
-        List<Recipe<?>> options = allFor(level.getRecipeManager(), level, wanted);
+        List<Recipe<?>> options = new java.util.ArrayList<>(allFor(level.getRecipeManager(), level, wanted));
+        // T4 のマシンのレシピは、タイム・ルーラーを倒すまで書けない（2026-10-31）
+        boolean locked = options.removeIf(r -> com.automatavalkyries.chrono.T4Unlock.gated(r) && !com.automatavalkyries.chrono.T4Unlock.unlocked(player));
+        if (locked && options.isEmpty()) {
+            player.displayClientMessage(com.automatavalkyries.chrono.T4Unlock.lockedMessage(), true);
+            return InteractionResultHolder.fail(card);
+        }
         ResourceLocation current = recipeId(card);
         Optional<? extends Recipe<?>> recipe;
         int at = -1;

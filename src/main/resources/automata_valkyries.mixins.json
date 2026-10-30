@@ -7,6 +7,7 @@
   "plugin": "com.automatavalkyries.mixin.AutomataMixinPlugin",
   "mixins": [
     "EntityAccessor",
+    "T4CraftingGateMixin",
     "ServerBossEventMixin",
     "SynchedEntityDataAccessor",
     "TimeStopMixin$Level",

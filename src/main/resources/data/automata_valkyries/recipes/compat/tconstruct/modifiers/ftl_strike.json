@@ -1,0 +1,32 @@
+{
+  "conditions": [
+    {
+      "type": "forge:mod_loaded",
+      "modid": "tconstruct"
+    }
+  ],
+  "type": "tconstruct:modifier",
+  "allow_crystal": true,
+  "inputs": [
+    {
+      "item": "automata_valkyries:boss_drop_ftl_accel"
+    },
+    {
+      "item": "automata_valkyries:alloy_tachyon_accel"
+    },
+    {
+      "item": "automata_valkyries:boss_drop_ftl_accel"
+    },
+    {
+      "item": "automata_valkyries:alloy_tachyon_accel"
+    }
+  ],
+  "level": 1,
+  "result": "automata_valkyries:ftl_strike",
+  "slots": {
+    "abilities": 1
+  },
+  "tools": {
+    "tag": "tconstruct:modifiable/melee"
+  }
+}

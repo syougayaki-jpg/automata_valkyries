@@ -3,13 +3,18 @@
   "properties": {
     "attack_base": 10.0,
     "max_damage": 30000,
-    "slash_art": "slashblade:judgement_cut",
+    "slash_art": "automata_valkyries:stellar_judgement",
+    "special_effects": [
+      "automata_valkyries:stellar_isolation"
+    ],
     "sword_type": [
       "bewitched"
     ]
   },
   "render": {
     "carry_type": "default",
-    "texture": "automata_valkyries:model/slashblade/stellachronodyme.png"
+    "model": "automata_valkyries:model/slashblade/stellachronodyme.obj",
+    "texture": "automata_valkyries:model/slashblade/stellachronodyme.png",
+    "summon_sword_color": 16763118
   }
 }

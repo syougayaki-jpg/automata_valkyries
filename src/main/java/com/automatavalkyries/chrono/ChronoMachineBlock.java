@@ -94,6 +94,10 @@ public class ChronoMachineBlock extends BaseEntityBlock {
                         Component.translatable("tier.automata_valkyries." + ChronoTier.of(current + 1 > 4 ? 4 : current + 1).id)), true);
                 return InteractionResult.sidedSuccess(level.isClientSide);
             }
+            if (frame.tier() == ChronoTier.NEVERLAST && !T4Unlock.unlocked(player)) {
+                if (!level.isClientSide) player.displayClientMessage(T4Unlock.lockedMessage(), true);   // T4 はタイム・ルーラーを倒してから（2026-10-31）
+                return InteractionResult.sidedSuccess(level.isClientSide);
+            }
             if (!level.isClientSide) {
                 level.setBlock(pos, state.setValue(TIER, current + 1), 3);
                 if (!player.getAbilities().instabuild) held.shrink(1);

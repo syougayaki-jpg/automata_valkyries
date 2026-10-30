@@ -99,7 +99,9 @@ public final class WeaponUpgrades {
     }
 
     public static final TagKey<Item> ORBS = tag("upgrade_orbs"), STARS = tag("upgrade_stars"), CORES = tag("upgrade_cores");
-    private static final TagKey<Item> ASTRITE = TagKey.create(Registries.ITEM, ResourceLocation.parse("forge:ingots/astrite"));
+    /** T1・T2 の金属（2026-10-31 ユーザー指定「ティア１と２の強化につかう金属をこのMOD特有の金属どれかと合金どれかにする」）:
+     *  T1 = 固有金属のどれか（アストライト・フォノニウム・セルリアス）、T2 = 上位合金のどれか（スターリング・フォートレス・タキオン・エクリプス）。混ぜて数えてよい */
+    public static final TagKey<Item> T1_METALS = tag("upgrade_metals_t1"), T2_METALS = tag("upgrade_metals_t2");
 
     /** 兵装のティアのオーブ・スター・コア（T1・T2 はオーブ、T3 はスター、T4 はコア） */
     public static TagKey<Item> catalyst(int tier) {
@@ -109,20 +111,28 @@ public final class WeaponUpgrades {
     /** ティアの金属か */
     public static boolean isMetal(int tier, ItemStack stack) {
         return switch (tier) {
-            case 1 -> stack.is(ASTRITE);
+            case 1 -> stack.is(T1_METALS);
+            case 2 -> stack.is(T2_METALS);
             default -> stack.is(metalItem(tier));
         };
     }
 
-    /** ティアの金属（表示用。T1 はアストライト・インゴット） */
-    public static Item metalItem(int tier) {
-        String id = switch (tier) {
-            case 2 -> "alloy_chrono_fortress";
-            case 3 -> "ingot_stellachronodyme";
-            case 4 -> "block_stellachronodyme";
-            default -> "ingot_astrite";
+    /** ティアで使える金属（表示用。T1・T2 は複数、T3 はステラクロノダイム・インゴット、T4 はそのブロック） */
+    public static java.util.List<Item> metalChoices(int tier) {
+        java.util.List<String> ids = switch (tier) {
+            case 1 -> java.util.List.of("ingot_astrite", "ingot_phononium", "ingot_ceruleas");
+            case 2 -> java.util.List.of("alloy_luminal_sterling", "alloy_chrono_fortress", "alloy_tachyon_accel", "alloy_eclipse_biometal");
+            case 3 -> java.util.List.of("ingot_stellachronodyme");
+            default -> java.util.List.of("block_stellachronodyme");
         };
-        return ForgeRegistries.ITEMS.getValue(ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, id));
+        java.util.List<Item> items = new java.util.ArrayList<>();
+        for (String id : ids) items.add(ForgeRegistries.ITEMS.getValue(ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, id)));
+        return items;
+    }
+
+    /** ティアの金属（表示用の代表。T3・T4 の判定にも使う） */
+    public static Item metalItem(int tier) {
+        return metalChoices(tier).get(0);
     }
 
     /** 次の 1 回に要る金属の数（10 × 1.1^今の回数、切り上げ） */

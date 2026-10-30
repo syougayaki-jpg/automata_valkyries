@@ -33,6 +33,10 @@ public record BlueprintWritePacket(ResourceLocation recipe) {
         if (player == null) return;
         var recipe = player.level().getRecipeManager().byKey(packet.recipe).orElse(null);
         if (recipe == null || !BlueprintCardItem.writable(recipe)) return;
+        if (com.automatavalkyries.chrono.T4Unlock.gated(recipe) && !com.automatavalkyries.chrono.T4Unlock.unlocked(player)) {   // T4 はタイム・ルーラーを倒してから（2026-10-31）
+            player.displayClientMessage(com.automatavalkyries.chrono.T4Unlock.lockedMessage(), true);
+            return;
+        }
         boolean written = false;
         if (player.containerMenu instanceof BlueprintCardMenu menu && menu.stillValid(player)) {
             menu.card(player).getOrCreateTag().putString("Recipe", packet.recipe.toString());

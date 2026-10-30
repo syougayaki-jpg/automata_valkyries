@@ -26,7 +26,7 @@ import java.util.function.Consumer;
  * 溶けた金属（2026-10-30 ユーザー指定「他MODとの連携要素を増やす」→ Tinkers' Construct の溶鉱炉で溶かす・鋳造する）。
  * このMOD独自の金属（固有金属 3 種・上位合金 4 種・ステラクロノダイム）を液体にする。連携金属（スズなど）は Tinkers' Construct が自分の液体を持つので作らない。
  * 液体・置ける液体のブロック・バケツ。液体のタグ {@code forge:molten_<金属>}（Tinkers' Construct のレシピがこれで受ける）。
- * 見た目はバニラの水の絵（灰色）を金属の色に染めて光らせる
+ * 見た目は金属ごとの専用の動く絵（自作、textures/block/fluid/）で光る。バケツも専用の絵（textures/item/molten_*_bucket.png）
  */
 public final class ModFluids {
 
@@ -56,6 +56,35 @@ public final class ModFluids {
     /** クラスを読み込んで登録を済ませる（メインクラスから ITEMS / BLOCKS の登録前に呼ぶ） */
     public static void init() {}
 
+    /**
+     * 置いた溶けた金属（2026-10-30 ユーザー指定「溶けたやつなんで水あつかいだけど入るとダメージを受けるように」）。
+     * 入った物は溶岩と同じく燃え（15 秒）、溶かす温度に応じて傷を受ける（2 + 温度 / 250: アストライト 4.4 ～ ステラ・クロノダイム 7.6。溶岩は 4）。
+     * 火に強い物は無事。落とした物も燃え尽きる（火に強い物は残る）
+     */
+    public static class MoltenBlock extends LiquidBlock {
+        private final float damage;
+
+        public MoltenBlock(java.util.function.Supplier<? extends FlowingFluid> fluid, BlockBehaviour.Properties properties, int temperature) {
+            super(fluid, properties);
+            this.damage = 2.0F + temperature / 250.0F;
+        }
+
+        public float damage() {
+            return damage;
+        }
+
+        @Override
+        @SuppressWarnings("deprecation")
+        public void entityInside(net.minecraft.world.level.block.state.BlockState state, net.minecraft.world.level.Level level, net.minecraft.core.BlockPos pos,
+                                 net.minecraft.world.entity.Entity entity) {
+            if (level.isClientSide || entity.fireImmune()) return;
+            entity.setSecondsOnFire(15);
+            if (entity.hurt(entity.damageSources().lava(), damage)) {
+                entity.playSound(SoundEvents.GENERIC_BURN, 0.4F, 2.0F + level.random.nextFloat() * 0.4F);
+            }
+        }
+    }
+
     /** temperature: Tinkers' Construct の溶かす温度（℃）。液体の温度はそれに 300 足したケルビン */
     private static void molten(String metal, int color, int temperature) {
         String name = "molten_" + metal;
@@ -67,13 +96,12 @@ public final class ModFluids {
                 .sound(SoundActions.BUCKET_EMPTY, SoundEvents.BUCKET_EMPTY_LAVA)) {
             @Override
             public void initializeClient(Consumer<IClientFluidTypeExtensions> consumer) {
+                // 金属ごとの専用の動く絵（自作。2026-10-30 ユーザー指定「液体の見た目を専用にかえる」）。色は絵に入っているので染めない
+                ResourceLocation still = ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "block/fluid/" + name + "_still");
+                ResourceLocation flow = ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "block/fluid/" + name + "_flow");
                 consumer.accept(new IClientFluidTypeExtensions() {
-                    private static final ResourceLocation STILL = ResourceLocation.parse("minecraft:block/water_still");
-                    private static final ResourceLocation FLOW = ResourceLocation.parse("minecraft:block/water_flow");
-
-                    @Override public ResourceLocation getStillTexture() { return STILL; }
-                    @Override public ResourceLocation getFlowingTexture() { return FLOW; }
-                    @Override public int getTintColor() { return 0xFF000000 | color; }
+                    @Override public ResourceLocation getStillTexture() { return still; }
+                    @Override public ResourceLocation getFlowingTexture() { return flow; }
                 });
             }
         });
@@ -84,7 +112,7 @@ public final class ModFluids {
                 .bucket(bucket[0]).block(block[0]).slopeFindDistance(2).levelDecreasePerBlock(2).tickRate(30);
         source[0] = FLUIDS.register(name, () -> new ForgeFlowingFluid.Source(props.get()));
         flowing[0] = FLUIDS.register("flowing_" + name, () -> new ForgeFlowingFluid.Flowing(props.get()));
-        block[0] = ModBlocks.BLOCKS.register(name, () -> new LiquidBlock(source[0], BlockBehaviour.Properties.copy(Blocks.LAVA).lightLevel(s -> 12)));
+        block[0] = ModBlocks.BLOCKS.register(name, () -> new MoltenBlock(source[0], BlockBehaviour.Properties.copy(Blocks.LAVA).lightLevel(s -> 12), temperature));
         bucket[0] = ModItems.ITEMS.register(name + "_bucket", () -> new BucketItem(source[0], new Item.Properties().craftRemainder(Items.BUCKET).stacksTo(1)));
         MOLTEN.put(metal, new Molten(metal, color, temperature, type, source[0], flowing[0], block[0], bucket[0]));
     }

@@ -1,0 +1,34 @@
+{
+  "level_display": "tconstruct:no_levels",
+  "modules": [
+    {
+      "type": "tconstruct:weapon_mob_effect",
+      "effect": "minecraft:wither",
+      "level": {
+        "flat": 2.0
+      },
+      "time": {
+        "flat": 100.0
+      }
+    },
+    {
+      "type": "tconstruct:weapon_mob_effect",
+      "effect": "minecraft:poison",
+      "level": {
+        "flat": 2.0
+      },
+      "time": {
+        "flat": 100.0
+      }
+    },
+    {
+      "type": "tconstruct:lifesteal",
+      "durability_usage": {
+        "each_level": 1
+      },
+      "percentage": {
+        "each_level": 0.08
+      }
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "level_display": "tconstruct:no_levels",
+  "modules": [
+    {
+      "type": "tconstruct:weapon_mob_effect",
+      "effect": "minecraft:slowness",
+      "level": {
+        "flat": 5.0
+      },
+      "time": {
+        "flat": 40.0
+      }
+    },
+    {
+      "type": "tconstruct:weapon_mob_effect",
+      "effect": "minecraft:weakness",
+      "level": {
+        "flat": 2.0
+      },
+      "time": {
+        "flat": 40.0
+      }
+    },
+    {
+      "type": "tconstruct:weapon_mob_effect",
+      "effect": "minecraft:mining_fatigue",
+      "level": {
+        "flat": 3.0
+      },
+      "time": {
+        "flat": 40.0
+      }
+    }
+  ]
+}

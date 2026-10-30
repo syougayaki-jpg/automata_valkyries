@@ -32,6 +32,8 @@ public class ChronoMenu extends AbstractContainerMenu {
     public static final int BUTTON_MODE = 100, BUTTON_REMOVE = 200, BUTTON_EXTRACT = 1000, BUTTON_SORT = 99;
     /** ヴォイド・リポジトリ: 自動圧縮の入切・在庫の決まりを次の段へ（+ 番号）・前の段へ（+ 番号）（2026-10-29） */
     public static final int BUTTON_COMPRESS = 98, BUTTON_PYLON = 97, BUTTON_STOCK = 1_000_000, BUTTON_STOCK_BACK = 2_000_000;
+    /** ルミナルエナジーアダプターのレシピ選び（次・前・自動） */
+    public static final int BUTTON_RECIPE_NEXT = 95, BUTTON_RECIPE_PREV = 94, BUTTON_RECIPE_AUTO = 93;
 
     private final ChronoMachineType type;
     private final ChronoTier tier;
@@ -129,6 +131,11 @@ public class ChronoMenu extends AbstractContainerMenu {
         if (machine == null) {
             // クライアント: 外したリンクを写しからも消す
             if (id >= BUTTON_REMOVE && id < BUTTON_REMOVE + 16 && id - BUTTON_REMOVE < links.size()) links.remove(id - BUTTON_REMOVE);
+            return true;
+        }
+        if (machine instanceof LuminalAdapterBlockEntity adapter && (id == BUTTON_RECIPE_NEXT || id == BUTTON_RECIPE_PREV || id == BUTTON_RECIPE_AUTO)) {
+            if (id == BUTTON_RECIPE_AUTO) adapter.autoRecipe();
+            else adapter.cycleRecipe(id == BUTTON_RECIPE_PREV);
             return true;
         }
         if (id == BUTTON_SORT && machine instanceof VoidRepositoryBlockEntity repo) repo.sortContents(); // 整理

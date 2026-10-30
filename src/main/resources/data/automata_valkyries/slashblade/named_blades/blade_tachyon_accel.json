@@ -3,13 +3,18 @@
   "properties": {
     "attack_base": 7.0,
     "max_damage": 1500,
-    "slash_art": "slashblade:piercing",
+    "slash_art": "automata_valkyries:superluminal_cut",
+    "special_effects": [
+      "automata_valkyries:acceleration"
+    ],
     "sword_type": [
       "bewitched"
     ]
   },
   "render": {
     "carry_type": "default",
-    "texture": "automata_valkyries:model/slashblade/tachyon_accel.png"
+    "model": "automata_valkyries:model/slashblade/tachyon_accel.obj",
+    "texture": "automata_valkyries:model/slashblade/tachyon_accel.png",
+    "summon_sword_color": 4251903
   }
 }

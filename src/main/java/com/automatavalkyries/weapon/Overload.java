@@ -235,7 +235,10 @@ public final class Overload {
         if (!(event.getFrom().getItem() instanceof TacticalWeaponItem) || event.getTo().getItem() == event.getFrom().getItem()) return;
         LivingEntity user = event.getEntity();
         java.util.List<MobEffect> blessings = new java.util.ArrayList<>();
-        for (MobEffectInstance e : user.getActiveEffects()) if (e.isAmbient() && !e.isVisible()) blessings.add(e.getEffect());
+        net.minecraft.nbt.CompoundTag armor = user.getPersistentData().getCompound(com.automatavalkyries.item.armor.StellaArmorItem.APPLIED_KEY);   // ステラの防具の効果は残す
+        for (MobEffectInstance e : user.getActiveEffects()) {
+            if (e.isAmbient() && !e.isVisible() && !armor.getBoolean(String.valueOf(net.minecraftforge.registries.ForgeRegistries.MOB_EFFECTS.getKey(e.getEffect())))) blessings.add(e.getEffect());
+        }
         for (MobEffect effect : blessings) user.removeEffect(effect);
     }
 

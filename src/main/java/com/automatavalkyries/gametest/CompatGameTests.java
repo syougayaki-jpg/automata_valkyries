@@ -309,6 +309,62 @@ public class CompatGameTests {
             helper.assertTrue(recipe.isPresent() == loaded, "SlashBlade recipe for " + metal + " present=" + recipe.isPresent());
             blades.ifPresent(registry -> helper.assertTrue(registry.containsKey(id), "named blade " + id + " is not registered"));
         }
+        if (loaded) {
+            // 独自の抜刀術と特殊効果（抜刀剣のレジストリに登録されている）
+            var arts = net.minecraftforge.registries.RegistryManager.ACTIVE.getRegistry(ResourceLocation.fromNamespaceAndPath("slashblade", "slash_arts"));
+            var effects = net.minecraftforge.registries.RegistryManager.ACTIVE.getRegistry(ResourceLocation.fromNamespaceAndPath("slashblade", "special_effect"));
+            helper.assertTrue(arts != null && effects != null, "SlashBlade slash art / special effect registries not found");
+            for (String art : List.of("luminal_bloom", "bastion_break", "superluminal_cut", "eclipse_moon", "stellar_judgement")) {
+                helper.assertTrue(arts.containsKey(ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, art)), "slash art " + art + " not registered");
+            }
+            for (String se : List.of("starlight", "resonance", "azure_guard", "clear_light", "immovable", "acceleration", "life_drain", "stellar_isolation")) {
+                helper.assertTrue(effects.containsKey(ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, se)), "special effect " + se + " not registered");
+            }
+        }
+        helper.succeed();
+    }
+
+    /** 溶けた金属に入ると燃えて傷を受ける（溶岩と同じ。2026-10-30）。火に強い物は無事 */
+    @GameTest(template = TEMPLATE, timeoutTicks = 100)
+    public static void moltenMetalBurnsWhatEntersIt(GameTestHelper helper) {
+        var molten = com.automatavalkyries.registry.ModFluids.MOLTEN.get("stellachronodyme");
+        helper.setBlock(new BlockPos(1, 2, 1), molten.block().get());
+        helper.setBlock(new BlockPos(3, 2, 1), molten.block().get());
+        var zombie = helper.spawnWithNoFreeWill(net.minecraft.world.entity.EntityType.ZOMBIE, new BlockPos(1, 2, 1));
+        var blaze = helper.spawnWithNoFreeWill(net.minecraft.world.entity.EntityType.BLAZE, new BlockPos(3, 2, 1));
+        float zombieStart = zombie.getHealth(), blazeStart = blaze.getHealth();
+        helper.runAfterDelay(20, () -> {
+            helper.assertTrue(zombie.getHealth() < zombieStart && zombie.isOnFire(), "zombie in molten metal: health " + zombie.getHealth() + "/" + zombieStart + " onFire=" + zombie.isOnFire());
+            helper.assertTrue(blaze.getHealth() >= blazeStart, "fire-immune blaze was hurt by molten metal: " + blaze.getHealth());
+            helper.succeed();
+        });
+    }
+
+    /**
+     * Tinkers のアビリティ（2026-10-30）: 隔絶の目印を持つ道具での近接の一撃が隔絶ダメージになる（目印は NBT だけなので Tinkers が無くても確かめられる）。
+     * アビリティを付けるレシピは tconstruct がある時だけある
+     */
+    @GameTest(template = TEMPLATE, timeoutTicks = 60)
+    public static void tinkersIsolationAbility(GameTestHelper helper) {
+        var attacker = helper.spawnWithNoFreeWill(net.minecraft.world.entity.EntityType.ZOMBIE, new BlockPos(1, 2, 1));
+        var victim = helper.spawnWithNoFreeWill(net.minecraft.world.entity.EntityType.HUSK, new BlockPos(3, 2, 1));
+        ItemStack tool = new ItemStack(Items.IRON_SWORD);
+        tool.getOrCreateTag().put("tic_volatile_data", new net.minecraft.nbt.CompoundTag());
+        tool.getTag().getCompound("tic_volatile_data").putBoolean(com.automatavalkyries.compat.tconstruct.TinkersAbilities.ISOLATION_FLAG, true);
+        attacker.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, tool);
+        helper.assertTrue(com.automatavalkyries.compat.tconstruct.TinkersAbilities.hasIsolation(tool), "isolation flag not read from the tool");
+        float before = victim.getHealth();
+        long hits = com.automatavalkyries.compat.IsolationStrike.replacedHits();
+        victim.hurt(victim.damageSources().mobAttack(attacker), 4.0F);
+        helper.assertTrue(victim.getHealth() < before, "victim took no damage from the isolation hit");
+        helper.assertTrue(com.automatavalkyries.compat.IsolationStrike.replacedHits() == hits + 1,
+                "melee hit with the isolation ability was not replaced by Isolation damage");
+        var manager = helper.getLevel().getRecipeManager();
+        boolean tinkers = ModList.get().isLoaded("tconstruct");
+        for (String id : List.of("isolation", "ftl_strike", "black_death", "time_stitch", "distortion_barrier")) {
+            var recipe = manager.byKey(ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "compat/tconstruct/modifiers/" + id));
+            helper.assertTrue(recipe.isPresent() == tinkers, "Tinkers ability recipe " + id + " present=" + recipe.isPresent());
+        }
         helper.succeed();
     }
 }

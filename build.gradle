@@ -428,6 +428,7 @@ dependencies {
     compileOnly fg.deobf("maven.modrinth:jade:11.13.3+forge")
     compileOnly fg.deobf("maven.modrinth:curios:5.14.1+1.20.1")
     compileOnly fg.deobf("maven.modrinth:ae2:15.4.11")                       // AE2 の連携の確かめ（GameTest。実行時は -PwithTechMods）
+    compileOnly fg.deobf("maven.modrinth:slashblade-resharped:1.9.65")      // 抜刀剣の独自の抜刀術・特殊効果（2026-10-30。compat/slashblade の中だけで触る。実行時は -PwithSlashBladeOnly）
     // LifeGuard の呼び出し先（実行時はエージェントがブートストラップに置く。MOD の jar には入れない）
     compileOnly sourceSets.lifeguardhooks.output
     // オートマタヴァルキリー protect の呼び出し先（同じく実行時はエージェントがブートストラップに置く）
@@ -660,6 +661,14 @@ dependencies {
         runtimeOnly fg.deobf("maven.modrinth:thermal-integration:11.0.1")
         runtimeOnly fg.deobf("maven.modrinth:thermal-innovation:11.0.1")
         runtimeOnly fg.deobf("maven.modrinth:thermal-extra:3.3.3-1.20.1")
+        // ほかの Tinkers のアドオン（同日ユーザー指定「色々アドオンもいれて再起動」）: TiCEX（再鍛抜刀剣など。前提 Addon API）・Tinkers' Levelling・Tinker's Planner・
+        // Tinkers' Innovation・Tinkers Reforged。Tinkers' Advanced（前提 ETSTLib）は**この開発環境では入れられない**: ETSTLib の Invoker の名前が対象のバニラのメソッド名（getDamageAfterArmorAbsorb）と同じで、開発環境の名前ではそれ自身を呼び続けて落ちる（通常の環境では対象が難読化名なのでぶつからない）。最新の ETSTLib とも合わない。専用サーバーでもクライアントのクラスを読み込んで起動できない
+        runtimeOnly fg.deobf("maven.modrinth:ticex:0.7.0-hotfix")
+        runtimeOnly fg.deobf("maven.modrinth:addonapi:2.1.0")
+        runtimeOnly fg.deobf("maven.modrinth:tinkers-levelling-addon:1.5.0")
+        runtimeOnly fg.deobf("maven.modrinth:tinkers-planner-reborn:1.8.0")
+        runtimeOnly fg.deobf("maven.modrinth:tinkersinnovation:1.20.1-3.0.0")
+        runtimeOnly fg.deobf("maven.modrinth:tinkers-reforged:2.20.0.7")
     }
     // Tinkers' Compatibility（Ice and Fire のドラゴンスチールなど）: -PwithTinkersAddons -PwithTcompat。
     // **この開発環境では起動できない**: レシピの条件（DartShooterCondition）が読み込み前の設定を読み、開発環境では Forge がそれを例外にする（通常のランチャーでは警告だけ）。2026-10-30。素材の数値は jar の中のデータで比べた

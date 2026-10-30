@@ -3,13 +3,18 @@
   "properties": {
     "attack_base": 6.5,
     "max_damage": 4000,
-    "slash_art": "slashblade:wave_edge",
+    "slash_art": "automata_valkyries:bastion_break",
+    "special_effects": [
+      "automata_valkyries:immovable"
+    ],
     "sword_type": [
       "bewitched"
     ]
   },
   "render": {
     "carry_type": "default",
-    "texture": "automata_valkyries:model/slashblade/chrono_fortress.png"
+    "model": "automata_valkyries:model/slashblade/chrono_fortress.obj",
+    "texture": "automata_valkyries:model/slashblade/chrono_fortress.png",
+    "summon_sword_color": 9071816
   }
 }

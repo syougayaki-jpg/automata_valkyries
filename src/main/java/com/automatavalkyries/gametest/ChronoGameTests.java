@@ -322,7 +322,7 @@ public class ChronoGameTests {
         });
     }
 
-    /** T4 の反応炉に創世ルミナルコアを置くと、燃料なしで毎 Tick 50,000 FE（毎秒 1,000,000 FE） */
+    /** T4 の反応炉に創世ルミナルコアを置くと、燃料なしでコア 1 個につき毎 Tick 50,000 FE（毎秒 1,000,000 FE）。8 個なら 8 倍（2026-10-31 個数分に） */
     @GameTest(template = TEMPLATE)
     public static void genesisCorePowersNeverlastReactor(GameTestHelper helper) {
         BlockPos pos = new BlockPos(1, 2, 1);
@@ -330,15 +330,98 @@ public class ChronoGameTests {
         setTier(helper, pos, 4);
         helper.runAfterDelay(1, () -> {
             ChronoMachineBlockEntity t4 = (ChronoMachineBlockEntity) helper.getBlockEntity(pos);
-            t4.items().setStackInSlot(1, new ItemStack(com.automatavalkyries.registry.ModCompression.CORE_GENESIS_LUMINAL.get()));
+            t4.items().setStackInSlot(1, new ItemStack(com.automatavalkyries.registry.ModCompression.CORE_GENESIS_LUMINAL.get(), 8));
             int before = t4.energy().getEnergyStored();
             helper.runAfterDelay(10, () -> {
                 int gained = t4.energy().getEnergyStored() - before;
-                helper.assertTrue(gained >= 50_000 * 9, "genesis core made only " + gained + " FE in 10 ticks");
-                helper.assertTrue(t4.items().getStackInSlot(1).getCount() == 1, "genesis core was consumed");
+                helper.assertTrue(gained >= 8 * 50_000 * 9, "8 genesis cores made only " + gained + " FE in 10 ticks (expected 8x)");
+                helper.assertTrue(t4.items().getStackInSlot(1).getCount() == 8, "genesis cores were consumed");
                 helper.succeed();
             });
         });
+    }
+
+    /**
+     * ルミナルエナジーアダプターのレシピ選び（2026-10-31）: 選ぶとそのレシピだけを作る。次へ送り続けると自動に戻る。
+     * 選んだレシピの材料を入れると、その出来上がりが出る
+     */
+    @GameTest(template = TEMPLATE, timeoutTicks = 100)
+    public static void adapterRecipeSelection(GameTestHelper helper) {
+        BlockPos pos = new BlockPos(1, 2, 1);
+        place(helper, pos, ChronoMachineType.LUMINAL_ADAPTER);
+        setTier(helper, pos, 4);
+        helper.runAfterDelay(1, () -> {
+            var adapter = (com.automatavalkyries.chrono.LuminalAdapterBlockEntity) helper.getBlockEntity(pos);
+            var list = com.automatavalkyries.chrono.LuminalAdapterBlockEntity.choices(helper.getLevel(), 4);
+            helper.assertTrue(!list.isEmpty(), "no phase transition recipes to choose from");
+            helper.assertTrue(adapter.chosen() == null, "adapter does not start on Auto");
+            adapter.cycleRecipe(false);
+            var first = adapter.chosen();
+            helper.assertTrue(first != null && first.getId().equals(list.get(0).getId()), "next did not select the first recipe");
+            adapter.cycleRecipe(true);
+            helper.assertTrue(adapter.chosen() == null, "previous from the first recipe did not return to Auto");
+            adapter.cycleRecipe(true);
+            helper.assertTrue(adapter.chosen() != null && adapter.chosen().getId().equals(list.get(list.size() - 1).getId()), "previous from Auto did not wrap to the last recipe");
+            // 選んだレシピの材料を入れて作らせる
+            adapter.autoRecipe();
+            adapter.cycleRecipe(false);
+            // 材料の順にスロットが決まる（1 番目の材料は 1 番目のスロットに入り、7 番目以降・ほかの物は入らない）
+            ItemStack firstInput = first.inputs().get(0).ingredient().getItems()[0];
+            helper.assertTrue(adapter.items().isItemValid(0, firstInput), "the first ingredient is refused by the first slot");
+            helper.assertTrue(!adapter.items().isItemValid(5, firstInput) || first.inputs().size() > 5 && first.inputs().get(5).ingredient().test(firstInput),
+                    "the first ingredient is accepted by a slot reserved for another ingredient");
+            helper.assertTrue(!adapter.items().isItemValid(0, new ItemStack(net.minecraft.world.item.Items.DIRT)), "an unrelated item is accepted");
+            int slot = 0;
+            for (var input : first.inputs()) {
+                ItemStack stack = input.ingredient().getItems()[0].copy();
+                stack.setCount(input.count());
+                adapter.items().setStackInSlot(slot++, stack);
+            }
+            powered(adapter);
+            ItemStack expected = first.getResultItem(helper.getLevel().registryAccess());
+            helper.succeedWhen(() -> helper.assertTrue(ItemStack.isSameItem(adapter.items().getStackInSlot(6), expected),
+                    "selected recipe did not produce " + expected + " (output " + adapter.items().getStackInSlot(6) + ")"));
+        });
+    }
+
+    /**
+     * T4 のマシンの解禁（2026-10-31）: タイム・ルーラーを倒していないプレイヤーは、作業台で T4 のマシンを作れず、T4 の強化キットも使えない
+     * （タクティカルアーモリーも）。解禁していれば（ここではクリエイティブ）作れる
+     */
+    @GameTest(template = TEMPLATE, timeoutTicks = 60)
+    public static void t4MachinesUnlockAfterTimeRuler(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        var player = new net.minecraftforge.common.util.FakePlayer(level, new com.mojang.authlib.GameProfile(java.util.UUID.randomUUID(), "t4_unlock_test"));
+        helper.assertTrue(!com.automatavalkyries.chrono.T4Unlock.unlocked(player), "a fresh player already has T4 machines unlocked");
+        // 作業台: T4 の時空精錬炉のレシピを並べても結果が出ない
+        var recipe = level.getRecipeManager().byKey(net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "chrono_smelter_t4")).orElseThrow();
+        var menu = new net.minecraft.world.inventory.CraftingMenu(0, player.getInventory(), net.minecraft.world.inventory.ContainerLevelAccess.create(level, helper.absolutePos(BlockPos.ZERO)));
+        var ingredients = recipe.getIngredients();
+        for (int i = 0; i < 9 && i < ingredients.size(); i++) {
+            ItemStack[] items = ingredients.get(i).getItems();
+            if (items.length > 0) menu.getSlot(1 + i).set(items[0].copy());
+        }
+        menu.slotsChanged(null);
+        helper.assertTrue(menu.getSlot(0).getItem().isEmpty(), "T4 smelter could be crafted before beating the Time Ruler: " + menu.getSlot(0).getItem());
+        // 強化キット: T3 の時空精錬炉も T3 のタクティカルアーモリーも上がらない
+        BlockPos smelterPos = new BlockPos(1, 2, 1), armoryPos = new BlockPos(3, 2, 1);
+        place(helper, smelterPos, ChronoMachineType.CHRONO_SMELTER);
+        place(helper, armoryPos, ChronoMachineType.TACTICAL_ARMORY);
+        setTier(helper, smelterPos, 3);
+        setTier(helper, armoryPos, 3);
+        for (BlockPos pos : new BlockPos[]{smelterPos, armoryPos}) {
+            BlockPos abs = helper.absolutePos(pos);
+            player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(ModChrono.UPGRADE_KIT_NEVERLAST.get()));
+            helper.getBlockState(pos).use(level, player, InteractionHand.MAIN_HAND, new BlockHitResult(Vec3.atCenterOf(abs), Direction.UP, abs, false));
+        }
+        helper.assertTrue(helper.getBlockState(smelterPos).getValue(ChronoMachineBlock.TIER) == 3, "the T4 kit upgraded a smelter before beating the Time Ruler");
+        helper.assertTrue(helper.getBlockState(armoryPos).getValue(ChronoMachineBlock.TIER) == 3, "the T4 kit upgraded the Tactical Armory before beating the Time Ruler");
+        // 解禁していれば作れる（FakePlayer は進捗をもらえないので、解禁済み扱いのクリエイティブで確かめる）
+        player.getAbilities().instabuild = true;
+        helper.assertTrue(com.automatavalkyries.chrono.T4Unlock.unlocked(player), "a creative player does not count as unlocked");
+        menu.slotsChanged(null);
+        helper.assertTrue(!menu.getSlot(0).getItem().isEmpty(), "T4 smelter still cannot be crafted after beating the Time Ruler");
+        helper.succeed();
     }
 
     /** アップグレードパーツの設定: 切るとレシピの条件が偽になる（既定はすべて作れる） */

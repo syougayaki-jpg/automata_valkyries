@@ -3,13 +3,18 @@
   "properties": {
     "attack_base": 7.0,
     "max_damage": 1800,
-    "slash_art": "slashblade:sakura_end",
+    "slash_art": "automata_valkyries:luminal_bloom",
+    "special_effects": [
+      "automata_valkyries:clear_light"
+    ],
     "sword_type": [
       "bewitched"
     ]
   },
   "render": {
     "carry_type": "default",
-    "texture": "automata_valkyries:model/slashblade/luminal_sterling.png"
+    "model": "automata_valkyries:model/slashblade/luminal_sterling.obj",
+    "texture": "automata_valkyries:model/slashblade/luminal_sterling.png",
+    "summon_sword_color": 16050080
   }
 }

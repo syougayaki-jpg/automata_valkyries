@@ -3,9 +3,9 @@
   "properties": {
     "attack_base": 7.5,
     "max_damage": 2000,
-    "slash_art": "slashblade:void_slash",
+    "slash_art": "automata_valkyries:eclipse_moon",
     "special_effects": [
-      "slashblade:wither_edge"
+      "automata_valkyries:life_drain"
     ],
     "sword_type": [
       "bewitched"
@@ -13,6 +13,8 @@
   },
   "render": {
     "carry_type": "default",
-    "texture": "automata_valkyries:model/slashblade/eclipse_biometal.png"
+    "model": "automata_valkyries:model/slashblade/eclipse_biometal.obj",
+    "texture": "automata_valkyries:model/slashblade/eclipse_biometal.png",
+    "summon_sword_color": 8010382
   }
 }

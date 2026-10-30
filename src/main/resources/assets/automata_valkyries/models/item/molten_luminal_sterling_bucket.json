@@ -1,5 +1,6 @@
 {
-  "parent": "forge:item/bucket_drip",
-  "loader": "forge:fluid_container",
-  "fluid": "automata_valkyries:molten_luminal_sterling"
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "automata_valkyries:item/molten_luminal_sterling_bucket"
+  }
 }

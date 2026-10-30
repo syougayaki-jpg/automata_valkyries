@@ -119,4 +119,21 @@ public class ArmorGameTests {
         helper.assertTrue(player.getAttributeValue(ForgeMod.STEP_HEIGHT_ADDITION.get()) < 0.5, "step assist stayed after taking the boots off");
         helper.succeed();
     }
+
+    /**
+     * ステラの防具は自分が付けた効果だけを外す（2026-10-31「ティア４兵装を持った時に一瞬火炎耐性がでたりきえたりする」）:
+     * T4 兵装の加護（粒の出ない環境の効果、60 Tick）の火炎耐性を、火炎耐性の機能を選んでいない防具が外さない
+     */
+    @GameTest(template = "empty", batch = "metal_armor")
+    public static void stellaArmorKeepsWeaponBlessings(GameTestHelper helper) {
+        Player player = helper.makeMockPlayer();
+        wear(player, "stellachronodyme");
+        player.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.FIRE_RESISTANCE, 60, 0, true, false, true));
+        for (int i = 0; i < 3; i++) {
+            player.tickCount = i * 10;
+            com.automatavalkyries.item.armor.StellaArmorItem.apply(player);
+        }
+        helper.assertTrue(player.hasEffect(net.minecraft.world.effect.MobEffects.FIRE_RESISTANCE), "stella armor removed a weapon blessing (fire resistance)");
+        helper.succeed();
+    }
 }

@@ -2,10 +2,15 @@
   "name": "automata_valkyries:blade_phononium",
   "properties": {
     "attack_base": 6.0,
-    "max_damage": 450
+    "max_damage": 450,
+    "special_effects": [
+      "automata_valkyries:resonance"
+    ]
   },
   "render": {
     "carry_type": "default",
-    "texture": "automata_valkyries:model/slashblade/phononium.png"
+    "model": "automata_valkyries:model/slashblade/phononium.obj",
+    "texture": "automata_valkyries:model/slashblade/phononium.png",
+    "summon_sword_color": 14692410
   }
 }
