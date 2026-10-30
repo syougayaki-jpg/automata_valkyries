@@ -1,0 +1,11 @@
+{
+  "name": "automata_valkyries:blade_astrite",
+  "properties": {
+    "attack_base": 5.0,
+    "max_damage": 600
+  },
+  "render": {
+    "carry_type": "default",
+    "texture": "automata_valkyries:model/slashblade/astrite.png"
+  }
+}

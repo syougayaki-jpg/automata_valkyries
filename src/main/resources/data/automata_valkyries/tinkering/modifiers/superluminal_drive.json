@@ -1,0 +1,37 @@
+{
+  "level_display": "tconstruct:single_level",
+  "modules": [
+    {
+      "type": "tconstruct:trait",
+      "fixed_level": true,
+      "level": 1,
+      "name": "tconstruct:godspeed"
+    },
+    {
+      "type": "tconstruct:attribute",
+      "attribute": "minecraft:generic.movement_speed",
+      "each_level": 0.05,
+      "operation": "multiply_base",
+      "slots": [
+        "feet",
+        "legs",
+        "chest",
+        "head"
+      ],
+      "tooltip_style": "boost"
+    },
+    {
+      "type": "tconstruct:teleport_dodge",
+      "chance": {
+        "each_level": 0.1
+      },
+      "cooldown": {
+        "flat": 200
+      },
+      "damage_source": {
+        "type": "mantle:tag",
+        "tag": "minecraft:is_projectile"
+      }
+    }
+  ]
+}

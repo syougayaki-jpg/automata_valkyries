@@ -1,0 +1,30 @@
+{
+  "level_display": "tconstruct:single_level",
+  "modules": [
+    {
+      "type": "tconstruct:trait",
+      "fixed_level": true,
+      "level": 2,
+      "name": "tconstruct:lacerating"
+    },
+    {
+      "type": "tconstruct:lifesteal",
+      "durability_usage": {
+        "each_level": 1
+      },
+      "percentage": {
+        "each_level": 0.06
+      }
+    },
+    {
+      "type": "tconstruct:weapon_mob_effect",
+      "effect": "minecraft:wither",
+      "level": {
+        "flat": 1.0
+      },
+      "time": {
+        "flat": 60.0
+      }
+    }
+  ]
+}

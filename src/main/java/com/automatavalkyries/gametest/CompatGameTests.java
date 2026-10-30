@@ -255,4 +255,60 @@ public class CompatGameTests {
         }
         helper.succeed();
     }
+
+    /**
+     * Tinkers' Construct の道具の素材（2026-10-30）: このMODの 8 金属が素材として読み込まれ、頭の性能と特性を持つ（-PwithTinkers。無ければ素通り）。
+     * Tinkers のクラスはこの MOD から参照しないので反射で引く
+     */
+    @GameTest(template = TEMPLATE)
+    public static void tinkersToolMaterialsLoad(GameTestHelper helper) {
+        if (absent(helper, "tconstruct")) return;
+        try {
+            Class<?> registry = Class.forName("slimeknights.tconstruct.library.materials.MaterialRegistry");
+            Class<?> idClass = Class.forName("slimeknights.tconstruct.library.materials.definition.MaterialId");
+            Class<?> statsId = Class.forName("slimeknights.tconstruct.library.materials.stats.MaterialStatsId");
+            Class<?> api = Class.forName("slimeknights.tconstruct.library.materials.IMaterialRegistry");
+            Class<?> materialApi = Class.forName("slimeknights.tconstruct.library.materials.definition.IMaterial");
+            Object instance = registry.getMethod("getInstance").invoke(null);
+            Object meleeHarvest = registry.getField("MELEE_HARVEST").get(null);
+            Object head = statsId.getConstructor(String.class).newInstance("tconstruct:head");
+            for (String metal : com.automatavalkyries.registry.ModFluids.MOLTEN.keySet()) {
+                Object id = idClass.getConstructor(String.class, String.class).newInstance(AutomataValkyries.MODID, metal);
+                Object material = api.getMethod("getMaterial", idClass).invoke(instance, id);
+                Object loaded = materialApi.getMethod("getIdentifier").invoke(material);
+                helper.assertTrue(id.equals(loaded), "Tinkers material " + metal + " not loaded (got " + loaded + ")");
+                var stats = (java.util.Optional<?>) api.getMethod("getMaterialStats", idClass, statsId).invoke(instance, id, head);
+                helper.assertTrue(stats.isPresent(), "Tinkers material " + metal + " has no head stats");
+                var traits = (List<?>) api.getMethod("getTraits", idClass, statsId).invoke(instance, id, meleeHarvest);
+                Class<?> entry = Class.forName("slimeknights.tconstruct.library.modifiers.ModifierEntry");
+                List<String> ids = new java.util.ArrayList<>();
+                for (Object t : traits) ids.add(String.valueOf(entry.getMethod("getId").invoke(t)));
+                helper.assertTrue(ids.stream().anyMatch(trait -> trait.startsWith(AutomataValkyries.MODID + ":")),
+                        "Tinkers material " + metal + " does not carry this mod's trait: " + ids);
+            }
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Tinkers material API changed", e);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * 抜刀剣（SlashBlade: Resharped）の名のある刀（2026-10-30）: このMODの 8 金属の刀が抜刀剣の名のある刀の一覧に載り、作るレシピがある。
+     * 抜刀剣が無ければレシピも無いことを確かめる（-PwithSlashBlade で載る方を確かめる）
+     */
+    @GameTest(template = TEMPLATE)
+    public static void slashBladeNamedBlades(GameTestHelper helper) {
+        boolean loaded = ModList.get().isLoaded("slashblade");
+        var manager = helper.getLevel().getRecipeManager();
+        var key = net.minecraft.resources.ResourceKey.<Object>createRegistryKey(ResourceLocation.fromNamespaceAndPath("slashblade", "named_blades"));
+        var blades = helper.getLevel().registryAccess().registry(key);
+        helper.assertTrue(blades.isPresent() == loaded, "SlashBlade named blade registry present=" + blades.isPresent() + " (slashblade loaded=" + loaded + ")");
+        for (String metal : com.automatavalkyries.registry.ModFluids.MOLTEN.keySet()) {
+            ResourceLocation id = ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "blade_" + metal);
+            var recipe = manager.byKey(ResourceLocation.fromNamespaceAndPath(AutomataValkyries.MODID, "compat/slashblade/blade_" + metal));
+            helper.assertTrue(recipe.isPresent() == loaded, "SlashBlade recipe for " + metal + " present=" + recipe.isPresent());
+            blades.ifPresent(registry -> helper.assertTrue(registry.containsKey(id), "named blade " + id + " is not registered"));
+        }
+        helper.succeed();
+    }
 }

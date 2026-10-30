@@ -1,0 +1,15 @@
+{
+  "name": "automata_valkyries:blade_luminal_sterling",
+  "properties": {
+    "attack_base": 7.0,
+    "max_damage": 1800,
+    "slash_art": "slashblade:sakura_end",
+    "sword_type": [
+      "bewitched"
+    ]
+  },
+  "render": {
+    "carry_type": "default",
+    "texture": "automata_valkyries:model/slashblade/luminal_sterling.png"
+  }
+}

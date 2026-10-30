@@ -1,0 +1,16 @@
+{
+  "default": [
+    {
+      "level": 1,
+      "name": "automata_valkyries:stellar_chronicle"
+    }
+  ],
+  "perStat": {
+    "tconstruct:armor": [
+      {
+        "level": 1,
+        "name": "automata_valkyries:stellar_aegis"
+      }
+    ]
+  }
+}

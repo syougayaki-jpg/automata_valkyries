@@ -1,0 +1,37 @@
+{
+  "conditions": [
+    {
+      "type": "forge:mod_loaded",
+      "modid": "slashblade"
+    }
+  ],
+  "type": "slashblade:shaped_blade",
+  "blade": "automata_valkyries:blade_chrono_fortress",
+  "category": "equipment",
+  "key": {
+    "B": {
+      "type": "slashblade:blade",
+      "item": "slashblade:slashblade",
+      "request": {
+        "kill": 300,
+        "proud_soul": 1000,
+        "refine": 5
+      }
+    },
+    "A": {
+      "item": "automata_valkyries:block_alloy_chrono_fortress"
+    },
+    "I": {
+      "item": "slashblade:proudsoul_ingot"
+    }
+  },
+  "pattern": [
+    "IAI",
+    "ABA",
+    "IAI"
+  ],
+  "result": {
+    "item": "slashblade:slashblade"
+  },
+  "show_notification": true
+}

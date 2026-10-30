@@ -1,0 +1,52 @@
+{
+  "level_display": "tconstruct:single_level",
+  "modules": [
+    {
+      "type": "tconstruct:trait",
+      "fixed_level": true,
+      "level": 2,
+      "name": "tconstruct:warded"
+    },
+    {
+      "type": "tconstruct:trait",
+      "fixed_level": true,
+      "level": 2,
+      "name": "tconstruct:recurrent_protection"
+    },
+    {
+      "type": "tconstruct:protection",
+      "damage_source": "mantle:can_protect",
+      "each_level": 1.25
+    },
+    {
+      "type": "tconstruct:attribute",
+      "attribute": "minecraft:generic.max_health",
+      "each_level": 4.0,
+      "operation": "addition",
+      "slots": [
+        "feet",
+        "legs",
+        "chest",
+        "head"
+      ],
+      "tooltip_style": "boost"
+    },
+    {
+      "type": "tconstruct:update_health",
+      "slots": [
+        "feet",
+        "legs",
+        "chest",
+        "head"
+      ]
+    },
+    {
+      "type": "tconstruct:effect_immunity",
+      "effect": "minecraft:wither"
+    },
+    {
+      "type": "tconstruct:effect_immunity",
+      "effect": "minecraft:weakness"
+    }
+  ]
+}

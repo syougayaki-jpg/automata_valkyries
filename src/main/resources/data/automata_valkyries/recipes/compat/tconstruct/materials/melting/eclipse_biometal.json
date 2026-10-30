@@ -1,0 +1,15 @@
+{
+  "conditions": [
+    {
+      "type": "forge:mod_loaded",
+      "modid": "tconstruct"
+    }
+  ],
+  "type": "tconstruct:material_melting",
+  "input": "automata_valkyries:eclipse_biometal",
+  "result": {
+    "amount": 90,
+    "tag": "forge:molten_eclipse_biometal"
+  },
+  "temperature": 950
+}

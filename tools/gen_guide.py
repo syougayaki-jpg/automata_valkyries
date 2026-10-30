@@ -278,6 +278,8 @@ JA = [
         "- Create: 破砕ホイールで独自鉱石を粉に、プレス機で連携金属の板を作れます",
         "- Immersive Engineering・Thermal: その粉砕機でも独自鉱石を粉 2 個にできます",
         "- Tinkers' Construct: 溶鉱炉でこのMODの金属（上位合金・ステラクロノダイムも）を溶かし、延べ棒・ブロックに鋳造できます（合金を混ぜて作ることはできません）",
+        "- Tinkers' Construct の道具の素材: 8 金属とも鋳造で道具・防具の部品にできます。金属ごとに特性があります（例: タキオン・アクセルは掘り続けるほど速く、ステラ・クロノダイムは強化の枠が増える）",
+        "- 抜刀剣（SlashBlade: Resharped）: 8 金属の名のある刀を作れます（固有金属は露台と同じ作り方、上位合金は抜刀術付きの妖刀、ステラ・クロノダイムは次元斬の神刀）",
         "- EMI: JEI と一緒に入れると、このMODのレシピの画面も EMI で見られます",
         "",
         "> 困ったら JEI でアイテムを調べ、この手引きと進捗のタブを見返してください",
@@ -437,6 +439,8 @@ EN = [
         "- Create: crushing wheels turn this mod's ores into dust; the press makes shared-metal plates",
         "- Immersive Engineering / Thermal: their crushers double this mod's ores into dust too",
         "- Tinkers' Construct: melt this mod's metals (higher alloys and Stellachronodyme too) in the smeltery and cast ingots and blocks (no alloying)",
+        "- Tinkers' Construct tool materials: all 8 metals cast into tool and armor parts, each with its own trait (e.g. Tachyon Accel speeds up as you keep mining; Stellachronodyme adds an upgrade slot)",
+        "- SlashBlade: Resharped: named blades from all 8 metals (unique metals forged like the Rodai blades, higher alloys as bewitched blades with Slash Arts, Stellachronodyme as a Judgement Cut divine blade)",
         "- EMI shows this mod's recipe screens when JEI is installed too",
     ]),
 ]

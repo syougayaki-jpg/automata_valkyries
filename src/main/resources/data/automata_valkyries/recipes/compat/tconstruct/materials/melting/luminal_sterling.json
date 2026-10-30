@@ -1,0 +1,15 @@
+{
+  "conditions": [
+    {
+      "type": "forge:mod_loaded",
+      "modid": "tconstruct"
+    }
+  ],
+  "type": "tconstruct:material_melting",
+  "input": "automata_valkyries:luminal_sterling",
+  "result": {
+    "amount": 90,
+    "tag": "forge:molten_luminal_sterling"
+  },
+  "temperature": 900
+}

@@ -1,0 +1,18 @@
+{
+  "name": "automata_valkyries:blade_eclipse_biometal",
+  "properties": {
+    "attack_base": 7.5,
+    "max_damage": 2000,
+    "slash_art": "slashblade:void_slash",
+    "special_effects": [
+      "slashblade:wither_edge"
+    ],
+    "sword_type": [
+      "bewitched"
+    ]
+  },
+  "render": {
+    "carry_type": "default",
+    "texture": "automata_valkyries:model/slashblade/eclipse_biometal.png"
+  }
+}

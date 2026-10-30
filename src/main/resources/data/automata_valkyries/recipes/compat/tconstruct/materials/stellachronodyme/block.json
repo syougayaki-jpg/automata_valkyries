@@ -1,0 +1,19 @@
+{
+  "conditions": [
+    {
+      "type": "forge:mod_loaded",
+      "modid": "tconstruct"
+    }
+  ],
+  "type": "tconstruct:material",
+  "ingredient": {
+    "item": "automata_valkyries:block_stellachronodyme"
+  },
+  "leftover": {
+    "count": 1,
+    "item": "automata_valkyries:ingot_stellachronodyme"
+  },
+  "material": "automata_valkyries:stellachronodyme",
+  "needed": 1,
+  "value": 9
+}

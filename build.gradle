@@ -642,19 +642,34 @@ dependencies {
         runtimeOnly fg.deobf("maven.modrinth:create:mc1.20.1-6.0.8")
     }
     // Immersive Engineering・Thermal Expansion（2026-10-30。その機械でこのMODの鉱石を加工するレシピの確認用）: ./gradlew runGameTestServer -PwithIEThermal
-    if (project.hasProperty('withIEThermal')) {
+    if (project.hasProperty('withIEThermal') || project.hasProperty('withTinkersAddons')) {
         runtimeOnly fg.deobf("maven.modrinth:immersiveengineering:10.2.0-183")
         runtimeOnly fg.deobf("maven.modrinth:thermal-expansion:11.0.1")
         runtimeOnly fg.deobf("maven.modrinth:thermal-foundation:11.0.6")
         runtimeOnly fg.deobf("maven.modrinth:cofh-core:11.0.2")
     }
     // Tinkers' Construct（2026-10-30。溶鉱炉でこのMODの金属を溶かす・鋳造するレシピの確認用）: ./gradlew runGameTestServer -PwithTinkers
-    if (project.hasProperty('withTinkers')) {
+    if (project.hasProperty('withTinkers') || project.hasProperty('withTinkersAddons')) {
         runtimeOnly fg.deobf("maven.modrinth:tinkers-construct:3.12.1.231")
         runtimeOnly fg.deobf("maven.modrinth:mantle:1.11.117")
     }
+    // Tinkers' Construct の連携アドオン（2026-10-30 ユーザー指定「入れて比較して」。このMODの道具の素材の強さを他の連携素材と比べる用）:
+    // Thermal Construct（Thermal の合金・Thermal Extra の金属）。Tinkers・Thermal 一式・JEI も読み込む
+    if (project.hasProperty('withTinkersAddons')) {
+        runtimeOnly fg.deobf("maven.modrinth:thermal-construct:1.20.1-0.0.5")
+        runtimeOnly fg.deobf("maven.modrinth:thermal-integration:11.0.1")
+        runtimeOnly fg.deobf("maven.modrinth:thermal-innovation:11.0.1")
+        runtimeOnly fg.deobf("maven.modrinth:thermal-extra:3.3.3-1.20.1")
+    }
+    // Tinkers' Compatibility（Ice and Fire のドラゴンスチールなど）: -PwithTinkersAddons -PwithTcompat。
+    // **この開発環境では起動できない**: レシピの条件（DartShooterCondition）が読み込み前の設定を読み、開発環境では Forge がそれを例外にする（通常のランチャーでは警告だけ）。2026-10-30。素材の数値は jar の中のデータで比べた
+    if (project.hasProperty('withTcompat')) {
+        runtimeOnly fg.deobf("maven.modrinth:tinkers-compatibility:2.1.0")
+        runtimeOnly fg.deobf("maven.modrinth:ice-and-fire-dragons:2.1.13-1.20.1-beta-5")
+        runtimeOnly fg.deobf("maven.modrinth:citadel:2.6.3")
+    }
     // JEI だけ（レシピ・タグの手動確認用）: ./gradlew runClient -PwithJei
-    if (project.hasProperty('withJei') && !project.hasProperty('withTechMods')) {
+    if ((project.hasProperty('withJei') || project.hasProperty('withTinkersAddons')) && !project.hasProperty('withTechMods')) { // Thermal Construct は JEI が要る
         runtimeOnly fg.deobf("maven.modrinth:jei:15.62.0.217")
     }
     // 追加の検証対象（上の組み合わせと同時にも使える）
@@ -669,6 +684,10 @@ dependencies {
         runtimeOnly fg.deobf("maven.modrinth:slashblade-resharped:1.9.65")      // 前提: SlashBlade: Resharped
         runtimeOnly fg.deobf("maven.modrinth:annihilationblade:1.4.1")          // annihilationblade 1.4.1
         runtimeOnly fg.deobf("maven.modrinth:nekohashizuku-blade:3.7.0")        // Shizuku Blade 3.7.0（Java エージェント同梱）
+    }
+    // 抜刀剣だけ（2026-10-30。このMODの金属の名のある刀の確認用。即死刀・Java エージェントは入れない）: ./gradlew runGameTestServer -PwithSlashBladeOnly
+    if (project.hasProperty('withSlashBladeOnly') && !project.hasProperty('withSlashBlade')) {
+        runtimeOnly fg.deobf("maven.modrinth:slashblade-resharped:1.9.65")
     }
     //   ./gradlew runGameTestServer -PwithEca   （Epic Core API。Java エージェント同梱）
     //   ./gradlew runClient -PwithLastSword     （ECA を使う剣。専用サーバーで起動できないのでクライアント専用）

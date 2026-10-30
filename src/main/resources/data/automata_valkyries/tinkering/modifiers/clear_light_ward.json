@@ -1,0 +1,19 @@
+{
+  "level_display": "tconstruct:single_level",
+  "modules": [
+    {
+      "type": "tconstruct:trait",
+      "fixed_level": true,
+      "level": 2,
+      "name": "tconstruct:magic_protection"
+    },
+    {
+      "type": "tconstruct:effect_immunity",
+      "effect": "minecraft:blindness"
+    },
+    {
+      "type": "tconstruct:effect_immunity",
+      "effect": "minecraft:darkness"
+    }
+  ]
+}

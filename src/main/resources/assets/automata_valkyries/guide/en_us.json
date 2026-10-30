@@ -221,6 +221,8 @@
     "- Create: crushing wheels turn this mod's ores into dust; the press makes shared-metal plates",
     "- Immersive Engineering / Thermal: their crushers double this mod's ores into dust too",
     "- Tinkers' Construct: melt this mod's metals (higher alloys and Stellachronodyme too) in the smeltery and cast ingots and blocks (no alloying)",
+    "- Tinkers' Construct tool materials: all 8 metals cast into tool and armor parts, each with its own trait (e.g. Tachyon Accel speeds up as you keep mining; Stellachronodyme adds an upgrade slot)",
+    "- SlashBlade: Resharped: named blades from all 8 metals (unique metals forged like the Rodai blades, higher alloys as bewitched blades with Slash Arts, Stellachronodyme as a Judgement Cut divine blade)",
     "- EMI shows this mod's recipe screens when JEI is installed too"
    ]
   },

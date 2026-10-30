@@ -1,0 +1,19 @@
+{
+  "conditions": [
+    {
+      "type": "forge:mod_loaded",
+      "modid": "tconstruct"
+    }
+  ],
+  "type": "tconstruct:material",
+  "ingredient": {
+    "item": "automata_valkyries:block_alloy_tachyon_accel"
+  },
+  "leftover": {
+    "count": 1,
+    "item": "automata_valkyries:alloy_tachyon_accel"
+  },
+  "material": "automata_valkyries:tachyon_accel",
+  "needed": 1,
+  "value": 9
+}

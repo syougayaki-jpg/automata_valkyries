@@ -1,0 +1,15 @@
+{
+  "conditions": [
+    {
+      "type": "forge:mod_loaded",
+      "modid": "tconstruct"
+    }
+  ],
+  "type": "tconstruct:material",
+  "ingredient": {
+    "item": "automata_valkyries:alloy_eclipse_biometal"
+  },
+  "material": "automata_valkyries:eclipse_biometal",
+  "needed": 1,
+  "value": 1
+}

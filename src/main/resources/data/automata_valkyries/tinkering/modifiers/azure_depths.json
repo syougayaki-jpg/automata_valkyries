@@ -1,0 +1,37 @@
+{
+  "level_display": "tconstruct:single_level",
+  "modules": [
+    {
+      "type": "tconstruct:trait",
+      "fixed_level": true,
+      "level": 2,
+      "name": "tconstruct:depth_protection"
+    },
+    {
+      "type": "tconstruct:effect_immunity",
+      "effect": "minecraft:mining_fatigue"
+    },
+    {
+      "type": "tconstruct:attribute",
+      "attribute": "minecraft:generic.max_health",
+      "each_level": 2.0,
+      "operation": "addition",
+      "slots": [
+        "feet",
+        "legs",
+        "chest",
+        "head"
+      ],
+      "tooltip_style": "boost"
+    },
+    {
+      "type": "tconstruct:update_health",
+      "slots": [
+        "feet",
+        "legs",
+        "chest",
+        "head"
+      ]
+    }
+  ]
+}

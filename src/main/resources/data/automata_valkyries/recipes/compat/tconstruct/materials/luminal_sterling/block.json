@@ -1,0 +1,19 @@
+{
+  "conditions": [
+    {
+      "type": "forge:mod_loaded",
+      "modid": "tconstruct"
+    }
+  ],
+  "type": "tconstruct:material",
+  "ingredient": {
+    "item": "automata_valkyries:block_alloy_luminal_sterling"
+  },
+  "leftover": {
+    "count": 1,
+    "item": "automata_valkyries:alloy_luminal_sterling"
+  },
+  "material": "automata_valkyries:luminal_sterling",
+  "needed": 1,
+  "value": 9
+}

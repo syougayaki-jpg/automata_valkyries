@@ -1,0 +1,27 @@
+{
+  "level_display": "tconstruct:single_level",
+  "modules": [
+    {
+      "type": "tconstruct:trait",
+      "fixed_level": true,
+      "level": 2,
+      "name": "tconstruct:lightspeed"
+    },
+    {
+      "type": "tconstruct:stat_boost",
+      "each_level": 0.1,
+      "operation": "multiply_base",
+      "stat": "tconstruct:mining_speed"
+    },
+    {
+      "type": "tconstruct:weapon_mob_effect",
+      "effect": "minecraft:glowing",
+      "level": {
+        "flat": 1.0
+      },
+      "time": {
+        "flat": 100.0
+      }
+    }
+  ]
+}

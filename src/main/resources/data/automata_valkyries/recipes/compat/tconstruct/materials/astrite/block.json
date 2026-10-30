@@ -1,0 +1,19 @@
+{
+  "conditions": [
+    {
+      "type": "forge:mod_loaded",
+      "modid": "tconstruct"
+    }
+  ],
+  "type": "tconstruct:material",
+  "ingredient": {
+    "tag": "forge:storage_blocks/astrite"
+  },
+  "leftover": {
+    "count": 1,
+    "tag": "forge:ingots/astrite"
+  },
+  "material": "automata_valkyries:astrite",
+  "needed": 1,
+  "value": 9
+}

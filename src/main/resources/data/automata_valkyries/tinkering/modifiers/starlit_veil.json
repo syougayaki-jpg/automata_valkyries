@@ -1,0 +1,30 @@
+{
+  "level_display": "tconstruct:single_level",
+  "modules": [
+    {
+      "type": "tconstruct:trait",
+      "fixed_level": true,
+      "level": 2,
+      "name": "tconstruct:projectile_protection"
+    },
+    {
+      "type": "tconstruct:trait",
+      "fixed_level": true,
+      "level": 1,
+      "name": "tconstruct:lightspeed"
+    },
+    {
+      "type": "tconstruct:attribute",
+      "attribute": "minecraft:generic.movement_speed",
+      "each_level": 0.03,
+      "operation": "multiply_base",
+      "slots": [
+        "feet",
+        "legs",
+        "chest",
+        "head"
+      ],
+      "tooltip_style": "boost"
+    }
+  ]
+}

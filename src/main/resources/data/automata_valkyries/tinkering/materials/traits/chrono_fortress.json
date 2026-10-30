@@ -1,0 +1,16 @@
+{
+  "default": [
+    {
+      "level": 1,
+      "name": "automata_valkyries:timeless_bastion"
+    }
+  ],
+  "perStat": {
+    "tconstruct:armor": [
+      {
+        "level": 1,
+        "name": "automata_valkyries:timeless_rampart"
+      }
+    ]
+  }
+}

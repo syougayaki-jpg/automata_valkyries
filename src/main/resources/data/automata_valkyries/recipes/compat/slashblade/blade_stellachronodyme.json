@@ -1,0 +1,40 @@
+{
+  "conditions": [
+    {
+      "type": "forge:mod_loaded",
+      "modid": "slashblade"
+    }
+  ],
+  "type": "slashblade:shaped_blade",
+  "blade": "automata_valkyries:blade_stellachronodyme",
+  "category": "equipment",
+  "key": {
+    "B": {
+      "type": "slashblade:blade",
+      "item": "slashblade:slashblade",
+      "request": {
+        "kill": 1000,
+        "proud_soul": 10000,
+        "refine": 30
+      }
+    },
+    "S": {
+      "item": "automata_valkyries:block_stellachronodyme"
+    },
+    "P": {
+      "item": "slashblade:proudsoul_sphere"
+    },
+    "T": {
+      "item": "slashblade:proudsoul_trapezohedron"
+    }
+  },
+  "pattern": [
+    "SPS",
+    "TBT",
+    "SPS"
+  ],
+  "result": {
+    "item": "slashblade:slashblade"
+  },
+  "show_notification": true
+}

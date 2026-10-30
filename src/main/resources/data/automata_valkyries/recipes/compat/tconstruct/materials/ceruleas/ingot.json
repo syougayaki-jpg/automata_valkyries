@@ -1,0 +1,15 @@
+{
+  "conditions": [
+    {
+      "type": "forge:mod_loaded",
+      "modid": "tconstruct"
+    }
+  ],
+  "type": "tconstruct:material",
+  "ingredient": {
+    "tag": "forge:ingots/ceruleas"
+  },
+  "material": "automata_valkyries:ceruleas",
+  "needed": 1,
+  "value": 1
+}

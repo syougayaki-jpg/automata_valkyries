@@ -1,0 +1,19 @@
+{
+  "conditions": [
+    {
+      "type": "forge:mod_loaded",
+      "modid": "tconstruct"
+    }
+  ],
+  "type": "tconstruct:material",
+  "ingredient": {
+    "item": "automata_valkyries:block_alloy_chrono_fortress"
+  },
+  "leftover": {
+    "count": 1,
+    "item": "automata_valkyries:alloy_chrono_fortress"
+  },
+  "material": "automata_valkyries:chrono_fortress",
+  "needed": 1,
+  "value": 9
+}

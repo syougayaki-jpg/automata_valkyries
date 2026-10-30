@@ -1,0 +1,16 @@
+{
+  "default": [
+    {
+      "level": 1,
+      "name": "automata_valkyries:clear_light"
+    }
+  ],
+  "perStat": {
+    "tconstruct:armor": [
+      {
+        "level": 1,
+        "name": "automata_valkyries:clear_light_ward"
+      }
+    ]
+  }
+}

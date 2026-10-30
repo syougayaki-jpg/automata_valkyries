@@ -1,0 +1,19 @@
+{
+  "level_display": "tconstruct:single_level",
+  "modules": [
+    {
+      "type": "tconstruct:trait",
+      "fixed_level": true,
+      "level": 2,
+      "name": "tconstruct:revitalizing"
+    },
+    {
+      "type": "tconstruct:effect_immunity",
+      "effect": "minecraft:wither"
+    },
+    {
+      "type": "tconstruct:effect_immunity",
+      "effect": "minecraft:poison"
+    }
+  ]
+}
