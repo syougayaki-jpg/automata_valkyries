@@ -58,8 +58,8 @@ public final class AkashicTechniqueSpecCatalog {
                     + "Mixin Accessor と sun.misc.Unsafe.put*Volatile を用い、dead=true、deathTime=20、removalReason、isAddedToWorld=false、独自HP/防御フラグ/残機カウンタ、奈落/NaN座標を直接メモリ書き込みする。";
             case 8 -> "Tier 8 [準汎用フラグ辞書・NBT・Capability・AI/部位解体 (T079-T088)]: "
                     + "StateScanner（インターフェース・注入/独自フィールド・Capability・永続NBT）、死亡NBT load() 上書き、PartEntity 部位切断、強制降車、AI/Brain 完全消去、引数なし破棄メソッド反射呼び出しを行う。";
-            case 9 -> "Tier 9 [歴代チートMOD特化解体・抹殺棒技術 (T089-T098)]: "
-                    + "ImmortalWither / Tesseract / Flashfur / NoSugar / Avaritia / SuperSteve / PIG2 / Madness 等、固有の不死ギミック・保護リスト・外部コントローラ・独自死亡ルートをピンポイントで解体する。";
+            case 9 -> "Tier 9 [深層防御アーキテクチャ・外部制御機構解体 (T089-T098)]: "
+                    + "多重シャドウHP・次元アンカー・グローバル保護登録表・消去状態フラグ・装備連動型無敵・独自コールバック・内部専用死亡ルート・外部独立コントローラ等の高度な不死構造を機構別に解体する。";
             case 10 -> "Tier 10 [ワールド全層抹消・深層JVMメモリ崩壊・終焉機構 (T099-T108)]: "
                     + "entityTickList / EntityLookup / SectionStorage / ChunkMap からの追放、UUID/ID 隔離、非Entity参照フィールドの null 化、TrueAnnihilationEngine、JavaAgent 補助抹殺、TerminusEngine、全108層同時収束を実行する。";
             default -> "";
@@ -87,7 +87,7 @@ public final class AkashicTechniqueSpecCatalog {
                     "・Tier 5 (T049-T056): MAX_HEALTH 属性 baseValue(0/-1e6/NaN)、Modifier(-1e9 / x-1.0)、Unsafe cachedValue=0 直書き。",
                     "・Tier 6 (T057-T066): SynchedEntityData(DATA_HEALTH_ID) 直書き、ASM動的生成 LockedZeroDataItem による0固定ロック、itemsById スロット抜去＋NPE防止安全再挿入。",
                     "・Tier 7 (T067-T078): Unsafe.put*Volatile による dead=true、deathTime=20、removalReason、isAddedToWorld=false、全プリミティブHP/防御boolean/残機int一掃、奈落/NaN座標注入。",
-                    "・Tier 8〜9 (T079-T098): StateScanner 5系統、死亡NBT load()、部位切断、AI/Brain ロボトミー、反射cleanup、歴代チートMOD(PIG2/SuperSteve/Madness/Flashfur等)特化解体。",
+                    "・Tier 8〜9 (T079-T098): StateScanner 5系統、死亡NBT load()、部位切断、AI/Brain ロボトミー、反射cleanup、深層不死アーキテクチャ(シャドウHP/保護リスト/外部コントローラ/内部専用死亡ルート等)の機構別解体。",
                     "・Tier 10 (T099-T108): ServerLevel/EntityLookup/ChunkMap 全層追放、UUID/ID隔離、参照フィールドnull化、TrueAnnihilationEngine、TerminusEngine、全108層同時収束(Omega Terminus)。"
             );
         }
@@ -272,10 +272,10 @@ public final class AkashicTechniqueSpecCatalog {
                     "通常攻撃は防ぐが、高レベルの即時ダメージ（Instant Damage / Harm）やデバフAmplifierオーバーフローに弱いモブ。"
             );
             case T029_TOTEM_EQUIPMENT_STRIP_HURT -> new SpecEntry(
-                    "全装備スロット（不死のトーテム・神装備）強制没収＋打撃",
+                    "全装備スロット（不死のトーテム・特殊防具）強制没収＋打撃",
                     "Tier 3: 防具剥奪・防御解体打撃・隔絶ダメージ",
-                    "全 EquipmentSlot（MAINHAND/OFFHAND/HEAD/CHEST/LEGS/FEET）に ItemStack.EMPTY を強制セットして不死のトーテムやチート防具を外した直後、genericKill(5000) を与える。",
-                    "手持ちの不死のトーテム無限消費や、特定防具のフルセット装着時のみ発動する無敵イベント（Avaritia型など）に頼るモブ。"
+                    "全 EquipmentSlot（MAINHAND/OFFHAND/HEAD/CHEST/LEGS/FEET）に ItemStack.EMPTY を強制セットして不死のトーテムや特殊防具を外した直後、genericKill(5000) を与える。",
+                    "手持ちの不死のトーテム無限消費や、特定防具のフルセット装着時のみ発動する装備連動型無敵イベントに頼るモブ。"
             );
             case T030_MULTIPART_PARENT_PIERCE_HURT -> new SpecEntry(
                     "マルチパート（PartEntity）親本体逆探知・直撃打撃",
@@ -488,10 +488,10 @@ public final class AkashicTechniqueSpecCatalog {
                     "スポーン時に取得した `DataItem` インスタンスへの直接参照をキャッシュし、そのインスタンスの value だけを監視・復元している MOD。"
             );
             case T064_CUSTOM_SYNCHED_ACCESSORS_SWEEP -> new SpecEntry(
-                    "MOD独自 EntityDataAccessor（カスタム同期HP/シールド）全走査破壊",
+                    "独自 EntityDataAccessor（カスタム同期HP/シールド）全走査破壊",
                     "Tier 6: SynchedEntityData 改ざん・ロック・抜去",
                     "StateScanner(SYNCHED_DATA) を実行し、バニラの DATA_HEALTH_ID ではなく対象クラスが独自定義した static final EntityDataAccessor（独自HP・シールド・フェーズ・無敵フラグ）をすべて走査して 0 / false へ書き換える。",
-                    "バニラの getHealth() を使わず、独自の EntityDataAccessor<Float/Integer/Boolean> で真のHPや無敵状態を管理しているチートモブ（PIG2/SuperSteve系など）。"
+                    "バニラの getHealth() を使わず、独自の EntityDataAccessor<Float/Integer/Boolean> で真のHPや無敵状態を管理しているモブ。"
             );
             case T065_SYNCHED_POSE_DYING_LOCK -> new SpecEntry(
                     "Entity.setPose(Pose.DYING) 死亡姿勢同期ロック",
@@ -642,66 +642,66 @@ public final class AkashicTechniqueSpecCatalog {
                     "モブ自身が内部に「自分が正規に消える時にだけ呼ぶ `private void destroyBoss()` や `cleanup()`」を持っている設計。"
             );
 
-            // ==== Tier 9: 歴代チート MOD 特化解体（抹殺棒技術）系 (T089..T098) ====
+            // ==== Tier 9: 深層防御アーキテクチャ・外部制御機構解体（抹殺棒技術）系 (T089..T098) ====
             case T089_COUNTER_IMMORTAL_WITHER_STRIP -> new SpecEntry(
-                    "対 Immortal Wither：シャドウシールド＆超再生フィールド剥奪",
-                    "Tier 9: 歴代チートMOD特化解体（抹殺棒技術）",
+                    "多重シャドウHP＆毎Tick強制再生シールド剥奪",
+                    "Tier 9: 深層防御アーキテクチャ・外部制御機構解体",
                     "StateScanner 全系統解体に加え、プリミティブ float/double のシャドウHP・シールドフィールドを Unsafe で 0.0F に一掃してから setHealth(0.0F) を執行する。",
-                    "Immortal Wither 系の多重シャドウHPフィールドと毎 Tick 強制再生シールド。"
+                    "バニラHPの裏に複数のシャドウHPフィールドを持ち、毎 Tick 強制再生シールドで上書き復元する防御構造。"
             );
             case T090_COUNTER_TESSERACT_BEAST_BREAKER -> new SpecEntry(
-                    "対 Tesseract Beast：次元アンカー（dimensionalAnchor）＆HyperHealth 解体",
-                    "Tier 9: 歴代チートMOD特化解体（抹殺棒技術）",
+                    "次元アンカー（dimensionalAnchor）＆超上限HPフィールド解体",
+                    "Tier 9: 深層防御アーキテクチャ・外部制御機構解体",
                     "StateScanner 全系統解体と全 boolean 防御/次元アンカーフラグ（`anchor / invul / shield`）の Unsafe false 化を同時適用し、次元固定を解除して HP を 0 化する。",
-                    "次元アンカー boolean フラグが true の間はあらゆる除去とダメージを無効化する Tesseract 型モブ。"
+                    "次元アンカー boolean フラグが true の間はあらゆる除去とダメージを無効化する空間固定型防御。"
             );
             case T091_COUNTER_FLASHFUR_OMNI_PURGE -> new SpecEntry(
-                    "対 Flashfur / Omni-Mobs：グローバル保護リスト追放＆シャドウHP抹消",
-                    "Tier 9: 歴代チートMOD特化解体（抹殺棒技術）",
-                    "`KillLists.purge(target)` で Flashfur / Omni-Mobs 系の static 保護コレクションから対象を抹消し、StateScanner 全系統解体と setHealth(0.0F) を連続執行する。",
-                    "グローバルな保護エンティティリストとエンティティ内フラグの二重チェックで不死化する Flashfur / Omni-Mobs 系モブ。"
+                    "グローバル保護レジストリ追放＆シャドウHP抹消",
+                    "Tier 9: 深層防御アーキテクチャ・外部制御機構解体",
+                    "`KillLists.purge(target)` で static 保護コレクションから対象を抹消し、StateScanner 全系統解体と setHealth(0.0F) を連続執行する。",
+                    "グローバルな保護エンティティリストとエンティティ内フラグの二重チェックで不死化する防御構造。"
             );
             case T092_COUNTER_NOSUGAR_ERASE_INVERT -> new SpecEntry(
-                    "対 NoSugar：Erase / InstantKill 状態反転＆死亡フレーム直結",
-                    "Tier 9: 歴代チートMOD特化解体（抹殺棒技術）",
-                    "StateScanner 全系統で NoSugar 系の消去/不死フラグを反転させた上、`LivingEntity.dead = true`, `deathTime = 20`, `setHealth(0.0F)` を同時に叩き込む。",
-                    "NoSugar 系のカスタム Erase フラグ管理と死亡キャンセル機構。"
+                    "カスタム消去・即死状態フラグ反転＆死亡フレーム直結",
+                    "Tier 9: 深層防御アーキテクチャ・外部制御機構解体",
+                    "StateScanner 全系統で独自の消去/不死フラグを反転させた上、`LivingEntity.dead = true`, `deathTime = 20`, `setHealth(0.0F)` を同時に叩き込む。",
+                    "独自の消去許可フラグ管理と死亡イベントキャンセルを組み合わせた防御構造。"
             );
             case T093_COUNTER_AVARITIA_ENIGMA_TELETUBBIES -> new SpecEntry(
-                    "対 Avaritia / Enigma / Teletubbies：神装備・神状態（God-State）強制剥奪",
-                    "Tier 9: 歴代チートMOD特化解体（抹殺棒技術）",
-                    "全 EquipmentSlot の強制空化（Infinity Armor 等の神防具剥奪）＋ StateScanner 全系統による神状態フラグ解除＋ setHealth(0.0F) を一括執行する。",
-                    "Infinity 装備等の特定アイテム装着判定や God-Mode フラグによって全イベントを無効化する Avaritia / Enigma 系防御。"
+                    "特殊防具・絶対無敵状態（God-State）強制剥奪",
+                    "Tier 9: 深層防御アーキテクチャ・外部制御機構解体",
+                    "全 EquipmentSlot の強制空化（無敵防具の剥奪）＋ StateScanner 全系統による無敵状態フラグ解除＋ setHealth(0.0F) を一括執行する。",
+                    "特定防具の装着判定や絶対無敵フラグによって全イベントを無効化する装備・状態連動型防御。"
             );
             case T094_COUNTER_SUPER_STEVE_CALLBACK_SEVER -> new SpecEntry(
-                    "対 SuperSteve：独自体力フィールド抹消＆コールバック切断除去",
-                    "Tier 9: 歴代チートMOD特化解体（抹殺棒技術）",
-                    "`KillLists.purge(target)` ＋ 全プリミティブ float/double HPフィールドの Unsafe 0.0F 直書き ＋ `Entity.removalReason = KILLED` のフィールド直書きを組み合わせ、SuperSteve 系の独自生存管理を切断する。",
-                    "バニラHPを無視して独自フィールドとエージェント/コールバック保護で生存し続ける SuperSteve 系エンティティ。"
+                    "独立体力フィールド抹消＆監視コールバック切断除去",
+                    "Tier 9: 深層防御アーキテクチャ・外部制御機構解体",
+                    "`KillLists.purge(target)` ＋ 全プリミティブ float/double HPフィールドの Unsafe 0.0F 直書き ＋ `Entity.removalReason = KILLED` のフィールド直書きを組み合わせ、独自の生存管理を切断する。",
+                    "バニラHPを無視して独自フィールドとコールバック保護で生存し続ける独立ライフサイクル型エンティティ。"
             );
             case T095_COUNTER_PIG2_TRUELIFE_ZERO_PROXY -> new SpecEntry(
-                    "対 PIG2：MOD自身の正規死亡ルート（finishWithModOwnDeath）プロキシ執行",
-                    "Tier 9: 歴代チートMOD特化解体（抹殺棒技術）",
-                    "`ModProtectionBreaker.finishWithModOwnDeath(target)` と `StateScanner` を実行。PIG2 の `Pig2Helper.annihilate` / `TrueLife=0` 等、相手 MOD 自身が内部に持つ「正規の死亡・消去メソッド」を逆利用して自滅させる。",
-                    "外部からの死亡処理をすべて拒否し、PIG2 内部クラスの専用メソッド・TrueLife 変数からのみ死亡を受け付ける排他防御。"
+                    "内部専用死亡ルート（finishWithModOwnDeath）プロキシ執行",
+                    "Tier 9: 深層防御アーキテクチャ・外部制御機構解体",
+                    "`ModProtectionBreaker.finishWithModOwnDeath(target)` と `StateScanner` を実行。対象クラス自身が内部に持つ「正規の死亡・消去メソッド」や真の生命変数を逆利用して自滅させる。",
+                    "外部からの死亡処理をすべて拒否し、対象内部クラスの専用メソッド・独自生命変数からのみ死亡を受け付ける排他防御。"
             );
             case T096_COUNTER_MADNESS_CONTROLLER_ANNIHILATE -> new SpecEntry(
-                    "対 Madness Entities：外部コントローラ切断（MadnessAnnihilation）",
-                    "Tier 9: 歴代チートMOD特化解体（抹殺棒技術）",
-                    "`MadnessAnnihilation.annihilate(level, target)` を実行（Runtime.halt トラップを踏まないよう変換器には触れず、ワールド内のエンティティ制御リンクと生存状態を安全に解体する）。",
-                    "エンティティ外部のコントローラや監視リストで生存を維持する Madness Entities 系モブ。"
+                    "分離型・外部コントローラ制御リンク切断",
+                    "Tier 9: 深層防御アーキテクチャ・外部制御機構解体",
+                    "変換器等のトラップに触れず、エンティティ外部の独立コントローラや監視リストとの制御リンクおよび生存状態を安全に解体する。",
+                    "エンティティ本体の外側に分離されたコントローラオブジェクトや監視リストで生存を維持する外部制御型モブ。"
             );
             case T097_COUNTER_STATIC_KILL_LISTS_AND_NEUTRALIZER -> new SpecEntry(
-                    "準汎用 KillLists.purge ＋ GenericCheatMobNeutralizer 包括無력化",
-                    "Tier 9: 歴代チートMOD特化解体（抹殺棒技術）",
-                    "`KillLists.purge(target)` で全静的リストを掃除した上、`GenericCheatMobNeutralizer.neutralize(level, target)` で未知のチートモブが持つイベントリスナー・Tick 復活・特殊フィールドを包括的に無力化する。",
-                    "個別 MOD 名に依存しない準汎用構造のチートモブ（静的セット登録＋独自フィールド＋イベントフック複合型）。"
+                    "準汎用 KillLists.purge ＋ GenericCheatMobNeutralizer 包括無力化",
+                    "Tier 9: 深層防御アーキテクチャ・外部制御機構解体",
+                    "`KillLists.purge(target)` で全静的リストを掃除した上、`GenericCheatMobNeutralizer.neutralize(level, target)` で未知の不死モブが持つイベントリスナー・Tick 復活・特殊フィールドを包括的に無力化する。",
+                    "特定の実装名に依存しない準汎用構造の不死モブ（静的セット登録＋独自フィールド＋イベントフック複合型）。"
             );
             case T098_COUNTER_MOD_PROTECTION_BREAKER_FULL -> new SpecEntry(
-                    "ModProtectionBreaker フルパス解体 ＋ 自MOD死亡ルート ＋ discard 処刑",
-                    "Tier 9: 歴代チートMOD特化解体（抹殺棒技術）",
+                    "ModProtectionBreaker フルパス解体 ＋ 内部死亡ルート ＋ discard 処刑",
+                    "Tier 9: 深層防御アーキテクチャ・外部制御機構解体",
                     "`ModProtectionBreaker.breakProtection` → `finishWithModOwnDeath` → `setHealth(0.0F)` → `discard()` の 4 段階フルパスを連続執行する Tier 9 総決算技術。",
-                    "既知・準汎用の複数 MOD 防御ギミックを多重に組み合わせたハイブリッド不死モブ。"
+                    "複数の防御ギミック（保護リスト・独自フィールド・専用死亡メソッド）を多重に組み合わせた複合不死モブ。"
             );
 
             // ==== Tier 10: ワールド全層抹消・深層 JVM メモリ崩壊・終焉機構（Terminus）系 (T099..T108) ====
@@ -709,7 +709,7 @@ public final class AkashicTechniqueSpecCatalog {
                     "ServerLevel.entityTickList からの直接追放（Tick 更新永久停止）",
                     "Tier 10: ワールド全層抹消・深層JVMメモリ崩壊・終焉機構",
                     "ServerLevelTickListAccessor を通じて `ServerLevel.entityTickList` から対象エンティティを直接 `remove(target)` する。エンティティの `tick()` / `baseTick()` 自体が二度とサーバーから呼ばれなくなる。",
-                    "自身の `tick()` メソッド内で毎 Tick HP全回復・デバフ解除・周囲即死攻撃・座標復元を実行している Tick 駆動型チートモブ。"
+                    "自身の `tick()` メソッド内で毎 Tick HP全回復・デバフ解除・周囲即死攻撃・座標復元を実行している Tick 駆動型不死モブ。"
             );
             case T100_WORLD_LOOKUP_AND_KNOWN_UUID_EVICTION -> new SpecEntry(
                     "PersistentEntitySectionManager (EntityLookup & knownUuids) 登録抹消",
@@ -736,22 +736,22 @@ public final class AkashicTechniqueSpecCatalog {
                     "「初期スポーン時の UUID または Entity ID を外部マネージャーが記憶し、毎 Tick その UUID で検索して護衛・蘇生する」外部監視型ボスマネージャー。"
             );
             case T104_UNSAFE_OBJECT_MEMORY_OBLITERATION -> new SpecEntry(
-                    "Unsafe 外部MOD参照フィールド null 化 ＆ WeakReference クリア（メモリ崩壊）",
+                    "Unsafe 非Entity参照フィールド null 化 ＆ WeakReference クリア（メモリ崩壊）",
                     "Tier 10: ワールド全層抹消・深層JVMメモリ崩壊・終焉機構",
-                    "`sun.misc.Unsafe.putObjectVolatile` を用い、対象クラス（外部MOD階層）が持つ非プリミティブ参照フィールド（コントローラ・AI・シールドオブジェクト・WeakReference等、ただし Entity/Level を除く）をすべて `null` で埋め尽くす。",
+                    "`sun.misc.Unsafe.putObjectVolatile` を用い、対象クラスが持つ非プリミティブ参照フィールド（コントローラ・AI・シールドオブジェクト・WeakReference等、ただし Entity/Level を除く）をすべて `null` で埋め尽くす。",
                     "複雑な独自クラスオブジェクト（ShieldController, BossPhaseManager 等）をフィールドに保持して無敵ロジックを委譲しているモブ。"
             );
             case T105_TRUE_ANNIHILATION_ENGINE_EXECUTION -> new SpecEntry(
                     "真・抹殺エンジン（TrueAnnihilationEngine.annihilateEntity）執行",
                     "Tier 10: ワールド全層抹消・深層JVMメモリ崩壊・終焉機構",
                     "`TrueAnnihilationEngine.annihilateEntity` を実行。内部フラグ解体・同期データ0化・ServerLevel/ChunkMap/SectionStorage 全層からの物理的引っこ抜き・クライアント消去パケット送信を一貫執行する。",
-                    "単一の除去手段では消えない、複数のワールド構造にまたがる高難度チートモブ。"
+                    "単一の除去手段では消えない、複数のワールド構造にまたがる高難度不死モブ。"
             );
             case T106_AGENT_ASSISTED_ANNIHILATION_EXECUTION -> new SpecEntry(
-                    "JavaAgent 補助抹殺（AnnihilationExecutionAgent：イベントバス浄化＆特化中和）",
+                    "JavaAgent 補助抹殺（AnnihilationExecutionAgent：イベントバス浄化＆深層中和）",
                     "Tier 10: ワールド全層抹消・深層JVMメモリ崩壊・終焉機構",
-                    "`AnnihilationExecutionAgent` により Witherzilla / Flashfur 等の深層中和と `sanitizeEventBus()`（Forge イベントバス上の悪性不死リスナーの無力化）を実行する。",
-                    "Forge EventBus 自体に最高優先度・キャンセル不可バイパスの不死リスナーを登録して介入する MOD。"
+                    "`AnnihilationExecutionAgent` により外部コントローラ・永続復活機構の深層中和と `sanitizeEventBus()`（Forge イベントバス上の悪性不死リスナーの無力化）を実行する。",
+                    "Forge EventBus 自体に最高優先度・キャンセル不可バイパスの不死リスナーを登録して介入する防御機構。"
             );
             case T107_TERMINUS_ENGINE_SINGLE_EXECUTION -> new SpecEntry(
                     "終焉機構（TerminusEngine.executeTerminus）単体執行",

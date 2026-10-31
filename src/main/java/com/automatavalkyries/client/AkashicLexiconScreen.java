@@ -341,7 +341,8 @@ public final class AkashicLexiconScreen extends Screen {
             String tierBadge = String.format(Locale.ROOT, "[T%d]", st.tier);
             g.drawString(this.font, tierBadge, left + 15, y + 5, 0xFF55FFFF, false);
 
-            String codeShort = st.code.length() > 22 ? st.code.substring(0, 22) : st.code;
+            String dispCode = st.displayCode();
+            String codeShort = dispCode.length() > 22 ? dispCode.substring(0, 22) : dispCode;
             g.drawString(this.font, codeShort, left + 42, y + 5, on ? 0xFFFFFFFF : 0xFF777777, false);
 
             String jaTitle = st.titleJa();
@@ -391,7 +392,7 @@ public final class AkashicLexiconScreen extends Screen {
                 st.number, st.tier, spec.titleJa(), on ? "有効:ON" : "無効:OFF");
         g.drawString(this.font, this.font.plainSubstrByWidth(header, maxWidth), x, y, 0xFF55FFFF, true);
 
-        String exprLine = "コード: " + st.code + "  |  実行式: " + st.description;
+        String exprLine = "コード: " + st.displayCode() + "  |  実行式: " + st.description;
         g.drawString(this.font, this.font.plainSubstrByWidth(exprLine, maxWidth), x, y + 11, 0xFFCCCCCC, false);
 
         // 仕様技術（2行折り返し）
@@ -448,7 +449,7 @@ public final class AkashicLexiconScreen extends Screen {
         lines.add(Component.literal(String.format(Locale.ROOT, "[#%03d / Tier %d] %s",
                 st.number, st.tier, spec.titleJa())).withStyle(ChatFormatting.AQUA, ChatFormatting.BOLD));
         lines.add(Component.literal("分類: " + spec.categoryJa()).withStyle(ChatFormatting.GRAY));
-        lines.add(Component.literal("識別コード: " + st.code + "  |  式: " + st.description).withStyle(ChatFormatting.YELLOW));
+        lines.add(Component.literal("識別コード: " + st.displayCode() + "  |  式: " + st.description).withStyle(ChatFormatting.YELLOW));
         lines.add(Component.literal("【仕様技術・内部機構】").withStyle(ChatFormatting.GOLD));
         for (FormattedText part : this.font.getSplitter().splitLines(spec.mechanismSpec(), 280, net.minecraft.network.chat.Style.EMPTY)) {
             lines.add(Component.literal("  " + part.getString()).withStyle(ChatFormatting.WHITE));

@@ -114,7 +114,7 @@ public final class AkashicResistanceAuditor {
      *   <li>Tier 6 (T057..T066): SynchedEntityData（DataParameter）改ざん・ロック系 (INSTANT_KILL 10)</li>
      *   <li>Tier 7 (T067..T078): Unsafe プリミティブ・生死内部フィールド直書き系 (INSTANT_KILL 12)</li>
      *   <li>Tier 8 (T079..T088): 準汎用フラグ辞書・NBT・Capability・AI/脳/部位解体系 (INSTANT_KILL 10)</li>
-     *   <li>Tier 9 (T089..T098): 歴代チート MOD 特化解体（PIG2/SuperSteve/Madness/NoSugar 等）系 (INSTANT_KILL 10)</li>
+     *   <li>Tier 9 (T089..T098): 深層防御アーキテクチャ・外部制御機構解体（抹殺棒技術）系 (INSTANT_KILL 10)</li>
      *   <li>Tier 10 (T099..T108): ワールド全層抹消・深層 JVM メモリ崩壊・終焉機構（Terminus）系 (INSTANT_KILL 10)</li>
      * </ul>
      */
@@ -223,15 +223,15 @@ public final class AkashicResistanceAuditor {
         T087_AI_GOAL_BRAIN_TOTAL_LOBOTOMY(87, 8, TechniqueKind.INSTANT_KILL, "T087_ai_goal_brain_total_lobotomy", "Clear goalSelector/targetSelector/Brain + NoAI"),
         T088_REFLECTIVE_ZERO_ARG_CLEANUP_SWEEP(88, 8, TechniqueKind.INSTANT_KILL, "T088_reflective_zero_arg_cleanup_sweep", "Invoke 0-arg dispose/close/destroy/cleanup methods"),
 
-        // ==== Tier 9: 歴代チート MOD 特化解体（抹殺棒技術）系 (INSTANT_KILL: 10) ====
-        T089_COUNTER_IMMORTAL_WITHER_STRIP(89, 9, TechniqueKind.INSTANT_KILL, "T089_counter_immortal_wither_strip", "ImmortalWither shadow shield & regen strip"),
-        T090_COUNTER_TESSERACT_BEAST_BREAKER(90, 9, TechniqueKind.INSTANT_KILL, "T090_counter_tesseract_beast_breaker", "Tesseract dimensionalAnchor & hyperHealth zero"),
-        T091_COUNTER_FLASHFUR_OMNI_PURGE(91, 9, TechniqueKind.INSTANT_KILL, "T091_counter_flashfur_omni_purge", "Flashfur/Omni-Mobs protected list & shadowHP purge"),
-        T092_COUNTER_NOSUGAR_ERASE_INVERT(92, 9, TechniqueKind.INSTANT_KILL, "T092_counter_nosugar_erase_invert", "NoSugar erase/instantKill state inversion"),
-        T093_COUNTER_AVARITIA_ENIGMA_TELETUBBIES(93, 9, TechniqueKind.INSTANT_KILL, "T093_counter_avaritia_enigma_teletubbies", "Avaritia/Enigma/Teletubbies god-state strip"),
-        T094_COUNTER_SUPER_STEVE_CALLBACK_SEVER(94, 9, TechniqueKind.INSTANT_KILL, "T094_counter_super_steve_callback_sever", "SuperSteve custom health & callback sever"),
-        T095_COUNTER_PIG2_TRUELIFE_ZERO_PROXY(95, 9, TechniqueKind.INSTANT_KILL, "T095_counter_pig2_truelife_zero_proxy", "Pig2Helper.annihilate + Pig2EventPurger"),
-        T096_COUNTER_MADNESS_CONTROLLER_ANNIHILATE(96, 9, TechniqueKind.INSTANT_KILL, "T096_counter_madness_controller_annihilate", "MadnessAnnihilation.annihilate controller sever"),
+        // ==== Tier 9: 深層防御アーキテクチャ・外部制御機構解体（抹殺棒技術）系 (INSTANT_KILL: 10) ====
+        T089_COUNTER_IMMORTAL_WITHER_STRIP(89, 9, TechniqueKind.INSTANT_KILL, "T089_counter_immortal_wither_strip", "Shadow shield & per-tick regen field strip"),
+        T090_COUNTER_TESSERACT_BEAST_BREAKER(90, 9, TechniqueKind.INSTANT_KILL, "T090_counter_tesseract_beast_breaker", "Dimensional anchor & hyper-health field zero"),
+        T091_COUNTER_FLASHFUR_OMNI_PURGE(91, 9, TechniqueKind.INSTANT_KILL, "T091_counter_flashfur_omni_purge", "Global protected registry & shadow-HP purge"),
+        T092_COUNTER_NOSUGAR_ERASE_INVERT(92, 9, TechniqueKind.INSTANT_KILL, "T092_counter_nosugar_erase_invert", "Erase/instant-kill state flag inversion"),
+        T093_COUNTER_AVARITIA_ENIGMA_TELETUBBIES(93, 9, TechniqueKind.INSTANT_KILL, "T093_counter_avaritia_enigma_teletubbies", "God-equipment & invulnerability state strip"),
+        T094_COUNTER_SUPER_STEVE_CALLBACK_SEVER(94, 9, TechniqueKind.INSTANT_KILL, "T094_counter_super_steve_callback_sever", "Independent health field & callback sever"),
+        T095_COUNTER_PIG2_TRUELIFE_ZERO_PROXY(95, 9, TechniqueKind.INSTANT_KILL, "T095_counter_pig2_truelife_zero_proxy", "Internal self-termination route proxy execution"),
+        T096_COUNTER_MADNESS_CONTROLLER_ANNIHILATE(96, 9, TechniqueKind.INSTANT_KILL, "T096_counter_madness_controller_annihilate", "Detached external controller link sever"),
         T097_COUNTER_STATIC_KILL_LISTS_AND_NEUTRALIZER(97, 9, TechniqueKind.INSTANT_KILL, "T097_counter_static_kill_lists_and_neutralizer", "KillLists.purge + GenericCheatMobNeutralizer"),
         T098_COUNTER_MOD_PROTECTION_BREAKER_FULL(98, 9, TechniqueKind.INSTANT_KILL, "T098_counter_mod_protection_breaker_full", "ModProtectionBreaker.breakProtection full pass"),
 
@@ -259,6 +259,21 @@ public final class AkashicResistanceAuditor {
             this.kind = kind;
             this.code = code;
             this.description = description;
+        }
+
+        /** GUI・ツールチップ表示用の識別コード（特定MOD名を排した汎用技術識別子）を返す。 */
+        public String displayCode() {
+            return switch (this) {
+                case T089_COUNTER_IMMORTAL_WITHER_STRIP -> "T089_shadow_shield_regen_strip";
+                case T090_COUNTER_TESSERACT_BEAST_BREAKER -> "T090_dimensional_anchor_hyper_hp_zero";
+                case T091_COUNTER_FLASHFUR_OMNI_PURGE -> "T091_global_protected_list_shadow_purge";
+                case T092_COUNTER_NOSUGAR_ERASE_INVERT -> "T092_erase_flag_state_inversion";
+                case T093_COUNTER_AVARITIA_ENIGMA_TELETUBBIES -> "T093_equipment_god_state_strip";
+                case T094_COUNTER_SUPER_STEVE_CALLBACK_SEVER -> "T094_independent_health_callback_sever";
+                case T095_COUNTER_PIG2_TRUELIFE_ZERO_PROXY -> "T095_internal_death_route_proxy";
+                case T096_COUNTER_MADNESS_CONTROLLER_ANNIHILATE -> "T096_external_controller_link_sever";
+                default -> this.code;
+            };
         }
 
         /** この技術の仕様解説エントリ（日本語名称・分類・使用技術仕様・突破対象防御）を返す。 */

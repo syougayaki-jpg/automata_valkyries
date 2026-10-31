@@ -180,7 +180,7 @@ public class AkashicLexiconItem extends Item {
         }
         String detail;
         if (report.penetrated()) {
-            String stageCode = report.penetratedStage() != null ? report.penetratedStage().code : "PENETRATED";
+            String stageCode = report.penetratedStage() != null ? report.penetratedStage().displayCode() : "PENETRATED";
             detail = String.format(Locale.ROOT, "貫通撃破! (%s / %d段階執行%s)%s",
                     stageCode, report.executedStages(),
                     extraDefeated > 0 ? " +周囲" + extraDefeated + "体" : "",
