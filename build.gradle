@@ -783,6 +783,11 @@ tasks.named('jar', Jar).configure {
     from(agentFiles) {
         into 'META-INF/automata_valkyries/agents'
     }
+    // 配布の jar には GameTest（試験と、架空の MOD を再現する試験用の Mixin）を入れない（2026-10-31 ユーザー指定「配布用にちゃんと纏めて整理して」）。
+    // 開発の起動（runClient / runGameTestServer）は jar ではなく classes を読み、Mixin の設定も上の mixin { config ... } から渡るので、試験はそのまま動く。
+    // このMOD のほかのクラスは GameTest のクラスを名前の文字列でしか見ない（直接の参照は無い）
+    exclude 'com/automatavalkyries/gametest/**'
+    exclude "${mod_id}.test.mixins.json"
     manifest {
         attributes([
                 'Specification-Title'     : mod_id,
@@ -792,7 +797,7 @@ tasks.named('jar', Jar).configure {
                 'Implementation-Version'  : project.jar.archiveVersion,
                 'Implementation-Vendor'   : mod_authors,
                 'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ"),
-                'MixinConfigs'            : "${mod_id}.mixins.json,${mod_id}.test.mixins.json"
+                'MixinConfigs'            : "${mod_id}.mixins.json"
         ])
     }
 

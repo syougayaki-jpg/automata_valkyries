@@ -23,6 +23,9 @@ modId="${mod_id}" #mandatory
 version="${mod_version}" #mandatory
 # A display name for the mod
 displayName="${mod_name}" #mandatory
+# MOD の一覧に出すロゴ（2026-10-31 ユーザー指定。src/main/resources/logo.png、512x512）
+logoFile="logo.png"
+logoBlur=true  # 細かい絵なので縮める時はなめらかに
 # A URL to query for updates for this mod. See the JSON update specification https://docs.minecraftforge.net/en/latest/misc/updatechecker/
 #updateJSONURL="https://change.me.example.invalid/updates.json" #optional
 # A URL for the "homepage" for this mod, displayed in the mod UI

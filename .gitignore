@@ -40,3 +40,4 @@ agents/*.jar
 
 # Python bytecode from tools/
 __pycache__/
+dist
