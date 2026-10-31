@@ -80,9 +80,13 @@ public class FrostMissileEntity extends ThrowableProjectile {
         double speed = Math.min(MAX_SPEED, motion.length() + 0.08);
         Vec3 dir = motion.lengthSqr() > 1.0E-6 ? motion.normalize() : getLookAngle();
         if (target != null) {
-            Vec3 to = target.position().add(0, target.getBbHeight() * 0.5, 0).subtract(position()).normalize();
-            double turn = Math.min(0.45, 0.12 + (tickCount - LAUNCH) * 0.02); // 飛ぶほどよく曲がる
-            dir = dir.lerp(to, turn).normalize();
+            Vec3 off = target.position().add(0, target.getBbHeight() * 0.5, 0).subtract(position());
+            double dist = off.length();
+            // 飛ぶほどよく曲がる。近く（4 ブロック以内）ではまっすぐ向き、行き過ぎないよう速さを残りの距離までに抑える
+            // （速さ 1.6 で曲がりきれず、的のまわりを回り続けて当たらなかった。2026-11-01「アバランチがロックオンしない」）
+            double turn = dist < 4.0 ? 1.0 : Math.min(0.45, 0.12 + (tickCount - LAUNCH) * 0.02);
+            dir = dir.lerp(off.normalize(), turn).normalize();
+            speed = Math.min(speed, Math.max(0.3, dist));
         }
         setDeltaMovement(dir.scale(speed));
     }

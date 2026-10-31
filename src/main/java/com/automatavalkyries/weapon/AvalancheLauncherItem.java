@@ -162,17 +162,29 @@ public class AvalancheLauncherItem extends TacticalWeaponItem implements Valkyri
         return missile;
     }
 
-    /** 前方 128 ブロック・左右 60 度の敵（撃った者が最後に殴った相手を先に）、近い順 */
+    /**
+     * 前方 128 ブロック・左右 60 度の見えている敵（撃った者が最後に殴った相手、次に狙っている相手を先に）、近い順。
+     * 壁や地面の向こう（洞窟の中など）の敵は選ばない（選ぶとミサイルが地面へ向かい、狙った敵を追わなかった。2026-11-01「まだ追尾してくれない」）
+     */
     public static List<LivingEntity> targets(LivingEntity user) {
         Vec3 eye = user.getEyePosition(), look = user.getLookAngle();
         LivingEntity preferred = user.getLastHurtMob();
         List<LivingEntity> list = new ArrayList<>();
+        LivingEntity aimed = null;
+        double best = 0.97; // 照準のまわり約 14 度
         for (LivingEntity e : user.level().getEntitiesOfClass(LivingEntity.class, user.getBoundingBox().inflate(RANGE),
                 e -> e != user && e.isAlive() && !e.isSpectator() && !e.isAlliedTo(user) && (e instanceof Enemy || e == preferred))) {
             Vec3 to = e.position().add(0, e.getBbHeight() * 0.5, 0).subtract(eye);
-            if (to.length() <= RANGE && to.normalize().dot(look) >= 0.5) list.add(e);
+            double dot = to.normalize().dot(look);
+            if (to.length() > RANGE || dot < 0.5 || !user.hasLineOfSight(e)) continue;
+            list.add(e);
+            if (dot > best) {
+                best = dot;
+                aimed = e;
+            }
         }
-        list.sort(Comparator.comparingDouble(e -> e == preferred ? -1 : e.distanceToSqr(user)));
+        LivingEntity first = aimed;
+        list.sort(Comparator.comparingDouble(e -> e == preferred ? -2 : e == first ? -1 : e.distanceToSqr(user)));
         return list;
     }
 

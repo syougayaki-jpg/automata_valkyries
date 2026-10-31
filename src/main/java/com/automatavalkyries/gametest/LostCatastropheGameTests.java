@@ -182,7 +182,7 @@ public class LostCatastropheGameTests {
     }
 
     /** FE 強制ドレイン: まわりの兵姫の電力を吸い、障壁にする */
-    @GameTest(template = TEMPLATE, batch = "lost_catastrophe")
+    @GameTest(template = TEMPLATE, batch = "lost_catastrophe_drain") // そばの兵姫の電力を吸うので、兵姫を使うほかの試験と別の組で
     public static void drainTurnsEnergyIntoShield(GameTestHelper helper) {
         LostCatastropheEntity boss = boss(helper);
         ValkyrieEntity v = helper.spawn(ModEntities.VALKYRIE.get(), 3, 2, 3);
@@ -198,6 +198,29 @@ public class LostCatastropheGameTests {
         boss.hurt(helper.getLevel().damageSources().generic(), 1.0F);
         helper.assertTrue(boss.getHealth() == hp && boss.shield() < sh, "the shield did not absorb the hit first");
         v.releaseAndDiscard();
+        boss.discard();
+        helper.succeed();
+    }
+
+    /** 真ん中へ引き寄せる技（虚無特異点・禍つ嵐・黙示の大嵐）: プレイヤーは少しずつ寄せられ、原点のそばへ飛ばされない（2026-11-01「０座標までとばされる」） */
+    @GameTest(template = TEMPLATE, batch = "lost_catastrophe_pull")
+    public static void pullDragsPlayersInsteadOfThrowingThemToTheOrigin(GameTestHelper helper) {
+        LostCatastropheEntity boss = boss(helper);
+        // 試験用のプレイヤーはクリエイティブ扱いで技が当たらないので、サバイバルのプレイヤーを同じ作り方で置く
+        net.minecraft.server.level.ServerPlayer player = new net.minecraft.server.level.ServerPlayer(helper.getLevel().getServer(), helper.getLevel(),
+                new com.mojang.authlib.GameProfile(java.util.UUID.randomUUID(), "pull-test"));
+        var connection = new net.minecraft.network.Connection(net.minecraft.network.protocol.PacketFlow.SERVERBOUND);
+        new io.netty.channel.embedded.EmbeddedChannel(connection); // Forge は置くときに通信路を使う
+        helper.getLevel().getServer().getPlayerList().placeNewPlayer(connection, player);
+        player.setGameMode(net.minecraft.world.level.GameType.SURVIVAL); // 試験のサーバーの既定はクリエイティブ
+        Vec3 start = Vec3.atBottomCenterOf(helper.absolutePos(new net.minecraft.core.BlockPos(5, 2, 1)));
+        player.moveTo(start.x, start.y, start.z, 0.0F, 0.0F);
+        Vec3 center = Vec3.atBottomCenterOf(helper.absolutePos(new net.minecraft.core.BlockPos(1, 2, 1)));
+        boss.pull(center, 8.0, 0.12, 0.0);
+        double moved = player.position().distanceTo(start);
+        helper.assertTrue(moved > 0.05 && moved < 0.5, "the pull moved the player " + moved + " blocks (to " + player.position() + ")");
+        helper.assertTrue(player.position().distanceTo(center) < start.distanceTo(center), "the pull did not drag the player toward the center");
+        helper.getLevel().getServer().getPlayerList().remove(player); // 次の試験へ残さない
         boss.discard();
         helper.succeed();
     }

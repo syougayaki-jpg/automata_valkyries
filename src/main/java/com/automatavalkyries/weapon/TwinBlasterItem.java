@@ -72,13 +72,20 @@ public class TwinBlasterItem extends TacticalWeaponItem implements ValkyrieArts.
         int t = getUseDuration(stack) - remaining;
         if (t % INTERVAL != 0) return;
         if (level instanceof ServerLevel server) {
-            if (!WeaponPower.use(user, stack, PER_SHOT)) {
+            // 両手にツインブラスターなら左右の銃から交互に撃つ（電力は撃った方から。2026-11-01）
+            InteractionHand used = user.getUsedItemHand();
+            InteractionHand other = used == InteractionHand.MAIN_HAND ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND;
+            boolean both = user.getItemInHand(other).getItem() instanceof TwinBlasterItem;
+            int n = t / INTERVAL;
+            InteractionHand firing = both && n % 2 == 1 ? other : used;
+            ItemStack gun = user.getItemInHand(firing);
+            if (!WeaponPower.use(user, gun, PER_SHOT)) {
                 notEnoughPower(user);
                 user.releaseUsingItem();
                 return;
             }
-            shot(server, user, handSide(user, user.getUsedItemHand()), (t / INTERVAL) % 2 == 0 ? 1 : -1);
-            playUse(user, stack);
+            shot(server, user, handSide(user, firing), (both ? n / 2 : n) % 2 == 0 ? 1 : -1);
+            playUse(user, gun);
         } else {
             clientKick(user);
         }

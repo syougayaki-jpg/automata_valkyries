@@ -1155,7 +1155,8 @@ public class TimeRulerEntity extends Monster implements GeoEntity, ChronoGazer, 
             double dist = rel.length();
             if (dist > 1.2 && dist < 32.0 && t % 3 == 0) {                            // 引き寄せ（1 秒に 2.4 m。歩けば抗える）
                 Vec3 step = rel.scale(0.12 / dist);
-                if (e instanceof ServerPlayer p) p.connection.teleport(step.x, 0, step.z, 0, 0, java.util.EnumSet.allOf(net.minecraft.world.entity.RelativeMovement.class));
+                // teleport は座標をそのまま（絶対）で受け取り、相対の印はクライアントへ送る差にだけ効く。引く量だけを渡すと原点のそばへ飛んでいた（2026-11-01「０座標までとばされる」）
+                if (e instanceof ServerPlayer p) p.connection.teleport(p.getX() + step.x, p.getY(), p.getZ() + step.z, p.getYRot(), p.getXRot(), java.util.EnumSet.allOf(net.minecraft.world.entity.RelativeMovement.class));
                 else e.push(step.x, 0, step.z);
             }
             if (t >= 20 && t % 10 == 0) {                                              // 回る 3 本の時針の光（腰の高さ）

@@ -429,7 +429,64 @@ public class WeaponGameTests {
         }, user);
     }
 
+    /** アバランチ: 撃ち出したミサイルは上へ広がって飛び出してから、斜め前の敵へ曲がって当たる（2026-11-01「アバランチがロックオンしない」） */
+    @GameTest(template = TEMPLATE, timeoutTicks = 200, batch = "weapon_frost_homing")
+    public static void avalancheMissilesHome(GameTestHelper helper) {
+        Zombie user = facingX(helper, new Vec3(0.5, 2, 1.5));
+        sunproof(user);
+        Zombie target = tough(helper, new Vec3(7.5, 2, 4.5));
+        // 最後に殴った相手を先に狙う（照準の先、遠くに他の試験のボスがいると、そちらが先になるので）
+        user.setLastHurtMob(target);
+        whenLoaded(helper, () -> {
+            helper.assertTrue(com.automatavalkyries.weapon.AvalancheLauncherItem.targets(user).get(0) == target, "the target was not picked first");
+            java.util.List<net.minecraft.world.entity.Entity> ms = new java.util.ArrayList<>();
+            for (int n = 0; n < 4; n++) ms.add(com.automatavalkyries.weapon.AvalancheLauncherItem.launch(helper.getLevel(), user, n, n % 2 == 0 ? 1 : -1));
+            helper.succeedWhen(() -> helper.assertTrue(target.getHealth() < target.getMaxHealth(), "no missile reached the target: "
+                    + ms.stream().map(m -> helper.relativeVec(m.position()) + " age=" + m.tickCount + " removed=" + m.isRemoved()).toList()));
+        }, user, target);
+    }
+
+    /** アバランチ: 壁の向こうの敵は選ばず、見えている敵だけを狙う（2026-11-01「まだ追尾してくれない」） */
+    @GameTest(template = TEMPLATE, batch = "weapon_frost_sight")
+    public static void avalancheSkipsHiddenEnemies(GameTestHelper helper) {
+        Zombie user = facingX(helper, new Vec3(0.5, 2, 1.5));
+        sunproof(user);
+        for (int y = 2; y <= 4; y++) for (int z = 0; z <= 1; z++) helper.setBlock(new BlockPos(3, y, z), net.minecraft.world.level.block.Blocks.STONE);
+        Zombie hidden = tough(helper, new Vec3(6.5, 2, 1.5));
+        Zombie seen = tough(helper, new Vec3(7.5, 2, 4.5));
+        whenLoaded(helper, () -> {
+            var list = com.automatavalkyries.weapon.AvalancheLauncherItem.targets(user);
+            helper.assertTrue(list.contains(seen), "the visible enemy was not picked");
+            helper.assertFalse(list.contains(hidden), "the enemy behind the wall was picked");
+            helper.succeed();
+        }, user, hidden, seen);
+    }
+
+    /** アバランチ: プレイヤーが右クリックで撃つと、20 ブロック先のルクシオン EX へ曲がって当たる（ゲームでの使い方のまま。2026-11-01） */
+    @GameTest(template = TEMPLATE, timeoutTicks = 240, batch = "weapon_frost_homing_player")
+    public static void avalancheHitsLuxionFromPlayer(GameTestHelper helper) {
+        FakePlayer player = player(helper, new Vec3(0.5, 2, 1.5));
+        ItemStack gun = ((TacticalWeaponItem) ModWeapons.AVALANCHE.get()).charged();
+        player.setItemInHand(InteractionHand.MAIN_HAND, gun);
+        var lux = helper.spawn(com.automatavalkyries.registry.ModEntities.LUXION_EX.get(), new Vec3(20.5, 2, 4.5));
+        lux.setNoAi(true);
+        whenLoaded(helper, () -> {
+            helper.assertTrue(com.automatavalkyries.weapon.AvalancheLauncherItem.targets(player).contains(lux), "luxion was not picked");
+            float before = lux.getHealth();
+            gun.getItem().use(helper.getLevel(), player, InteractionHand.MAIN_HAND);
+            helper.onEachTick(() -> gun.inventoryTick(helper.getLevel(), player, 0, true));
+            helper.succeedWhen(() -> helper.assertTrue(lux.getHealth() < before, "no missile reached luxion: hp " + lux.getHealth() + " missiles "
+                    + helper.getLevel().getEntitiesOfClass(com.automatavalkyries.weapon.FrostMissileEntity.class, player.getBoundingBox().inflate(64)).stream()
+                    .limit(4).map(m -> helper.relativeVec(m.position()) + " age=" + m.tickCount).toList()));
+        }, lux);
+    }
+
     // ======== 追加の兵装 10 種（長射程・範囲の攻撃が隣のテストに届かないよう、それぞれ別の組で動かす） ========
+
+    /** 撃つ側のゾンビが日光で燃えて「自分に当たった」と見誤らないように（試験場は空の下。2026-11-01） */
+    private static void sunproof(Zombie user) {
+        user.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.FIRE_RESISTANCE, -1, 0, false, false));
+    }
 
     private static Zombie facingX(GameTestHelper helper, Vec3 at) {
         Zombie user = dummy(helper, at);
@@ -953,6 +1010,47 @@ public class WeaponGameTests {
             helper.assertTrue(target.getHealth() < first, "second bolt was blocked by invulnerability");
             sweep(helper);
                 helper.succeed();
+        }, user, target);
+    }
+
+    /** ツインブラスター: 押し続けると（使っている間の毎 Tick の処理で）連射する。持ち主が実際に使ったときの流れ（2026-11-01「ツインブラスターが打てない」） */
+    @GameTest(template = TEMPLATE, batch = "weapon2_twin_hold", timeoutTicks = 400)
+    public static void twinBlasterFiresWhileHeld(GameTestHelper helper) {
+        Zombie user = facingX(helper, new Vec3(0.5, 2, 2.5));
+        Zombie target = tough(helper, new Vec3(4.5, 2, 2.5));
+        ItemStack blaster = ((com.automatavalkyries.weapon.TacticalWeaponItem) ModWeapons.TWIN_BLASTER.get()).charged();
+        user.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, blaster);
+        whenLoaded(helper, () -> {
+            user.startUsingItem(net.minecraft.world.InteractionHand.MAIN_HAND);
+            helper.assertTrue(user.isUsingItem(), "the blaster could not be used");
+            helper.runAfterDelay(12, () -> {
+                helper.assertTrue(target.getHealth() < target.getMaxHealth(), "holding the blaster fired nothing (using=" + user.isUsingItem()
+                        + ", energy=" + com.automatavalkyries.item.ItemEnergy.get(user.getMainHandItem()) + ")");
+                user.stopUsingItem();
+                sweep(helper);
+                helper.succeed();
+            });
+        }, user, target);
+    }
+
+    /** ツインブラスター: 両手に持つと左右の銃から交互に撃つ（電力は撃った方から減る。2026-11-01） */
+    @GameTest(template = TEMPLATE, batch = "weapon2_twin_dual", timeoutTicks = 400)
+    public static void twinBlasterDualAlternates(GameTestHelper helper) {
+        Zombie user = facingX(helper, new Vec3(0.5, 2, 2.5));
+        Zombie target = tough(helper, new Vec3(4.5, 2, 2.5));
+        var blaster = (com.automatavalkyries.weapon.TacticalWeaponItem) ModWeapons.TWIN_BLASTER.get();
+        user.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, blaster.charged());
+        user.setItemInHand(net.minecraft.world.InteractionHand.OFF_HAND, blaster.charged());
+        int full = com.automatavalkyries.item.ItemEnergy.get(user.getMainHandItem());
+        whenLoaded(helper, () -> {
+            user.startUsingItem(net.minecraft.world.InteractionHand.MAIN_HAND);
+            helper.runAfterDelay(12, () -> {
+                int main = com.automatavalkyries.item.ItemEnergy.get(user.getMainHandItem()), off = com.automatavalkyries.item.ItemEnergy.get(user.getOffhandItem());
+                helper.assertTrue(main < full && off < full, "both blasters should fire (main=" + main + ", off=" + off + ", full=" + full + ")");
+                user.stopUsingItem();
+                sweep(helper);
+                helper.succeed();
+            });
         }, user, target);
     }
 

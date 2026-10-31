@@ -46,6 +46,9 @@ public final class DualWieldClient {
         if (!event.isUseItem() || event.getHand() != InteractionHand.MAIN_HAND) return;
         HitResult hit = mc.hitResult;
         if (!shift && hit != null && hit.getType() == HitResult.Type.BLOCK) return; // ブロックへの右クリックはいつもどおり
+        // 左手の物が押し続けて使う物（連射のツインブラスター・溜めて撃つ兵装）なら、1 回の合図では撃てないので置き換えない。
+        // いつもどおり右クリックで使う（右手の物から試して、使えなければ左手。両手にツインブラスターで撃てなかった。2026-11-01「ツインブラスターが打てない」）
+        if (holdToUse(off, player)) return;
         if (shift ? DualWield.hasSkill(off) : (!DualWield.hasAttack(off) && DualWield.hasSkill(off))) {
             cancel(event);
             ModNetwork.CHANNEL.sendToServer(new DualWieldPacket(DualWieldPacket.OFF_SKILL, -1));
@@ -61,6 +64,11 @@ public final class DualWieldClient {
             ModNetwork.CHANNEL.sendToServer(new DualWieldPacket(DualWieldPacket.OFF_ATTACK, target));
             player.swing(InteractionHand.OFF_HAND);
         }
+    }
+
+    /** 押し続けて使う兵装か（使っている時間がある） */
+    private static boolean holdToUse(ItemStack stack, LocalPlayer player) {
+        return stack.getItem() instanceof com.automatavalkyries.weapon.TacticalWeaponItem && DualWield.hasSkill(stack) && stack.getUseDuration() > 0;
     }
 
     private static void cancel(InputEvent.InteractionKeyMappingTriggered event) {

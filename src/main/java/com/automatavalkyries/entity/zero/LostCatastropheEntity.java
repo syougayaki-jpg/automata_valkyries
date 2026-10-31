@@ -1028,7 +1028,8 @@ public class LostCatastropheEntity extends Monster implements GeoEntity, ChronoG
                 double dist = rel.length();
                 if (dist < 1.0 || dist > 14.0) continue;
                 Vec3 step = rel.scale(0.14 / dist);
-                if (e instanceof ServerPlayer p) p.connection.teleport(step.x, 0, step.z, 0, 0, java.util.EnumSet.allOf(net.minecraft.world.entity.RelativeMovement.class));
+                // teleport は座標をそのまま（絶対）で受け取り、相対の印はクライアントへ送る差にだけ効く。引く量だけを渡すと原点のそばへ飛んでいた（2026-11-01「０座標までとばされる」）
+                if (e instanceof ServerPlayer p) p.connection.teleport(p.getX() + step.x, p.getY(), p.getZ() + step.z, p.getYRot(), p.getXRot(), java.util.EnumSet.allOf(net.minecraft.world.entity.RelativeMovement.class));
                 else e.push(step.x, 0, step.z);
             }
         }
@@ -1186,13 +1187,14 @@ public class LostCatastropheEntity extends Monster implements GeoEntity, ChronoG
     //      第 1 形態から: 赫雷・終の大波・禍つ嵐・煉獄焔。第 2 形態から: 黒雷の十字架・焔の大海嘯。第 3 形態から: 黙示の大嵐・赫焉天墜 ----
 
     /** c のまわり range の者を真ん中へ引き寄せる（プレイヤーは相対移動で。lift で浮かせる） */
-    void pull(Vec3 c, double range, double strength, double lift) {
+    public void pull(Vec3 c, double range, double strength, double lift) {
         for (LivingEntity e : level().getEntitiesOfClass(LivingEntity.class, new AABB(c, c).inflate(range, 8.0, range), ChronoGazer::canHurt)) {
             Vec3 rel = c.subtract(e.position()).multiply(1, 0, 1);
             double dist = rel.length();
             if (dist < 0.8 || dist > range) continue;
             Vec3 step = rel.scale(strength / dist);
-            if (e instanceof ServerPlayer p) p.connection.teleport(step.x, lift, step.z, 0, 0, java.util.EnumSet.allOf(net.minecraft.world.entity.RelativeMovement.class));
+            // teleport は座標をそのまま（絶対）で受け取り、相対の印はクライアントへ送る差にだけ効く。引く量だけを渡すと原点のそばへ飛んでいた（2026-11-01「０座標までとばされる」）
+            if (e instanceof ServerPlayer p) p.connection.teleport(p.getX() + step.x, p.getY() + lift, p.getZ() + step.z, p.getYRot(), p.getXRot(), java.util.EnumSet.allOf(net.minecraft.world.entity.RelativeMovement.class));
             else e.push(step.x, lift, step.z);
         }
     }
