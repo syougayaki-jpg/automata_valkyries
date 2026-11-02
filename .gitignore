@@ -44,3 +44,29 @@ dist
 
 # Runtime logs written to the project root
 /logs/
+
+# Not published: Forge MDK leftovers
+/README.txt
+/changelog.txt
+/CREDITS.txt
+
+# Not published: AI assistant settings and hand-off notes
+/CLAUDE.md
+/AGENTS.md
+/.claude/
+/docs/HANDOFF_*.md
+/docs/REVIEW_*.md
+/docs/CODEX_GENERALIZATION_PROGRESS.md
+/docs/TACTICAL_DOLL_CHAT_CONTEXT.md
+/docs/BENCH_*.md
+/docs/TERMINUS_FIXES_*.md
+
+# Not published: instant-kill mod research notes
+/docs/RESEARCH_INSTANT_KILL_*.md
+/docs/OMNI_SEMIGENERIC_DISMANTLING.md
+/docs/EPROTECT_PLUS_*.md
+/docs/SPEC_JAVA_AGENT_TERMINUS_AND_EPROTECT_PLUS.md
+
+# Not published: local dev helpers and generator source models
+/run_client_with_agent.bat
+/tools/models/
