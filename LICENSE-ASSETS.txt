@@ -1,0 +1,31 @@
+Automata Valkyries - Asset License
+Copyright (c) 2026 sfdge. All Rights Reserved.
+
+The source code of this mod is licensed under the Mozilla Public License 2.0
+(see LICENSE.txt). The following are NOT covered by the MPL-2.0 and remain
+All Rights Reserved:
+
+  - Everything under src/main/resources/assets/automata_valkyries/
+    (models, geo/mesh files, textures, animations, particles, sounds,
+    shaders, language files and the in-game guide text)
+  - The names, designs, settings, story and lines of the characters
+    (valkyries) and bosses of this mod
+
+You may:
+  - Include the unmodified mod jar in modpacks, public or private.
+  - Show the assets in videos, screenshots, streams and reviews.
+
+You may not, without permission from the author:
+  - Copy, modify or redistribute these assets outside the unmodified mod jar.
+  - Use these assets or characters in other mods, games or works.
+
+------------------------------------------------------------------------
+このMOD のソースコードは Mozilla Public License 2.0（LICENSE.txt）です。
+上に挙げたアセット（モデル・テクスチャ・アニメーション・音・シェーダー・
+翻訳の文章・ガイド）と、兵姫・ボスの名前・デザイン・設定・物語・台詞は
+MPL-2.0 の対象外で、All Rights Reserved（作者: sfdge）です。
+
+してよいこと: 改変していない jar の MOD パックへの収録、動画・配信・
+スクリーンショットでの使用。
+許可なくしないでください: アセットの抜き出し・改変・再配布、
+他の MOD・ゲーム・作品での使用。

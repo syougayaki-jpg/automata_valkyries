@@ -1,0 +1,65 @@
+name: 不具合の報告 / Bug report
+description: クラッシュ・おかしな動き・表示の崩れなど / Crashes, wrong behavior, broken visuals
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        報告ありがとうございます。日本語・英語のどちらでも大丈夫です。
+        Thanks for the report. Japanese or English is fine.
+  - type: input
+    id: mod-version
+    attributes:
+      label: MOD のバージョン / Mod version
+      placeholder: "0.1.1"
+    validations:
+      required: true
+  - type: input
+    id: forge-version
+    attributes:
+      label: Forge のバージョン / Forge version
+      placeholder: "47.4.23"
+    validations:
+      required: true
+  - type: dropdown
+    id: side
+    attributes:
+      label: 遊び方 / Environment
+      options:
+        - シングルプレイ / Singleplayer
+        - マルチプレイ（専用サーバー） / Dedicated server
+        - LAN
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 何が起きたか / What happened
+      description: 期待した動きと、実際の動き / What you expected and what actually happened
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 再現の手順 / Steps to reproduce
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: mods
+    attributes:
+      label: 一緒に入れている MOD / Other mods
+      description: |
+        特に Java エージェントを持つ MOD や即死系の MOD は必ず書いてください。
+        Please list especially mods with Java agents or instant-kill features.
+  - type: textarea
+    id: logs
+    attributes:
+      label: ログ / Logs
+      description: |
+        crash-reports/ のファイルや logs/latest.log を貼るか、mclo.gs などのリンクを貼ってください。
+        Paste the crash report or logs/latest.log, or a link (e.g. mclo.gs).
+      render: text

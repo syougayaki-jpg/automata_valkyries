@@ -65,7 +65,9 @@ Minecraft **1.20.1** ／ Forge **47.4** 以降 ／ 前提 MOD **GeckoLib 4.8** �
 
 ### ライセンス
 
-All Rights Reserved（作者: sfdge）。再配布・改変版の配布はご遠慮ください。
+- **コード**（Java のソース、ビルドの設定、`data/` 以下のレシピ・タグなどのデータ）: [Mozilla Public License 2.0](LICENSE.txt)。改変したファイルを配布するときは、そのファイルのソースも MPL-2.0 で公開してください。
+- **アセット**（`src/main/resources/assets/automata_valkyries/` 以下のモデル・テクスチャ・アニメーション・音・シェーダー・翻訳の文章・ガイド、およびキャラクター・ボスの名前・設定・台詞）: All Rights Reserved（作者: sfdge）。詳しくは [`LICENSE-ASSETS.txt`](LICENSE-ASSETS.txt)。
+- **MOD パック**: 改変していない jar を MOD パックに入れて配布するのは自由です（連絡不要）。
 
 ---
 
@@ -109,4 +111,6 @@ Config files are `config/automata_valkyries-*.toml`. Every option is listed in [
 
 ### License
 
-All Rights Reserved (author: sfdge). Please do not redistribute or publish modified versions.
+- **Code** (Java sources, build scripts, and data under `data/` such as recipes and tags): [Mozilla Public License 2.0](LICENSE.txt). If you distribute a modified file, publish its source under MPL-2.0 too.
+- **Assets** (models, textures, animations, sounds, shaders, translated text and the guide under `src/main/resources/assets/automata_valkyries/`, plus the names, settings and lines of the characters and bosses): All Rights Reserved (author: sfdge). See [`LICENSE-ASSETS.txt`](LICENSE-ASSETS.txt).
+- **Modpacks**: You may include the unmodified jar in any modpack. No need to ask.

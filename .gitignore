@@ -41,3 +41,6 @@ agents/*.jar
 # Python bytecode from tools/
 __pycache__/
 dist
+
+# Runtime logs written to the project root
+/logs/

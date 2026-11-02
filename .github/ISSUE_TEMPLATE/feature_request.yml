@@ -1,0 +1,15 @@
+name: 要望 / Feature request
+description: 新しい機能・連携・調整の提案 / Suggest a feature, integration or balance change
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: 内容 / Idea
+      description: 何がほしいか、なぜほしいか / What you want and why
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 他の案 / Alternatives
